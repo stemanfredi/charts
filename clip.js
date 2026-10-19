@@ -26,9 +26,11 @@ const CONTOUR_MASK_MINZOOM = 8;
 
 // Water bodies whose surface is not at sea level but which OSM maps with a coastline
 // (so they arrive as `ocean`). Depths inside them are measured from that surface.
-// [name, [west, south, east, north], surface elevation m]
+// [name, [west, south, east, north], surface elevation m, max DEM zoom with real depths]
+// Caspian: above zoom 6 one of Terrarium's sources has only the flat lake surface (−29 m) in
+// large rectangles, which read as 1 m deep; zoom 6 still carries the bathymetry.
 export const DATUMS = [
-  ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28],
+  ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28, 6],
 ];
 const tileBounds = (z, x, y) => {
   const n = 2 ** z, lat = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI;
@@ -43,6 +45,10 @@ const SEA_LEVEL_WATER_M = 5;
 const waterLevel = new Map(); // OSM id → true if at sea level
 // value the sea tiles carry for water without a depth source; DEPTH_RAMP paints it grey
 export const NO_DEPTH_M = 9000;
+// land value in the shaded sea tiles (contours still get +1 m): pulls the tint edge back to the
+// water pixels, so it never covers the shore line; the sliver it leaves shows the water fill,
+// which app.js colours like the shallowest band while depth shading is on
+const LAND_SHADE_M = 500;
 const SIZE = 256;
 
 // ---- minimal Mapbox Vector Tile reader: just the `water` polygons ----------------
@@ -137,10 +143,12 @@ async function fetchOk(url, signal) {
 }
 
 // Water mask for DEM tile z/x/y: 0 land, 1 OSM sea, 2 inland water at sea level, 3 lake.
-// A 256 px tile at z has the resolution of the 512 px OpenMapTiles tile at z−1, which is
-// the one the basemap loads. demAt(px, py) reads the DEM at a tile pixel; h0 is the datum.
-async function seaMask(omtTemplate, z, x, y, demAt, h0, signal) {
-  const oz = Math.max(0, Math.min(z - 1, OMT_MAXZOOM)), d = z - oz;
+// It must use the OpenMapTiles tile the basemap shows at the same map zoom, or the two
+// coastlines differ where OSM is generalised: 256 px raster-dem tiles at z show at map
+// zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
+// at z show at map zoom z → OMT z (omtOffset 0). demAt(px, py) reads the DEM; h0 is the datum.
+async function seaMask(omtTemplate, z, x, y, demAt, h0, omtOffset, signal) {
+  const oz = Math.max(0, Math.min(z - omtOffset, OMT_MAXZOOM)), d = z - oz;
   const ox = x >> d, oy = y >> d;
   const layer = await omtCache(`${oz}/${ox}/${oy}`, async () => {
     const url = (await omtTemplate).replace('{z}', oz).replace('{x}', ox).replace('{y}', oy);
@@ -171,7 +179,9 @@ async function seaMask(omtTemplate, z, x, y, demAt, h0, signal) {
     g.fillStyle = ['', '#f00', '#0f0', '#00f'][kind];
     for (const f of layer.features) {
       if (f.cls === 'swimming_pool') continue;
-      const fk = SEA_CLASSES.has(f.cls) ? 1 : atSeaLevel(f) ? 2 : 3;
+      // inland water at a DATUMS surface is that water body (OSM tiles carry the Caspian as
+      // `lake` at some zooms): real depths from its surface, not the flat lagoon class
+      const fk = SEA_CLASSES.has(f.cls) ? 1 : atSeaLevel(f) ? (h0 !== 0 ? 1 : 2) : 3;
       if (fk !== kind) continue;
       g.beginPath(); // one path per feature, so overlapping water features add up instead of cancelling
       for (const r of f.rings) {
@@ -208,11 +218,13 @@ export function clipper({ template, native, mode, omtTileJson }) {
   const omtTemplate = fetch(omtTileJson, { credentials: 'omit' }).then((r) => r.json()).then((tj) => tj.tiles[0]);
   const cache = lru(128);
   // shared by several requesters, so no single requester's abort signal is passed down
-  const elevation = (z, x, y, masked = true) => cache(`${z}/${x}/${y}/${masked}`, async () => {
+  const elevation = (z, x, y, masked = true, omtOffset = 1) => cache(`${z}/${x}/${y}/${masked}/${omtOffset}`, async () => {
     if (mode === 'land' && z < LAND_CLIP_MINZOOM) {
       return (await demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y))).e;
     }
-    const nz = Math.min(z, native), d = z - nz, f = 2 ** d, n = 2 ** nz;
+    const [tw, ts, te, tn] = tileBounds(z, x, y);
+    const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
+    const nz = Math.min(z, native, ...datums.map((dt) => dt[3])), d = z - nz, f = 2 ** d, n = 2 ** nz;
     // source pixels this tile needs, in global pixel coordinates at the native zoom;
     // bilinear sampling reads one pixel past the edge, so neighbours may be needed
     const w = SIZE, step = 1 / f, gx = (x / f) * w, gy = (y / f) * w;
@@ -223,8 +235,6 @@ export function clipper({ template, native, mode, omtTileJson }) {
     else for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) want.push([tx, ty]);
     const tiles = await Promise.all(want.map(([tx, ty]) => demMetres(template.replace('{z}', nz).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty))));
     // open ocean: deeper than 50 m everywhere, so no coast to cut (outside DATUMS water bodies)
-    const [tw, ts, te, tn] = tileBounds(z, x, y);
-    const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
     const deep = mode === 'sea' && !datums.length && tiles.every((t) => t.max < -50);
     const unmasked = deep || !masked;
     const byKey = new Map(want.map(([tx, ty], k) => [`${tx}/${ty}`, tiles[k].e]));
@@ -234,7 +244,7 @@ export function clipper({ template, native, mode, omtTileJson }) {
       return byKey.get(`${tx}/${ty}`)[(Y - ty * w) * w + (X - tx * w)];
     };
     const demAt = (px, py) => (d === 0 ? tiles[0].e[Math.floor(py) * w + Math.floor(px)] : get(Math.floor(gx + px * step), Math.floor(gy + py * step)));
-    const mask = unmasked ? null : await seaMask(omtTemplate, z, x, y, demAt, datums.length ? datums[0][2] : 0);
+    const mask = unmasked ? null : await seaMask(omtTemplate, z, x, y, demAt, datums.length ? datums[0][2] : 0, omtOffset);
     // surface level per pixel for tiles touching a below-sea-level water body
     const lonAt = (i) => tw + ((i + 0.5) / SIZE) * (te - tw);
     const latAt = (j) => { const t = y + (j + 0.5) / SIZE, n = 2 ** z; return (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI; };
@@ -272,7 +282,10 @@ export function clipper({ template, native, mode, omtTileJson }) {
       const e = await elevation(z, x, y);
       const img = new ImageData(SIZE, SIZE), o = img.data;
       for (let k = 0; k < e.length; k++) {
-        const t = e[k] + 32768, q = k * 4;
+        // The GPU interpolates between pixels, and the tint edge falls where the value
+        // crosses 0. With land at +1 it lands mid-way and bleeds onto land, half-hiding the
+        // shore line; a higher land value pulls it back toward the water.
+        const t = (mode === 'sea' && e[k] === 1 ? LAND_SHADE_M : e[k]) + 32768, q = k * 4;
         o[q] = Math.floor(t / 256); o[q + 1] = Math.floor(t) % 256; o[q + 2] = Math.floor((t - Math.floor(t)) * 256); o[q + 3] = 255;
       }
       return { data: await createImageBitmap(img, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) };
@@ -280,7 +293,7 @@ export function clipper({ template, native, mode, omtTileJson }) {
     // maplibre-contour LocalDemManager hooks: hand over the metres directly
     getTile: async (url) => {
       const [z, x, y] = zxy(url);
-      return { data: { elevation: await elevation(z, x, y, z >= CONTOUR_MASK_MINZOOM) } };
+      return { data: { elevation: await elevation(z, x, y, z >= CONTOUR_MASK_MINZOOM, 0) } };
     },
     decodeImage: async (data) => ({ width: SIZE, height: SIZE, data: data.elevation }),
   };

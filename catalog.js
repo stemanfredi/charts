@@ -146,7 +146,7 @@ const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(it
 export const DEPTH_STOPS = [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50, '#c9e0f1'], [200, '#dbeaf5'], [2000, '#ecf4fa']];
 // clip.js sends land as +1 m (transparent) and water without a depth source (lakes above
 // sea level) as NO_DEPTH_M, painted in the no-depth grey
-const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, 'rgba(255,255,255,0)',
+const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
   ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)',
   NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 

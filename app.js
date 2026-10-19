@@ -143,8 +143,15 @@ function setOn(id, on) {
   applyItem(id);
   if (it.group === 'base') for (const k of baseDependent) applyItem(k);
   if (id === 'graticule') { updateGraticule(); drawLatScale(); }
+  if (id === 'depth') shoreFill();
   renderMenu();
   writeHash();
+}
+// Under depth shading the water fill takes the shallowest band's colour: the tint stops a
+// fraction of a pixel short of the shore (clip.js), and that sliver must not read as white.
+function shoreFill() {
+  const zmax = style.layers.find((l) => l.id === 'depth').maxzoom; // shading hides itself above this
+  map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], DEPTH_STOPS[0][1], zmax, '#ffffff'] : '#ffffff');
 }
 function setDate(date) {
   state.date = date;
@@ -626,7 +633,12 @@ function wrap(text, n) {
 
 // ---- go ---------------------------------------------------------------------
 map.on('load', () => {
+  // Raster sources round the zoom when picking tiles; the vector basemap floors it. Floor
+  // here too, so the clipped elevation tiles are cut with the coastline the basemap draws
+  // (clip.js seaMask). roundZoom is a property of MapLibre's raster tile sources.
+  for (const id of ['dem-sea', 'dem']) map.getSource(id).roundZoom = false;
   for (const it of ITEMS) applyItem(it.id);
+  shoreFill();
   measure.load(measureState);
   updateGraticule();
   renderMenu();

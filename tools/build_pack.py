@@ -58,7 +58,7 @@ OMT_TILEJSON = "https://tiles.openfreemap.org/planet"
 INLAND_SKIP = {"ocean", "swimming_pool"}  # ocean comes from the land polygons themselves
 # Water bodies OSM maps with a coastline whose surface is not at sea level: depths are
 # measured from that surface (same table as DATUMS in clip.js).
-DATUMS = [("Caspian Sea", (46.5, 36.5, 55.2, 47.4), -28.0)]
+DATUMS = [("Caspian Sea", (46.5, 36.5, 55.2, 47.4), -28.0)]  # the pack grids (EMODnet/GEBCO) carry real depths
 MAX_CELLS = 1_500_000  # per ERDDAP request; larger frames are fetched with a stride
 UA = {"User-Agent": "charts-build-pack/1 (static chart area packs)"}
 

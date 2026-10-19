@@ -113,7 +113,16 @@ coastline the basemap draws:
 - Water bodies that OSM maps with a coastline but whose surface is not at sea
   level are listed in `DATUMS` (clip.js, and in the pack tool). Today that's the
   Caspian Sea, at about −28 m: its depths are measured from its surface, not
-  from sea level, or the shallow northern Caspian (~5 m) would show as 30 m.
+  from sea level, or the shallow northern Caspian (~5 m) would show as 30 m. Above zoom 6
+  one of Terrarium's sources holds only the flat lake surface there, in large
+  rectangles, so Caspian depths are read from zoom 6 tiles.
+- The shaded sea tiles mark land with a high value, so the GPU-interpolated tint
+  edge never covers the shore line. The thin gap it leaves shows the water
+  fill, which takes the shallowest band's colour while depth shading is drawn.
+- Elevation tiles are picked with floored zoom (like the vector basemap), and
+  each one is cut with the OpenMapTiles tile the basemap shows at that zoom. With
+  the default rounding they were cut with a more detailed coastline than the one
+  on screen.
 - Water is one surface, as in area packs: OSM splits it into polygons (the sea,
   a harbour basin closed off by a straight line between pier heads, a lagoon
   and its canals), but all of it is filled the same. The shore line is drawn
