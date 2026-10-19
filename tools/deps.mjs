@@ -19,7 +19,7 @@ const PINS = [
 // Every host the page may talk to (Content-Security-Policy).
 const TILE_HOSTS = [
   'https://tiles.openfreemap.org', 'https://s3.amazonaws.com', 'https://tiles.maps.eox.at',
-  'https://server.arcgisonline.com', 'https://tiles.emodnet-bathymetry.eu', 'https://wms.gebco.net',
+  'https://server.arcgisonline.com',
   'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org',
 ];
 const CDN = 'https://cdn.jsdelivr.net';

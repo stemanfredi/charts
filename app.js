@@ -1,6 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAXZOOM, DEM_LAND_MAXZOOM, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, PACK_SHALLOW, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, PACK_SHALLOW, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { clippedDem } from './clip.js';
 import { colourAt, drawRamp, drawClasses, loadColormap, drawColormap } from './legend.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
 
@@ -77,9 +78,14 @@ function writeHash() {
 const urlUnits = readHash();
 
 // ---- map --------------------------------------------------------------------
-const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: true, cacheSize: 200 };
-const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA_MAXZOOM });
-const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND_MAXZOOM });
+// Elevation goes through clip.js (cut to the OSM coastline). worker: false keeps
+// maplibre-contour's tile manager on this thread, where its getTile can be replaced;
+// the shaded rasters and the contours then both read the clipped tiles.
+const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: false, cacheSize: 200 };
+const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA.max });
+const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND.max });
+seaDem.manager.getTile = clippedDem({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON });
+landDem.manager.getTile = clippedDem({ template: DEM_TILES, native: DEM_LAND.native, mode: 'land', omtTileJson: OMT_TILEJSON });
 seaDem.setupMaplibre(maplibregl);
 landDem.setupMaplibre(maplibregl);
 const contourOpts = { contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level', extent: 4096, buffer: 1 };

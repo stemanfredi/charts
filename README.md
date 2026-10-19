@@ -1,7 +1,7 @@
 # Charts
 
 A lean world chart in one static page: coastline, buildings, satellite,
-bathymetry, isobaths, seamarks and NASA daily ocean imagery, all from open
+depth shading, isobaths, seamarks and NASA daily ocean imagery, all from open
 sources that need no key. Geodesic ruler, area and range-ring tools.
 The link reproduces the exact view. PNG export.
 
@@ -13,6 +13,8 @@ index.html   page shell; the CDN block is generated (see Dependencies)
 style.css    all styling
 catalog.js   sources, style layers in draw order, menu items, provenance
 app.js       map, menu, URL state, graticule, source health, PNG export
+clip.js      elevation tiles cut to the OSM coastline
+legend.js    colour legends
 measure.js   geodesic measurements (GeographicLib, WGS 84)
 tools/deps.mjs  pin / hash / upgrade the CDN libraries
 tools/build_pack.py  build an area pack (Python, optional)
@@ -26,10 +28,8 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 |---|---|---|---|
 | Chart, coastline, roads, buildings, names, boundaries | OpenFreeMap (OpenStreetMap, OpenMapTiles schema) | ODbL | OSM; coastline generalised below zoom 7 |
 | Satellite | EOX Sentinel-2 cloudless 2016 (default) / 2024 / Esri World Imagery | CC BY 4.0 / **CC BY-NC-SA 4.0** / Esri terms | 10 m / 10 m / ≤ 0.5 m |
-| Depth shading, isobaths | AWS Terrain Tiles (Terrarium), contoured in the browser | open data | seabed ~1–2 km in open sea; hidden above zoom 12 |
-| Relief shading, land contours | same DEM, land part | open data | SRTM 30 m |
-| EMODnet bathymetry | EMODnet DTM base layer | CC BY 4.0 | ~115 m in European seas |
-| GEBCO bathymetry | GEBCO latest grid (WMS) | public domain | ~450 m global |
+| Depth shading, isobaths | AWS Terrain Tiles (Terrarium), cut to the OSM coastline, contoured in the browser | open data | seabed ~1–2 km in open sea; hidden above zoom 12 |
+| Relief shading, land contours | same DEM, land part, under the sea fill | open data | SRTM 30 m |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 | crowd-sourced |
 | NASA daily | GIBS: MODIS / VIIRS true colour, MUR SST, chlorophyll-a | NASA open data | 250 m / 1 km; date picker, default yesterday UTC |
 
@@ -86,7 +86,25 @@ purpose, because a public repo would publish your areas of interest.
 - A failing source marks its row (⚠, with the error in the tooltip) instead of
   leaving blank tiles that look like data.
 - Terrarium has bathymetry only up to zoom 10 (above that most seas read 0 m),
-  so the sea layers read zoom ≤ 10 tiles and overzoom, while land layers use zoom 12.
+  so the sea layers read zoom ≤ 10 tiles while land layers use zoom 12.
+
+## One coastline
+
+Every layer that comes from elevation data is made to agree with the OSM
+coastline the basemap draws:
+
+- `clip.js` masks each elevation tile with the OSM sea polygons from the same
+  OpenFreeMap tiles (already in the browser cache), before MapLibre or
+  maplibre-contour see it. For the sea layers, land becomes +1 m (no tint, no
+  isobath), and sea that the DEM calls dry becomes −1 m, the shallowest class.
+  For the land layers, sea becomes 0 m. Depth tiles are upsampled from zoom 10
+  to 12 and masked at 12, so the shore stays sharp.
+- Relief shading and land contours are drawn under the vector sea fill, so the
+  fill cuts them exactly at the shore. The land DEM is not upsampled, because
+  the slopes of an upsampled surface shade in visible facets.
+- There are no EMODnet or GEBCO picture layers: their own land is baked into
+  the image and cannot be cut away. Their depth *values* reach the page through
+  area packs instead.
 
 ## Rigour and limits
 
@@ -98,12 +116,9 @@ purpose, because a public repo would publish your areas of interest.
   everywhere: 1′ of latitude = 1 NM. When the scale varies by more than 1%
   across the view, a note says so on screen and in the PNG.
 - Outside packs, depth shading and isobaths come from a coarse DEM, not
-  soundings. Near the coast they do not follow the OSM coastline exactly, and
-  land below sea level (polders) can show as tinted. Packs fix both inside
-  their frame.
-- The EMODnet and GEBCO raster layers carry their own land rendering and are
-  not masked to the sea. Packs use the same data as values, clipped to the
-  coastline.
+  soundings. They end at the OSM coastline, but their shapes near the shore are
+  only as good as the 1–2 km data, and sea the DEM calls dry is shown as the
+  shallowest class. Packs carry 115–450 m gridded depths inside their frame.
 - Packs are gridded bathymetry, not soundings. Their resolution is listed in the menu.
 - **Not for navigation.**
 
