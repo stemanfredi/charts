@@ -76,7 +76,7 @@ export const ITEMS = [
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12,
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
-    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Interval by zoom: 1000/200/100/20/10/5 m (5 m from zoom 12; indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
+    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Interval by zoom: 1000/200/100/20/10 m (from zoom 11: every 10 m plus the 5 m line; indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -150,6 +150,10 @@ const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
   ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)',
   NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 
+// Isobaths are generated every 5 m near the coast (app.js); drawn: every 10 m, plus the 5 m line.
+const ISOBATH_FILTER = ['all', ['<', ['get', 'ele'], 0],
+  ['any', ['==', ['%', ['abs', ['get', 'ele']], 10], 0], ['==', ['get', 'ele'], -5]]];
+
 // Pack depth areas: band d covers water deeper than d m, each one step lighter; band 0 = any depth.
 export const NO_DEPTH = C.noDepth;
 export const PACK_STOPS = [[0, '#97c1e2'], [2, '#a3c9e6'], [5, '#b0d1ea'], [10, '#bfdaef'], [20, '#cfe3f3'], [30, '#dbeaf5'], [50, '#e6f0f8'], [100, '#eef5fa'], [200, '#f6fafd'], [500, '#ffffff']];
@@ -192,7 +196,7 @@ function layers() {
 
     // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined
     { id: 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours', minzoom: 4, ...m('isobaths'),
-      filter: ['<', ['get', 'ele'], 0],
+      filter: ISOBATH_FILTER,
       paint: { 'line-color': C.isobath, 'line-width': ['match', ['get', 'level'], 1, 0.9, 0.45] } },
 
     // area pack: above every global sea layer, below roads, buildings and labels
@@ -249,7 +253,7 @@ function layers() {
 
     { id: 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours', minzoom: 6, ...m('isobaths'),
       // every isobath labelled (major ones also in shallow water, where there may be none)
-      filter: ['<', ['get', 'ele'], 0],
+      filter: ISOBATH_FILTER,
       layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', ['abs', ['get', 'ele']]], ' m'],
         'text-font': FONT, 'text-size': 10, 'symbol-spacing': 360, 'text-max-angle': 30 },
       paint: { 'text-color': C.isobath, ...HALO } },
