@@ -156,7 +156,8 @@ function shoreFill() {
 // Over satellite, labels flip to light text on a dark halo (dark-on-white reads badly on imagery).
 const SAT_LABELS = {
   places: '#ffffff', islands: '#ffffff', 'graticule-labels': '#ffffff',
-  'sea-names': '#cfe6ff', 'sea-names-line': '#cfe6ff', 'isobath-labels': '#cfe6ff', 'pack-isobath-labels': '#cfe6ff',
+  'sea-names': '#cfe6ff', 'sea-names-line': '#cfe6ff', 'pack-isobath-labels': '#cfe6ff',
+  ...Object.fromEntries(style.layers.filter((l) => l.id.startsWith('isobath-labels')).map((l) => [l.id, '#cfe6ff'])),
 };
 const chartLabelPaint = {};
 for (const l of style.layers) if (SAT_LABELS[l.id]) chartLabelPaint[l.id] = { ...l.paint };
@@ -168,9 +169,10 @@ function labelPaint() {
     map.setPaintProperty(id, 'text-halo-color', sat ? 'rgba(8,16,24,0.85)' : p['text-halo-color']);
     map.setPaintProperty(id, 'text-halo-width', sat ? 1.4 : p['text-halo-width']);
   }
-  for (const id of ['isobaths', 'pack-isobaths']) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : chartLineColour[id]);
+  for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : chartLineColour[id]);
 }
-const chartLineColour = Object.fromEntries(['isobaths', 'pack-isobaths'].map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
+const LINE_IDS = style.layers.filter((l) => /^(pack-)?isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
+const chartLineColour = Object.fromEntries(LINE_IDS.map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
 function setDate(date) {
   state.date = date;
   for (const k of Object.keys(GIBS)) map.getSource(`gibs-${k}`).setTiles(gibsTiles(k, date));

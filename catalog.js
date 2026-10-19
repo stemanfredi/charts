@@ -76,7 +76,7 @@ export const ITEMS = [
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12,
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
-    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Spacing widens with depth: 5 m, every 10 m to 50 m, 50 m to 200 m, 500 m to 3000 m, then 1000 m; coarser at low zoom ( indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
+    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Spacing widens with depth and tightens with zoom: 5 m, every 10 m to 50 m, 50 m to 200 m, then 500/200/100 m to 3000 m and 1000/500 m below ( indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -151,15 +151,17 @@ const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
   NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 
 // Isobaths are generated at a regular interval per zoom (app.js); drawn with nautical spacing
-// that widens with depth, so steep deep slopes don't fill with lines: 5 m, every 10 m to 50 m,
-// every 50 m to 200 m, every 500 m to 3000 m, then every 1000 m.
+// that widens with depth and tightens with zoom, so steep deep slopes don't fill with lines and
+// zoomed-in slopes aren't empty: 5 m, every 10 m to 50 m, every 50 m to 200 m, then per zoom
+// range (filters can't use zoom, so one layer per range): [minzoom, maxzoom, step to 3000 m, step below].
 const DEPTH = ['abs', ['get', 'ele']];
-const ISOBATH_FILTER = ['all', ['<', ['get', 'ele'], 0], ['any',
+const ISOBATH_RANGES = [[4, 10, 500, 1000], [10, 12, 200, 500], [12, 24, 100, 500]];
+const isobathFilter = (mid, deep) => ['all', ['<', ['get', 'ele'], 0], ['any',
   ['==', DEPTH, 5],
   ['all', ['<=', DEPTH, 50], ['==', ['%', DEPTH, 10], 0]],
   ['all', ['<=', DEPTH, 200], ['==', ['%', DEPTH, 50], 0]],
-  ['all', ['<=', DEPTH, 3000], ['==', ['%', DEPTH, 500], 0]],
-  ['==', ['%', DEPTH, 1000], 0]]];
+  ['all', ['<=', DEPTH, 3000], ['==', ['%', DEPTH, mid], 0]],
+  ['==', ['%', DEPTH, deep], 0]]];
 
 // Pack depth areas: band d covers water deeper than d m, each one step lighter; band 0 = any depth.
 export const NO_DEPTH = C.noDepth;
@@ -202,9 +204,9 @@ function layers() {
     ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
 
     // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined
-    { id: 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours', minzoom: 4, ...m('isobaths'),
-      filter: ISOBATH_FILTER,
-      paint: { 'line-color': C.isobath, 'line-width': ['match', ['get', 'level'], 1, 0.9, 0.45] } },
+    ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobaths-${k}` : 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours',
+      minzoom: z0, maxzoom: z1, ...m('isobaths'), filter: isobathFilter(mid, deep),
+      paint: { 'line-color': C.isobath, 'line-width': ['match', ['get', 'level'], 1, 0.9, 0.45] } })),
 
     // area pack: above every global sea layer, below roads, buildings and labels
     { id: 'pack-sea', type: 'fill', source: 'pack', metadata: { item: 'pack-depth', base: 'chart' },
@@ -258,12 +260,11 @@ function layers() {
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
       paint: { 'line-color': C.grid, 'line-width': 0.5, 'line-opacity': 0.55 } },
 
-    { id: 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours', minzoom: 6, ...m('isobaths'),
-      // every isobath labelled (major ones also in shallow water, where there may be none)
-      filter: ISOBATH_FILTER,
-      layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', ['abs', ['get', 'ele']]], ' m'],
+    ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobath-labels-${k}` : 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours',
+      minzoom: Math.max(6, z0), maxzoom: z1, ...m('isobaths'), filter: isobathFilter(mid, deep),
+      layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', DEPTH], ' m'],
         'text-font': FONT, 'text-size': 10, 'symbol-spacing': 360, 'text-max-angle': 30 },
-      paint: { 'text-color': C.isobath, ...HALO } },
+      paint: { 'text-color': C.isobath, ...HALO } })),
     { id: 'pack-isobath-labels', type: 'symbol', source: 'pack', ...m('pack-isobaths'),
       filter: ['all', ['==', ['get', 'kind'], 'isobath'], ['==', ['get', 'label'], 1]],
       layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', ['get', 'd']], ' m'],
