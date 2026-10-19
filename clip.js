@@ -296,7 +296,10 @@ export function clipper({ template, native, mode, omtTileJson }) {
     // maplibre-contour LocalDemManager hooks: hand over the metres directly
     getTile: async (url) => {
       const [z, x, y] = zxy(url);
-      return { data: { elevation: await elevation(z, x, y, z >= CONTOUR_MASK_MINZOOM, 0) } };
+      const e = await elevation(z, x, y, z >= CONTOUR_MASK_MINZOOM, 0);
+      // lakes carry NO_DEPTH_M for the shading's grey; for contours they are just "not sea"
+      // (+1 m), or every lake would be ringed by contours from 0 to 9000 m
+      return { data: { elevation: mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v)) : e } };
     },
     decodeImage: async (data) => ({ width: SIZE, height: SIZE, data: data.elevation }),
   };

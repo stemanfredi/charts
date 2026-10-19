@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, packBands, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
 import { clipper } from './clip.js';
 import { colourAt, drawRamp, drawClasses, loadColormap, drawColormap } from './legend.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
@@ -151,7 +151,18 @@ function setOn(id, on) {
 // fraction of a pixel short of the shore (clip.js), and that sliver must not read as white.
 function shoreFill() {
   const zmax = style.layers.find((l) => l.id === 'depth').maxzoom; // shading hides itself above this
-  map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], DEPTH_STOPS[0][1], zmax, '#ffffff'] : '#ffffff');
+  map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], depthStops()[0][1], zmax, '#ffffff'] : '#ffffff');
+}
+// the depth colour scheme (Depth shading item's variant) also colours the pack depth areas
+const depthStops = () => DEPTH_SCHEMES[state.variant.depth];
+// isobaths: the light chart blue vanishes on the atlas scheme's deep blues, so navy there
+const ISOBATH_INK = { atlas: '#22436a', nautical: null }; // null: the style's own colour
+function depthColours() {
+  map.setPaintProperty('depth', 'color-relief-color', depthRamp(depthStops()));
+  labelPaint();
+  map.setPaintProperty('pack-bands', 'fill-color', packBands(depthStops()));
+  shoreFill();
+  renderLegends();
 }
 // Over satellite, labels flip to light text on a dark halo (dark-on-white reads badly on imagery).
 const SAT_LABELS = {
@@ -169,7 +180,11 @@ function labelPaint() {
     map.setPaintProperty(id, 'text-halo-color', sat ? 'rgba(8,16,24,0.85)' : p['text-halo-color']);
     map.setPaintProperty(id, 'text-halo-width', sat ? 1.4 : p['text-halo-width']);
   }
-  for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : chartLineColour[id]);
+  const ink = ISOBATH_INK[state.variant.depth];
+  for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : ink || chartLineColour[id]);
+  for (const id of Object.keys(SAT_LABELS).filter((k) => /isobath-labels/.test(k))) {
+    if (!sat) map.setPaintProperty(id, 'text-color', ink || chartLabelPaint[id]['text-color']);
+  }
 }
 const LINE_IDS = style.layers.filter((l) => /^(pack-)?isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
 const chartLineColour = Object.fromEntries(LINE_IDS.map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
@@ -261,7 +276,7 @@ function itemRow(it) {
     it.info.url ? h('p', {}, h('a', { href: it.info.url, target: '_blank', rel: 'noopener noreferrer' }, it.info.url.replace(/^https:\/\/(www\.)?/, '').replace(/\/.*$/, ''))) : null);
   // variant and date are what the item shows, so they sit in the row; opacity and provenance are one click away
   const controls = h('div', { class: 'controls' },
-    it.variants ? h('select', { 'aria-label': `${it.label} variant`, onchange: (e) => { state.variant[it.id] = e.target.value; applyItem(it.id); writeHash(); renderStatus(); renderLegends(); } },
+    it.variants ? h('select', { 'aria-label': `${it.label} variant`, onchange: (e) => { state.variant[it.id] = e.target.value; applyItem(it.id); if (it.id === 'depth') depthColours(); writeHash(); renderStatus(); renderLegends(); } },
       Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label))) : null,
     it.date ? h('input', { type: 'date', 'aria-label': 'Imagery date', max: new Date().toISOString().slice(0, 10), min: '2012-01-01',
       onchange: (e) => e.target.value && setDate(e.target.value) }) : null);
@@ -444,11 +459,11 @@ function renderLegends() {
   for (const id of want) {
     const el = legendEl(id);
     if (id === 'depth') {
-      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', DEPTH_STOPS, { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
-      el.setAttribute('aria-label', `Depth shading legend: ${DEPTH_STOPS.map(([d]) => d).join(', ')} metres`);
+      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
+      el.setAttribute('aria-label', `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`);
     } else if (id === 'pack') {
       const p = pack.doc.pack, edges = [0, ...p.levels_m];
-      drawClasses(el, 'Pack depth', `m · ${p.depth.source.split(',')[0]}`, edges, edges.map((d) => colourAt(PACK_STOPS, d)), `${Math.round(p.depth.max_m)}`,
+      drawClasses(el, 'Pack depth', `m · ${p.depth.source.split(',')[0]}`, edges, edges.map((d) => colourAt(depthStops(), d)), `${Math.round(p.depth.max_m)}`,
         { colour: NO_DEPTH, label: 'water without depth data' });
       el.setAttribute('aria-label', `Pack depth legend: classes from ${edges.join(', ')} metres`);
     } else {
@@ -666,7 +681,7 @@ map.on('load', () => {
   // (clip.js seaMask). roundZoom is a property of MapLibre's raster tile sources.
   for (const id of ['dem-sea', 'dem']) map.getSource(id).roundZoom = false;
   for (const it of ITEMS) applyItem(it.id);
-  shoreFill();
+  depthColours();
   labelPaint();
   measure.load(measureState);
   updateGraticule();

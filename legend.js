@@ -59,11 +59,21 @@ function ticks(g, marks) {
   g.fillStyle = INK;
   g.strokeStyle = INK;
   g.lineWidth = 1;
-  for (const [x, label, align] of marks) {
+  // a label that would touch its neighbour is dropped (tick kept); first and last always stay
+  const span = ([x, label, align]) => {
+    const w = g.measureText(label).width, a = align || 'center';
+    return a === 'left' ? [x, x + w] : a === 'right' ? [x - w, x] : [x - w / 2, x + w / 2];
+  };
+  const last = marks.length ? span(marks[marks.length - 1]) : null;
+  let right = -Infinity;
+  marks.forEach((mk, k) => {
+    const [x, label, align] = mk, [a, b] = span(mk), end = k === marks.length - 1;
     g.beginPath(); g.moveTo(x + 0.5, BAR.y + BAR.h); g.lineTo(x + 0.5, BAR.y + BAR.h + 3); g.stroke();
+    if (!end && (a < right + 4 || b > last[0] - 4)) return;
     g.textAlign = align || 'center';
     g.fillText(label, x, BAR.y + BAR.h + 13);
-  }
+    right = b;
+  });
   g.textAlign = 'left';
   g.strokeRect(BAR.x + 0.5, BAR.y + 0.5, BAR.w - 1, BAR.h);
 }

@@ -151,6 +151,9 @@ coastline the basemap draws:
   edge (shown with the graticule, north-up) is the distance scale that is valid
   everywhere: 1′ of latitude = 1 NM. When the scale varies by more than 1%
   across the view, a note says so on screen and in the PNG.
+- Depth colours have two schemes (the Depth shading item's menu, also used for pack
+  depths and legends): *darker = deeper* (atlas and ocean maps, the default) and
+  *darker = shallower* (nautical charts, IHO S-52, where shallow water is the hazard).
 - Outside packs, depth shading covers the open sea only; lagoons, lakes and
   rivers are grey, with no depth source. Depth shading and isobaths come from a coarse DEM, not
   soundings. They end at the OSM coastline, but their shapes near the shore are
