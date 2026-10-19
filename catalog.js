@@ -76,7 +76,7 @@ export const ITEMS = [
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12,
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
-    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Interval by zoom: 1000/200/100/20/10 m (from zoom 11: every 10 m plus the 5 m line; indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
+    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Spacing widens with depth: 5 m, every 10 m to 50 m, 50 m to 200 m, 500 m to 3000 m, then 1000 m; coarser at low zoom ( indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -150,9 +150,16 @@ const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
   ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)',
   NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 
-// Isobaths are generated every 5 m near the coast (app.js); drawn: every 10 m, plus the 5 m line.
-const ISOBATH_FILTER = ['all', ['<', ['get', 'ele'], 0],
-  ['any', ['==', ['%', ['abs', ['get', 'ele']], 10], 0], ['==', ['get', 'ele'], -5]]];
+// Isobaths are generated at a regular interval per zoom (app.js); drawn with nautical spacing
+// that widens with depth, so steep deep slopes don't fill with lines: 5 m, every 10 m to 50 m,
+// every 50 m to 200 m, every 500 m to 3000 m, then every 1000 m.
+const DEPTH = ['abs', ['get', 'ele']];
+const ISOBATH_FILTER = ['all', ['<', ['get', 'ele'], 0], ['any',
+  ['==', DEPTH, 5],
+  ['all', ['<=', DEPTH, 50], ['==', ['%', DEPTH, 10], 0]],
+  ['all', ['<=', DEPTH, 200], ['==', ['%', DEPTH, 50], 0]],
+  ['all', ['<=', DEPTH, 3000], ['==', ['%', DEPTH, 500], 0]],
+  ['==', ['%', DEPTH, 1000], 0]]];
 
 // Pack depth areas: band d covers water deeper than d m, each one step lighter; band 0 = any depth.
 export const NO_DEPTH = C.noDepth;
