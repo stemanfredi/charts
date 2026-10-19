@@ -48,8 +48,16 @@ elevation model and their land/sea edges don't quite agree. For an area you
 care about, build an **area pack**: one GeoJSON file with
 
 - depths from gridded bathymetry: EMODnet DTM 2024 (~115 m) where it covers
-  the frame, gaps filled from GEBCO; GEBCO 2020 (~450 m) elsewhere, or your own
-  GEBCO GeoTIFF via `--gebco`;
+  the open sea, with open-sea gaps filled from GEBCO; GEBCO 2020 (~450 m)
+  elsewhere, or your own GEBCO GeoTIFF via `--gebco`. GEBCO is never used in
+  lagoons or lakes: in the Venice Lagoon it reads 10 m where EMODnet (and
+  reality) has about 1 m;
+- inland water (lagoons, lakes, rivers, docks) taken from the same OpenFreeMap
+  water polygons the page draws and cut out of the OSMData land, which puts a
+  lagoon behind its barrier islands on land;
+- water without depth data shown as such, grey and never white (white reads as
+  deep). Water within one grid cell of real data counts as covered, so shores
+  don't get a grey halo;
 - depth areas and isobaths at nautical levels (2, 5, 10, 20, 30, 50, 100 … m),
   traced on the grid and then **clipped to the OSMData coastline**, so they
   meet the shore exactly and never spill onto land;
@@ -63,7 +71,7 @@ python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt   # onc
 The menu's *Build command* button copies this line for the current view. The
 first run downloads the OSMData land polygons (~900 MB) into `.cache/`, or you
 can point `--land` at a copy you already have. Grids are cached there too. A
-16 × 11 km harbour pack is about 0.3 MB and takes about 5 s.
+16 × 11 km harbour pack is about 0.4 MB; the 32 × 21 km Venice Lagoon is 0.65 MB gzipped.
 
 Open a pack with *Open pack…* or by dropping it on the map; `.geojson.gz` works
 too. **It is read in the browser and never uploaded**, so tile providers don't
@@ -115,7 +123,8 @@ coastline the basemap draws:
   edge (shown with the graticule, north-up) is the distance scale that is valid
   everywhere: 1′ of latitude = 1 NM. When the scale varies by more than 1%
   across the view, a note says so on screen and in the PNG.
-- Outside packs, depth shading and isobaths come from a coarse DEM, not
+- Outside packs, depth shading covers the open sea only; lagoons, lakes and
+  rivers are grey, with no depth source. Depth shading and isobaths come from a coarse DEM, not
   soundings. They end at the OSM coastline, but their shapes near the shore are
   only as good as the 1–2 km data, and sea the DEM calls dry is shown as the
   shallowest class. Packs carry 115–450 m gridded depths inside their frame.

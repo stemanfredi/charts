@@ -13,6 +13,8 @@ export const OMT_TILEJSON = 'https://tiles.openfreemap.org/planet';
 
 const C = {
   land: '#f1ebdc', sea: '#ffffff', ink: '#2b3a46', inkSoft: '#5d6d79',
+  // water without depth data (lagoons, lakes, rivers outside packs): never white, which reads as deep
+  noDepth: '#dde3e7',
   water: '#a9cbe3', waterText: '#2f6690', building: '#d9d1c1', buildingEdge: '#b7ac98',
   road: '#c9bea9', roadMajor: '#b3a68e', boundary: '#8a6f8f', grid: '#6b8193',
   isobath: '#5b8db5', contour: '#a88a62',
@@ -143,9 +145,9 @@ export const DEPTH_STOPS = [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50
 const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, 'rgba(255,255,255,0)',
   ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)'];
 
-// Pack depth areas: 'sea' is the 0–2 m colour, each band (deeper than d) one step lighter.
-export const PACK_SHALLOW = '#97c1e2';
-export const PACK_STOPS = [[2, '#a3c9e6'], [5, '#b0d1ea'], [10, '#bfdaef'], [20, '#cfe3f3'], [30, '#dbeaf5'], [50, '#e6f0f8'], [100, '#eef5fa'], [200, '#f6fafd'], [500, '#ffffff']];
+// Pack depth areas: band d covers water deeper than d m, each one step lighter; band 0 = any depth.
+export const NO_DEPTH = C.noDepth;
+export const PACK_STOPS = [[0, '#97c1e2'], [2, '#a3c9e6'], [5, '#b0d1ea'], [10, '#bfdaef'], [20, '#cfe3f3'], [30, '#dbeaf5'], [50, '#e6f0f8'], [100, '#eef5fa'], [200, '#f6fafd'], [500, '#ffffff']];
 const PACK_BANDS = ['interpolate', ['linear'], ['get', 'd'], ...PACK_STOPS.flat()];
 
 function layers() {
@@ -162,7 +164,9 @@ function layers() {
       filter: ['>', ['get', 'ele'], 0],
       paint: { 'line-color': C.contour, 'line-width': ['match', ['get', 'level'], 1, 0.8, 0.4] } },
     { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', ...m('chart'),
-      filter: ['!=', ['get', 'class'], 'swimming_pool'], paint: { 'fill-color': C.sea } },
+      filter: ['!=', ['get', 'class'], 'swimming_pool'],
+      // depth shading covers the open sea only (clip.js); inland water has no depth source
+      paint: { 'fill-color': ['match', ['get', 'class'], ['ocean', 'dock'], C.sea, C.noDepth] } },
     { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway', minzoom: 8, ...m('chart'),
       filter: ['in', ['get', 'class'], ['literal', ['river', 'canal', 'stream']]],
       paint: { 'line-color': C.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 14, 2] } },
@@ -176,7 +180,7 @@ function layers() {
 
     // area pack: above every global sea layer, below roads, buildings and labels
     { id: 'pack-sea', type: 'fill', source: 'pack', metadata: { item: 'pack-depth', base: 'chart' },
-      filter: ['==', ['get', 'kind'], 'sea'], paint: { 'fill-color': PACK_SHALLOW } },
+      filter: ['==', ['get', 'kind'], 'sea'], paint: { 'fill-color': C.noDepth } }, // water the grid has no depth for
     { id: 'pack-bands', type: 'fill', source: 'pack', ...m('pack-depth'),
       filter: ['==', ['get', 'kind'], 'band'], paint: { 'fill-color': PACK_BANDS } },
     { id: 'pack-land', type: 'fill', source: 'pack', metadata: { item: 'pack-land', base: 'chart' },
@@ -190,9 +194,14 @@ function layers() {
     { id: 'pack-frame', type: 'line', source: 'pack', ...m('pack-frame'),
       filter: ['==', ['get', 'kind'], 'frame'], paint: { 'line-color': '#b0127a', 'line-width': 1.2, 'line-dasharray': [4, 3] } },
 
+    // dark line for the sea shore only; lakes and rivers get a pale edge, because OSM splits
+    // large water bodies (a lagoon, its canals) into adjacent polygons whose shared edges are not shores
     { id: 'coastline', type: 'line', source: 'omt', 'source-layer': 'water', ...m('coastline'),
-      filter: ['in', ['get', 'class'], ['literal', ['ocean', 'lake', 'river']]],
-      paint: { 'line-color': C.ink, 'line-width': ['interpolate', ['linear'], ['zoom'], 3, 0.4, 12, 1.1] } },
+      filter: ['in', ['get', 'class'], ['literal', ['ocean', 'lake', 'river', 'dock']]],
+      paint: {
+        'line-color': ['match', ['get', 'class'], 'ocean', C.ink, C.water],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 3, ['match', ['get', 'class'], 'ocean', 0.4, 0.3], 12, ['match', ['get', 'class'], 'ocean', 1.1, 0.6]],
+      } },
 
     { id: 'roads', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6, ...m('roads'),
       filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service']]],

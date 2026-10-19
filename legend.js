@@ -2,7 +2,7 @@
 // Depth legends use the same stops as the map layers; the SST legend uses the
 // colour map NASA GIBS publishes for the layer, so the classes are the real ones.
 
-const W = 236, H = 44, BAR = { x: 8, y: 20, w: 220, h: 9 };
+const W = 236, H = 44, KEY = 16, BAR = { x: 8, y: 20, w: 220, h: 9 };
 const INK = '#2b3a46', SOFT = '#5d6d79';
 
 function hexRgb(c) {
@@ -22,16 +22,24 @@ export function colourAt(stops, v) {
   return stops[stops.length - 1][1];
 }
 
-function canvas(el) {
-  const dpr = window.devicePixelRatio || 1;
+// noData: optional { colour, label } key drawn on an extra row below the bar
+function canvas(el, noData) {
+  const dpr = window.devicePixelRatio || 1, h = H + (noData ? KEY : 0);
   el.width = W * dpr;
-  el.height = H * dpr;
+  el.height = h * dpr;
   el.style.width = `${W}px`;
-  el.style.height = `${H}px`;
+  el.style.height = `${h}px`;
   const g = el.getContext('2d');
   g.scale(dpr, dpr);
   g.fillStyle = 'rgba(255,255,255,0.92)';
-  g.fillRect(0, 0, W, H);
+  g.fillRect(0, 0, W, h);
+  if (noData) {
+    g.fillStyle = noData.colour;
+    g.fillRect(BAR.x, H + 1, 14, 9);
+    g.strokeStyle = INK; g.lineWidth = 1; g.strokeRect(BAR.x + 0.5, H + 1.5, 13, 8);
+    g.fillStyle = SOFT; g.font = '10px system-ui, sans-serif';
+    g.fillText(noData.label, BAR.x + 20, H + 9.5);
+  }
   g.font = '600 11px system-ui, sans-serif';
   g.textBaseline = 'alphabetic';
   return g;
@@ -54,15 +62,15 @@ function ticks(g, marks) {
   for (const [x, label, align] of marks) {
     g.beginPath(); g.moveTo(x + 0.5, BAR.y + BAR.h); g.lineTo(x + 0.5, BAR.y + BAR.h + 3); g.stroke();
     g.textAlign = align || 'center';
-    g.fillText(label, x, H - 4);
+    g.fillText(label, x, BAR.y + BAR.h + 13);
   }
   g.textAlign = 'left';
   g.strokeRect(BAR.x + 0.5, BAR.y + 0.5, BAR.w - 1, BAR.h);
 }
 
 // Continuous depth ramp; stops sit at equal widths (the depth axis is not linear).
-export function drawRamp(el, text, sub, stops) {
-  const g = canvas(el);
+export function drawRamp(el, text, sub, stops, noData) {
+  const g = canvas(el, noData);
   title(g, text, sub);
   const n = stops.length - 1, seg = BAR.w / n;
   for (let i = 0; i < n; i++) {
@@ -76,8 +84,8 @@ export function drawRamp(el, text, sub, stops) {
 }
 
 // One swatch per class (from edges[i] to the next edge); endLabel closes the last one.
-export function drawClasses(el, text, sub, edges, colours, endLabel) {
-  const g = canvas(el);
+export function drawClasses(el, text, sub, edges, colours, endLabel, noData) {
+  const g = canvas(el, noData);
   title(g, text, sub);
   const n = colours.length, seg = BAR.w / n;
   colours.forEach((c, i) => { g.fillStyle = c; g.fillRect(BAR.x + i * seg, BAR.y, seg + 0.5, BAR.h); });

@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, PACK_SHALLOW, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
 import { clippedDem } from './clip.js';
 import { colourAt, drawRamp, drawClasses, loadColormap, drawColormap } from './legend.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
@@ -277,7 +277,8 @@ async function loadPack(buf, url) {
     bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   }
   const doc = JSON.parse(new TextDecoder().decode(bytes));
-  if (doc?.type !== 'FeatureCollection' || doc.pack?.version !== 1) throw new Error('not an area pack (version 1)');
+  if (doc?.type !== 'FeatureCollection' || !doc.pack) throw new Error('not an area pack');
+  if (doc.pack.version !== 2) throw new Error(`pack format ${doc.pack.version}; rebuild it with the current tools/build_pack.py`);
   const src = map.getSource('pack');
   src.attribution = doc.pack.credits || '';
   src.setData(doc);
@@ -403,11 +404,12 @@ function renderLegends() {
   for (const id of want) {
     const el = legendEl(id);
     if (id === 'depth') {
-      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', DEPTH_STOPS);
+      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', DEPTH_STOPS, { colour: NO_DEPTH, label: 'lagoons, lakes, rivers: no depth data' });
       el.setAttribute('aria-label', `Depth shading legend: ${DEPTH_STOPS.map(([d]) => d).join(', ')} metres`);
     } else if (id === 'pack') {
       const p = pack.doc.pack, edges = [0, ...p.levels_m];
-      drawClasses(el, 'Pack depth', `m · ${p.depth.source.split(',')[0]}`, edges, [PACK_SHALLOW, ...p.levels_m.map((d) => colourAt(PACK_STOPS, d))], `${Math.round(p.depth.max_m)}`);
+      drawClasses(el, 'Pack depth', `m · ${p.depth.source.split(',')[0]}`, edges, edges.map((d) => colourAt(PACK_STOPS, d)), `${Math.round(p.depth.max_m)}`,
+        { colour: NO_DEPTH, label: 'water without depth data' });
       el.setAttribute('aria-label', `Pack depth legend: classes from ${edges.join(', ')} metres`);
     } else {
       const g = GIBS[state.variant.gibs], key = `${state.variant.gibs}|${state.date}`;
