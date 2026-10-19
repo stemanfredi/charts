@@ -143,7 +143,7 @@ function setOn(id, on) {
   applyItem(id);
   if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); }
   if (id === 'graticule') { updateGraticule(); drawLatScale(); }
-  if (id === 'depth') shoreFill();
+  if (id === 'depth') { shoreFill(); labelPaint(); }
   renderMenu();
   writeHash();
 }
@@ -155,8 +155,14 @@ function shoreFill() {
 }
 // the depth colour scheme (Depth shading item's variant) also colours the pack depth areas
 const depthStops = () => DEPTH_SCHEMES[state.variant.depth];
-// isobaths: the light chart blue vanishes on the atlas scheme's deep blues, so navy there
-const ISOBATH_INK = { atlas: '#22436a', nautical: null }; // null: the style's own colour
+// isobaths under the atlas scheme: navy over its pale shallow blues, pale over its dark deep
+// blues (one colour can't read on both); the nautical scheme keeps the style's own blue
+const ATLAS_SPLIT_M = 200;
+const byDepth = (shallow, deep) => ['step', ['abs', ['get', 'ele']], shallow, ATLAS_SPLIT_M, deep];
+const ISOBATH_INK = {
+  atlas: { line: byDepth('#22436a', '#e3eef8'), text: byDepth('#22436a', '#ffffff'), halo: byDepth('rgba(255,255,255,0.9)', 'rgba(20,45,80,0.85)') },
+  nautical: null,
+};
 function depthColours() {
   map.setPaintProperty('depth', 'color-relief-color', depthRamp(depthStops()));
   labelPaint();
@@ -180,10 +186,15 @@ function labelPaint() {
     map.setPaintProperty(id, 'text-halo-color', sat ? 'rgba(8,16,24,0.85)' : p['text-halo-color']);
     map.setPaintProperty(id, 'text-halo-width', sat ? 1.4 : p['text-halo-width']);
   }
-  const ink = ISOBATH_INK[state.variant.depth];
-  for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : ink || chartLineColour[id]);
-  for (const id of Object.keys(SAT_LABELS).filter((k) => /isobath-labels/.test(k))) {
-    if (!sat) map.setPaintProperty(id, 'text-color', ink || chartLabelPaint[id]['text-color']);
+  const ink = state.on.has('depth') && state.on.has('chart') ? ISOBATH_INK[state.variant.depth] : null;
+  for (const id of LINE_IDS) {
+    const own = id.startsWith('pack') ? null : ink; // pack isobaths carry `d`, not `ele`
+    map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : own ? own.line : chartLineColour[id]);
+  }
+  for (const id of Object.keys(SAT_LABELS).filter((k) => /^isobath-labels/.test(k))) {
+    if (sat || !ink) continue;
+    map.setPaintProperty(id, 'text-color', ink.text);
+    map.setPaintProperty(id, 'text-halo-color', ink.halo);
   }
 }
 const LINE_IDS = style.layers.filter((l) => /^(pack-)?isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
