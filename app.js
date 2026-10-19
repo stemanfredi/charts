@@ -98,7 +98,7 @@ const style = buildStyle({
   seaDemUrl: 'clip-sea://{z}/{x}/{y}',
   landDemUrl: 'clip-land://{z}/{x}/{y}',
   // zoom → [minor, major] interval in metres
-  isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: { 4: [1000, 2000], 6: [200, 1000], 8: [100, 500], 10: [20, 100] } }),
+  isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: { 4: [1000, 2000], 6: [200, 1000], 8: [100, 500], 10: [20, 100], 11: [10, 50], 12: [5, 50] } }),
   contourUrl: landDem.contourProtocolUrl({ ...contourOpts, thresholds: { 9: [100, 500], 11: [50, 250], 12: [20, 100] } }),
   date: state.date,
 });

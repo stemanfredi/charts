@@ -76,7 +76,7 @@ export const ITEMS = [
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12,
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
-    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Interval by zoom: 1000/200/100/20 m. As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
+    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Interval by zoom: 1000/200/100/20/10/5 m (5 m from zoom 12; indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Above zoom 12 the same lines are shown magnified, with no added detail', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -248,9 +248,10 @@ function layers() {
       paint: { 'line-color': C.grid, 'line-width': 0.5, 'line-opacity': 0.55 } },
 
     { id: 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours', minzoom: 6, ...m('isobaths'),
-      filter: ['all', ['<', ['get', 'ele'], 0], ['==', ['get', 'level'], 1]],
+      // every isobath labelled (major ones also in shallow water, where there may be none)
+      filter: ['<', ['get', 'ele'], 0],
       layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', ['abs', ['get', 'ele']]], ' m'],
-        'text-font': FONT, 'text-size': 10, 'symbol-spacing': 320, 'text-max-angle': 30 },
+        'text-font': FONT, 'text-size': 10, 'symbol-spacing': 360, 'text-max-angle': 30 },
       paint: { 'text-color': C.isobath, ...HALO } },
     { id: 'pack-isobath-labels', type: 'symbol', source: 'pack', ...m('pack-isobaths'),
       filter: ['all', ['==', ['get', 'kind'], 'isobath'], ['==', ['get', 'label'], 1]],
@@ -263,9 +264,12 @@ function layers() {
         'text-font': FONT, 'text-size': 10, 'symbol-spacing': 320 },
       paint: { 'text-color': C.contour, ...HALO } },
 
-    { id: 'sea-names-line', type: 'symbol', source: 'omt', 'source-layer': 'water_name', ...m('seanames'),
+    // a sea's name runs along a line across it: repeat it rarely, and not at harbour zooms,
+    // where the line spans many screens and the name would appear every few hundred pixels
+    { id: 'sea-names-line', type: 'symbol', source: 'omt', 'source-layer': 'water_name', maxzoom: 12, ...m('seanames'),
       filter: ['==', ['geometry-type'], 'LineString'],
-      layout: { 'symbol-placement': 'line', 'text-field': NAME, 'text-font': FONT_I, 'text-size': 13, 'text-letter-spacing': 0.15 },
+      layout: { 'symbol-placement': 'line', 'text-field': NAME, 'text-font': FONT_I, 'text-size': 13, 'text-letter-spacing': 0.15,
+        'symbol-spacing': 1200 },
       paint: { 'text-color': C.waterText, ...HALO } },
     { id: 'sea-names', type: 'symbol', source: 'omt', 'source-layer': 'water_name', ...m('seanames'),
       filter: ['==', ['geometry-type'], 'Point'],
