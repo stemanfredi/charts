@@ -141,7 +141,7 @@ function setOn(id, on) {
   }
   on ? state.on.add(id) : state.on.delete(id);
   applyItem(id);
-  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); }
+  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); }
   if (id === 'graticule') { updateGraticule(); drawLatScale(); }
   if (id === 'depth') shoreFill();
   renderMenu();
@@ -153,6 +153,24 @@ function shoreFill() {
   const zmax = style.layers.find((l) => l.id === 'depth').maxzoom; // shading hides itself above this
   map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], DEPTH_STOPS[0][1], zmax, '#ffffff'] : '#ffffff');
 }
+// Over satellite, labels flip to light text on a dark halo (dark-on-white reads badly on imagery).
+const SAT_LABELS = {
+  places: '#ffffff', islands: '#ffffff', 'graticule-labels': '#ffffff',
+  'sea-names': '#cfe6ff', 'sea-names-line': '#cfe6ff', 'isobath-labels': '#cfe6ff', 'pack-isobath-labels': '#cfe6ff',
+};
+const chartLabelPaint = {};
+for (const l of style.layers) if (SAT_LABELS[l.id]) chartLabelPaint[l.id] = { ...l.paint };
+function labelPaint() {
+  const sat = state.on.has('sat');
+  for (const [id, colour] of Object.entries(SAT_LABELS)) {
+    const p = chartLabelPaint[id];
+    map.setPaintProperty(id, 'text-color', sat ? colour : p['text-color']);
+    map.setPaintProperty(id, 'text-halo-color', sat ? 'rgba(8,16,24,0.85)' : p['text-halo-color']);
+    map.setPaintProperty(id, 'text-halo-width', sat ? 1.4 : p['text-halo-width']);
+  }
+  for (const id of ['isobaths', 'pack-isobaths']) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : chartLineColour[id]);
+}
+const chartLineColour = Object.fromEntries(['isobaths', 'pack-isobaths'].map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
 function setDate(date) {
   state.date = date;
   for (const k of Object.keys(GIBS)) map.getSource(`gibs-${k}`).setTiles(gibsTiles(k, date));
@@ -647,6 +665,7 @@ map.on('load', () => {
   for (const id of ['dem-sea', 'dem']) map.getSource(id).roundZoom = false;
   for (const it of ITEMS) applyItem(it.id);
   shoreFill();
+  labelPaint();
   measure.load(measureState);
   updateGraticule();
   renderMenu();
