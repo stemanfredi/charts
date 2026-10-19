@@ -1,7 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
-import { clippedDem } from './clip.js';
+import { clipper } from './clip.js';
 import { colourAt, drawRamp, drawClasses, loadColormap, drawColormap } from './legend.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
 
@@ -79,22 +79,27 @@ const urlUnits = readHash();
 
 // ---- map --------------------------------------------------------------------
 // Elevation goes through clip.js (cut to the OSM coastline). worker: false keeps
-// maplibre-contour's tile manager on this thread, where its getTile can be replaced;
-// the shaded rasters and the contours then both read the clipped tiles.
+// maplibre-contour's tile manager on this thread, where its getTile/decodeImage can be
+// replaced; the shaded rasters (clip-* protocols) and the contours share one tile cache.
 const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: false, cacheSize: 200 };
 const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA.max });
 const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND.max });
-seaDem.manager.getTile = clippedDem({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON });
-landDem.manager.getTile = clippedDem({ template: DEM_TILES, native: DEM_LAND.native, mode: 'land', omtTileJson: OMT_TILEJSON });
-seaDem.setupMaplibre(maplibregl);
-landDem.setupMaplibre(maplibregl);
+const seaClip = clipper({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON });
+const landClip = clipper({ template: DEM_TILES, native: DEM_LAND.native, mode: 'land', omtTileJson: OMT_TILEJSON });
+for (const [dem, clip] of [[seaDem, seaClip], [landDem, landClip]]) {
+  dem.manager.getTile = clip.getTile;
+  dem.manager.decodeImage = clip.decodeImage;
+  dem.setupMaplibre(maplibregl); // registers the contour protocol
+}
+maplibregl.addProtocol('clip-sea', seaClip.protocol);
+maplibregl.addProtocol('clip-land', landClip.protocol);
 const contourOpts = { contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level', extent: 4096, buffer: 1 };
 const style = buildStyle({
-  seaDemUrl: seaDem.sharedDemProtocolUrl,
-  landDemUrl: landDem.sharedDemProtocolUrl,
+  seaDemUrl: 'clip-sea://{z}/{x}/{y}',
+  landDemUrl: 'clip-land://{z}/{x}/{y}',
   // zoom → [minor, major] interval in metres
   isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: { 4: [1000, 2000], 6: [200, 1000], 8: [100, 500], 10: [20, 100] } }),
-  contourUrl: landDem.contourProtocolUrl({ ...contourOpts, thresholds: { 9: [100, 500], 11: [50, 250], 12: [20, 100], 14: [10, 50] } }),
+  contourUrl: landDem.contourProtocolUrl({ ...contourOpts, thresholds: { 9: [100, 500], 11: [50, 250], 12: [20, 100] } }),
   date: state.date,
 });
 style.layers.push(...MEASURE_LAYERS);

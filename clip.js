@@ -12,9 +12,26 @@
 // the encoded bytes) and masked at the higher zoom, so the coast stays sharp.
 
 const OMT_MAXZOOM = 14;
-// Below this zoom a screen pixel is ≥ 1.2 km, the size of the DEM's own coastline
-// error: tiles pass through uncut and the per-tile work is skipped.
-const CLIP_MINZOOM = 8;
+// Land tiles below this zoom pass through uncut: relief is drawn under the sea fill,
+// so it cannot spill, and the per-tile work is skipped. Sea tiles are always cut:
+// land below sea level (the Caspian Depression, polders) would otherwise read as sea.
+const LAND_CLIP_MINZOOM = 8;
+// Contours (isobaths) skip the coastline mask below this zoom: their intervals there are
+// ≥ 100 m, deeper than any land depression visible at that scale, and the 512 px contour
+// tiles would otherwise need a second set of masks one zoom off the shaded tiles.
+// The DATUMS surface still applies.
+const CONTOUR_MASK_MINZOOM = 8;
+
+// Water bodies whose surface is not at sea level but which OSM maps with a coastline
+// (so they arrive as `ocean`). Depths inside them are measured from that surface.
+// [name, [west, south, east, north], surface elevation m]
+export const DATUMS = [
+  ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28],
+];
+const tileBounds = (z, x, y) => {
+  const n = 2 ** z, lat = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI;
+  return [(x / n) * 360 - 180, lat(y + 1), ((x + 1) / n) * 360 - 180, lat(y)];
+};
 const SEA_CLASSES = new Set(['ocean', 'dock']);
 const SIZE = 256;
 
@@ -145,19 +162,24 @@ function demMetres(url, signal) {
     const c = new OffscreenCanvas(img.width, img.height), g = c.getContext('2d', { willReadFrequently: true });
     g.drawImage(img, 0, 0);
     const px = g.getImageData(0, 0, img.width, img.height).data, e = new Float32Array(img.width * img.height);
-    for (let i = 0; i < e.length; i++) e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
+    let max = -Infinity;
+    for (let i = 0; i < e.length; i++) { e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768; if (e[i] > max) max = e[i]; }
     if (img.width !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
-    return { w: img.width, e };
+    return { w: img.width, e, max };
   });
 }
 
-// A maplibre-contour getTile(url) that serves clipped Terrarium PNGs up to any zoom.
-export function clippedDem({ template, native, mode, omtTileJson }) {
+// Clipped elevation for one DEM tile, in metres (row-major 256 × 256), up to any zoom.
+// Shared by the map's raster-dem layers (protocol) and maplibre-contour (getTile +
+// decodeImage), so each tile is computed once and never round-trips through PNG.
+export function clipper({ template, native, mode, omtTileJson }) {
   const omtTemplate = fetch(omtTileJson, { credentials: 'omit' }).then((r) => r.json()).then((tj) => tj.tiles[0]);
-  return async (url, abortController) => {
-    const [z, x, y] = url.match(/(\d+)\/(\d+)\/(\d+)\.png/).slice(1).map(Number);
-    const signal = abortController?.signal;
-    if (z < CLIP_MINZOOM) return { data: await (await fetchOk(template.replace('{z}', z).replace('{x}', x).replace('{y}', y), signal)).blob() };
+  const cache = lru(128);
+  // shared by several requesters, so no single requester's abort signal is passed down
+  const elevation = (z, x, y, masked = true) => cache(`${z}/${x}/${y}/${masked}`, async () => {
+    if (mode === 'land' && z < LAND_CLIP_MINZOOM) {
+      return (await demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y))).e;
+    }
     const nz = Math.min(z, native), d = z - nz, f = 2 ** d, n = 2 ** nz;
     // source pixels this tile needs, in global pixel coordinates at the native zoom;
     // bilinear sampling reads one pixel past the edge, so neighbours may be needed
@@ -167,17 +189,27 @@ export function clippedDem({ template, native, mode, omtTileJson }) {
     const want = [];
     if (d === 0) want.push([x, y]);
     else for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) want.push([tx, ty]);
-    const [tiles, mask] = await Promise.all([
-      Promise.all(want.map(([tx, ty]) => demMetres(template.replace('{z}', nz).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty), signal))),
-      seaMask(omtTemplate, z, x, y, signal),
-    ]);
+    const tiles = await Promise.all(want.map(([tx, ty]) => demMetres(template.replace('{z}', nz).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty))));
+    // open ocean: deeper than 50 m everywhere, so no coast to cut (outside DATUMS water bodies)
+    const [tw, ts, te, tn] = tileBounds(z, x, y);
+    const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
+    const deep = mode === 'sea' && !datums.length && tiles.every((t) => t.max < -50);
+    const unmasked = deep || !masked;
+    const mask = unmasked ? null : await seaMask(omtTemplate, z, x, y);
     const byKey = new Map(want.map(([tx, ty], k) => [`${tx}/${ty}`, tiles[k].e]));
     const get = (X, Y) => {
       Y = Math.min(n * w - 1, Math.max(0, Y));
       const tx = Math.floor(X / w), ty = Math.floor(Y / w);
       return byKey.get(`${tx}/${ty}`)[(Y - ty * w) * w + (X - tx * w)];
     };
-    const out = new ImageData(SIZE, SIZE), o = out.data;
+    // surface level per pixel for tiles touching a below-sea-level water body
+    const lonAt = (i) => tw + ((i + 0.5) / SIZE) * (te - tw);
+    const latAt = (j) => { const t = y + (j + 0.5) / SIZE, n = 2 ** z; return (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI; };
+    const surface = (i, j) => {
+      for (const [, b, h0] of datums) { const lo = lonAt(i), la = latAt(j); if (lo >= b[0] && lo <= b[2] && la >= b[1] && la <= b[3]) return h0; }
+      return 0;
+    };
+    const out = new Float32Array(SIZE * SIZE);
     for (let j = 0; j < SIZE; j++) {
       const v = gy + (j + 0.5) * step - 0.5, j0 = Math.floor(v), fj = v - j0;
       for (let i = 0; i < SIZE; i++) {
@@ -187,15 +219,34 @@ export function clippedDem({ template, native, mode, omtTileJson }) {
           const u = gx + (i + 0.5) * step - 0.5, i0 = Math.floor(u), fi = u - i0;
           h = (get(i0, j0) * (1 - fi) + get(i0 + 1, j0) * fi) * (1 - fj) + (get(i0, j0 + 1) * (1 - fi) + get(i0 + 1, j0 + 1) * fi) * fj;
         }
-        const sea = mask[j * SIZE + i];
-        if (mode === 'sea') h = sea ? Math.min(h, -1) : 1;
-        else if (sea) h = 0;
-        const t = h + 32768, q = (j * SIZE + i) * 4;
-        o[q] = Math.floor(t / 256); o[q + 1] = Math.floor(t) % 256; o[q + 2] = Math.floor((t - Math.floor(t)) * 256); o[q + 3] = 255;
+        const h0 = datums.length ? surface(i, j) : 0;
+        if (unmasked) h -= mode === 'sea' ? h0 : 0; // no coastline: values as measured
+        else if (mode === 'sea') h = mask[j * SIZE + i] ? Math.min(h - h0, -1) : 1;
+        else if (mask[j * SIZE + i]) h = 0;
+        out[j * SIZE + i] = h;
       }
     }
-    const c = new OffscreenCanvas(SIZE, SIZE);
-    c.getContext('2d').putImageData(out, 0, 0);
-    return { data: await c.convertToBlob({ type: 'image/png' }) };
+    return out;
+  });
+  const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
+  return {
+    // maplibregl.addProtocol handler for a raster-dem source: Terrarium-encoded ImageBitmap
+    protocol: async (params, abortController) => {
+      const [z, x, y] = zxy(params.url);
+      if (abortController?.signal.aborted) throw new Error('aborted');
+      const e = await elevation(z, x, y);
+      const img = new ImageData(SIZE, SIZE), o = img.data;
+      for (let k = 0; k < e.length; k++) {
+        const t = e[k] + 32768, q = k * 4;
+        o[q] = Math.floor(t / 256); o[q + 1] = Math.floor(t) % 256; o[q + 2] = Math.floor((t - Math.floor(t)) * 256); o[q + 3] = 255;
+      }
+      return { data: await createImageBitmap(img, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) };
+    },
+    // maplibre-contour LocalDemManager hooks: hand over the metres directly
+    getTile: async (url) => {
+      const [z, x, y] = zxy(url);
+      return { data: { elevation: await elevation(z, x, y, z >= CONTOUR_MASK_MINZOOM) } };
+    },
+    decodeImage: async (data) => ({ width: SIZE, height: SIZE, data: data.elevation }),
   };
 }

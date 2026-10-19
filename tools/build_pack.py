@@ -56,6 +56,9 @@ GEBCO = ("https://coastwatch.pfeg.noaa.gov/erddap/griddap/GEBCO_2020", "GEBCO 20
 LAND_URL = "https://osmdata.openstreetmap.de/download/land-polygons-complete-4326.zip"
 OMT_TILEJSON = "https://tiles.openfreemap.org/planet"
 INLAND_SKIP = {"ocean", "swimming_pool"}  # ocean comes from the land polygons themselves
+# Water bodies OSM maps with a coastline whose surface is not at sea level: depths are
+# measured from that surface (same table as DATUMS in clip.js).
+DATUMS = [("Caspian Sea", (46.5, 36.5, 55.2, 47.4), -28.0)]
 MAX_CELLS = 1_500_000  # per ERDDAP request; larger frames are fetched with a stride
 UA = {"User-Agent": "charts-build-pack/1 (static chart area packs)"}
 
@@ -405,7 +408,16 @@ def main():
     sea = ocean.union(inland)  # all water
     (glon, glat, z), meta = depth_grid(a, bb, fwd, ocean, inland)
 
-    depth = -z
+    # depth below the local water surface (0 m except in the DATUMS water bodies)
+    lon2, lat2 = np.meshgrid(glon, glat)
+    surface = np.zeros_like(z)
+    datum_note = []
+    for name, (dw, ds, de, dn), h0 in DATUMS:
+        inside = (lon2 >= dw) & (lon2 <= de) & (lat2 >= ds) & (lat2 <= dn)
+        if inside.any():
+            surface[inside] = h0
+            datum_note.append(f"{name} depths from its {h0:g} m surface")
+    depth = surface - z
     dmax = float(np.nanmax(depth)) if np.isfinite(depth).any() else 0.0
     levels = [lv for lv in LEVELS if lv < dmax]
     band_levels = [0] + levels  # band 0: any valid depth; water outside it has no depth data
@@ -462,7 +474,7 @@ def main():
             "center": [lon, lat], "half_w_km": a.half_w_km, "aspect": a.aspect,
             "bbox": [round(w, 6), round(s, 6), round(e, 6), round(n, 6)],
             "built": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
-            "depth": {"source": meta["source"], "resolution": meta["resolution"], "max_m": round(dmax, 1)},
+            "depth": {"source": meta["source"] + "".join(f"; {t}" for t in datum_note), "resolution": meta["resolution"], "max_m": round(dmax, 1)},
             "land": "OSMData land polygons minus OSM inland water (OpenFreeMap)",
             "levels_m": levels, "detail_m": a.detail_m,
             "credits": f"{meta['credit']} · Coastline and inland water © OpenStreetMap contributors (ODbL), OSMData, OpenFreeMap",

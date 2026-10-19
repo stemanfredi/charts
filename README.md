@@ -107,6 +107,13 @@ coastline the basemap draws:
   isobath), and sea that the DEM calls dry becomes −1 m, the shallowest class.
   For the land layers, sea becomes 0 m. Depth tiles are upsampled from zoom 10
   to 12 and masked at 12, so the shore stays sharp.
+  Sea tiles are cut at every zoom, so land below sea level (the Caspian
+  Depression, polders) is never tinted. The cut tiles go to MapLibre as
+  bitmaps and to maplibre-contour as numbers, with no PNG round trip.
+- Water bodies that OSM maps with a coastline but whose surface is not at sea
+  level are listed in `DATUMS` (clip.js, and in the pack tool). Today that's the
+  Caspian Sea, at about −28 m: its depths are measured from its surface, not
+  from sea level, or the shallow northern Caspian (~5 m) would show as 30 m.
 - Relief shading and land contours are drawn under the vector sea fill, so the
   fill cuts them exactly at the shore. The land DEM is not upsampled, because
   the slopes of an upsampled surface shade in visible facets.
