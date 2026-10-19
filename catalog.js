@@ -146,7 +146,7 @@ const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(it
 export const DEPTH_STOPS = [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50, '#c9e0f1'], [200, '#dbeaf5'], [2000, '#ecf4fa']];
 // clip.js sends land as +1 m (transparent) and water without a depth source (lakes above
 // sea level) as NO_DEPTH_M, painted in the no-depth grey
-export const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
+const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
   ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)',
   NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 
@@ -186,7 +186,8 @@ function layers() {
       filter: ['in', ['get', 'class'], ['literal', ['river', 'canal', 'stream']]],
       paint: { 'line-color': C.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 14, 2] } },
 
-    { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, ...m('depth'), paint: { 'color-relief-color': DEPTH_RAMP } },
+    // colour fills are chart-only: over satellite the image shows the water; isobaths still draw
+    { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': DEPTH_RAMP } },
     ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
 
     { id: 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours', minzoom: 4, maxzoom: 13, ...m('isobaths'),
@@ -196,7 +197,7 @@ function layers() {
     // area pack: above every global sea layer, below roads, buildings and labels
     { id: 'pack-sea', type: 'fill', source: 'pack', metadata: { item: 'pack-depth', base: 'chart' },
       filter: ['==', ['get', 'kind'], 'sea'], paint: { 'fill-color': C.noDepth } }, // water the grid has no depth for
-    { id: 'pack-bands', type: 'fill', source: 'pack', ...m('pack-depth'),
+    { id: 'pack-bands', type: 'fill', source: 'pack', metadata: { item: 'pack-depth', base: 'chart' },
       filter: ['==', ['get', 'kind'], 'band'], paint: { 'fill-color': PACK_BANDS } },
     { id: 'pack-land', type: 'fill', source: 'pack', metadata: { item: 'pack-land', base: 'chart' },
       filter: ['==', ['get', 'kind'], 'land'], paint: { 'fill-color': C.land } },

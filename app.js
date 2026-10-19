@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_STOPS, DEPTH_RAMP, PACK_STOPS, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
 import { clipper } from './clip.js';
 import { colourAt, drawRamp, drawClasses, loadColormap, drawColormap } from './legend.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
@@ -141,7 +141,7 @@ function setOn(id, on) {
   }
   on ? state.on.add(id) : state.on.delete(id);
   applyItem(id);
-  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); shoreFill(); }
+  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); }
   if (id === 'graticule') { updateGraticule(); drawLatScale(); }
   if (id === 'depth') shoreFill();
   renderMenu();
@@ -150,9 +150,6 @@ function setOn(id, on) {
 // Under depth shading the water fill takes the shallowest band's colour: the tint stops a
 // fraction of a pixel short of the shore (clip.js), and that sliver must not read as white.
 function shoreFill() {
-  // over satellite the image already shows the water: no grey "no depth" paint on lakes
-  map.setPaintProperty('depth', 'color-relief-color', state.on.has('sat')
-    ? DEPTH_RAMP.map((v) => (v === NO_DEPTH ? 'rgba(221,227,231,0)' : v)) : DEPTH_RAMP);
   const zmax = style.layers.find((l) => l.id === 'depth').maxzoom; // shading hides itself above this
   map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], DEPTH_STOPS[0][1], zmax, '#ffffff'] : '#ffffff');
 }
@@ -411,8 +408,8 @@ function renderLegends() {
   const on = (id) => state.on.has(id);
   const want = [];
   if (on('legend')) {
-    if (pack.doc && on('pack-depth')) want.push('pack');
-    if (on('depth') && map.getZoom() < 13) want.push('depth');
+    if (pack.doc && on('pack-depth') && on('chart')) want.push('pack');
+    if (on('depth') && on('chart') && map.getZoom() < 13) want.push('depth');
     if (on('gibs') && GIBS[state.variant.gibs].legend) want.push('gibs');
   }
   for (const id of Object.keys(legendEls)) if (!want.includes(id)) legendEls[id].remove();

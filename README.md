@@ -134,7 +134,7 @@ coastline the basemap draws:
   tiles agree; the 8 m threshold sits above SRTM's noise, so the several OSM
   polygons of one liman agree). At sea level (≤ 8 m: limans, lagoons, harbour basins) it is shown flat
   in the shallowest class with no isobaths, because the DEM inside it is not a
-  depth. Lakes above that are grey on the chart (no depth data); over satellite they are left to the image.
+  depth. Lakes above that are grey (no depth data). Over satellite no water colour is drawn at all: the image shows the water, with isobaths on top.
 - Relief shading and land contours are drawn under the vector sea fill, so the
   fill cuts them exactly at the shore. The land DEM is not upsampled, because
   the slopes of an upsampled surface shade in visible facets.
