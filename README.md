@@ -27,7 +27,7 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 | Item | Source | Licence | Real resolution |
 |---|---|---|---|
 | Chart, coastline, roads, buildings, names, boundaries | OpenFreeMap (OpenStreetMap, OpenMapTiles schema) | ODbL | OSM; coastline generalised below zoom 7 |
-| Satellite | EOX Sentinel-2 cloudless 2016 (default) / 2024 / Esri World Imagery | CC BY 4.0 / **CC BY-NC-SA 4.0** / Esri terms | 10 m / 10 m / ≤ 0.5 m |
+| Satellite | Esri World Imagery (default) / EOX Sentinel-2 cloudless 2016 / 2024 | Esri terms / CC BY 4.0 / **CC BY-NC-SA 4.0** | ≤ 0.5 m / 10 m / 10 m |
 | Depth shading, isobaths | AWS Terrain Tiles (Terrarium), cut to the OSM coastline, contoured in the browser | open data | seabed ~1–2 km in open sea; hidden above zoom 12 |
 | Relief shading, land contours | same DEM, land part, under the sea fill | open data | SRTM 30 m |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 | crowd-sourced |
