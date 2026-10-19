@@ -70,7 +70,7 @@ export const ITEMS = [
   { id: 'chart', group: 'base', label: 'Chart', on: true,
     info: { src: 'OpenStreetMap via OpenFreeMap (OpenMapTiles schema)', lic: 'ODbL · © OpenStreetMap contributors', res: 'Coastline from OSM water polygons; generalised below zoom 7', url: 'https://openfreemap.org' } },
   { id: 'sat', group: 'base', label: 'Satellite', opacity: 1,
-    variants: { esri: 'Esri World Imagery (sharpest; Esri terms)', eox16: 'Sentinel-2 2016 · EOX (CC BY)', eox24: 'Sentinel-2 2024 · EOX (non-commercial)' }, // first = default
+    variants: { esri: 'Esri World Imagery (Esri terms)', eox16: 'Sentinel-2 2016 · EOX (CC BY)', eox24: 'Sentinel-2 2024 · EOX (non-commercial)' }, // first = default
     info: { src: 'Esri World Imagery (default), or EOX Sentinel-2 cloudless', lic: 'EOX 2016: CC BY 4.0 · EOX 2024: CC BY-NC-SA 4.0 · Esri: Esri terms of use', res: 'Sentinel-2: 10 m · Esri: up to ~0.5 m, varies', url: 'https://s2maps.eu' } },
 
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12,
@@ -146,7 +146,7 @@ const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(it
 export const DEPTH_STOPS = [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50, '#c9e0f1'], [200, '#dbeaf5'], [2000, '#ecf4fa']];
 // clip.js sends land as +1 m (transparent) and water without a depth source (lakes above
 // sea level) as NO_DEPTH_M, painted in the no-depth grey
-const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
+export const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, '#ffffff',
   ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)',
   NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 

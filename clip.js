@@ -38,10 +38,13 @@ const tileBounds = (z, x, y) => {
 };
 const SEA_CLASSES = new Set(['ocean', 'dock']);
 // Inland water (OSM lagoons, limans, harbour basins, lakes) is classified once per water
-// body, from the DEM at its shoreline (median over its polygon's vertices), and remembered
-// by OSM id so every tile agrees: surface at most this high → sea-level water, else a lake.
+// body, from the DEM at its shoreline (lower quartile over its polygon's vertices: a liman's
+// shore dips to water level somewhere, a raised lake's does not), and remembered by OSM id so
+// every tile agrees: at most this high → sea-level water, else a lake. SRTM shore values are
+// noisy by several metres and OSM splits one liman into several polygons, so the threshold
+// sits well above that noise (Odesa limans: 0–7 m) and below raised lakes (30 m and up there).
 // Per-pixel tests made noisy patchworks; the DEM inside such water is not a depth either.
-const SEA_LEVEL_WATER_M = 5;
+const SEA_LEVEL_WATER_M = 8;
 const waterLevel = new Map(); // OSM id → true if at sea level
 // value the sea tiles carry for water without a depth source; DEPTH_RAMP paints it grey
 export const NO_DEPTH_M = 9000;
@@ -170,7 +173,7 @@ async function seaMask(omtTemplate, z, x, y, demAt, h0, omtOffset, signal) {
     }
     if (vals.length < 3) return false; // no shore in this tile and not decided yet: no depth claim
     vals.sort((a, b) => a - b);
-    const v = vals[vals.length >> 1] - h0 <= SEA_LEVEL_WATER_M;
+    const v = vals[vals.length >> 2] - h0 <= SEA_LEVEL_WATER_M;
     if (f.id && vals.length >= 10) waterLevel.set(f.id, v); // enough shore to decide for all tiles
     return v;
   };
