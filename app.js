@@ -1,0 +1,432 @@
+import * as maplibregl from 'maplibre-gl';
+import mlcontour from 'maplibre-contour';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAXZOOM, DEM_LAND_MAXZOOM, OPACITY_PROP, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
+
+const $ = (sel, el = document) => el.querySelector(sel);
+const h = (tag, attrs = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, '');
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  el.append(...kids.flat().filter((k) => k != null));
+  return el;
+};
+const byId = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
+
+// ---- state (mirrored in the URL hash) ---------------------------------------
+const state = {
+  on: new Set(ITEMS.filter((it) => it.on).map((it) => it.id)),
+  variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
+  opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
+  date: defaultDate(),
+  open: new Set(['base', 'sea']),
+  menu: window.innerWidth >= 720,
+};
+let view = { zoom: 4, center: [12, 41], bearing: 0 };
+let measureState = '';
+
+function readHash() {
+  const q = new URLSearchParams(location.hash.slice(1));
+  const v = (q.get('v') || '').split('/').map(Number);
+  if (v.length >= 3 && v.every(Number.isFinite)) view = { zoom: v[0], center: [v[2], v[1]], bearing: v[3] || 0 };
+  if (q.has('on')) state.on = new Set(q.get('on').split(',').filter((id) => byId[id]));
+  for (const kv of (q.get('var') || '').split(',')) {
+    const [k, val] = kv.split(':');
+    if (byId[k]?.variants?.[val]) state.variant[k] = val;
+  }
+  for (const kv of (q.get('op') || '').split(',')) {
+    const [k, val] = kv.split(':');
+    if (k in state.opacity && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.date = q.get('d');
+  if (q.has('g')) state.open = new Set(q.get('g').split(','));
+  if (q.has('menu')) state.menu = q.get('menu') === '1';
+  measureState = q.get('m') || '';
+  return q.get('u');
+}
+
+let hashTimer = 0;
+function writeHash() {
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(() => {
+    const c = map.getCenter();
+    const q = new URLSearchParams();
+    q.set('v', [map.getZoom().toFixed(2), c.lat.toFixed(5), c.lng.toFixed(5), Math.round(map.getBearing())].join('/'));
+    q.set('on', [...state.on].join(','));
+    const variants = Object.entries(state.variant).filter(([k, v]) => v !== Object.keys(byId[k].variants)[0]);
+    if (variants.length) q.set('var', variants.map((kv) => kv.join(':')).join(','));
+    const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
+    if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
+    if (state.on.has('gibs')) q.set('d', state.date);
+    if (measure.units !== 'km') q.set('u', measure.units);
+    const m = measure.serialize();
+    if (m) q.set('m', m);
+    q.set('g', [...state.open].join(','));
+    q.set('menu', state.menu ? '1' : '0');
+    history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
+  }, 250);
+}
+
+const urlUnits = readHash();
+
+// ---- map --------------------------------------------------------------------
+const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: true, cacheSize: 200 };
+const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA_MAXZOOM });
+const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND_MAXZOOM });
+seaDem.setupMaplibre(maplibregl);
+landDem.setupMaplibre(maplibregl);
+const contourOpts = { contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level', extent: 4096, buffer: 1 };
+const style = buildStyle({
+  seaDemUrl: seaDem.sharedDemProtocolUrl,
+  landDemUrl: landDem.sharedDemProtocolUrl,
+  // zoom → [minor, major] interval in metres
+  isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: { 4: [1000, 2000], 6: [200, 1000], 8: [100, 500], 10: [20, 100] } }),
+  contourUrl: landDem.contourProtocolUrl({ ...contourOpts, thresholds: { 9: [100, 500], 11: [50, 250], 12: [20, 100], 14: [10, 50] } }),
+  date: state.date,
+});
+style.layers.push(...MEASURE_LAYERS);
+
+const map = new maplibregl.Map({
+  container: 'map', style, ...view,
+  maxPitch: 0, pitchWithRotate: false, dragRotate: true, touchPitch: false,
+  attributionControl: false, fadeDuration: 150,
+});
+map.touchZoomRotate.disableRotation();
+map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), 'top-left');
+const scale = new maplibregl.ScaleControl({ maxWidth: 140, unit: 'metric' });
+map.addControl(scale, 'bottom-left');
+map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+
+const measure = new Measure(map, (what) => { if (what === 'list') { renderMeasures(); writeHash(); } renderTools(); });
+if (urlUnits === 'nm') measure.units = 'nm';
+
+// ---- applying the state to the map ------------------------------------------
+const layersOf = {};
+for (const l of style.layers) if (l.metadata?.item) (layersOf[l.metadata.item] ||= []).push(l);
+
+function applyItem(id) {
+  const it = byId[id];
+  const on = state.on.has(id);
+  for (const l of layersOf[id] || []) {
+    const vis = on && (!l.metadata.variant || l.metadata.variant === state.variant[id]);
+    map.setLayoutProperty(l.id, 'visibility', vis ? 'visible' : 'none');
+    const prop = OPACITY_PROP[l.type];
+    if (it.opacity != null && prop) map.setPaintProperty(l.id, prop, state.opacity[id]);
+  }
+}
+function setOn(id, on) {
+  const it = byId[id];
+  if (on && GROUPS.find((g) => g.id === it.group).exclusive) {
+    for (const other of ITEMS) if (other.group === it.group && other.id !== id && state.on.delete(other.id)) applyItem(other.id);
+  }
+  on ? state.on.add(id) : state.on.delete(id);
+  applyItem(id);
+  if (id === 'graticule' && on) updateGraticule();
+  renderMenu();
+  writeHash();
+}
+function setDate(date) {
+  state.date = date;
+  for (const k of Object.keys(GIBS)) map.getSource(`gibs-${k}`).setTiles(gibsTiles(k, date));
+  writeHash();
+}
+
+// ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
+const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
+function fmtAngle(v, pos, neg, step) {
+  const hemi = v >= 0 ? pos : neg;
+  const a = Math.abs(v);
+  let d = Math.floor(a + 1e-9), mnt = Math.round((a - d) * 60);
+  if (mnt === 60) { d += 1; mnt = 0; }
+  return step >= 1 || mnt === 0 ? `${d}°${hemi}` : `${d}°${String(mnt).padStart(2, '0')}′${hemi}`;
+}
+function updateGraticule() {
+  if (!state.on.has('graticule')) return;
+  const b = map.getBounds();
+  const span = Math.max(b.getNorth() - b.getSouth(), (b.getEast() - b.getWest()) * Math.cos((map.getCenter().lat * Math.PI) / 180));
+  const step = STEPS.find((s) => span / s >= 3) || STEPS[STEPS.length - 1];
+  const f = [];
+  const s = Math.max(-85, b.getSouth()), n = Math.min(85, b.getNorth());
+  const w = b.getWest(), e = b.getEast();
+  const k0 = (x) => Math.round(x * 3600) / 3600;
+  for (let lon = Math.ceil(w / step) * step; lon <= e; lon += step) {
+    const L = ((k0(lon) + 540) % 360) - 180;
+    f.push({ type: 'Feature', properties: { label: fmtAngle(L, 'E', 'W', step) }, geometry: { type: 'LineString', coordinates: [[lon, s], [lon, n]] } });
+  }
+  for (let lat = Math.ceil(s / step) * step; lat <= n; lat += step) {
+    const coords = [];
+    for (let x = w; x < e; x += (e - w) / 32) coords.push([x, lat]);
+    coords.push([e, lat]);
+    f.push({ type: 'Feature', properties: { label: fmtAngle(k0(lat), 'N', 'S', step) }, geometry: { type: 'LineString', coordinates: coords } });
+  }
+  map.getSource('graticule').setData({ type: 'FeatureCollection', features: f });
+}
+
+// ---- source status: errors per menu item -----------------------------------
+const itemsOfSource = {};
+for (const l of style.layers) if (l.metadata?.item && l.source) (itemsOfSource[l.source] ||= new Set()).add(l.metadata.item);
+const health = {}; // source → {err, ok, msg}
+map.on('error', (e) => {
+  const src = e.sourceId || e.source?.id;
+  if (!src || !itemsOfSource[src]) return console.warn(e.error || e);
+  const s = (health[src] ||= { err: 0, ok: 0 });
+  s.err++;
+  s.msg = e.error?.message || 'request failed';
+  renderStatus();
+});
+map.on('data', (e) => {
+  if (e.dataType === 'source' && e.tile && health[e.sourceId]) { health[e.sourceId].ok++; renderStatus(); }
+});
+map.on('movestart', () => { for (const k in health) delete health[k]; });
+function itemStatus(id) {
+  for (const l of layersOf[id] || []) {
+    if (l.metadata.variant && l.metadata.variant !== state.variant[id]) continue;
+    const s = health[l.source];
+    if (s?.err) return { cls: s.ok ? 'partial' : 'error', msg: s.ok ? `some tiles failed: ${s.msg}` : `not loading: ${s.msg}` };
+  }
+  return null;
+}
+
+// ---- menu -------------------------------------------------------------------
+const menu = $('#menu');
+const rows = {};
+
+function itemRow(it) {
+  const group = GROUPS.find((g) => g.id === it.group);
+  const input = h('input', { type: group.exclusive ? 'radio' : 'checkbox', name: group.exclusive ? `g-${group.id}` : null, id: `i-${it.id}`,
+    onchange: (e) => setOn(it.id, e.target.checked) });
+  const opacity = it.opacity != null ? h('label', { class: 'opacity' }, h('span', {}, it.id === 'relief' ? 'Strength' : 'Opacity'),
+    h('input', { type: 'range', min: 0, max: 1, step: 0.05, oninput: (e) => { state.opacity[it.id] = +e.target.value; applyItem(it.id); writeHash(); } })) : null;
+  const info = h('div', { class: 'info', hidden: true }, opacity,
+    h('p', {}, h('b', {}, 'Source '), it.info.src),
+    h('p', {}, h('b', {}, 'Licence '), it.info.lic),
+    h('p', {}, h('b', {}, 'Resolution '), it.info.res),
+    it.info.url ? h('p', {}, h('a', { href: it.info.url, target: '_blank', rel: 'noopener noreferrer' }, it.info.url.replace(/^https:\/\/(www\.)?/, '').replace(/\/.*$/, ''))) : null);
+  // variant and date are what the item shows, so they sit in the row; opacity and provenance are one click away
+  const controls = h('div', { class: 'controls' },
+    it.variants ? h('select', { 'aria-label': `${it.label} variant`, onchange: (e) => { state.variant[it.id] = e.target.value; applyItem(it.id); writeHash(); renderStatus(); } },
+      Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label))) : null,
+    it.date ? h('input', { type: 'date', 'aria-label': 'Imagery date', max: new Date().toISOString().slice(0, 10), min: '2012-01-01',
+      onchange: (e) => e.target.value && setDate(e.target.value) }) : null);
+  const row = h('li', { class: 'item' },
+    h('div', { class: 'line' },
+      input,
+      h('label', { for: input.id }, it.label),
+      h('span', { class: 'hint' }),
+      h('button', { class: 'more', type: 'button', title: opacity ? 'Opacity, source, licence' : 'Source, licence, resolution',
+        'aria-label': `Details for ${it.label}`, 'aria-expanded': 'false',
+        onclick: (e) => { info.hidden = !info.hidden; e.currentTarget.setAttribute('aria-expanded', String(!info.hidden)); } }, '⋯')),
+    controls, info);
+  rows[it.id] = { row, input, controls };
+  return row;
+}
+
+function groupBlock(g) {
+  const items = ITEMS.filter((it) => it.group === g.id);
+  const all = g.exclusive ? null : h('input', { type: 'checkbox', 'aria-label': `All of ${g.label}`,
+    onclick: (e) => e.stopPropagation(),
+    onchange: (e) => { const want = e.target.checked; for (const it of items) if (state.on.has(it.id) !== want) setOn(it.id, want); } });
+  const det = h('details', { 'data-group': g.id, open: state.open.has(g.id),
+    ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); writeHash(); } },
+    h('summary', {}, all, h('span', { class: 'gname' }, g.label), h('span', { class: 'count' })),
+    h('ul', {}, items.map(itemRow)));
+  det._all = all;
+  det._items = items;
+  return det;
+}
+
+const groupEls = GROUPS.map(groupBlock);
+const measureList = h('ul', { class: 'mlist' });
+const unitSel = h('select', { 'aria-label': 'Distance units', onchange: (e) => measure.setUnits(e.target.value) },
+  h('option', { value: 'km' }, 'km · m'), h('option', { value: 'nm' }, 'nautical miles'));
+const measureAll = h('input', { type: 'checkbox', 'aria-label': 'Show all measurements', onclick: (e) => e.stopPropagation(),
+  onchange: (e) => measure.setHidden(null, !e.target.checked) });
+const measureGroup = h('details', { 'data-group': 'measure', open: state.open.has('measure'),
+  ontoggle: (e) => { e.target.open ? state.open.add('measure') : state.open.delete('measure'); writeHash(); } },
+  h('summary', {}, measureAll, h('span', { class: 'gname' }, 'Measurements'), h('span', { class: 'count' })),
+  h('div', { class: 'mhead' }, h('label', {}, 'Units ', unitSel)),
+  measureList,
+  h('p', { class: 'note' }, 'Geodesic on WGS 84. Click to add points; double-click or Enter finishes; Backspace undoes; Esc cancels.'));
+
+menu.append(...groupEls, measureGroup,
+  h('p', { class: 'note warn' }, 'Not for navigation. Positions, depths and coastlines are from open datasets of varying accuracy.'));
+
+function renderMenu() {
+  const z = map.getZoom();
+  for (const it of ITEMS) {
+    const r = rows[it.id];
+    const on = state.on.has(it.id);
+    r.input.checked = on;
+    r.controls.hidden = !on || !(it.variants || it.date);
+    const low = it.minzoom && z < it.minzoom, high = it.maxzoom && z >= it.maxzoom + 1;
+    r.row.classList.toggle('dim', !!(on && (low || high)));
+    r.row.querySelector('.hint').textContent = !on ? '' : low ? `zoom ${it.minzoom}+` : high ? `zoom ≤ ${it.maxzoom}` : '';
+    const sel = r.controls.querySelector('select');
+    if (sel) sel.value = state.variant[it.id];
+    const rng = r.row.querySelector('input[type=range]');
+    if (rng) rng.value = state.opacity[it.id];
+    const dt = r.controls.querySelector('input[type=date]');
+    if (dt) dt.value = state.date;
+  }
+  for (const g of groupEls) {
+    const n = g._items.filter((it) => state.on.has(it.id)).length;
+    g.querySelector('.count').textContent = g._all ? `${n}/${g._items.length}` : '';
+    if (g._all) { g._all.checked = n === g._items.length; g._all.indeterminate = n > 0 && n < g._items.length; }
+  }
+  renderStatus();
+}
+function renderStatus() {
+  for (const it of ITEMS) {
+    const st = state.on.has(it.id) ? itemStatus(it.id) : null;
+    const r = rows[it.id].row;
+    r.classList.toggle('error', st?.cls === 'error');
+    r.classList.toggle('partial', st?.cls === 'partial');
+    r.title = st ? st.msg : '';
+  }
+}
+function renderMeasures() {
+  measureList.replaceChildren(...measure.list.map((x) => h('li', { class: 'item' },
+    h('div', { class: 'line' },
+      h('input', { type: 'checkbox', checked: !x.hidden, id: `m-${x.id}`, onchange: (e) => measure.setHidden(x.id, !e.target.checked) }),
+      h('label', { for: `m-${x.id}` }, summary(x, measure.units)),
+      h('button', { class: 'x', type: 'button', 'aria-label': 'Delete measurement', title: 'Delete', onclick: () => measure.remove(x.id) }, '×')),
+    x.kind === 'ring' ? h('div', { class: 'controls' }, h('label', { class: 'opacity' }, h('span', {}, `Radius (${measure.units === 'nm' ? 'NM' : 'km'})`),
+      h('input', { type: 'number', min: 0, step: 'any', value: +(x.r / (measure.units === 'nm' ? 1852 : 1000)).toFixed(3),
+        onchange: (e) => measure.setRadius(x.id, +e.target.value * (measure.units === 'nm' ? 1852 : 1000)) }))) : null)));
+  if (!measure.list.length) measureList.append(h('li', { class: 'empty' }, 'None yet. Use the ruler, area or ring tools on the map.'));
+  const shown = measure.list.filter((x) => !x.hidden).length;
+  measureAll.checked = measure.list.length > 0 && shown === measure.list.length;
+  measureAll.indeterminate = shown > 0 && shown < measure.list.length;
+  measureAll.disabled = !measure.list.length;
+  measureGroup.querySelector('.count').textContent = measure.list.length ? `${shown}/${measure.list.length}` : '';
+  unitSel.value = measure.units;
+  scale.setUnit(measure.units === 'nm' ? 'nautical' : 'metric');
+}
+
+// ---- panel + toolbar --------------------------------------------------------
+const panel = $('#panel');
+const toggle = $('#toggle');
+function setMenu(open) {
+  state.menu = open;
+  panel.hidden = !open;
+  toggle.setAttribute('aria-expanded', String(open));
+  writeHash();
+}
+toggle.addEventListener('click', () => setMenu(!state.menu));
+$('#close').addEventListener('click', () => setMenu(false));
+
+const tools = $('#tools');
+function renderTools() {
+  for (const b of tools.querySelectorAll('[data-tool]')) b.setAttribute('aria-pressed', String(measure.tool === b.dataset.tool));
+}
+tools.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.tool) measure.tool === b.dataset.tool ? measure.cancel() : measure.start(b.dataset.tool);
+  else if (b.id === 'png') exportPng();
+  else if (b.id === 'link') copyLink(b);
+});
+async function copyLink(b) {
+  clearTimeout(hashTimer);
+  try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
+}
+function flash(b, text) {
+  const t = b.textContent;
+  b.textContent = text;
+  setTimeout(() => { b.textContent = t; }, 1200);
+}
+
+// cursor position readout
+const pos = $('#pos');
+const dm = (v, p, n) => { const a = Math.abs(v), d = Math.floor(a); return `${d}°${((a - d) * 60).toFixed(3).padStart(6, '0')}′${v >= 0 ? p : n}`; };
+map.on('mousemove', (e) => { pos.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
+
+// ---- PNG export: the map canvas plus scale, north arrow and a credit strip ---
+function attributionText() {
+  const srcs = new Set();
+  for (const l of map.getStyle().layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none') srcs.add(l.source);
+  const parts = [...srcs].map((s) => map.getSource(s)?.attribution).filter(Boolean);
+  const tmp = document.createElement('div');
+  return [...new Set(parts)].map((p) => { tmp.innerHTML = p; return tmp.textContent; }).join(' · ');
+}
+function niceLen(m) {
+  const p = 10 ** Math.floor(Math.log10(m));
+  return [5, 2, 1].map((k) => k * p).find((v) => v <= m) || p;
+}
+function exportPng() {
+  map.once('render', () => {
+    const src = map.getCanvas();
+    const dpr = src.width / src.clientWidth;
+    const lines = wrap(attributionText(), Math.floor(src.clientWidth / 6.2));
+    const footer = (22 + lines.length * 14) * dpr;
+    const out = h('canvas', { width: src.width, height: src.height + footer });
+    const g = out.getContext('2d');
+    g.drawImage(src, 0, 0);
+    g.scale(dpr, dpr);
+    const W = src.clientWidth, H = src.clientHeight;
+    // scale bar at the centre latitude (Web Mercator scale varies with latitude)
+    const lat = map.getCenter().lat;
+    const mpp = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** map.getZoom());
+    const units = measure.units;
+    const unitM = units === 'nm' ? 1852 : 1;
+    const len = niceLen((120 * mpp) / unitM) * unitM;
+    const px = len / mpp;
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.fillRect(10, H - 40, px + 20, 30);
+    g.strokeStyle = '#2b3a46';
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(20, H - 24); g.lineTo(20, H - 18); g.lineTo(20 + px, H - 18); g.lineTo(20 + px, H - 24); g.stroke();
+    g.fillStyle = '#2b3a46';
+    g.font = '11px system-ui, sans-serif';
+    g.fillText(`${fmtDist(len, units)} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}`, 20, H - 26);
+    // north arrow
+    g.save();
+    g.translate(W - 28, 34);
+    g.rotate((-map.getBearing() * Math.PI) / 180);
+    g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(0, 0, 18, 0, 2 * Math.PI); g.fill();
+    g.fillStyle = '#2b3a46'; g.beginPath(); g.moveTo(0, -14); g.lineTo(6, 6); g.lineTo(0, 2); g.lineTo(-6, 6); g.closePath(); g.fill();
+    g.font = 'bold 10px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('N', 0, 15);
+    g.restore();
+    // credit strip
+    g.fillStyle = '#fff'; g.fillRect(0, H, W, footer / dpr);
+    g.fillStyle = '#2b3a46'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'left';
+    const c = map.getCenter();
+    g.fillText(`Centre ${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')} · zoom ${map.getZoom().toFixed(1)} · Web Mercator · exported ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC · NOT FOR NAVIGATION`, 8, H + 15);
+    g.fillStyle = '#5d6d79';
+    lines.forEach((t, i) => g.fillText(t, 8, H + 30 + i * 14));
+    out.toBlob((blob) => {
+      const a = h('a', { href: URL.createObjectURL(blob), download: `chart-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}.png` });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }, 'image/png');
+  });
+  map.triggerRepaint();
+}
+function wrap(text, n) {
+  const out = [];
+  let line = '';
+  for (const w of text.split(' ')) {
+    if ((line + ' ' + w).length > n && line) { out.push(line); line = w; } else line = line ? `${line} ${w}` : w;
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+// ---- go ---------------------------------------------------------------------
+map.on('load', () => {
+  for (const it of ITEMS) applyItem(it.id);
+  measure.load(measureState);
+  updateGraticule();
+  renderMenu();
+  renderMeasures();
+  setMenu(state.menu);
+});
+map.on('moveend', () => { updateGraticule(); writeHash(); });
+map.on('zoomend', renderMenu);
+map.on('dataloading', () => document.body.classList.add('loading'));
+map.on('idle', () => document.body.classList.remove('loading'));
+window.addEventListener('hashchange', () => location.reload());
+window.map = map; // handy from the console

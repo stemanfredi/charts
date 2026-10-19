@@ -1,0 +1,100 @@
+:root {
+  --ink: #1f2c36; --soft: #5d6d79; --line: #d5dde3; --line2: #e9eef2; --bg: #ffffff;
+  --accent: #1f5f86; --magenta: #b0127a; --err: #b42318; --warn: #b54708;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body { font: 13px/1.4 var(--font); color: var(--ink); background: #f1ebdc; overflow: hidden; }
+#map { position: absolute; inset: 0; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* floating boxes share one look */
+.tools, .toggle, .panel, .pos {
+  position: absolute; z-index: 2; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; box-shadow: 0 1px 4px rgba(20, 30, 40, .12);
+}
+
+/* toolbar, right of the zoom buttons */
+.tools { top: 10px; left: 52px; display: flex; align-items: center; padding: 2px; gap: 2px; }
+.tools button { border: 0; background: none; padding: 6px 10px; border-radius: 4px; min-height: 32px; }
+.tools button:hover { background: var(--line2); }
+.tools button[aria-pressed="true"] { background: var(--magenta); color: #fff; }
+.tools .sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--line); }
+
+/* layer menu */
+.toggle { top: 10px; right: 10px; padding: 7px 14px; font-weight: 600; min-height: 34px; }
+.panel {
+  top: 10px; right: 10px; bottom: 34px; width: min(320px, calc(100vw - 20px));
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.panel header { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line); }
+.panel h1 { font-size: 15px; margin: 0; letter-spacing: .02em; }
+.spin { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; visibility: hidden; }
+body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.x { margin-left: auto; border: 0; background: none; font-size: 18px; line-height: 1; width: 30px; height: 30px; border-radius: 4px; color: var(--soft); }
+.x:hover { background: var(--line2); color: var(--ink); }
+#menu { overflow-y: auto; flex: 1; padding-bottom: 8px; }
+
+details { border-bottom: 1px solid var(--line2); }
+summary {
+  display: flex; align-items: center; gap: 8px; padding: 9px 14px; cursor: pointer; user-select: none;
+  font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); list-style: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: ""; margin-left: 4px; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; }
+details[open] > summary::after { transform: rotate(45deg); }
+summary .gname { flex: 1; }
+summary .count { font-weight: 400; font-family: var(--mono); font-size: 11px; letter-spacing: 0; }
+details ul { list-style: none; margin: 0; padding: 0 0 6px; }
+
+.item { padding: 2px 14px 2px 14px; }
+.item .line { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.item label { flex: 1; cursor: pointer; }
+.item input[type=checkbox], .item input[type=radio], summary input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; flex: none; }
+.item .hint { font-size: 11px; color: var(--warn); font-family: var(--mono); }
+.item.dim label { color: var(--soft); }
+.item.error label { color: var(--err); }
+.item.error .hint::after, .item.partial .hint::after { content: "⚠"; margin-left: 4px; color: var(--err); }
+.item.partial .hint::after { color: var(--warn); }
+.more { border: 0; background: none; width: 26px; height: 24px; border-radius: 4px; color: var(--soft); flex: none; padding: 0; font-size: 15px; line-height: 1; }
+.more:hover { background: var(--line2); color: var(--ink); }
+.more[aria-expanded="true"] { background: var(--line2); color: var(--accent); }
+.controls { display: grid; gap: 6px; padding: 2px 0 6px 23px; }
+.controls select, .controls input[type=date], .controls input[type=number] { width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; background: #fff; }
+.opacity { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
+.opacity span { flex: none; min-width: 52px; }
+.opacity input[type=range] { flex: 1; accent-color: var(--accent); }
+.info { margin: 0 0 8px 23px; padding: 6px 8px; background: #f6f8fa; border-left: 2px solid var(--accent); font-size: 12px; color: var(--soft); }
+.info p { margin: 2px 0; }
+.info .opacity { margin: 0 0 6px; }
+.info b { color: var(--ink); font-weight: 600; }
+.info a { color: var(--accent); }
+
+.mhead { padding: 0 14px 4px 37px; color: var(--soft); }
+.mhead select { border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: #fff; }
+.mlist .item label { font-family: var(--mono); font-size: 12px; }
+.mlist .x { font-size: 16px; width: 24px; height: 24px; }
+.mlist .empty { padding: 4px 14px 4px 37px; color: var(--soft); }
+.note { margin: 6px 14px; font-size: 11.5px; color: var(--soft); }
+.note.warn { color: var(--warn); font-weight: 600; }
+
+/* cursor readout */
+.pos { left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 8px; font: 11.5px var(--mono); white-space: nowrap; }
+.pos:empty { display: none; }
+
+/* MapLibre controls: match the boxes */
+.maplibregl-ctrl-group { border-radius: 6px !important; box-shadow: 0 1px 4px rgba(20, 30, 40, .12) !important; border: 1px solid var(--line); }
+.maplibregl-ctrl-scale { border-color: var(--ink); color: var(--ink); background: rgba(255, 255, 255, .8); font: 11px var(--font); }
+
+@media (max-width: 720px) {
+  .panel { top: auto; bottom: 0; right: 0; left: 0; width: auto; max-height: 70vh; border-radius: 10px 10px 0 0; }
+  .tools { left: 52px; right: 70px; overflow-x: auto; }
+  .tools button { padding: 6px 8px; }
+  .pos { display: none; }
+}
