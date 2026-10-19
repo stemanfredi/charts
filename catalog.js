@@ -104,7 +104,7 @@ export const ITEMS = [
   { id: 'legend', group: 'labels', label: 'Legends', on: true,
     info: { src: 'Drawn from the same colour stops as the map; SST from NASA GIBS’s published colour map', lic: '—', res: 'Depth shading: approximate DEM classes · pack: one class per contour · SST: 0.15 °C classes', url: 'https://nasa-gibs.github.io/gibs-api-docs/' } },
   { id: 'graticule', group: 'labels', label: 'Graticule', on: true,
-    info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. With the map north-up, a latitude scale runs down the left edge: 1′ of latitude = 1 NM anywhere on the chart, unlike the scale bar, which is exact only at the centre', url: '' } },
+    info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. Longitudes are labelled along the bottom edge, latitudes along the right. With the map north-up, a latitude scale runs down the left edge: 1′ of latitude = 1 NM anywhere on the chart, unlike the scale bar, which is exact only at the centre', url: '' } },
 ];
 
 // ---- sources ----------------------------------------------------------------
@@ -243,7 +243,7 @@ function layers() {
 
     { ...raster('seamarks', 'seamarks'), minzoom: 9 },
 
-    { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'),
+    { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
       paint: { 'line-color': C.grid, 'line-width': 0.5, 'line-opacity': 0.55 } },
 
     { id: 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours', minzoom: 6, maxzoom: 13, ...m('isobaths'),
@@ -285,9 +285,11 @@ function layers() {
         'text-letter-spacing': ['match', ['get', 'class'], ['country', 'state'], 0.12, 0] },
       paint: { 'text-color': ['match', ['get', 'class'], ['country', 'state'], C.inkSoft, C.ink], ...HALO } },
 
+    // one label per line, at the frame edge (points placed by app.js updateGraticule)
     { id: 'graticule-labels', type: 'symbol', source: 'graticule', ...m('graticule'),
-      layout: { 'symbol-placement': 'line', 'text-field': ['get', 'label'], 'text-font': FONT,
-        'text-size': 10, 'symbol-spacing': 420 },
+      filter: ['==', ['geometry-type'], 'Point'],
+      layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': 10,
+        'text-anchor': ['get', 'anchor'], 'text-allow-overlap': true, 'text-ignore-placement': true },
       paint: { 'text-color': C.grid, ...HALO } },
   ];
   // Every layer starts hidden; the app shows what the URL / defaults ask for.

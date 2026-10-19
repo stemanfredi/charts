@@ -178,15 +178,23 @@ function updateGraticule() {
   const s = Math.max(-85, b.getSouth()), n = Math.min(85, b.getNorth());
   const w = b.getWest(), e = b.getEast();
   const k0 = (x) => Math.round(x * 3600) / 3600;
+  // edge labels: meridians along the bottom, parallels along the right (the left edge has the
+  // latitude scale); only when north-up, where a screen edge is a parallel or a meridian
+  const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
+  const edges = Math.abs(map.getBearing()) < 0.5;
+  const latBottom = map.unproject([W / 2, H - 42]).lat, lonRight = map.unproject([W - 8, H / 2]).lng;
+  const label = (coord, text, anchor) => f.push({ type: 'Feature', properties: { label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
   for (let lon = Math.ceil(w / step) * step; lon <= e; lon += step) {
     const L = ((k0(lon) + 540) % 360) - 180;
-    f.push({ type: 'Feature', properties: { label: fmtAngle(L, 'E', 'W', step) }, geometry: { type: 'LineString', coordinates: [[lon, s], [lon, n]] } });
+    f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[lon, s], [lon, n]] } });
+    if (edges) label([lon, latBottom], fmtAngle(L, 'E', 'W', step), 'center');
   }
   for (let lat = Math.ceil(s / step) * step; lat <= n; lat += step) {
     const coords = [];
     for (let x = w; x < e; x += (e - w) / 32) coords.push([x, lat]);
     coords.push([e, lat]);
-    f.push({ type: 'Feature', properties: { label: fmtAngle(k0(lat), 'N', 'S', step) }, geometry: { type: 'LineString', coordinates: coords } });
+    f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } });
+    if (edges) label([lonRight, lat], fmtAngle(k0(lat), 'N', 'S', step), 'right');
   }
   map.getSource('graticule').setData({ type: 'FeatureCollection', features: f });
 }
@@ -649,6 +657,8 @@ map.on('load', () => {
   loadPackParam();
 });
 map.on('moveend', () => { updateGraticule(); writeHash(); });
+let gratRaf = 0;
+map.on('move', () => { cancelAnimationFrame(gratRaf); gratRaf = requestAnimationFrame(updateGraticule); }); // edge labels follow the frame
 map.on('zoomend', renderMenu);
 map.on('dataloading', () => document.body.classList.add('loading'));
 map.on('idle', () => document.body.classList.remove('loading'));
