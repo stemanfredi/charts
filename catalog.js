@@ -1,3 +1,5 @@
+import { NO_DEPTH_M } from './clip.js';
+
 // Layer catalog: every source, every style layer (in draw order), and the menu
 // items that switch them. A style layer belongs to a menu item through
 // metadata.item; layers of a hidden item are set to visibility:none, and
@@ -72,7 +74,7 @@ export const ITEMS = [
     info: { src: 'EOX Sentinel-2 cloudless, or Esri World Imagery', lic: 'EOX 2016: CC BY 4.0 · EOX 2024: CC BY-NC-SA 4.0 · Esri: Esri terms of use', res: 'Sentinel-2: 10 m · Esri: up to ~0.5 m, varies', url: 'https://s2maps.eu' } },
 
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12,
-    info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
+    info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water at sea level (harbour basins, lagoons) counts as sea; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4, maxzoom: 12,
     info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Interval by zoom: 1000/200/100/20 m. As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline, so they never cross land. Off above zoom 12', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
@@ -142,8 +144,11 @@ const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(it
 // Positive elevations stay transparent so land is never tinted from the DEM.
 // [depth m, colour] stops shared by the map and its legend.
 export const DEPTH_STOPS = [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50, '#c9e0f1'], [200, '#dbeaf5'], [2000, '#ecf4fa']];
+// clip.js sends land as +1 m (transparent) and water without a depth source (lakes above
+// sea level) as NO_DEPTH_M, painted in the no-depth grey
 const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, 'rgba(255,255,255,0)',
-  ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)'];
+  ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)',
+  NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 
 // Pack depth areas: band d covers water deeper than d m, each one step lighter; band 0 = any depth.
 export const NO_DEPTH = C.noDepth;
@@ -163,10 +168,20 @@ function layers() {
     { id: 'contours', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 9, ...m('contours'),
       filter: ['>', ['get', 'ele'], 0],
       paint: { 'line-color': C.contour, 'line-width': ['match', ['get', 'level'], 1, 0.8, 0.4] } },
+    // Shore line drawn UNDER the water fill at twice its width: where two water polygons meet
+    // (sea and a harbour basin, a lagoon and its canals; OSM draws a straight line between pier
+    // heads) both fills cover it; where water meets land, the land-side half stays as the shore.
+    { id: 'coastline', type: 'line', source: 'omt', 'source-layer': 'water', ...m('coastline'),
+      filter: ['!=', ['get', 'class'], 'swimming_pool'],
+      layout: { 'line-join': 'round' },
+      paint: {
+        'line-color': C.ink,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 3, ['match', ['get', 'class'], 'ocean', 0.8, 0.5], 12, ['match', ['get', 'class'], ['ocean', 'dock'], 2.2, 1.4]],
+      } },
     { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', ...m('chart'),
       filter: ['!=', ['get', 'class'], 'swimming_pool'],
       // depth shading covers the open sea only (clip.js); inland water has no depth source
-      paint: { 'fill-color': ['match', ['get', 'class'], ['ocean', 'dock'], C.sea, C.noDepth] } },
+      paint: { 'fill-color': C.sea } }, // one water, as in area packs; depth shading marks what has no depth
     { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway', minzoom: 8, ...m('chart'),
       filter: ['in', ['get', 'class'], ['literal', ['river', 'canal', 'stream']]],
       paint: { 'line-color': C.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 14, 2] } },
@@ -194,14 +209,19 @@ function layers() {
     { id: 'pack-frame', type: 'line', source: 'pack', ...m('pack-frame'),
       filter: ['==', ['get', 'kind'], 'frame'], paint: { 'line-color': '#b0127a', 'line-width': 1.2, 'line-dasharray': [4, 3] } },
 
-    // dark line for the sea shore only; lakes and rivers get a pale edge, because OSM splits
-    // large water bodies (a lagoon, its canals) into adjacent polygons whose shared edges are not shores
-    { id: 'coastline', type: 'line', source: 'omt', 'source-layer': 'water', ...m('coastline'),
-      filter: ['in', ['get', 'class'], ['literal', ['ocean', 'lake', 'river', 'dock']]],
-      paint: {
-        'line-color': ['match', ['get', 'class'], 'ocean', C.ink, C.water],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 3, ['match', ['get', 'class'], 'ocean', 0.4, 0.3], 12, ['match', ['get', 'class'], 'ocean', 1.1, 0.6]],
-      } },
+    // Piers and breakwaters as land at about their true width (the shore line under the water
+    // fill would otherwise half-hide anything narrower than itself), above every water layer
+    { id: 'piers', type: 'fill', source: 'omt', 'source-layer': 'transportation', minzoom: 12, ...m('coastline'),
+      filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'Polygon']],
+      paint: { 'fill-color': C.land, 'fill-outline-color': C.ink } },
+    { id: 'pier-lines-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 12, ...m('coastline'),
+      filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'LineString']],
+      layout: { 'line-cap': 'butt', 'line-join': 'round' },
+      paint: { 'line-color': C.ink, 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 12, 1.5, 18, 36] } },
+    { id: 'pier-lines', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 12, ...m('coastline'),
+      filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'LineString']],
+      layout: { 'line-cap': 'butt', 'line-join': 'round' },
+      paint: { 'line-color': C.land, 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 12, 0.5, 18, 32] } },
 
     { id: 'roads', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6, ...m('roads'),
       filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service']]],

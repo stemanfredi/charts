@@ -114,6 +114,15 @@ coastline the basemap draws:
   level are listed in `DATUMS` (clip.js, and in the pack tool). Today that's the
   Caspian Sea, at about −28 m: its depths are measured from its surface, not
   from sea level, or the shallow northern Caspian (~5 m) would show as 30 m.
+- Water is one surface, as in area packs: OSM splits it into polygons (the sea,
+  a harbour basin closed off by a straight line between pier heads, a lagoon
+  and its canals), but all of it is filled the same. The shore line is drawn
+  *under* that fill at twice its width: where two water polygons meet, both
+  fills cover it; where water meets land, the land-side half remains. Piers
+  are drawn on top as land at about their real width.
+- Inland water whose surface is at sea level (≤ 5 m: harbour basins, lagoons,
+  estuaries) gets depth shading like the sea. Lakes above that are painted grey
+  by the depth layer: no depth data.
 - Relief shading and land contours are drawn under the vector sea fill, so the
   fill cuts them exactly at the shore. The land DEM is not upsampled, because
   the slopes of an upsampled surface shade in visible facets.

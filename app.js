@@ -409,7 +409,7 @@ function renderLegends() {
   for (const id of want) {
     const el = legendEl(id);
     if (id === 'depth') {
-      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', DEPTH_STOPS, { colour: NO_DEPTH, label: 'lagoons, lakes, rivers: no depth data' });
+      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', DEPTH_STOPS, { colour: NO_DEPTH, label: 'lakes above sea level: no depth data' });
       el.setAttribute('aria-label', `Depth shading legend: ${DEPTH_STOPS.map(([d]) => d).join(', ')} metres`);
     } else if (id === 'pack') {
       const p = pack.doc.pack, edges = [0, ...p.levels_m];

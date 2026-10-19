@@ -33,6 +33,12 @@ const tileBounds = (z, x, y) => {
   return [(x / n) * 360 - 180, lat(y + 1), ((x + 1) / n) * 360 - 180, lat(y)];
 };
 const SEA_CLASSES = new Set(['ocean', 'dock']);
+// Inland water (OSM lagoons, harbour basins, estuaries, lakes) whose DEM surface is at most
+// this high is treated as sea, as the water geometry does in area packs: a harbour basin
+// cut off by a straight OSM line between pier heads is still the sea. Higher lakes are not.
+const SEA_LEVEL_WATER_M = 5;
+// value the sea tiles carry for water without a depth source; DEPTH_RAMP paints it grey
+export const NO_DEPTH_M = 9000;
 const SIZE = 256;
 
 // ---- minimal Mapbox Vector Tile reader: just the `water` polygons ----------------
@@ -125,7 +131,7 @@ async function fetchOk(url, signal) {
   return r;
 }
 
-// Sea mask for DEM tile z/x/y (1 = OSM sea). A 256 px tile at z has the resolution
+// Water mask for DEM tile z/x/y: 0 land, 1 OSM sea, 2 other water. A 256 px tile at z has the resolution
 // of the 512 px OpenMapTiles tile at z−1, which is the one the basemap loads.
 async function seaMask(omtTemplate, z, x, y, signal) {
   const oz = Math.max(0, Math.min(z - 1, OMT_MAXZOOM)), d = z - oz;
@@ -139,19 +145,22 @@ async function seaMask(omtTemplate, z, x, y, signal) {
   });
   const c = new OffscreenCanvas(SIZE, SIZE), g = c.getContext('2d');
   const k = (SIZE * 2 ** d) / layer.extent, sx = (x - (ox << d)) * SIZE, sy = (y - (oy << d)) * SIZE;
-  g.fillStyle = '#fff';
-  for (const f of layer.features) {
-    if (!SEA_CLASSES.has(f.cls)) continue;
-    g.beginPath(); // one path per feature, so overlapping water features add up instead of cancelling
-    for (const r of f.rings) {
-      g.moveTo(r[0] * k - sx, r[1] * k - sy);
-      for (let i = 2; i < r.length; i += 2) g.lineTo(r[i] * k - sx, r[i + 1] * k - sy);
-      g.closePath();
+  // inland water in green first, sea in red over it
+  for (const sea of [false, true]) {
+    g.fillStyle = sea ? '#f00' : '#0f0';
+    for (const f of layer.features) {
+      if (f.cls === 'swimming_pool' || SEA_CLASSES.has(f.cls) !== sea) continue;
+      g.beginPath(); // one path per feature, so overlapping water features add up instead of cancelling
+      for (const r of f.rings) {
+        g.moveTo(r[0] * k - sx, r[1] * k - sy);
+        for (let i = 2; i < r.length; i += 2) g.lineTo(r[i] * k - sx, r[i + 1] * k - sy);
+        g.closePath();
+      }
+      g.fill('nonzero');
     }
-    g.fill('nonzero');
   }
   const px = g.getImageData(0, 0, SIZE, SIZE).data, mask = new Uint8Array(SIZE * SIZE);
-  for (let i = 0; i < mask.length; i++) mask[i] = px[i * 4 + 3] > 127 ? 1 : 0;
+  for (let i = 0; i < mask.length; i++) mask[i] = px[i * 4] > 127 ? 1 : px[i * 4 + 1] > 127 ? 2 : 0;
   return mask;
 }
 
@@ -221,8 +230,10 @@ export function clipper({ template, native, mode, omtTileJson }) {
         }
         const h0 = datums.length ? surface(i, j) : 0;
         if (unmasked) h -= mode === 'sea' ? h0 : 0; // no coastline: values as measured
-        else if (mode === 'sea') h = mask[j * SIZE + i] ? Math.min(h - h0, -1) : 1;
-        else if (mask[j * SIZE + i]) h = 0;
+        else if (mode === 'sea') {
+          const m = mask[j * SIZE + i];
+          h = m === 0 ? 1 : m === 1 || h - h0 <= SEA_LEVEL_WATER_M ? Math.min(h - h0, -1) : NO_DEPTH_M;
+        } else if (mask[j * SIZE + i] === 1) h = 0;
         out[j * SIZE + i] = h;
       }
     }
