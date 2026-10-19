@@ -120,9 +120,11 @@ coastline the basemap draws:
   *under* that fill at twice its width: where two water polygons meet, both
   fills cover it; where water meets land, the land-side half remains. Piers
   are drawn on top as land at about their real width.
-- Inland water whose surface is at sea level (≤ 5 m: harbour basins, lagoons,
-  estuaries) gets depth shading like the sea. Lakes above that are painted grey
-  by the depth layer: no depth data.
+- Inland water is classified once per water body, from the DEM along its
+  shore (median over its polygon's vertices, remembered by OSM id so all tiles
+  agree). At sea level (≤ 5 m: limans, lagoons, harbour basins) it is shown flat
+  in the shallowest class with no isobaths, because the DEM inside it is not a
+  depth. Lakes above that are grey: no depth data.
 - Relief shading and land contours are drawn under the vector sea fill, so the
   fill cuts them exactly at the shore. The land DEM is not upsampled, because
   the slopes of an upsampled surface shade in visible facets.
