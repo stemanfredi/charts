@@ -1,6 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAXZOOM, DEM_LAND_MAXZOOM, OPACITY_PROP, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAXZOOM, DEM_LAND_MAXZOOM, OPACITY_PROP, DEPTH_STOPS, PACK_STOPS, PACK_SHALLOW, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { colourAt, drawRamp, drawClasses, loadColormap, drawColormap } from './legend.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -138,6 +139,7 @@ function setDate(date) {
   state.date = date;
   for (const k of Object.keys(GIBS)) map.getSource(`gibs-${k}`).setTiles(gibsTiles(k, date));
   writeHash();
+  renderLegends();
 }
 
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
@@ -213,7 +215,7 @@ function itemRow(it) {
     it.info.url ? h('p', {}, h('a', { href: it.info.url, target: '_blank', rel: 'noopener noreferrer' }, it.info.url.replace(/^https:\/\/(www\.)?/, '').replace(/\/.*$/, ''))) : null);
   // variant and date are what the item shows, so they sit in the row; opacity and provenance are one click away
   const controls = h('div', { class: 'controls' },
-    it.variants ? h('select', { 'aria-label': `${it.label} variant`, onchange: (e) => { state.variant[it.id] = e.target.value; applyItem(it.id); writeHash(); renderStatus(); } },
+    it.variants ? h('select', { 'aria-label': `${it.label} variant`, onchange: (e) => { state.variant[it.id] = e.target.value; applyItem(it.id); writeHash(); renderStatus(); renderLegends(); } },
       Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label))) : null,
     it.date ? h('input', { type: 'date', 'aria-label': 'Imagery date', max: new Date().toISOString().slice(0, 10), min: '2012-01-01',
       onchange: (e) => e.target.value && setDate(e.target.value) }) : null);
@@ -305,6 +307,7 @@ function renderPack() {
   const det = groupEls.find((g) => g._list);
   det._list.hidden = !p;
   det.querySelector('.gname').textContent = p ? `Area pack · ${p.name}` : 'Area pack';
+  renderLegends();
 }
 async function copyBuildCommand(b) {
   const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
@@ -373,6 +376,47 @@ function renderMenu() {
     if (g._all) { g._all.checked = n === g._items.length; g._all.indeterminate = n > 0 && n < g._items.length; }
   }
   renderStatus();
+  renderLegends();
+}
+
+// ---- legends: one canvas per drawn colour layer (copied as-is into the PNG) ----
+const legends = $('#legends');
+const legendEls = {};
+function legendEl(id) {
+  return (legendEls[id] ||= h('canvas', { role: 'img', 'data-legend': id }));
+}
+function renderLegends() {
+  const on = (id) => state.on.has(id);
+  const want = [];
+  if (on('legend')) {
+    if (pack.doc && on('pack-depth')) want.push('pack');
+    if (on('depth') && map.getZoom() < 13) want.push('depth');
+    if (on('gibs') && GIBS[state.variant.gibs].legend) want.push('gibs');
+  }
+  for (const id of Object.keys(legendEls)) if (!want.includes(id)) legendEls[id].remove();
+  for (const id of want) {
+    const el = legendEl(id);
+    if (id === 'depth') {
+      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', DEPTH_STOPS);
+      el.setAttribute('aria-label', `Depth shading legend: ${DEPTH_STOPS.map(([d]) => d).join(', ')} metres`);
+    } else if (id === 'pack') {
+      const p = pack.doc.pack, edges = [0, ...p.levels_m];
+      drawClasses(el, 'Pack depth', `m · ${p.depth.source.split(',')[0]}`, edges, [PACK_SHALLOW, ...p.levels_m.map((d) => colourAt(PACK_STOPS, d))], `${Math.round(p.depth.max_m)}`);
+      el.setAttribute('aria-label', `Pack depth legend: classes from ${edges.join(', ')} metres`);
+    } else {
+      const g = GIBS[state.variant.gibs], key = `${state.variant.gibs}|${state.date}`;
+      if (el.dataset.key !== key) {
+        el.dataset.key = key;
+        loadColormap(g.legend.colormap)
+          .then((cm) => {
+            drawColormap(el, g.legend.title, `${g.legend.units} · ${state.date}`, cm);
+            el.setAttribute('aria-label', `${g.legend.title} legend, ${g.legend.units}`);
+          })
+          .catch((err) => { el.dataset.key = ''; el.remove(); console.warn('legend colour map:', err.message); });
+      }
+    }
+    legends.append(el); // keeps the wanted order
+  }
 }
 function renderStatus() {
   for (const it of ITEMS) {
@@ -529,6 +573,11 @@ function exportPng() {
     const v = scaleVariation();
     g.fillText(`${fmtDist(len, units)} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > 0.01 ? ` (varies ${(v * 100).toFixed(0)}% top–bottom; 1′ lat = 1 NM)` : ''}`, 20, H - 26);
     if (!latCanvas.hidden) g.drawImage(latCanvas, latCanvas.offsetLeft, latCanvas.offsetTop, latCanvas.clientWidth, latCanvas.clientHeight);
+    const box = map.getContainer().getBoundingClientRect();
+    for (const el of legends.querySelectorAll('canvas')) {
+      const r = el.getBoundingClientRect();
+      g.drawImage(el, r.left - box.left, r.top - box.top, r.width, r.height);
+    }
     // north arrow
     g.save();
     g.translate(W - 28, 34);

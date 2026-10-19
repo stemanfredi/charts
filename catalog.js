@@ -28,7 +28,8 @@ export function defaultDate() {
 export const GIBS = {
   terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
   viirs: { label: 'True colour · VIIRS NOAA-20', layer: 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
-  sst:   { label: 'Sea surface temperature · MUR', layer: 'GHRSST_L4_MUR_Sea_Surface_Temperature', level: 7, ext: 'png', res: '1 km' },
+  sst:   { label: 'Sea surface temperature · MUR', layer: 'GHRSST_L4_MUR_Sea_Surface_Temperature', level: 7, ext: 'png', res: '1 km',
+    legend: { title: 'Sea surface temperature', units: '°C', colormap: 'https://gibs.earthdata.nasa.gov/colormaps/v1.3/GHRSST_Sea_Surface_Temperature.xml' } },
   chl:   { label: 'Chlorophyll-a · MODIS Aqua', layer: 'MODIS_Aqua_L2_Chlorophyll_A', level: 7, ext: 'png', res: '1 km' },
 };
 export function gibsTiles(key, date) {
@@ -99,6 +100,8 @@ export const ITEMS = [
     info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Oceans, seas, bays, straits as tagged in OSM', url: 'https://openfreemap.org' } },
   { id: 'boundaries', group: 'labels', label: 'Boundaries', on: true,
     info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Land boundaries only; maritime claims are not drawn', url: 'https://openfreemap.org' } },
+  { id: 'legend', group: 'labels', label: 'Legends', on: true,
+    info: { src: 'Drawn from the same colour stops as the map; SST from NASA GIBS’s published colour map', lic: '—', res: 'Depth shading: approximate DEM classes · pack: one class per contour · SST: 0.15 °C classes', url: 'https://nasa-gibs.github.io/gibs-api-docs/' } },
   { id: 'graticule', group: 'labels', label: 'Graticule', on: true,
     info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. With the map north-up, a latitude scale runs down the left edge: 1′ of latitude = 1 NM anywhere on the chart, unlike the scale bar, which is exact only at the centre', url: '' } },
 ];
@@ -142,14 +145,15 @@ const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(it
 
 // Terrarium depth bands: chart convention, shallow water darkest blue, deep water white.
 // Positive elevations stay transparent so land is never tinted from the DEM.
-const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'],
-  -11000, 'rgba(255,255,255,0)', -2000, 'rgba(236,244,250,1)', -200, '#dbeaf5', -50, '#c9e0f1',
-  -20, '#b6d5ec', -5, '#a3c9e6', -0.1, '#97c1e2', 0, 'rgba(151,193,226,0)'];
+// [depth m, colour] stops shared by the map and its legend.
+export const DEPTH_STOPS = [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50, '#c9e0f1'], [200, '#dbeaf5'], [2000, '#ecf4fa']];
+const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'], -11000, 'rgba(255,255,255,0)',
+  ...[...DEPTH_STOPS].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(151,193,226,0)'];
 
 // Pack depth areas: 'sea' is the 0–2 m colour, each band (deeper than d) one step lighter.
-const PACK_SHALLOW = '#97c1e2';
-const PACK_BANDS = ['interpolate', ['linear'], ['get', 'd'],
-  2, '#a3c9e6', 5, '#b0d1ea', 10, '#bfdaef', 20, '#cfe3f3', 30, '#dbeaf5', 50, '#e6f0f8', 100, '#eef5fa', 200, '#f6fafd', 500, '#ffffff'];
+export const PACK_SHALLOW = '#97c1e2';
+export const PACK_STOPS = [[2, '#a3c9e6'], [5, '#b0d1ea'], [10, '#bfdaef'], [20, '#cfe3f3'], [30, '#dbeaf5'], [50, '#e6f0f8'], [100, '#eef5fa'], [200, '#f6fafd'], [500, '#ffffff']];
+const PACK_BANDS = ['interpolate', ['linear'], ['get', 'd'], ...PACK_STOPS.flat()];
 
 function layers() {
   const L = [

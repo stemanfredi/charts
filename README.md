@@ -36,6 +36,11 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 Every row in the menu has a ⋯ panel with the same provenance, and the
 attribution line lists only the sources currently drawn.
 
+Colour layers get a legend (bottom left, also in the PNG; *Legends* in the
+menu hides them): depth shading and pack depths use the same colour stops as
+the map, and sea surface temperature uses the colour map NASA GIBS publishes for
+the layer (0.15 °C classes), fetched once when first shown.
+
 ## Area packs
 
 Global layers are good for context, but their depths come from a coarse

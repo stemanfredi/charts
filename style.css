@@ -99,6 +99,11 @@ body.drop #map::after { content: "Drop an area pack"; position: absolute; inset:
 .scalenote { position: absolute; z-index: 2; left: 10px; bottom: 34px; font-size: 11px; color: var(--warn); background: rgba(255,255,255,.85); padding: 1px 6px; border-radius: 3px; }
 .scalenote:empty { display: none; }
 
+/* legends, bottom-left beside the latitude scale */
+.legends { position: absolute; z-index: 2; left: 70px; bottom: 56px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.legends canvas { display: block; border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 1px 4px rgba(20, 30, 40, .12); }
+.legends:empty { display: none; }
+
 /* cursor readout */
 .pos { left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 8px; font: 11.5px var(--mono); white-space: nowrap; }
 .pos:empty { display: none; }
@@ -112,4 +117,5 @@ body.drop #map::after { content: "Drop an area pack"; position: absolute; inset:
   .tools { left: 52px; right: 70px; overflow-x: auto; }
   .tools button { padding: 6px 8px; }
   .pos { display: none; }
+  .legends { left: 10px; bottom: 34px; }
 }
