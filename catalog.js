@@ -42,6 +42,7 @@ export function gibsTiles(key, date) {
 // opacity: default value of the item's slider (absent = no slider).
 // variants: alternatives inside one item; only the chosen variant's layers draw.
 export const GROUPS = [
+  { id: 'pack', label: 'Area pack', pack: true },
   { id: 'base', label: 'Base', exclusive: true },
   { id: 'sea', label: 'Sea' },
   { id: 'land', label: 'Land' },
@@ -50,6 +51,16 @@ export const GROUPS = [
 ];
 
 export const ITEMS = [
+  // Area pack: drawn only once a pack file is opened; inside its frame it replaces the global sea layers.
+  { id: 'pack-depth', group: 'pack', label: 'Depth areas', on: true, opacity: 1,
+    info: { src: 'Pack file: gridded bathymetry contoured at nautical depth levels', lic: 'See the pack credits above', res: 'Grid resolution as listed above; clipped to the pack coastline', url: '' } },
+  { id: 'pack-isobaths', group: 'pack', label: 'Isobaths', on: true, opacity: 1,
+    info: { src: 'Pack file: depth contours from the same grid', lic: 'See the pack credits above', res: 'Contours stop exactly at the coastline', url: '' } },
+  { id: 'pack-land', group: 'pack', label: 'Land & coastline', on: true,
+    info: { src: 'Pack file: OSMData land polygons (OpenStreetMap coastline)', lic: 'ODbL · © OpenStreetMap contributors', res: 'Full OSM coastline detail', url: 'https://osmdata.openstreetmap.de/data/land-polygons.html' } },
+  { id: 'pack-frame', group: 'pack', label: 'Pack boundary', on: true,
+    info: { src: 'Pack file: frame outline', lic: '—', res: 'Outside it, the global layers apply', url: '' } },
+
   { id: 'chart', group: 'base', label: 'Chart', on: true,
     info: { src: 'OpenStreetMap via OpenFreeMap (OpenMapTiles schema)', lic: 'ODbL · © OpenStreetMap contributors', res: 'Coastline from OSM water polygons; generalised below zoom 7', url: 'https://openfreemap.org' } },
   { id: 'sat', group: 'base', label: 'Satellite', opacity: 1,
@@ -89,7 +100,7 @@ export const ITEMS = [
   { id: 'boundaries', group: 'labels', label: 'Boundaries', on: true,
     info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Land boundaries only; maritime claims are not drawn', url: 'https://openfreemap.org' } },
   { id: 'graticule', group: 'labels', label: 'Graticule', on: true,
-    info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′', url: '' } },
+    info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. With the map north-up, a latitude scale runs down the left edge: 1′ of latitude = 1 NM anywhere on the chart, unlike the scale bar, which is exact only at the centre', url: '' } },
 ];
 
 // ---- sources ----------------------------------------------------------------
@@ -115,6 +126,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date }) {
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: 'Seamarks: <a href="https://openseamap.org">OpenSeaMap</a>',
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    pack: { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, tolerance: 0.2 },
     measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   };
   for (const [k, g] of Object.entries(GIBS)) {
@@ -133,6 +145,11 @@ const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(it
 const DEPTH_RAMP = ['interpolate', ['linear'], ['elevation'],
   -11000, 'rgba(255,255,255,0)', -2000, 'rgba(236,244,250,1)', -200, '#dbeaf5', -50, '#c9e0f1',
   -20, '#b6d5ec', -5, '#a3c9e6', -0.1, '#97c1e2', 0, 'rgba(151,193,226,0)'];
+
+// Pack depth areas: 'sea' is the 0–2 m colour, each band (deeper than d) one step lighter.
+const PACK_SHALLOW = '#97c1e2';
+const PACK_BANDS = ['interpolate', ['linear'], ['get', 'd'],
+  2, '#a3c9e6', 5, '#b0d1ea', 10, '#bfdaef', 20, '#cfe3f3', 30, '#dbeaf5', 50, '#e6f0f8', 100, '#eef5fa', 200, '#f6fafd', 500, '#ffffff'];
 
 function layers() {
   const L = [
@@ -159,6 +176,22 @@ function layers() {
     { id: 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours', minzoom: 4, maxzoom: 13, ...m('isobaths'),
       filter: ['<', ['get', 'ele'], 0],
       paint: { 'line-color': C.isobath, 'line-width': ['match', ['get', 'level'], 1, 0.9, 0.45] } },
+
+    // area pack: above every global sea layer, below roads, buildings and labels
+    { id: 'pack-sea', type: 'fill', source: 'pack', metadata: { item: 'pack-depth', base: 'chart' },
+      filter: ['==', ['get', 'kind'], 'sea'], paint: { 'fill-color': PACK_SHALLOW } },
+    { id: 'pack-bands', type: 'fill', source: 'pack', ...m('pack-depth'),
+      filter: ['==', ['get', 'kind'], 'band'], paint: { 'fill-color': PACK_BANDS } },
+    { id: 'pack-land', type: 'fill', source: 'pack', metadata: { item: 'pack-land', base: 'chart' },
+      filter: ['==', ['get', 'kind'], 'land'], paint: { 'fill-color': C.land } },
+    { id: 'pack-isobaths', type: 'line', source: 'pack', ...m('pack-isobaths'),
+      filter: ['==', ['get', 'kind'], 'isobath'],
+      paint: { 'line-color': C.isobath, 'line-width': ['match', ['get', 'major'], 1, 1, 0.5] } },
+    { id: 'pack-coast', type: 'line', source: 'pack', ...m('pack-land'),
+      filter: ['==', ['get', 'kind'], 'land'],
+      paint: { 'line-color': C.ink, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.6, 14, 1.2] } },
+    { id: 'pack-frame', type: 'line', source: 'pack', ...m('pack-frame'),
+      filter: ['==', ['get', 'kind'], 'frame'], paint: { 'line-color': '#b0127a', 'line-width': 1.2, 'line-dasharray': [4, 3] } },
 
     { id: 'coastline', type: 'line', source: 'omt', 'source-layer': 'water', ...m('coastline'),
       filter: ['in', ['get', 'class'], ['literal', ['ocean', 'lake', 'river']]],
@@ -190,6 +223,11 @@ function layers() {
       filter: ['all', ['<', ['get', 'ele'], 0], ['==', ['get', 'level'], 1]],
       layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', ['abs', ['get', 'ele']]], ' m'],
         'text-font': FONT, 'text-size': 10, 'symbol-spacing': 320, 'text-max-angle': 30 },
+      paint: { 'text-color': C.isobath, ...HALO } },
+    { id: 'pack-isobath-labels', type: 'symbol', source: 'pack', ...m('pack-isobaths'),
+      filter: ['all', ['==', ['get', 'kind'], 'isobath'], ['==', ['get', 'label'], 1]],
+      layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', ['get', 'd']], ' m'],
+        'text-font': FONT, 'text-size': 10.5, 'symbol-spacing': 280, 'text-max-angle': 30 },
       paint: { 'text-color': C.isobath, ...HALO } },
     { id: 'contour-labels', type: 'symbol', source: 'contours', 'source-layer': 'contours', minzoom: 11, ...m('contours'),
       filter: ['all', ['>', ['get', 'ele'], 0], ['==', ['get', 'level'], 1]],

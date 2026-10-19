@@ -22,11 +22,12 @@ const state = {
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
   date: defaultDate(),
-  open: new Set(['base', 'sea']),
+  open: new Set(['pack', 'base', 'sea']),
   menu: window.innerWidth >= 720,
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 let measureState = '';
+let packParam = '';
 
 function readHash() {
   const q = new URLSearchParams(location.hash.slice(1));
@@ -45,6 +46,7 @@ function readHash() {
   if (q.has('g')) state.open = new Set(q.get('g').split(','));
   if (q.has('menu')) state.menu = q.get('menu') === '1';
   measureState = q.get('m') || '';
+  packParam = q.get('pack') || '';
   return q.get('u');
 }
 
@@ -64,6 +66,7 @@ function writeHash() {
     if (measure.units !== 'km') q.set('u', measure.units);
     const m = measure.serialize();
     if (m) q.set('m', m);
+    if (pack.url) q.set('pack', pack.url);
     q.set('g', [...state.open].join(','));
     q.set('menu', state.menu ? '1' : '0');
     history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
@@ -106,12 +109,14 @@ if (urlUnits === 'nm') measure.units = 'nm';
 // ---- applying the state to the map ------------------------------------------
 const layersOf = {};
 for (const l of style.layers) if (l.metadata?.item) (layersOf[l.metadata.item] ||= []).push(l);
+const baseDependent = Object.keys(layersOf).filter((k) => layersOf[k].some((l) => l.metadata.base));
 
 function applyItem(id) {
   const it = byId[id];
   const on = state.on.has(id);
   for (const l of layersOf[id] || []) {
-    const vis = on && (!l.metadata.variant || l.metadata.variant === state.variant[id]);
+    const vis = on && (!l.metadata.variant || l.metadata.variant === state.variant[id])
+      && (!l.metadata.base || state.on.has(l.metadata.base)); // e.g. pack fills only over the chart base
     map.setLayoutProperty(l.id, 'visibility', vis ? 'visible' : 'none');
     const prop = OPACITY_PROP[l.type];
     if (it.opacity != null && prop) map.setPaintProperty(l.id, prop, state.opacity[id]);
@@ -124,7 +129,8 @@ function setOn(id, on) {
   }
   on ? state.on.add(id) : state.on.delete(id);
   applyItem(id);
-  if (id === 'graticule' && on) updateGraticule();
+  if (it.group === 'base') for (const k of baseDependent) applyItem(k);
+  if (id === 'graticule') { updateGraticule(); drawLatScale(); }
   renderMenu();
   writeHash();
 }
@@ -229,13 +235,103 @@ function groupBlock(g) {
   const all = g.exclusive ? null : h('input', { type: 'checkbox', 'aria-label': `All of ${g.label}`,
     onclick: (e) => e.stopPropagation(),
     onchange: (e) => { const want = e.target.checked; for (const it of items) if (state.on.has(it.id) !== want) setOn(it.id, want); } });
+  const list = h('ul', {}, items.map(itemRow));
   const det = h('details', { 'data-group': g.id, open: state.open.has(g.id),
     ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); writeHash(); } },
     h('summary', {}, all, h('span', { class: 'gname' }, g.label), h('span', { class: 'count' })),
-    h('ul', {}, items.map(itemRow)));
+    g.pack ? packBox : null, list);
+  if (g.pack) det._list = list;
   det._all = all;
   det._items = items;
   return det;
+}
+
+// ---- area pack: one GeoJSON file, read in the browser, never uploaded ---------
+const pack = { doc: null, url: '' };
+const packFile = h('input', { type: 'file', accept: '.geojson,.json,.gz,application/geo+json', hidden: true,
+  onchange: (e) => { const f = e.target.files[0]; if (f) openPackFile(f); e.target.value = ''; } });
+const packMeta = h('div', { class: 'packmeta' });
+const packMsg = h('p', { class: 'note' });
+const packBox = h('div', { class: 'packbox' }, packFile, packMeta, packMsg,
+  h('div', { class: 'btns' },
+    h('button', { type: 'button', id: 'pack-open', onclick: () => packFile.click() }, 'Open pack…'),
+    h('button', { type: 'button', id: 'pack-fit', onclick: () => fitPack() }, 'Zoom to pack'),
+    h('button', { type: 'button', id: 'pack-close', onclick: () => closePack() }, 'Close'),
+    h('button', { type: 'button', id: 'pack-cmd', title: 'Copy the command that builds a pack for the current view',
+      onclick: (e) => copyBuildCommand(e.currentTarget) }, 'Build command')));
+
+async function openPackFile(file) {
+  try { await loadPack(await file.arrayBuffer(), ''); } catch (err) { packMsg.textContent = `Could not open ${file.name}: ${err.message}`; }
+}
+async function loadPack(buf, url) {
+  let bytes = new Uint8Array(buf);
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+    bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  }
+  const doc = JSON.parse(new TextDecoder().decode(bytes));
+  if (doc?.type !== 'FeatureCollection' || doc.pack?.version !== 1) throw new Error('not an area pack (version 1)');
+  const src = map.getSource('pack');
+  src.attribution = doc.pack.credits || '';
+  src.setData(doc);
+  pack.doc = doc;
+  pack.url = url;
+  packMsg.textContent = '';
+  renderPack();
+  fitPack();
+  writeHash();
+}
+function closePack() {
+  pack.doc = null;
+  pack.url = '';
+  const src = map.getSource('pack');
+  src.attribution = '';
+  src.setData({ type: 'FeatureCollection', features: [] });
+  renderPack();
+  writeHash();
+}
+function fitPack() {
+  if (pack.doc) map.fitBounds(pack.doc.pack.bbox, { padding: 40, bearing: map.getBearing() });
+}
+function renderPack() {
+  const p = pack.doc?.pack;
+  packMeta.replaceChildren(...(p ? [
+    h('p', {}, h('b', {}, p.name), ` · built ${p.built}`),
+    h('p', {}, `Depths: ${p.depth.source}, ${p.depth.resolution}; to ${p.depth.max_m} m`),
+    h('p', {}, `Coastline: ${p.land}`),
+    h('p', {}, `Contours: ${p.levels_m.join(', ')} m`),
+  ] : [h('p', {}, 'A pack replaces the global depth layers inside its frame with gridded bathymetry and the exact coastline. Open one, or drop it on the map: it is read here and never uploaded.')]));
+  $('#pack-fit', packBox).hidden = $('#pack-close', packBox).hidden = !p;
+  $('#pack-open', packBox).hidden = !!p;
+  const det = groupEls.find((g) => g._list);
+  det._list.hidden = !p;
+  det.querySelector('.gname').textContent = p ? `Area pack · ${p.name}` : 'Area pack';
+}
+async function copyBuildCommand(b) {
+  const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
+  const L = map.unproject([0, H / 2]), R = map.unproject([W, H / 2]), c = map.getCenter();
+  const halfKm = window.geodesic.Geodesic.WGS84.Inverse(L.lat, L.lng, R.lat, R.lng).s12 / 2000;
+  const cmd = `.venv/bin/python tools/build_pack.py area --center=${c.lat.toFixed(5)},${c.lng.toFixed(5)} --half-w-km ${halfKm.toFixed(2)} --aspect ${(H / W).toFixed(3)}`;
+  try { await navigator.clipboard.writeText(cmd); flash(b, 'Copied'); } catch { prompt('Build command', cmd); }
+}
+// drag and drop anywhere on the page
+window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); document.body.classList.add('drop'); } });
+window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('drop'); });
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  document.body.classList.remove('drop');
+  const f = e.dataTransfer?.files[0];
+  if (f) openPackFile(f);
+});
+// a pack hosted next to the page: #pack=packs/name.geojson (same origin only)
+async function loadPackParam() {
+  if (!packParam) return;
+  try {
+    const u = new URL(packParam, location.href);
+    if (u.origin !== location.origin) throw new Error('only packs on this site can be linked');
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    await loadPack(await r.arrayBuffer(), packParam);
+  } catch (err) { packMsg.textContent = `Could not load ${packParam}: ${err.message}`; }
 }
 
 const groupEls = GROUPS.map(groupBlock);
@@ -344,6 +440,53 @@ const pos = $('#pos');
 const dm = (v, p, n) => { const a = Math.abs(v), d = Math.floor(a); return `${d}°${((a - d) * 60).toFixed(3).padStart(6, '0')}′${v >= 0 ? p : n}`; };
 map.on('mousemove', (e) => { pos.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
 
+// ---- latitude scale: on a Mercator chart, 1′ of latitude = 1 NM wherever you read it ----
+const latCanvas = $('#latscale');
+const MIN_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 1200];
+// relative change of the map scale between the top and bottom of the view
+function scaleVariation() {
+  const H = map.getContainer().clientHeight;
+  const a = Math.cos((map.unproject([0, 0]).lat * Math.PI) / 180), b = Math.cos((map.unproject([0, H]).lat * Math.PI) / 180);
+  return Math.abs(a - b) / Math.min(a, b);
+}
+function drawLatScale() {
+  const show = state.on.has('graticule') && Math.abs(map.getBearing()) < 0.5;
+  latCanvas.hidden = !show;
+  if (!show) return;
+  const top = latCanvas.offsetTop, H = latCanvas.clientHeight, W = latCanvas.clientWidth, dpr = window.devicePixelRatio || 1;
+  latCanvas.width = W * dpr;
+  latCanvas.height = H * dpr;
+  const g = latCanvas.getContext('2d');
+  g.scale(dpr, dpr);
+  const yOf = (lat) => map.project([map.getCenter().lng, lat]).y - top;
+  const lat0 = map.unproject([0, top + H]).lat, lat1 = map.unproject([0, top]).lat;
+  const perMin = H / ((lat1 - lat0) * 60);
+  const step = MIN_STEPS.find((s) => s * perMin >= 7) || 1200;
+  const lstep = MIN_STEPS.find((s) => s >= step && s * perMin >= 46 && (s / step) % 1 === 0) || step * 10;
+  g.font = '10px system-ui, sans-serif';
+  g.textBaseline = 'middle';
+  for (let k = Math.floor((lat0 * 60) / step); k * step <= lat1 * 60; k++) {
+    const m0 = k * step, y0 = yOf(m0 / 60), y1 = yOf((m0 + step) / 60);
+    g.fillStyle = k % 2 ? '#2b3a46' : '#ffffff';
+    g.fillRect(4, Math.min(y0, y1), 5, Math.abs(y1 - y0));
+    const lm = Math.round(m0 * 10) / 10;
+    if (Math.abs((lm / lstep) - Math.round(lm / lstep)) < 1e-6) {
+      const d = Math.floor(Math.abs(lm) / 60 + 1e-9), mm = Math.abs(lm) - d * 60;
+      const t = `${d}°${mm.toFixed(step < 1 ? 1 : 0).padStart(step < 1 ? 4 : 2, '0')}′${lm >= 0 ? 'N' : 'S'}`;
+      g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.9)'; g.strokeText(t, 12, y0);
+      g.fillStyle = '#2b3a46'; g.fillText(t, 12, y0);
+      g.fillRect(3, y0 - 0.5, 8, 1);
+    }
+  }
+  g.strokeStyle = '#2b3a46'; g.lineWidth = 1; g.strokeRect(3.5, 0, 6, H);
+  latCanvas.title = `Latitude scale: 1′ of latitude = 1 nautical mile, valid anywhere on this chart (ticks every ${step}′)`;
+  const v = scaleVariation();
+  $('#scalenote').textContent = v > 0.01 ? `scale varies ${(v * 100).toFixed(0)}% top to bottom · use the latitude scale (1′ = 1 NM)` : '';
+}
+let latRaf = 0;
+map.on('move', () => { cancelAnimationFrame(latRaf); latRaf = requestAnimationFrame(drawLatScale); });
+window.addEventListener('resize', drawLatScale);
+
 // ---- PNG export: the map canvas plus scale, north arrow and a credit strip ---
 function attributionText() {
   const srcs = new Set();
@@ -356,7 +499,9 @@ function niceLen(m) {
   const p = 10 ** Math.floor(Math.log10(m));
   return [5, 2, 1].map((k) => k * p).find((v) => v <= m) || p;
 }
+// waits for pending tiles, so a layer switched on a moment ago is in the picture
 function exportPng() {
+  if (!(map.loaded() && map.areTilesLoaded())) { map.once('idle', exportPng); return; }
   map.once('render', () => {
     const src = map.getCanvas();
     const dpr = src.width / src.clientWidth;
@@ -381,7 +526,9 @@ function exportPng() {
     g.beginPath(); g.moveTo(20, H - 24); g.lineTo(20, H - 18); g.lineTo(20 + px, H - 18); g.lineTo(20 + px, H - 24); g.stroke();
     g.fillStyle = '#2b3a46';
     g.font = '11px system-ui, sans-serif';
-    g.fillText(`${fmtDist(len, units)} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}`, 20, H - 26);
+    const v = scaleVariation();
+    g.fillText(`${fmtDist(len, units)} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > 0.01 ? ` (varies ${(v * 100).toFixed(0)}% top–bottom; 1′ lat = 1 NM)` : ''}`, 20, H - 26);
+    if (!latCanvas.hidden) g.drawImage(latCanvas, latCanvas.offsetLeft, latCanvas.offsetTop, latCanvas.clientWidth, latCanvas.clientHeight);
     // north arrow
     g.save();
     g.translate(W - 28, 34);
@@ -422,7 +569,10 @@ map.on('load', () => {
   updateGraticule();
   renderMenu();
   renderMeasures();
+  renderPack();
   setMenu(state.menu);
+  drawLatScale();
+  loadPackParam();
 });
 map.on('moveend', () => { updateGraticule(); writeHash(); });
 map.on('zoomend', renderMenu);

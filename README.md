@@ -15,6 +15,7 @@ catalog.js   sources, style layers in draw order, menu items, provenance
 app.js       map, menu, URL state, graticule, source health, PNG export
 measure.js   geodesic measurements (GeographicLib, WGS 84)
 tools/deps.mjs  pin / hash / upgrade the CDN libraries
+tools/build_pack.py  build an area pack (Python, optional)
 ```
 
 Run locally: `python3 -m http.server` in this folder, open http://localhost:8000.
@@ -35,6 +36,38 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 Every row in the menu has a ⋯ panel with the same provenance, and the
 attribution line lists only the sources currently drawn.
 
+## Area packs
+
+Global layers are good for context, but their depths come from a coarse
+elevation model and their land/sea edges don't quite agree. For an area you
+care about, build an **area pack**: one GeoJSON file with
+
+- depths from gridded bathymetry: EMODnet DTM 2024 (~115 m) where it covers
+  the frame, gaps filled from GEBCO; GEBCO 2020 (~450 m) elsewhere, or your own
+  GEBCO GeoTIFF via `--gebco`;
+- depth areas and isobaths at nautical levels (2, 5, 10, 20, 30, 50, 100 … m),
+  traced on the grid and then **clipped to the OSMData coastline**, so they
+  meet the shore exactly and never spill onto land;
+- that coastline as land polygons, and the frame outline.
+
+```
+python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt   # once
+.venv/bin/python tools/build_pack.py spezia --center=44.075,9.86 --half-w-km 8
+```
+
+The menu's *Build command* button copies this line for the current view. The
+first run downloads the OSMData land polygons (~900 MB) into `.cache/`, or you
+can point `--land` at a copy you already have. Grids are cached there too. A
+16 × 11 km harbour pack is about 0.3 MB and takes about 5 s.
+
+Open a pack with *Open pack…* or by dropping it on the map; `.geojson.gz` works
+too. **It is read in the browser and never uploaded**, so tile providers don't
+learn about the area from the pack. Inside the pack frame (dashed magenta) its
+layers sit above every global sea layer, and the menu shows its sources,
+resolution and build date. A pack placed next to the page can be linked as
+`#pack=packs/name.geojson` (same site only). `packs/` is git-ignored on
+purpose, because a public repo would publish your areas of interest.
+
 ## How loading works
 
 - Each menu item maps to style layers (`metadata.item` in `catalog.js`). A hidden
@@ -53,22 +86,29 @@ attribution line lists only the sources currently drawn.
 ## Rigour and limits
 
 - Distances, bearings (true), areas and rings are geodesic on WGS 84
-  (GeographicLib), and lines are drawn as densified geodesics. The on-screen
-  scale bar and the exported one are valid at the centre latitude only, because
-  the map is Web Mercator.
-- Depth shading and isobaths come from a DEM, not soundings. Near the coast they
-  do not follow the OSM coastline exactly. Land below sea level (polders) can
-  show as tinted.
-- EMODnet and GEBCO rasters carry their own land rendering; they are not masked
-  to the sea.
+  (GeographicLib), and lines are drawn as densified geodesics.
+- The map is Web Mercator, so the scale bar is exact only at the centre
+  latitude. As on a paper Mercator chart, the **latitude scale** down the left
+  edge (shown with the graticule, north-up) is the distance scale that is valid
+  everywhere: 1′ of latitude = 1 NM. When the scale varies by more than 1%
+  across the view, a note says so on screen and in the PNG.
+- Outside packs, depth shading and isobaths come from a coarse DEM, not
+  soundings. Near the coast they do not follow the OSM coastline exactly, and
+  land below sea level (polders) can show as tinted. Packs fix both inside
+  their frame.
+- The EMODnet and GEBCO raster layers carry their own land rendering and are
+  not masked to the sea. Packs use the same data as values, clipped to the
+  coastline.
+- Packs are gridded bathymetry, not soundings. Their resolution is listed in the menu.
 - **Not for navigation.**
 
 ## Privacy
 
 `no-referrer`, and a Content-Security-Policy that allows only the CDN and the
-tile hosts listed in `tools/deps.mjs`. Still, every tile request tells that
-provider which area you are looking at. Tile providers cannot be kept from
-seeing that. Don't use the public page for sensitive areas of interest.
+tile hosts listed in `tools/deps.mjs`. Global tile requests still tell each
+provider which area you are viewing. For sensitive areas, build the pack on a
+machine where its one-off fetch is acceptable, then view it with the global
+layers you don't need switched off: a hidden layer makes no requests.
 
 ## Dependencies
 

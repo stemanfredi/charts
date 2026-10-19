@@ -84,6 +84,21 @@ details ul { list-style: none; margin: 0; padding: 0 0 6px; }
 .note { margin: 6px 14px; font-size: 11.5px; color: var(--soft); }
 .note.warn { color: var(--warn); font-weight: 600; }
 
+/* area pack */
+.packbox { padding: 0 14px 6px; }
+.packmeta p { margin: 2px 0; font-size: 12px; color: var(--soft); }
+.packmeta b { color: var(--ink); }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.btns button { border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 4px 10px; min-height: 28px; }
+.btns button:hover { border-color: var(--accent); color: var(--accent); }
+body.drop #map::after { content: "Drop an area pack"; position: absolute; inset: 12px; border: 2px dashed var(--magenta); border-radius: 10px;
+  display: grid; place-items: center; font-size: 18px; font-weight: 600; color: var(--magenta); background: rgba(255,255,255,.6); z-index: 3; }
+
+/* latitude scale along the left edge, and the scale-variation note */
+.latscale { position: absolute; z-index: 1; left: 0; top: 112px; width: 64px; height: calc(100% - 176px); pointer-events: none; }
+.scalenote { position: absolute; z-index: 2; left: 10px; bottom: 34px; font-size: 11px; color: var(--warn); background: rgba(255,255,255,.85); padding: 1px 6px; border-radius: 3px; }
+.scalenote:empty { display: none; }
+
 /* cursor readout */
 .pos { left: 50%; bottom: 8px; transform: translateX(-50%); padding: 3px 8px; font: 11.5px var(--mono); white-space: nowrap; }
 .pos:empty { display: none; }
