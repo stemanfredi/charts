@@ -26,12 +26,14 @@ const CONTOUR_MASK_MINZOOM = 8;
 
 // Water bodies whose surface is not at sea level but which OSM maps with a coastline
 // (so they arrive as `ocean`). Depths inside them are measured from that surface.
-// [name, [west, south, east, north], surface elevation m, max DEM zoom with real depths]
-// Caspian: above zoom 6 one of Terrarium's sources has only the flat lake surface (−29 m) in
-// large rectangles, which read as 1 m deep; zoom 6 still carries the bathymetry.
+// [name, [west, south, east, north], surface elevation m, [min, max] DEM zoom with real depths]
+// Caspian: Terrarium has only the flat lake surface (−29 m) in large rectangles above zoom 6,
+// and in blocks at zooms 3–4; zooms 5–6 carry the bathymetry. Tiles at map zoom 3–4 are
+// therefore downsampled from zoom 5 (≤ 36 source tiles); zoom ≤ 2 reads its own tiles.
 export const DATUMS = [
-  ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28, 6],
+  ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28, [5, 6]],
 ];
+const DATUM_DOWNSAMPLE_MINZOOM = 3;
 const tileBounds = (z, x, y) => {
   const n = 2 ** z, lat = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI;
   return [(x / n) * 360 - 180, lat(y + 1), ((x + 1) / n) * 360 - 180, lat(y)];
@@ -227,7 +229,9 @@ export function clipper({ template, native, mode, omtTileJson }) {
     }
     const [tw, ts, te, tn] = tileBounds(z, x, y);
     const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
-    const nz = Math.min(z, native, ...datums.map((dt) => dt[3])), d = z - nz, f = 2 ** d, n = 2 ** nz;
+    let nz = Math.min(z, native);
+    for (const [, , , [lo, hi]] of datums) nz = Math.min(Math.max(nz, z >= DATUM_DOWNSAMPLE_MINZOOM ? lo : 0), hi);
+    const d = z - nz, f = 2 ** d, n = 2 ** nz; // d < 0: downsampled from a higher zoom
     // source pixels this tile needs, in global pixel coordinates at the native zoom;
     // bilinear sampling reads one pixel past the edge, so neighbours may be needed
     const w = SIZE, step = 1 / f, gx = (x / f) * w, gy = (y / f) * w;
