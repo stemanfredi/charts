@@ -12,8 +12,8 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 
 export async function serve({ port = 0, host = '127.0.0.1' } = {}) {
   const server = createServer(async (req, res) => {
-    const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
     try {
+      const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, ''); // a bad %-escape is a 404, not a crash
       const body = await readFile(join(ROOT, path === '/' ? 'index.html' : path));
       res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'text/html', 'cache-control': 'no-store' }).end(body);
     } catch { res.writeHead(404).end(); }

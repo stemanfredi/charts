@@ -16,6 +16,9 @@ import { fileURLToPath } from 'node:url';
 export const PINS = [
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl.mjs', kind: 'module' },
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl.css', kind: 'style' },
+  // MapLibre's worker: app.js fetches it with this hash and hands MapLibre the verified copy
+  // (left alone, MapLibre imports it from the CDN with no integrity check)
+  { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl-worker.mjs', kind: 'worker' },
   { name: 'maplibre-contour', version: '0.1.1', file: 'dist/index.mjs', kind: 'module' },
   { name: 'geographiclib-geodesic', version: '2.2.0', file: 'geographiclib-geodesic.min.js', kind: 'script' },
 ];
@@ -31,6 +34,8 @@ export const API_HOSTS = ['https://photon.komoot.io']; // place search (app.js)
 const CDN = 'https://cdn.jsdelivr.net';
 
 const url = (p) => `${CDN}/npm/${p.name}@${p.version}/${p.file}`;
+// CSP sources: the pinned packages' folders only, not all of jsDelivr
+const PACKAGES = [...new Set(PINS.map((p) => `${CDN}/npm/${p.name}@${p.version}/`))].join(' ');
 const sri = (buf, alg = 'sha384') => `${alg}-${createHash(alg).update(buf).digest('base64')}`;
 
 async function fetchOk(u) {
@@ -65,16 +70,17 @@ async function regenerate() {
   });
   const csp = [
     "default-src 'none'",
-    `script-src 'self' ${CDN} '${sri(Buffer.from(importmap), 'sha256')}'`,
-    `style-src 'self' ${CDN} 'unsafe-inline'`,
+    `script-src 'self' ${PACKAGES} '${sri(Buffer.from(importmap), 'sha256')}'`,
+    `style-src 'self' ${PACKAGES} 'unsafe-inline'`,
     `img-src 'self' data: blob: ${TILE_HOSTS.join(' ')}`,
-    `connect-src 'self' ${CDN} ${TILE_HOSTS.join(' ')} ${API_HOSTS.join(' ')}`,
-    `worker-src 'self' blob: ${CDN}`, 'child-src blob:', // 'self': clip-worker.js
+    `connect-src 'self' ${PACKAGES} ${TILE_HOSTS.join(' ')} ${API_HOSTS.join(' ')}`,
+    "worker-src 'self' blob:", 'child-src blob:', // 'self': clip-worker.js; blob: MapLibre's verified worker
     "base-uri 'none'", "form-action 'none'", "object-src 'none'",
   ].join('; ');
   const tags = [
     `<meta http-equiv="Content-Security-Policy" content="${csp}">`,
     ...PINS.filter((p) => p.kind === 'style').map((p) => `<link rel="stylesheet" href="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
+    ...PINS.filter((p) => p.kind === 'worker').map((p) => `<link rel="preload" as="fetch" id="${p.name}-worker" href="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
     `<script type="importmap">${importmap}</script>`,
     ...PINS.filter((p) => p.kind === 'script').map((p) => `<script src="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous"></script>`),
   ];
@@ -105,7 +111,7 @@ async function dataReport() {
 async function write() {
   const { next } = await regenerate();
   await writeFile(INDEX, next);
-  console.log('index.html updated:', PINS.map((p) => `${p.name}@${p.version}`).join(', '));
+  console.log('index.html updated:', [...new Set(PINS.map((p) => `${p.name}@${p.version}`))].join(', '));
 }
 
 async function check() {

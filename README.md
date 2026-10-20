@@ -67,7 +67,7 @@ area, <kbd>C</kbd> range ring, <kbd>Esc</kbd> cancels.
 ## Privacy
 
 `no-referrer` on every request, and a Content-Security-Policy that allows only
-the CDN and the hosts listed in `tools/deps.mjs`. Tile requests still tell each
+the pinned CDN packages and the hosts listed in `tools/deps.mjs`. Tile requests still tell each
 provider which area you are viewing.
 
 Coordinates typed into the search box never leave the page. A place name goes
@@ -77,7 +77,9 @@ with the map's centre rounded to 0.1°; the results list says so.
 ## Dependencies
 
 Loaded from jsDelivr at **pinned** versions with Subresource Integrity, via an
-import map: MapLibre GL JS, maplibre-contour, geographiclib-geodesic.
+import map: MapLibre GL JS, maplibre-contour, geographiclib-geodesic. MapLibre's
+worker is pinned and hashed too: the page fetches it and hands MapLibre the
+checked copy.
 
 ```
 node tools/deps.mjs           # pinned vs latest, and newer density periods in the WMS

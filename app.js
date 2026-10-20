@@ -117,6 +117,12 @@ const style = buildStyle({
 });
 style.layers.push(...MEASURE_LAYERS);
 
+// MapLibre's worker from the pinned, hashed URL in index.html (tools/deps.mjs): a copy the browser
+// has checked against the hash, instead of MapLibre's own unchecked import from the CDN
+const workerPin = $('#maplibre-gl-worker');
+const workerSrc = await fetch(workerPin.href, { integrity: workerPin.integrity, referrerPolicy: 'no-referrer' });
+maplibregl.setWorkerUrl(URL.createObjectURL(new Blob([await workerSrc.text()], { type: 'text/javascript' })));
+
 const map = new maplibregl.Map({
   container: 'map', style, ...view,
   maxPitch: 0, pitchWithRotate: false, dragRotate: true, touchPitch: false,
@@ -758,8 +764,8 @@ function attributionText() {
   const srcs = new Set();
   for (const l of map.getStyle().layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none') srcs.add(l.source);
   const parts = [...srcs].map((s) => map.getSource(s)?.attribution).filter(Boolean);
-  const tmp = document.createElement('div');
-  return [...new Set(parts)].map((p) => { tmp.innerHTML = p; return tmp.textContent; }).join(' · ');
+  // parsed in an inert document: no image loads, no handlers run, whatever the text holds
+  return [...new Set(parts)].map((p) => new DOMParser().parseFromString(p, 'text/html').body.textContent).join(' · ');
 }
 // waits for pending tiles, so a layer switched on a moment ago is in the picture
 let exporting = false; // one export at a time, however often PNG is clicked
