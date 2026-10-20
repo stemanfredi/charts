@@ -64,6 +64,16 @@ try {
   check((await again.evaluate(() => map.getZoom().toFixed(2))) === '6.00' && (await visible(again, 'isobaths')) === 'visible', 'the copied link reopens the same view and layers');
   check(again.errors.length === 0, `reloaded view without errors ${again.errors.join(' | ')}`);
 
+  // one side panel: Measure replaces Layers in place, the link keeps the view, its button closes it
+  const pv = await open('#v=6/41/12/0&menu=1');
+  await pv.click('#b-measure');
+  await pv.waitForTimeout(400);
+  const views = await pv.evaluate(() => [!document.querySelector('#panel').hidden, document.querySelector('#menu').hidden, !document.querySelector('#mview').hidden, document.querySelector('#panel-title').textContent, location.hash.includes('menu=measure')]);
+  check(views.join() === 'true,true,true,Measure,true', `Measure switches the panel in place and the link keeps it (${views.join()})`);
+  await pv.click('#b-measure');
+  check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
+  await pv.close();
+
   // search: coordinates are read on the page (no request); a place comes from Photon
   const sp = await open('#v=6/41/12/0&menu=0');
   const near = (lat, lon, tol) => sp.evaluate(({ lat, lon, tol }) => { const c = map.getCenter(); return Math.abs(c.lat - lat) < tol && Math.abs(c.lng - lon) < tol; }, { lat, lon, tol });

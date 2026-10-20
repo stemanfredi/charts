@@ -27,7 +27,7 @@ const state = {
   date: defaultDate(),
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   open: new Set(['base', 'sea']),
-  menu: window.innerWidth >= 1200, // open beside the map where it leaves room; a button away elsewhere
+  panel: window.innerWidth >= 1200 ? 'layers' : null, // the side panel's view; open beside the map where it leaves room
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 let measureState = '';
@@ -52,7 +52,7 @@ function readHash() {
     if (DENSITY[k]?.periods.includes(val)) state.period[k] = val;
   }
   if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => g === 'measure' || GROUPS.some((x) => x.id === g)));
-  if (q.has('menu')) state.menu = q.get('menu') === '1';
+  if (q.has('menu')) state.panel = { 1: 'layers', measure: 'measure' }[q.get('menu')] || null; // menu=1 from older links: Layers
   measureState = q.get('m') || '';
   return q.get('u');
 }
@@ -82,7 +82,7 @@ function writeHashNow() {
     const m = measure.serialize();
     if (m) q.set('m', m);
     q.set('g', [...state.open].join(','));
-    q.set('menu', state.menu ? '1' : '0');
+    q.set('menu', state.panel === 'measure' ? 'measure' : state.panel ? '1' : '0');
     history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
   }
 }
@@ -515,15 +515,15 @@ function renderStatus() {
   }
 }
 
-// ---- measure popover: tools, units, saved measurements --------------------------------
+// ---- measure view (in the side panel): tools, units, saved measurements -----------------
 const TOOL = { ruler: ['Ruler', 'Distance and bearing (R)'], area: ['Area', 'Area and perimeter (A)'], ring: ['Ring', 'Range ring: centre, then radius (C)'] };
 const TIP = { ruler: 'Click to add points', area: 'Click to add corners', ring: 'Click the centre, then the edge' };
-const measurePop = $('#measure-pop');
+const measureView = $('#mview');
 const toolBtns = Object.entries(TOOL).map(([k, [label, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', title,
-  onclick: () => { closePops(); measure.tool === k ? measure.finish() : measure.start(k); } }, icon(...ICON[k]), label));
+  onclick: () => { if (small()) setPanel(null); measure.tool === k ? measure.finish() : measure.start(k); } }, icon(...ICON[k]), label)); // phones: the sheet makes way for the map
 const unitSeg = seg('Distance units', { km: ['km · m', 'Kilometres and metres'], nm: ['Nautical miles', 'Nautical miles'] }, () => measure.units, (u) => measure.setUnits(u));
 const measureList = h('ul', { class: 'mlist' });
-measurePop.append(h('div', { class: 'tools3' }, toolBtns), h('h2', {}, 'Units'), unitSeg, h('h2', {}, 'Measurements'), measureList,
+measureView.append(h('div', { class: 'tools3' }, toolBtns), h('h2', {}, 'Units'), unitSeg, h('h2', {}, 'Measurements'), measureList,
   h('p', { class: 'note' }, 'Geodesic on WGS 84. Bearings are true (°T). Double-click or Enter finishes; Backspace undoes; Esc cancels.'));
 function renderMeasures() {
   const u = measure.units === 'nm' ? ['NM', 1852] : ['km', 1000];
@@ -556,22 +556,28 @@ function renderTools() {
   mbarTip.textContent = TIP[measure.tool];
 }
 
-// ---- panel, popovers, about ----------------------------------------------------------
-const panel = $('#panel');
-const bLayers = $('#b-layers');
-function setMenu(open) {
-  state.menu = open;
-  panel.hidden = !open;
-  bLayers.setAttribute('aria-expanded', String(open));
-  document.body.classList.toggle('menu-open', open); // phones: the legend makes way for the sheet
-  if (open && small()) closePops();
+// ---- side panel, share menu, about -------------------------------------------------------
+// One side panel; the Layers and Measure buttons switch what it shows, and the button of the
+// view already shown closes it. It keeps its place and size, so nothing overlaps.
+const panel = $('#panel'), panelTitle = $('#panel-title');
+const VIEWS = { layers: [$('#b-layers'), menu, 'Layers'], measure: [$('#b-measure'), measureView, 'Measure'] };
+function setPanel(view) {
+  state.panel = view;
+  panel.hidden = !view;
+  for (const [v, [btn, el, title]] of Object.entries(VIEWS)) {
+    btn.setAttribute('aria-expanded', String(v === view));
+    el.hidden = v !== view;
+    if (v === view) panelTitle.textContent = title;
+  }
+  document.body.classList.toggle('menu-open', !!view); // phones: the legend makes way for the sheet
+  if (view && small()) closePops();
   writeHash();
 }
-bLayers.addEventListener('click', () => setMenu(!state.menu));
-$('#close').addEventListener('click', () => setMenu(false));
+for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => setPanel(state.panel === v ? null : v));
+$('#close').addEventListener('click', () => setPanel(null));
 
-// Measure and Share open beside their button (from the bottom on phones); one at a time
-const POPS = { 'b-measure': measurePop, 'b-share': $('#share-pop') };
+// Share opens beside its button (from the bottom on phones), over the panel like any menu
+const POPS = { 'b-share': $('#share-pop') };
 function closePops() {
   for (const [id, el] of Object.entries(POPS)) { el.hidden = true; $(`#${id}`).setAttribute('aria-expanded', 'false'); }
   document.body.classList.remove('pop-open');
@@ -580,7 +586,7 @@ function togglePop(id) {
   const el = POPS[id], show = el.hidden;
   closePops();
   if (!show) return;
-  if (small()) setMenu(false);
+  if (small()) setPanel(null);
   el.style.top = small() ? '' : `${$(`#${id}`).getBoundingClientRect().top - 2}px`;
   el.hidden = false;
   $(`#${id}`).setAttribute('aria-expanded', 'true');
@@ -612,11 +618,11 @@ window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'escape') closePops();
   else if (k === '/') { e.preventDefault(); q.focus(); }
-  else if (k === 'l') setMenu(!state.menu);
-  else if ({ r: 'ruler', a: 'area', c: 'ring' }[k]) { closePops(); measure.start({ r: 'ruler', a: 'area', c: 'ring' }[k]); }
+  else if (k === 'l') setPanel(state.panel === 'layers' ? null : 'layers');
+  else if ({ r: 'ruler', a: 'area', c: 'ring' }[k]) { closePops(); if (small()) setPanel(null); measure.start({ r: 'ruler', a: 'area', c: 'ring' }[k]); }
 });
 
-// phones: the layers sheet has a handle; drag it to any height, it settles at a third, a half
+// phones: the panel is a sheet with a handle; drag it to any height, it settles at a third, a half
 // or nearly all of the screen; dragged low enough, it closes. A tap steps through the heights.
 const handle = h('div', { class: 'handle', 'aria-hidden': 'true' });
 panel.prepend(handle);
@@ -637,7 +643,7 @@ handle.addEventListener('pointerdown', (e) => {
     panel.classList.remove('dragging');
     const f = (h0 + y0 - ev.clientY) / innerHeight;
     if (!moved) setSheet(SNAPS[(SNAPS.indexOf(sheet) + 1) % SNAPS.length]);
-    else if (f < 0.18) { setSheet(0.55); setMenu(false); }
+    else if (f < 0.18) { setSheet(0.55); setPanel(null); }
     else setSheet(SNAPS.reduce((a, b) => (Math.abs(b - f) < Math.abs(a - f) ? b : a)));
   };
   handle.addEventListener('pointermove', move);
@@ -846,7 +852,7 @@ map.on('load', () => {
   renderMenu();
   renderMeasures();
   ready = true;
-  setMenu(state.menu); // also writes the URL, now with everything applied
+  setPanel(state.panel); // also writes the URL, now with everything applied
   scaleNote();
   renderCompass();
 });

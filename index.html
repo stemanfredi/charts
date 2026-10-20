@@ -31,10 +31,11 @@
   </div>
 
   <!-- right edge: what the map shows, measuring, sharing; zoom and compass lower down.
-       The panel and the popovers open to the left of this column, which never moves. -->
+       Layers and Measure switch one side panel; Share is a small menu. Both open to the left
+       of this column, which never moves. -->
   <nav id="rail" class="rail" aria-label="Map controls">
     <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false" title="Layers (L)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg><span>Layers</span></button>
-    <button type="button" id="b-measure" aria-controls="measure-pop" aria-expanded="false" title="Measure: ruler (R), area (A), range ring (C)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg><span>Measure</span></button>
+    <button type="button" id="b-measure" aria-controls="panel" aria-expanded="false" title="Measure: ruler (R), area (A), range ring (C)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg><span>Measure</span></button>
     <button type="button" id="b-share" aria-controls="share-pop" aria-expanded="false" title="Copy a link or export a PNG"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7h14v-7"/></svg><span>Share</span></button>
   </nav>
   <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
@@ -43,17 +44,17 @@
     <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 4 9h-8z" fill="#b42318" stroke="#b42318"/><path d="m12 21-4-9h8z"/></svg></button>
   </div>
 
-  <aside id="panel" class="panel" aria-label="Layers" hidden>
+  <aside id="panel" class="panel" aria-labelledby="panel-title" hidden>
     <header>
-      <h1>Layers</h1>
+      <h1 id="panel-title">Layers</h1>
       <span class="spin" aria-hidden="true"></span>
-      <button type="button" id="close" class="x" aria-label="Close layers" title="Close">×</button>
+      <button type="button" id="close" class="x" aria-label="Close panel" title="Close">×</button>
     </header>
     <div id="menu"></div>
+    <div id="mview" class="view" hidden></div>
     <footer><button type="button" class="about-link" data-about>About · not for navigation</button></footer>
   </aside>
 
-  <section id="measure-pop" class="pop" aria-label="Measure" hidden></section>
   <section id="share-pop" class="pop" aria-label="Share" hidden>
     <button type="button" id="link" class="action"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg><span>Copy link to this view</span></button>
     <button type="button" id="png" class="action"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>Export PNG</span></button>
