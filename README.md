@@ -5,8 +5,8 @@ depth shading, isobaths, seamarks and NASA daily ocean imagery, all from open
 sources that need no key. Geodesic ruler, area and range-ring tools.
 The link reproduces the exact view. PNG export.
 
-No build step, no backend, no API keys. Serve the folder from anywhere static
-(GitHub Pages: *Settings → Pages → Deploy from branch → `main` / root*).
+No build step, no backend, no API keys. Serve the folder from anywhere static;
+on GitHub, CI publishes it to Pages (see *Development*).
 
 ```
 index.html   page shell; the CDN block is generated (see Dependencies)
@@ -16,7 +16,9 @@ app.js       map, menu, URL state, graticule, source health, PNG export
 clip.js      elevation tiles cut to the OSM coastline
 legend.js    colour legends
 measure.js   geodesic measurements (GeographicLib, WGS 84)
-tools/deps.mjs  pin / hash / upgrade the CDN libraries
+format.js    pure formatting helpers (angles, scale, wrap)
+tools/deps.mjs  pin / hash / check / upgrade the CDN libraries
+test/        unit tests (node --test) and a headless-Chrome smoke test
 ```
 
 Run locally: `python3 -m http.server` in this folder, open http://localhost:8000.
@@ -136,6 +138,28 @@ node tools/deps.mjs --write   # after changing a version in PINS: refetch, rehas
 
 The import map's own hash goes into the CSP, so edit that block only through
 the script.
+
+## Development
+
+The site needs nothing; `package.json` exists for the checks only (Node ≥ 22).
+
+```
+npm ci
+npm test            # unit tests, offline: formatting, geodesics, URL round trip, catalog consistency
+npm run check       # index.html CDN block = pins + SRI hashes + CSP hash (fetches the CDN files)
+npm run smoke       # headless Chrome on the live providers; CHROME=/path/to/chrome if not /usr/bin/google-chrome
+npm run deps        # newer versions of the pinned libraries
+```
+
+The catalog test also guards the CSP: a new source on a host missing from
+`TILE_HOSTS` fails it.
+
+CI (`.github/workflows/ci.yml`) runs `test`, `check` and `smoke` on every push
+and pull request, and deploys `main` to GitHub Pages when they pass. Only the
+site files are published: `index.html`, `*.js`, `*.css`. It also runs every
+Monday, so a tile provider that changes or goes down fails a run, and newer
+library versions appear as notices; updating stays a deliberate `--write`.
+One-time repository setting: *Settings → Pages → Source: GitHub Actions*.
 
 ## Parked: more detail for a specific view
 

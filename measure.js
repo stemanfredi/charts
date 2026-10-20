@@ -2,8 +2,9 @@
 // ruler (polyline), area (polygon) and range ring (circle). Lines are drawn as
 // densified geodesics, so what you see is the path the numbers describe.
 
-const G = window.geodesic.Geodesic.WGS84;
-const { STANDARD, DISTANCE_IN, LONG_UNROLL } = window.geodesic.Geodesic;
+// GeographicLib is a classic script on the page (window.geodesic); tests set globalThis.geodesic
+const G = globalThis.geodesic.Geodesic.WGS84;
+const { STANDARD, DISTANCE_IN, LONG_UNROLL } = globalThis.geodesic.Geodesic;
 const MASK = STANDARD | DISTANCE_IN | LONG_UNROLL; // DISTANCE_IN: positions along a line by distance
 const NM = 1852;
 
@@ -199,8 +200,9 @@ export class Measure {
 
   // compact text for the URL: r:lon,lat;lon,lat  a:…  c:lon,lat;radius  (! = hidden)
   serialize() {
+    const CODE = { ruler: 'r', area: 'a', ring: 'c' }; // 'c' (circle): 'r' is the ruler
     const xy = (p) => `${+p[0].toFixed(5)},${+p[1].toFixed(5)}`;
-    return this.list.map((x) => `${x.hidden ? '!' : ''}${x.kind[0]}:${x.pts.map(xy).join(';')}${x.kind === 'ring' ? `;${Math.round(x.r)}` : ''}`).join('~');
+    return this.list.map((x) => `${x.hidden ? '!' : ''}${CODE[x.kind]}:${x.pts.map(xy).join(';')}${x.kind === 'ring' ? `;${Math.round(x.r)}` : ''}`).join('~');
   }
   load(s) {
     const kinds = { r: 'ruler', a: 'area', c: 'ring' };

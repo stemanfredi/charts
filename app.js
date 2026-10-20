@@ -3,6 +3,7 @@ import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
 import { clipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, wrap } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -207,13 +208,6 @@ function setDate(date) {
 
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
 const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
-function fmtAngle(v, pos, neg, step) {
-  const hemi = v >= 0 ? pos : neg;
-  const a = Math.abs(v);
-  let d = Math.floor(a + 1e-9), mnt = Math.round((a - d) * 60);
-  if (mnt === 60) { d += 1; mnt = 0; }
-  return step >= 1 || mnt === 0 ? `${d}°${hemi}` : `${d}°${String(mnt).padStart(2, '0')}′${hemi}`;
-}
 function updateGraticule() {
   if (!state.on.has('graticule')) return;
   const b = map.getBounds();
@@ -458,12 +452,6 @@ function flash(b, text) {
 
 // cursor position readout
 const pos = $('#pos');
-const dm = (v, p, n) => {
-  const a = Math.abs(v);
-  let d = Math.floor(a), m = ((a - d) * 60).toFixed(3);
-  if (m === '60.000') { d += 1; m = '0.000'; } // rounding carries into the degrees
-  return `${d}°${m.padStart(6, '0')}′${v >= 0 ? p : n}`;
-};
 map.on('mousemove', (e) => { pos.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
 
 // ---- latitude scale: on a Mercator chart, 1′ of latitude = 1 NM wherever you read it ----
@@ -473,10 +461,8 @@ const MIN_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 1200];
 // relative change of the Mercator scale (∝ 1/cos lat) across the view: from the lowest to the
 // highest |lat| in view, the lowest being 0 when the view crosses the equator
 function scaleVariation() {
-  const b = map.getBounds(), n = Math.min(85, b.getNorth()), s = Math.max(-85, b.getSouth());
-  const hi = Math.max(Math.abs(n), Math.abs(s)), lo = s < 0 && n > 0 ? 0 : Math.min(Math.abs(n), Math.abs(s));
-  const rad = Math.PI / 180;
-  return Math.cos(lo * rad) / Math.cos(hi * rad) - 1;
+  const b = map.getBounds();
+  return mercatorVariation(b.getSouth(), b.getNorth());
 }
 function scaleNote() {
   const v = scaleVariation();
@@ -526,10 +512,6 @@ function attributionText() {
   const parts = [...srcs].map((s) => map.getSource(s)?.attribution).filter(Boolean);
   const tmp = document.createElement('div');
   return [...new Set(parts)].map((p) => { tmp.innerHTML = p; return tmp.textContent; }).join(' · ');
-}
-function niceLen(m) {
-  const p = 10 ** Math.floor(Math.log10(m));
-  return [5, 2, 1].map((k) => k * p).find((v) => v <= m) || p;
 }
 // waits for pending tiles, so a layer switched on a moment ago is in the picture
 let exporting = false; // one export at a time, however often PNG is clicked
@@ -592,15 +574,6 @@ function exportPng() {
     }, 'image/png');
   });
   map.triggerRepaint();
-}
-function wrap(text, n) {
-  const out = [];
-  let line = '';
-  for (const w of text.split(' ')) {
-    if ((line + ' ' + w).length > n && line) { out.push(line); line = w; } else line = line ? `${line} ${w}` : w;
-  }
-  if (line) out.push(line);
-  return out;
 }
 
 // ---- go ---------------------------------------------------------------------

@@ -1,0 +1,17 @@
+{
+  "name": "charts",
+  "private": true,
+  "type": "module",
+  "description": "Static world chart. No build: these scripts are for development only.",
+  "scripts": {
+    "test": "node --test \"test/unit/*.test.mjs\"",
+    "check": "node tools/deps.mjs --check",
+    "smoke": "node test/smoke.mjs",
+    "deps": "node tools/deps.mjs"
+  },
+  "engines": { "node": ">=22" },
+  "devDependencies": {
+    "geographiclib-geodesic": "2.2.0",
+    "playwright-core": "1.64.1"
+  }
+}
