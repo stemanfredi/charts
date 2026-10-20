@@ -51,9 +51,15 @@ function readHash() {
 }
 
 let hashTimer = 0;
+let ready = false; // until map load, the URL still holds state not yet applied (m=): leave it alone
 function writeHash() {
   clearTimeout(hashTimer);
-  hashTimer = setTimeout(() => {
+  if (ready) hashTimer = setTimeout(writeHashNow, 250);
+}
+function writeHashNow() {
+  clearTimeout(hashTimer);
+  if (!ready) return;
+  {
     const c = map.getCenter();
     const q = new URLSearchParams();
     q.set('v', [map.getZoom().toFixed(2), c.lat.toFixed(5), c.lng.toFixed(5), Math.round(map.getBearing())].join('/'));
@@ -69,7 +75,7 @@ function writeHash() {
     q.set('g', [...state.open].join(','));
     q.set('menu', state.menu ? '1' : '0');
     history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
-  }, 250);
+  }
 }
 
 const urlUnits = readHash();
@@ -253,7 +259,7 @@ map.on('error', (e) => {
 map.on('data', (e) => {
   if (e.dataType === 'source' && e.tile && health[e.sourceId]) { health[e.sourceId].ok++; renderStatus(); }
 });
-map.on('movestart', () => { for (const k in health) delete health[k]; });
+map.on('movestart', () => { for (const k in health) delete health[k]; renderStatus(); });
 function itemStatus(id) {
   for (const l of layersOf[id] || []) {
     if (l.metadata.variant && l.metadata.variant !== state.variant[id]) continue;
@@ -435,12 +441,13 @@ function renderTools() {
 tools.addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
-  if (b.dataset.tool) measure.tool === b.dataset.tool ? measure.cancel() : measure.start(b.dataset.tool);
+  // clicking the active tool again means "done" (also the way to finish on touch screens)
+  if (b.dataset.tool) measure.tool === b.dataset.tool ? measure.finish() : measure.start(b.dataset.tool);
   else if (b.id === 'png') exportPng();
   else if (b.id === 'link') copyLink(b);
 });
 async function copyLink(b) {
-  clearTimeout(hashTimer);
+  writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
 }
 function flash(b, text) {
@@ -451,21 +458,34 @@ function flash(b, text) {
 
 // cursor position readout
 const pos = $('#pos');
-const dm = (v, p, n) => { const a = Math.abs(v), d = Math.floor(a); return `${d}°${((a - d) * 60).toFixed(3).padStart(6, '0')}′${v >= 0 ? p : n}`; };
+const dm = (v, p, n) => {
+  const a = Math.abs(v);
+  let d = Math.floor(a), m = ((a - d) * 60).toFixed(3);
+  if (m === '60.000') { d += 1; m = '0.000'; } // rounding carries into the degrees
+  return `${d}°${m.padStart(6, '0')}′${v >= 0 ? p : n}`;
+};
 map.on('mousemove', (e) => { pos.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
 
 // ---- latitude scale: on a Mercator chart, 1′ of latitude = 1 NM wherever you read it ----
 const latCanvas = $('#latscale');
 const MIN_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 1200];
 // relative change of the map scale between the top and bottom of the view
+// relative change of the Mercator scale (∝ 1/cos lat) across the view: from the lowest to the
+// highest |lat| in view, the lowest being 0 when the view crosses the equator
 function scaleVariation() {
-  const H = map.getContainer().clientHeight;
-  const a = Math.cos((map.unproject([0, 0]).lat * Math.PI) / 180), b = Math.cos((map.unproject([0, H]).lat * Math.PI) / 180);
-  return Math.abs(a - b) / Math.min(a, b);
+  const b = map.getBounds(), n = Math.min(85, b.getNorth()), s = Math.max(-85, b.getSouth());
+  const hi = Math.max(Math.abs(n), Math.abs(s)), lo = s < 0 && n > 0 ? 0 : Math.min(Math.abs(n), Math.abs(s));
+  const rad = Math.PI / 180;
+  return Math.cos(lo * rad) / Math.cos(hi * rad) - 1;
+}
+function scaleNote() {
+  const v = scaleVariation();
+  $('#scalenote').textContent = v > 0.01 ? `scale varies ${(v * 100).toFixed(0)}% across the view${latCanvas.hidden ? '' : ' · use the latitude scale (1′ = 1 NM)'}` : '';
 }
 function drawLatScale() {
   const show = state.on.has('graticule') && Math.abs(map.getBearing()) < 0.5;
   latCanvas.hidden = !show;
+  scaleNote();
   if (!show) return;
   const top = latCanvas.offsetTop, H = latCanvas.clientHeight, W = latCanvas.clientWidth, dpr = window.devicePixelRatio || 1;
   latCanvas.width = W * dpr;
@@ -494,8 +514,6 @@ function drawLatScale() {
   }
   g.strokeStyle = '#2b3a46'; g.lineWidth = 1; g.strokeRect(3.5, 0, 6, H);
   latCanvas.title = `Latitude scale: 1′ of latitude = 1 nautical mile, valid anywhere on this chart (ticks every ${step}′)`;
-  const v = scaleVariation();
-  $('#scalenote').textContent = v > 0.01 ? `scale varies ${(v * 100).toFixed(0)}% top to bottom · use the latitude scale (1′ = 1 NM)` : '';
 }
 let latRaf = 0;
 map.on('move', () => { cancelAnimationFrame(latRaf); latRaf = requestAnimationFrame(drawLatScale); });
@@ -514,8 +532,11 @@ function niceLen(m) {
   return [5, 2, 1].map((k) => k * p).find((v) => v <= m) || p;
 }
 // waits for pending tiles, so a layer switched on a moment ago is in the picture
+let exporting = false; // one export at a time, however often PNG is clicked
 function exportPng() {
-  if (!(map.loaded() && map.areTilesLoaded())) { map.once('idle', exportPng); return; }
+  if (exporting) return;
+  exporting = true;
+  if (!(map.loaded() && map.areTilesLoaded())) { map.once('idle', () => { exporting = false; exportPng(); }); return; }
   map.once('render', () => {
     const src = map.getCanvas();
     const dpr = src.width / src.clientWidth;
@@ -567,6 +588,7 @@ function exportPng() {
       const a = h('a', { href: URL.createObjectURL(blob), download: `chart-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}.png` });
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      exporting = false;
     }, 'image/png');
   });
   map.triggerRepaint();
@@ -594,7 +616,8 @@ map.on('load', () => {
   updateGraticule();
   renderMenu();
   renderMeasures();
-  setMenu(state.menu);
+  ready = true;
+  setMenu(state.menu); // also writes the URL, now with everything applied
   drawLatScale();
 });
 map.on('moveend', () => { updateGraticule(); writeHash(); });

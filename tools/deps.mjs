@@ -36,7 +36,9 @@ async function fetchOk(u) {
 async function report() {
   for (const name of [...new Set(PINS.map((p) => p.name))]) {
     const pinned = PINS.find((p) => p.name === name).version;
-    const tags = (await (await fetch(`https://data.jsdelivr.com/v1/packages/npm/${name}`)).json()).tags;
+    const r = await fetch(`https://data.jsdelivr.com/v1/packages/npm/${name}`);
+    if (!r.ok) throw new Error(`jsDelivr ${r.status} for ${name}`);
+    const { tags } = await r.json();
     console.log(`${name.padEnd(24)} pinned ${pinned.padEnd(8)} latest ${tags.latest}${tags.latest === pinned ? '' : '   ← update available'}`);
   }
 }

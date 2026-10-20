@@ -107,7 +107,8 @@ coastline the basemap draws:
   latitude. As on a paper Mercator chart, the **latitude scale** down the left
   edge (shown with the graticule, north-up) is the distance scale that is valid
   everywhere: 1′ of latitude = 1 NM. When the scale varies by more than 1%
-  across the view, a note says so on screen and in the PNG.
+  across the view (from the lowest to the highest latitude in it), a note says
+  so on screen and in the PNG, with or without the graticule.
 - Depth colours have two schemes (the Depth shading item's menu, also used by the
   legend): *darker = deeper* (atlas and ocean maps, the default) and
   *darker = shallower* (nautical charts, IHO S-52, where shallow water is the hazard).

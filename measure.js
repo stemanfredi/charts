@@ -129,7 +129,8 @@ export class Measure {
     map.on('mousemove', (e) => { if (this.tool) { this.hover = [e.lngLat.lng, e.lngLat.lat]; this.render(); } });
     map.on('dblclick', (e) => { if (this.tool) { e.preventDefault(); this.finish(); } });
     window.addEventListener('keydown', (e) => {
-      if (!this.tool || e.target.closest('input,select,textarea')) return;
+      // not while typing, nor on a focused button (its own Enter click would restart the tool)
+      if (!this.tool || e.target.closest('input,select,textarea,button')) return;
       if (e.key === 'Escape') this.cancel();
       else if (e.key === 'Enter') this.finish();
       else if (e.key === 'Backspace' && this.draft?.pts.length) { this.draft.pts.pop(); this.render(); }
@@ -209,7 +210,7 @@ export class Measure {
       const bits = mm[3].split(';');
       const kind = kinds[mm[2]];
       const x = { id: this.seq++, kind, hidden: !!mm[1], pts: [] };
-      if (kind === 'ring') x.r = +bits.pop();
+      if (kind === 'ring') { x.r = +bits.pop(); if (!(x.r > 0)) continue; } // no rings without a radius
       x.pts = bits.map((b) => b.split(',').map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite));
       if (x.pts.length) this.list.push(x);
     }

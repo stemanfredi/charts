@@ -107,5 +107,5 @@ details ul { list-style: none; margin: 0; padding: 0 0 6px; }
   .tools { left: 52px; right: 70px; overflow-x: auto; }
   .tools button { padding: 6px 8px; }
   .pos { display: none; }
-  .legends { left: 10px; bottom: 34px; }
+  .legends { left: 10px; bottom: 56px; } /* above the scale note */
 }
