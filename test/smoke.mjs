@@ -39,6 +39,12 @@ try {
   check((await visible(p, 'seamarks')) === 'visible', 'group checkbox turns on all its items');
   await p.click('label[for=i-sat]');
   check((await visible(p, 'esri')) === 'visible' && (await visible(p, 'water')) === 'none', 'satellite replaces the chart base');
+  await p.waitForTimeout(1500);
+  const credits = await p.evaluate(() => document.querySelector('.maplibregl-ctrl-attrib-inner')?.textContent || '');
+  const live = await p.evaluate(async () => (await (await fetch('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=json')).json()).copyrightText);
+  check(credits.includes('Powered by Esri') && credits.includes(live), `Esri credits: "Powered by Esri" and the service's own text (${live})`);
+  await p.mouse.move(640, 400); await p.mouse.down(); await p.mouse.move(500, 300, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(500);
+  check(await p.evaluate(() => !document.querySelector('.maplibregl-ctrl-attrib').classList.contains('maplibregl-compact')), 'credits stay written out on desktop after a drag');
   await p.close();
 
   // URL state: view, layers and measurements survive a reload; Link copies the current view

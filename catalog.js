@@ -70,6 +70,10 @@ export function densityTiles(id, type, period) {
     + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true&time=${d.time(period)}T00:00:00.000Z`];
 }
 
+export const ESRI_META = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=json';
+const escapeHtml = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+export const esriAttribution = (copyrightText) => `Powered by <a href="https://www.esri.com">Esri</a> · ${escapeHtml(copyrightText)}`;
+
 export const GIBS = {
   terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
   viirs: { label: 'True colour · VIIRS NOAA-20', layer: 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
@@ -157,7 +161,9 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
       tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'] },
     eox24: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2024 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0',
       tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg'] },
-    esri: { type: 'raster', tileSize: 256, maxzoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    // Esri asks for "Powered by Esri" plus the service's own copyrightText (app.js refreshes it from
+    // ESRI_META; this is the text it had on 2026-10-20)
+    esri: { type: 'raster', tileSize: 256, maxzoom: 18, attribution: esriAttribution('Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community'),
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
     // the grid is 1 km: beyond zoom 10 the map overzooms instead of asking for more tiles
     traffic: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('traffic', ...(density.traffic || ['all', DENSITY.traffic.defaultPeriod])),

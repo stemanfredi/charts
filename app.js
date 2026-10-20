@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, buildStyle, defaultDate, gibsTiles, densityTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, densityTiles } from './catalog.js';
 import { clipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap } from './format.js';
@@ -127,7 +127,9 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 // bottom-right, as in Google Maps; MapLibre stacks later bottom controls above earlier ones:
 // attribution at the bottom, then the scale note, the scale bar, the cursor readout, and zoom + compass on top
-const attribution = new maplibregl.AttributionControl({ compact: true });
+// credits stay written out on desktop (Esri: data attribution "always visible"; OSM likewise);
+// phones get MapLibre's collapsible (i), which Esri allows on small screens
+const attribution = new maplibregl.AttributionControl({ compact: window.innerWidth < 720 });
 map.addControl(attribution, 'bottom-right');
 const scaleNoteEl = h('div', { class: 'maplibregl-ctrl scalenote', id: 'scalenote' });
 map.addControl({ onAdd: () => scaleNoteEl, onRemove: () => scaleNoteEl.remove() }, 'bottom-right');
@@ -163,7 +165,7 @@ function setOn(id, on) {
   }
   on ? state.on.add(id) : state.on.delete(id);
   applyItem(id);
-  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); }
+  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); creditEsri(); }
   if (id === 'graticule') updateGraticule();
   if (id === 'depth') { shoreFill(); labelPaint(); }
   renderMenu();
@@ -221,6 +223,20 @@ function setDensity(id) {
   map.getSource(id).setTiles(densityTiles(id, state.variant[id], state.period[id]));
   writeHash();
   renderLegends();
+}
+// Esri imagery credits: the service's current copyrightText (providers get renamed: Maxar → Vantor)
+let esriCredited = false;
+async function creditEsri() {
+  if (esriCredited || !(state.on.has('sat') && state.variant.sat === 'esri')) return;
+  esriCredited = true;
+  try {
+    const r = await fetch(ESRI_META, { credentials: 'omit' });
+    const text = r.ok && (await r.json()).copyrightText;
+    if (!text) return;
+    const src = map.getSource('esri');
+    src.attribution = esriAttribution(text);
+    src.setTiles(src.tiles); // a source event makes the attribution control redraw
+  } catch { esriCredited = false; } // keep the built-in text; retry on the next switch
 }
 function setDate(date) {
   state.date = date;
@@ -310,6 +326,7 @@ function itemRow(it) {
       applyItem(it.id);
       if (it.id === 'depth') depthColours();
       if (DENSITY[it.id]) setDensity(it.id);
+      if (it.id === 'sat') creditEsri();
       writeHash(); renderStatus(); renderLegends();
     } }, Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label))) : null,
     it.density ? h('select', { class: 'period', 'aria-label': `${it.label} period`, onchange: (e) => { state.period[it.id] = e.target.value; setDensity(it.id); } },
@@ -603,6 +620,7 @@ map.on('load', () => {
   for (const it of ITEMS) applyItem(it.id);
   depthColours();
   labelPaint();
+  creditEsri();
   measure.load(measureState);
   updateGraticule();
   renderMenu();
