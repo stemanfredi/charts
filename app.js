@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, TRAFFIC, buildStyle, defaultDate, gibsTiles, trafficTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, buildStyle, defaultDate, gibsTiles, densityTiles } from './catalog.js';
 import { clipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap } from './format.js';
@@ -25,7 +25,7 @@ const state = {
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
   date: defaultDate(),
-  year: TRAFFIC.defaultYear, // vessel density
+  period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   open: new Set(['base', 'sea']),
   menu: window.innerWidth >= 720,
 };
@@ -46,7 +46,11 @@ function readHash() {
     if (k in state.opacity && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.date = q.get('d');
-  if (TRAFFIC.years.includes(+q.get('y'))) state.year = +q.get('y');
+  if (DENSITY.traffic.periods.includes(q.get('y'))) state.period.traffic = q.get('y'); // links from before per=
+  for (const kv of (q.get('per') || '').split(',')) {
+    const [k, val] = kv.split(':');
+    if (DENSITY[k]?.periods.includes(val)) state.period[k] = val;
+  }
   if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => g === 'measure' || GROUPS.some((x) => x.id === g)));
   if (q.has('menu')) state.menu = q.get('menu') === '1';
   measureState = q.get('m') || '';
@@ -72,7 +76,8 @@ function writeHashNow() {
     const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
     if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
     if (state.on.has('gibs')) q.set('d', state.date);
-    if (state.on.has('traffic') && state.year !== TRAFFIC.defaultYear) q.set('y', state.year);
+    const per = Object.entries(state.period).filter(([id, v]) => state.on.has(id) && v !== DENSITY[id].defaultPeriod);
+    if (per.length) q.set('per', per.map((kv) => kv.join(':')).join(','));
     if (measure.units !== 'km') q.set('u', measure.units);
     const m = measure.serialize();
     if (m) q.set('m', m);
@@ -110,7 +115,7 @@ const style = buildStyle({
   isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: { 4: [1000, 2000], 6: [200, 1000], 8: [100, 500], 10: [10, 50], 11: [5, 50] } }), // generated finer than drawn: catalog.js keeps 5 m, 10s to 50, then 50s
   contourUrl: landDem.contourProtocolUrl({ ...contourOpts, thresholds: { 9: [100, 500], 11: [50, 250], 12: [20, 100] } }),
   date: state.date,
-  traffic: [state.variant.traffic, state.year],
+  density: Object.fromEntries(Object.keys(DENSITY).map((id) => [id, [state.variant[id], state.period[id]]])),
 });
 style.layers.push(...MEASURE_LAYERS);
 
@@ -212,8 +217,8 @@ function labelPaint() {
 }
 const LINE_IDS = style.layers.filter((l) => /^isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
 const chartLineColour = Object.fromEntries(LINE_IDS.map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
-function setTraffic() {
-  map.getSource('traffic').setTiles(trafficTiles(state.variant.traffic, state.year));
+function setDensity(id) {
+  map.getSource(id).setTiles(densityTiles(id, state.variant[id], state.period[id]));
   writeHash();
   renderLegends();
 }
@@ -304,11 +309,11 @@ function itemRow(it) {
       state.variant[it.id] = e.target.value;
       applyItem(it.id);
       if (it.id === 'depth') depthColours();
-      if (it.id === 'traffic') setTraffic();
+      if (DENSITY[it.id]) setDensity(it.id);
       writeHash(); renderStatus(); renderLegends();
     } }, Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label))) : null,
-    it.year ? h('select', { class: 'year', 'aria-label': `${it.label} year`, onchange: (e) => { state.year = +e.target.value; setTraffic(); } },
-      TRAFFIC.years.map((y) => h('option', { value: y }, y === 2024 ? `${y} (incomplete)` : `${y}`))) : null,
+    it.density ? h('select', { class: 'period', 'aria-label': `${it.label} period`, onchange: (e) => { state.period[it.id] = e.target.value; setDensity(it.id); } },
+      DENSITY[it.id].periods.map((p) => h('option', { value: p }, DENSITY[it.id].periodLabel(p)))) : null,
     it.date ? h('input', { type: 'date', 'aria-label': 'Imagery date', max: new Date().toISOString().slice(0, 10), min: '2012-01-01',
       onchange: (e) => e.target.value && setDate(e.target.value) }) : null);
   const row = h('li', { class: 'item' },
@@ -364,14 +369,14 @@ function renderMenu() {
     const r = rows[it.id];
     const on = state.on.has(it.id);
     r.input.checked = on;
-    r.controls.hidden = !on || !(it.variants || it.date || it.year);
+    r.controls.hidden = !on || !(it.variants || it.date || it.density);
     const low = it.minzoom && z < it.minzoom, high = it.maxzoom && z >= it.maxzoom + 1;
     r.row.classList.toggle('dim', !!(on && (low || high)));
     r.row.querySelector('.hint').textContent = !on ? '' : low ? `zoom ${it.minzoom}+` : high ? `zoom ≤ ${it.maxzoom}` : '';
     const sel = r.controls.querySelector('select.variant');
     if (sel) sel.value = state.variant[it.id];
-    const yr = r.controls.querySelector('select.year');
-    if (yr) yr.value = state.year;
+    const per = r.controls.querySelector('select.period');
+    if (per) per.value = state.period[it.id];
     const rng = r.row.querySelector('input[type=range]');
     if (rng) rng.value = state.opacity[it.id];
     const dt = r.controls.querySelector('input[type=date]');
@@ -397,7 +402,7 @@ function renderLegends() {
   const want = [];
   if (on('legend')) {
     if (on('depth') && on('chart') && map.getZoom() < 13) want.push('depth');
-    if (on('traffic')) want.push('traffic');
+    for (const id of Object.keys(DENSITY)) if (on(id)) want.push(id);
     if (on('gibs') && GIBS[state.variant.gibs].legend) want.push('gibs');
   }
   for (const id of Object.keys(legendEls)) if (!want.includes(id)) legendEls[id].remove();
@@ -406,9 +411,10 @@ function renderLegends() {
     if (id === 'depth') {
       drawRamp(el, 'Depth shading', 'm · approximate (DEM)', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
       el.setAttribute('aria-label', `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`);
-    } else if (id === 'traffic') {
-      drawRamp(el, 'Vessel density', `h/km² per month · ${TRAFFIC.types[state.variant.traffic]} · ${state.year}`, TRAFFIC.stops);
-      el.setAttribute('aria-label', `Vessel density legend: ${TRAFFIC.stops.map(([v]) => v).join(', ')} hours per square kilometre per month`);
+    } else if (DENSITY[id]) {
+      const d = DENSITY[id];
+      drawRamp(el, d.title, `${d.unit} · ${d.types[state.variant[id]]} · ${d.periodLabel(state.period[id])}`, d.stops);
+      el.setAttribute('aria-label', `${d.title} legend: ${d.stops.map(([v]) => v).join(', ')} ${d.unit}`);
     } else {
       const g = GIBS[state.variant.gibs], key = `${state.variant.gibs}|${state.date}`;
       if (el.dataset.key !== key) {

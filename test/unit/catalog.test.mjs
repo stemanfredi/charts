@@ -66,13 +66,18 @@ test('test-only GeographicLib matches the version the page loads', async () => {
   assert.equal(pkg.devDependencies['geographiclib-geodesic'], PINS.find((p) => p.name === 'geographiclib-geodesic').version);
 });
 
-test('vessel density: "all types" is the default, codes map to WMS layers, 2023 by default', async () => {
-  const { TRAFFIC, trafficTiles } = await import('../../catalog.js');
-  const it = ITEMS.find((i) => i.id === 'traffic');
-  assert.equal(Object.keys(it.variants)[0], 'all'); // the app's default variant is the first key
-  assert.equal(it.on, undefined, 'off by default');
-  assert.match(trafficTiles('t10', 2021)[0], /layers=vesseldensity_10avg&.*time=2021-01-01T/);
-  assert.match(trafficTiles('all', 2023)[0], /layers=vesseldensity_allavg&/);
-  assert.equal(TRAFFIC.defaultYear, 2023);
-  assert.ok(TRAFFIC.years.includes(TRAFFIC.defaultYear));
+test('density datasets: "all types" first, codes map to WMS layers and times, sensible defaults', async () => {
+  const { DENSITY, densityTiles } = await import('../../catalog.js');
+  for (const id of Object.keys(DENSITY)) {
+    const it = ITEMS.find((i) => i.id === id);
+    assert.equal(Object.keys(it.variants)[0], 'all', `${id}: the app's default variant is the first key`);
+    assert.equal(it.on, undefined, `${id}: off by default`);
+    assert.ok(DENSITY[id].periods.includes(DENSITY[id].defaultPeriod), `${id}: default period listed`);
+  }
+  assert.match(densityTiles('traffic', 't10', '2021')[0], /layers=vesseldensity_10avg&.*time=2021-01-01T/);
+  assert.equal(DENSITY.traffic.defaultPeriod, '2023'); // 2024 is incomplete
+  assert.match(densityTiles('routes', 't04', '2026-07')[0], /layers=routedensity_04&.*time=2026-07-01T/);
+  assert.equal(DENSITY.routes.defaultPeriod, DENSITY.routes.periods[0], 'routes: newest month by default');
+  assert.equal(DENSITY.routes.periods.length, 91); // Jan 2019 … Jul 2026, no gaps
+  assert.equal(DENSITY.routes.periodLabel('2026-07'), 'Jul 2026');
 });

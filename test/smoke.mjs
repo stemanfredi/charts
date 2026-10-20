@@ -58,13 +58,26 @@ try {
   check(tr.errors.length === 0 && !(await tr.evaluate(() => document.querySelector('#i-traffic').closest('.item').classList.contains('error'))), `vessel density loads ${tr.errors.join(' | ')}`);
   check(await tr.evaluate(() => !!document.querySelector('#legends canvas[data-legend=traffic]')), 'vessel density legend shown');
   await tr.selectOption('.item:has(#i-traffic) select.variant', 't10');
-  await tr.selectOption('.item:has(#i-traffic) select.year', '2019');
+  await tr.selectOption('.item:has(#i-traffic) select.period', '2019');
   await tr.waitForTimeout(500); // the URL is written 250 ms after a change
   const tiles = await tr.evaluate(() => map.getSource('traffic').tiles[0]);
   const hash = await tr.evaluate(() => location.hash);
   check(/vesseldensity_10avg&/.test(tiles) && /time=2019-/.test(tiles), 'ship type and year select the WMS layer and time');
-  check(/var=[^&]*traffic:t10/.test(hash) && /[&#]y=2019/.test(hash), 'ship type and year are kept in the link');
+  check(/var=[^&]*traffic:t10/.test(hash) && /per=[^&]*traffic:2019/.test(hash), 'ship type and year are kept in the link');
   await tr.close();
+
+  // route density (EMSA, monthly): newest month by default, month and type change the tiles
+  const rt = await open('#v=7/37.5/14/0&on=chart,coastline,routes,legend&menu=1&g=sea');
+  check(rt.errors.length === 0 && !(await rt.evaluate(() => document.querySelector('#i-routes').closest('.item').classList.contains('error'))), `route density loads ${rt.errors.join(' | ')}`);
+  await rt.selectOption('.item:has(#i-routes) select.variant', 't04');
+  await rt.selectOption('.item:has(#i-routes) select.period', '2025-11');
+  await rt.waitForTimeout(500);
+  const rtiles = await rt.evaluate(() => map.getSource('routes').tiles[0]);
+  check(/routedensity_04&/.test(rtiles) && /time=2025-11-01T/.test(rtiles) && /per=[^&]*routes:2025-11/.test(await rt.evaluate(() => location.hash)), 'route density month and type in tiles and link');
+  check(await rt.evaluate(() => !!document.querySelector('#legends canvas[data-legend=routes]')), 'route density legend shown');
+  check((await rt.evaluate(() => document.querySelector('.item:has(#i-routes) select.period').selectedOptions[0].text)) === 'Nov 2025', 'months labelled as "Nov 2025"');
+  await rt.close();
+
 
   // PNG export
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);

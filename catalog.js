@@ -30,22 +30,44 @@ export function defaultDate() {
   return new Date(Date.now() - 864e5).toISOString().slice(0, 10);
 }
 
-// EMODnet Human Activities vessel density (WMS, keyless, CORS): hours ships spend per km² and
-// month, from AIS, on a 1 km grid over EU and neighbouring seas; annual averages per ship type.
-// Colour stops as the service publishes them (GetLegendGraphic, format=application/json).
-export const TRAFFIC = {
-  // menu order; keys are the WMS ship-type codes with a 't' prefix, because integer-like
-  // object keys ('10', '11', '12') would be sorted ahead of all the others
-  types: { all: 'All ship types', t09: 'Cargo', t10: 'Tanker', t08: 'Passenger', t01: 'Fishing', t05: 'Pleasure craft',
-    t04: 'Sailing', t06: 'High-speed craft', t07: 'Tug and towing', t02: 'Service', t03: 'Dredging, underwater ops',
-    t11: 'Military, law enforcement', t00: 'Other', t12: 'Unknown' },
-  years: [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017],
-  defaultYear: 2023, // 2024 is thinner: the AIS provider lost satellite data from June 2024
-  stops: [[0, '#0b2c7a'], [0.5, '#20998f'], [2, '#00db00'], [5, '#ffff00'], [10, '#eda113'], [20, '#dd3a1b'], [100, '#9b1800']],
+// Shipping density from EMODnet Human Activities (WMS, keyless, CORS), on a 1 km grid over
+// EU and neighbouring seas. Two datasets, each with ship types (keys prefixed 't', because
+// integer-like object keys such as '10' would be sorted ahead of 'all'), a period and the
+// colour stops the service publishes (GetLegendGraphic, format=application/json).
+const STOPS = [[0, '#0b2c7a'], [0.5, '#20998f'], [2, '#00db00'], [5, '#ffff00'], [10, '#eda113'], [20, '#dd3a1b'], [100, '#9b1800']];
+const months = (from, to) => { // 'YYYY-MM' inclusive, newest first
+  const out = [];
+  for (let [y, m] = to.split('-').map(Number); `${y}-${String(m).padStart(2, '0')}` >= from; m === 1 ? (y--, m = 12) : m--) out.push(`${y}-${String(m).padStart(2, '0')}`);
+  return out;
 };
-export function trafficTiles(type, year) {
-  return [`https://ows.emodnet-humanactivities.eu/wms?service=WMS&version=1.3.0&request=GetMap&layers=vesseldensity_${type.replace(/^t/, '')}avg&styles=`
-    + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true&time=${year}-01-01T00:00:00.000Z`];
+const MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
+export const DENSITY = {
+  // EMODnet vessel density: hours ships spend per km², annual averages of monthly totals
+  traffic: {
+    title: 'Vessel density', unit: 'h/km² per month',
+    types: { all: 'All ship types', t09: 'Cargo', t10: 'Tanker', t08: 'Passenger', t01: 'Fishing', t05: 'Pleasure craft',
+      t04: 'Sailing', t06: 'High-speed craft', t07: 'Tug and towing', t02: 'Service', t03: 'Dredging, underwater ops',
+      t11: 'Military, law enforcement', t00: 'Other', t12: 'Unknown' },
+    periods: [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017].map(String),
+    defaultPeriod: '2023', // 2024 is thinner: the AIS provider lost satellite data from June 2024
+    periodLabel: (p) => (p === '2024' ? `${p} (incomplete)` : p),
+    layer: (type) => `vesseldensity_${type.replace(/^t/, '')}avg`, time: (p) => `${p}-01-01`, stops: STOPS,
+  },
+  // EMSA route density: number of ship routes crossing each 1 km cell, monthly totals
+  routes: {
+    title: 'Route density', unit: 'routes per 1 km cell per month',
+    types: { all: 'All ship types', t01: 'Cargo', t04: 'Tanker', t03: 'Passenger', t02: 'Fishing', t05: 'Other' },
+    periods: months('2019-01', '2026-07'), // newest month in the WMS on 2026-10-20; npm run deps reports newer ones
+    get defaultPeriod() { return this.periods[0]; },
+    periodLabel: (p) => `${MONTHS[+p.slice(5) - 1]} ${p.slice(0, 4)}`,
+    layer: (type) => `routedensity_${type.replace(/^t/, '')}`, time: (p) => `${p}-01`, stops: STOPS,
+  },
+};
+export const DENSITY_WMS = 'https://ows.emodnet-humanactivities.eu/wms';
+export function densityTiles(id, type, period) {
+  const d = DENSITY[id];
+  return [`${DENSITY_WMS}?service=WMS&version=1.3.0&request=GetMap&layers=${d.layer(type)}&styles=`
+    + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true&time=${d.time(period)}T00:00:00.000Z`];
 }
 
 export const GIBS = {
@@ -85,9 +107,12 @@ export const ITEMS = [
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
     info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Spacing widens with depth and tightens with zoom: 5 m, every 10 m to 50 m, 50 m to 200 m, then 500/200/100 m to 3000 m and 1000/500 m below ( indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
-  { id: 'traffic', group: 'sea', label: 'Vessel density', opacity: 0.85, year: true, variantsBy: 'tiles',
-    variants: TRAFFIC.types,
+  { id: 'traffic', group: 'sea', label: 'Vessel density', opacity: 0.85, density: true, variantsBy: 'tiles',
+    variants: DENSITY.traffic.types,
     info: { src: 'EMODnet Human Activities vessel density (Cogea), from AIS bought from CLS, ORBCOMM and vesseltracker.com', lic: 'EMODnet open data, no access constraints; attribution requested', res: '1 km grid, annual averages of hours per km² per month, 2017–2024. EU and neighbouring seas only. 2024 is incomplete (satellite AIS lost from June). Not real time', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'routes', group: 'sea', label: 'Route density', opacity: 0.85, density: true, variantsBy: 'tiles',
+    variants: DENSITY.routes.types,
+    info: { src: 'EMSA route density, via EMODnet Human Activities: ship tracks rebuilt from terrestrial and satellite AIS, counting the routes that cross each cell', lic: 'CC BY 4.0 · European Maritime Safety Agency (EMSA)', res: '1 km grid, monthly totals since January 2019, about 3 months behind. EU and neighbouring seas only. Counts passages, not time spent (see Vessel density for hours)', url: 'https://www.emsa.europa.eu/related-operational-projects/traffic-density-maps.html' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -119,7 +144,7 @@ export const ITEMS = [
 ];
 
 // ---- sources ----------------------------------------------------------------
-function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, traffic = ['all', TRAFFIC.defaultYear] }) {
+function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density = {} }) {
   const ATTR_OSM = '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
   const ATTR_DEM = 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen/AWS Terrain Tiles</a>';
   const s = {
@@ -135,8 +160,10 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, traffic 
     esri: { type: 'raster', tileSize: 256, maxzoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
     // the grid is 1 km: beyond zoom 10 the map overzooms instead of asking for more tiles
-    traffic: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: trafficTiles(...traffic),
+    traffic: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('traffic', ...(density.traffic || ['all', DENSITY.traffic.defaultPeriod])),
       attribution: 'Vessel density: <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a> (Cogea; AIS: CLS, ORBCOMM, vesseltracker.com)' },
+    routes: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('routes', ...(density.routes || ['all', DENSITY.routes.defaultPeriod])),
+      attribution: 'Route density: <a href="https://www.emsa.europa.eu/">EMSA</a> via <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>, CC BY 4.0' },
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: 'Seamarks: <a href="https://openseamap.org">OpenSeaMap</a>',
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
@@ -253,7 +280,7 @@ function layers() {
       paint: { 'line-color': C.boundary, 'line-dasharray': [3, 2],
         'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
 
-    raster('traffic', 'traffic'),
+    raster('traffic', 'traffic'), raster('routes', 'routes'),
     { ...raster('seamarks', 'seamarks'), minzoom: 9 },
 
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],

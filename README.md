@@ -33,6 +33,7 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 | Relief shading, land contours | same DEM, land part, under the sea fill | open data | SRTM 30 m |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 | crowd-sourced |
 | Vessel density (off by default) | EMODnet Human Activities (Cogea; AIS from CLS, ORBCOMM, vesseltracker.com), WMS | EMODnet open data, attribution | 1 km, annual averages 2017–2024 by ship type; EU and neighbouring seas; 2024 incomplete, so 2023 is the default |
+| Route density (off by default) | EMSA route density via EMODnet Human Activities, WMS | CC BY 4.0 | 1 km, monthly from Jan 2019, about 3 months behind; counts routes crossing each cell; EU and neighbouring seas |
 | NASA daily | GIBS: MODIS / VIIRS true colour, MUR SST, chlorophyll-a | NASA open data | 250 m / 1 km; date picker, default yesterday UTC |
 
 Every row in the menu has a ⋯ panel with the same provenance, and the
@@ -44,8 +45,9 @@ PNG), zoom, compass, cursor position and scale bar bottom right.
 
 Colour layers get a legend (bottom left, also in the PNG; *Legends* in the
 menu hides them): depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for
-the layer (0.15 °C classes), fetched once when first shown. Vessel density uses
-the colour stops its WMS publishes (hours per km² per month).
+the layer (0.15 °C classes), fetched once when first shown. Vessel and route density use
+the colour stops their WMS publishes. `npm run deps` (weekly in CI) reports when
+the WMS offers newer periods than `catalog.js` lists.
 
 ## How loading works
 

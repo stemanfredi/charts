@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Pinned CDN dependencies of index.html.
 //
-//   node tools/deps.mjs            report pinned vs latest on npm
+//   node tools/deps.mjs            report pinned vs latest on npm, and newer data periods
+//                                  in the EMODnet density WMS than catalog.js lists
 //   node tools/deps.mjs --write    fetch the pinned files, recompute SRI hashes and the
 //                                  import-map CSP hash, and rewrite the block in index.html
 //   node tools/deps.mjs --check    fail if index.html's block differs from what --write
@@ -80,6 +81,25 @@ async function regenerate() {
   return { html, next: html.replace(BLOCK, (_, a, b) => `${a}\n${tags.map((t) => `  ${t}`).join('\n')}\n  ${b}`) };
 }
 
+// newest period the WMS offers for each density dataset vs the newest one catalog.js lists
+async function dataReport() {
+  const { DENSITY, DENSITY_WMS } = await import('../catalog.js');
+  const r = await fetch(`${DENSITY_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`);
+  if (!r.ok) throw new Error(`EMODnet capabilities ${r.status}`);
+  const xml = await r.text();
+  for (const [id, d] of Object.entries(DENSITY)) {
+    const name = d.layer('all');
+    const i = xml.indexOf(`<Name>${name}</Name>`);
+    const times = (/name="time"[^>]*>([^<]*)/.exec(xml.slice(i, xml.indexOf('</Layer>', i))) || [])[1] || '';
+    const newest = times.match(/\d{4}-\d{2}/g)?.sort().at(-1);
+    const listed = [...d.periods].sort().at(-1);
+    const offered = id === 'traffic' ? newest?.slice(0, 4) : newest;
+    const newer = offered && offered > listed;
+    console.log(`${d.title.padEnd(24)} listed to ${listed.padEnd(8)} WMS offers to ${offered}${newer ? '   ← newer data: update catalog.js' : ''}`);
+    if (newer && process.env.GITHUB_ACTIONS) console.log(`::notice title=Newer ${d.title}::the WMS has ${offered}; catalog.js lists to ${listed}`);
+  }
+}
+
 async function write() {
   const { next } = await regenerate();
   await writeFile(INDEX, next);
@@ -97,5 +117,7 @@ async function check() {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const a = process.argv;
-  await (a.includes('--write') ? write() : a.includes('--check') ? check() : report());
+  if (a.includes('--write')) await write();
+  else if (a.includes('--check')) await check();
+  else { await report(); await dataReport(); }
 }
