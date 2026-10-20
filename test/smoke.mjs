@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Smoke test in headless Chrome, against the live tile providers: the page loads without
-// errors, the menu drives the map, URL state survives a reload, PNG and ZIP export work.
+// errors, the menu drives the map, URL state survives a reload, PNG and GIS export work.
 //   CHROME=/path/to/chrome npm run smoke     (default: /usr/bin/google-chrome)
 // Network-dependent by design: it is also what tells us a provider changed or went down.
 import { readFile } from 'node:fs/promises';
@@ -128,13 +128,13 @@ try {
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());
   check(png.length > 50_000 && png.subarray(1, 4).toString() === 'PNG', `PNG export (${Math.round(png.length / 1024)} KB)`);
-  // ZIP export: a zip whose STAC item lists the georeferenced map and the files beside it;
+  // GIS export: a zip whose STAC item lists the georeferenced map and the files beside it;
   // polygon-clipping loads on this first export, not with the page
   check(await again.evaluate(() => !('polygonClipping' in window) && !document.querySelector('script[src*=polygon-clipping]')), 'polygon-clipping not loaded with the page');
   const [dz] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#zip')]);
   const z = await readFile(await dz.path());
   const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png', 'vector/coastline.geojson', 'vector/isobaths.geojson', 'raster/depth.tif'];
-  check(z.readUInt32LE(0) === 0x04034b50 && names.every((n) => z.includes(n)) && dz.suggestedFilename().endsWith('.zip'), `ZIP export holds ${names.join(', ')} (${Math.round(z.length / 1024)} KB)`);
+  check(z.readUInt32LE(0) === 0x04034b50 && names.every((n) => z.includes(n)) && dz.suggestedFilename().endsWith('.zip'), `GIS export holds ${names.join(', ')} (${Math.round(z.length / 1024)} KB)`);
   // item.json lists every file in the zip, once (central directory: name and local header offset)
   const entries = [];
   for (let p = z.readUInt32LE(z.length - 6); z.readUInt32LE(p) === 0x02014b50; p += 46 + z.readUInt16LE(p + 28)) {

@@ -379,7 +379,7 @@ const ICON = {
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'],
   layers: ['M12 3 3 8l9 5 9-5-9-5z', 'm3 13 9 5 9-5'],
   link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
-  png: ['M12 3v12M7 10l5 5 5-5', 'M4 19h16'],
+  png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
   zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
   plus: ['M12 5v14M5 12h14'],
   minus: ['M5 12h14'],
@@ -636,7 +636,7 @@ function setPanel(view) {
 for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => setPanel(state.panel === v ? null : v));
 $('#close').addEventListener('click', () => setPanel(null));
 
-// Link, PNG and ZIP act at once (no menu): the link button says "Copied" for a moment
+// Link, PNG and GIS act at once (no menu): the link button says "Copied" for a moment
 $('#link').addEventListener('click', (e) => copyLink(e.currentTarget));
 $('#png').addEventListener('click', () => exportPng());
 $('#zip').addEventListener('click', () => exportZip());
@@ -873,7 +873,7 @@ function exportPng() {
   });
 }
 
-// ---- ZIP export: the view as GIS data (export.js, zip.js) --------------------------------
+// ---- GIS export: the view as a zip of GIS data (export.js, zip.js) --------------------------------
 // the menu items the view draws: switched on, over their base, in their zoom range
 function drawnItems() {
   const z = map.getZoom();
@@ -925,7 +925,7 @@ const polygonClipping = () => (clipLib ||= new Promise((resolve, reject) => {
 async function exportZip() {
   writeHashNow(); // the item links back to the view as it is now
   let clipping;
-  try { clipping = await polygonClipping(); } catch (e) { console.error('ZIP export:', e.message); return; }
+  try { clipping = await polygonClipping(); } catch (e) { console.error('GIS export:', e.message); return; }
   onFrame(async (src) => {
     const when = new Date();
     const plain = h('canvas', { width: src.width, height: src.height });
