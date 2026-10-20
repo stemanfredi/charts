@@ -9,6 +9,7 @@ import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js'
 import { affine, mercator, worldFile, pamXml, stacItem } from './export.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
+import { timeBar, floorHour } from './timebar.js';
 import { viewFeatures } from './vector.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -29,8 +30,8 @@ const state = {
   on: new Set(ITEMS.filter((it) => it.on).map((it) => it.id)),
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
-  date: defaultDate(),
-  time: Math.floor(Date.now() / 36e5) * 36e5, // Copernicus layers: the hour shown (UTC, ms); now by default
+  time: Math.floor(Date.now() / 36e5) * 36e5, // the map's time: the hour shown (UTC, ms), now by default (timebar.js)
+  date: defaultDate(), // NASA daily: the day drawn, that of the hour shown or the newest published before it
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   open: new Set(['base', 'sea']),
@@ -52,8 +53,9 @@ function readHash() {
     const [k, val] = kv.split(':');
     if (k in state.opacity && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
   }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.date = q.get('d');
   if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(q.get('t') || '')) state.time = Date.parse(`${q.get('t')}:00:00Z`);
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.time = Date.parse(`${q.get('d')}T12:00:00Z`); // NASA date, links from before t=
+  state.date = new Date(state.time).toISOString().slice(0, 10);
   if (CMEMS_DEPTHS.includes(+q.get('dz'))) state.depth = +q.get('dz');
   if (DENSITY.traffic.periods.includes(q.get('y'))) state.period.traffic = q.get('y'); // links from before per=
   for (const kv of (q.get('per') || '').split(',')) {
@@ -83,8 +85,7 @@ function writeHashNow() {
   if (variants.length) q.set('var', variants.map((kv) => kv.join(':')).join(','));
   const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
   if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
-  if (state.on.has('gibs')) q.set('d', state.date);
-  if (cmemsOn().length) q.set('t', new Date(state.time).toISOString().slice(0, 13));
+  if (timeOn().length) q.set('t', new Date(state.time).toISOString().slice(0, 13));
   if (depthOn().length && state.depth) q.set('dz', state.depth);
   const per = Object.entries(state.period).filter(([id, v]) => state.on.has(id) && v !== DENSITY[id].defaultPeriod);
   if (per.length) q.set('per', per.map((kv) => kv.join(':')).join(','));
@@ -283,13 +284,13 @@ async function creditEsri() {
   } catch { esriCredited = false; } // keep the built-in text; retry on the next switch
 }
 function setDate(date) {
+  if (date === state.date) return;
   state.date = date;
   for (const k of Object.keys(GIBS)) map.getSource(`gibs-${k}`).setTiles(gibsTiles(k, date));
-  writeHash();
-  renderMenu(); // the date field and the next-day button follow; also redraws the legends
 }
 // NASA publishes each layer after its own delay (true colour within a day, MUR SST about two):
-// ask GIBS for the newest date of the layer shown, and step back to it rather than show nothing
+// ask GIBS for the newest date of the layer shown; at a later hour it shows that day, like an
+// observation, rather than nothing
 const gibsEnd = {}; // GIBS key → promise of its newest date, or null if unknown
 let gibsLast = null; // newest date of the layer shown, once known
 function latestGibs(key) {
@@ -308,8 +309,9 @@ async function checkGibsDate() {
   const key = state.variant.gibs, end = await latestGibs(key);
   if (key !== state.variant.gibs) return; // switched meanwhile
   gibsLast = end;
-  if (end && state.date > end) setDate(end);
-  else renderMenu();
+  const day = new Date(state.time).toISOString().slice(0, 10);
+  setDate(end && day > end ? end : day);
+  renderMenu();
 }
 
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
@@ -329,10 +331,36 @@ function setDepth(d) {
   renderMenu();
 }
 function setTime(t) {
-  state.time = t;
+  state.time = floorHour(t);
   for (const it of cmemsOn()) showCmems(it.id);
+  checkGibsDate();
   writeHash();
   renderMenu();
+}
+// ---- the time bar: one hour for every layer that changes with time (timebar.js) ----------
+const timeOn = () => ITEMS.filter((it) => (it.cmems || it.date) && state.on.has(it.id));
+const timeEl = $('#timebar'), bar = timeBar(timeEl, setTime);
+// the legends stand on the bar while it is shown
+new ResizeObserver(() => document.documentElement.style.setProperty('--tb-h', timeEl.hidden ? '0px' : `${timeEl.offsetHeight + 8}px`)).observe(timeEl);
+let barSeq = 0;
+async function renderTimeBar() {
+  const items = timeOn(), seq = ++barSeq;
+  timeEl.hidden = !items.length;
+  document.documentElement.style.setProperty('--tb-h', timeEl.hidden ? '0px' : `${timeEl.offsetHeight + 8}px`);
+  if (!items.length) return;
+  // where each has data: the union of its datasets' ranges; NASA from its first day to its newest
+  const rowsData = await Promise.all(items.map(async (it) => {
+    if (it.date) {
+      const end = gibsLast ? Date.parse(`${gibsLast}T00:00:00Z`) + 864e5 : Date.now();
+      return { label: it.label, spans: [[Date.parse('2012-05-08T00:00:00Z'), end]], title: gibsLast ? `Newest published: ${gibsLast}` : '' };
+    }
+    const v = CMEMS[it.id][variantOf(it.id)];
+    const ds = await Promise.all(v.parts.map((p) => domainOf(p).then((d) => d.time, () => [])));
+    const spans = ds.flat().map((r) => [r.start, r.end + (r.step || 864e5)]);
+    const end = Math.max(...spans.map((s) => s[1]));
+    return { label: it.label, spans, title: Number.isFinite(end) ? `${v.observed ? 'Observed' : 'Data'} until ${fmtHour(end - (v.daily ? 864e5 : 36e5))}` : '' };
+  }));
+  if (seq === barSeq) bar.render(state.time, rowsData);
 }
 const variantOf = (id) => state.variant[id] || Object.keys(CMEMS[id])[0];
 const fmtHour = (t) => { const d = new Date(t); return `${d.toUTCString().slice(0, 11)}, ${d.toISOString().slice(11, 16)} UTC`; };
@@ -340,12 +368,6 @@ const fmtDay = (t) => new Date(t).toUTCString().slice(0, 11);
 // a time drawn, as the variant has it: daily means are a day, not an hour
 const fmtDrawn = (v, t) => (v.daily ? `daily mean of ${fmtDay(t)}` : fmtHour(t));
 const fmtLevel = (level) => `${Math.abs(+level) < 10 ? Math.abs(+level).toFixed(1) : Math.round(Math.abs(+level))} m`;
-// "now", "in 20 h", "3 days ago": the hour relative to the current one
-function relHour(t) {
-  const h = Math.round((t - Math.floor(Date.now() / 36e5) * 36e5) / 36e5), a = Math.abs(h);
-  const n = a >= 48 ? `${Math.round(a / 24)} days` : `${a} h`;
-  return !h ? 'now' : h > 0 ? `in ${n}` : `${n} ago`;
-}
 // what each sea-state item has at the hour shown, under its row: drawn from which time, or up to when there is data
 const cmemsEmpty = new Set(); // sea-state items with no data at the hour shown: no legend
 async function cmemsNotes() {
@@ -506,24 +528,14 @@ function controlsOf(it) {
   }
   const period = it.density ? h('select', { class: 'period', 'aria-label': `${it.label} period`, onchange: (e) => { state.period[it.id] = e.target.value; setDensity(it.id); } },
     DENSITY[it.id].periods.map((p) => h('option', { value: p }, DENSITY[it.id].periodLabel(p)))) : null;
-  const date = it.date ? h('div', { class: 'datestep' },
-    h('button', { type: 'button', class: 'prev', 'aria-label': 'Previous day', title: 'Previous day', onclick: () => setDate(shiftDay(state.date, -1)) }, '‹'),
-    h('input', { type: 'date', 'aria-label': 'Imagery date', max: today(), min: '2012-01-01', onchange: (e) => e.target.value && setDate(e.target.value) }),
-    h('button', { type: 'button', class: 'next', 'aria-label': 'Next day', title: 'Next day', onclick: () => setDate(shiftDay(state.date, 1)) }, '›')) : null;
-  const latest = it.date ? h('p', { class: 'note latest' }) : null; // the newest day NASA has published for this layer
-  // sea state: the hour (shown under the first item on, the same for all) and what this item has then
-  const hour = it.cmems ? h('div', { class: 'hourstep' },
-    h('p', { class: 'when' }),
-    h('div', { class: 'steps' },
-      ...[[-24, '«', 'Previous day'], [-1, '‹', 'Previous hour'], [1, '›', 'Next hour'], [24, '»', 'Next day']].map(([n, text, label]) =>
-        h('button', { type: 'button', 'aria-label': label, title: label, onclick: () => setTime(state.time + n * 36e5) }, text)),
-      h('button', { type: 'button', class: 'now', title: 'The current hour', onclick: () => setTime(Math.floor(Date.now() / 36e5) * 36e5) }, 'Now'))) : null;
+  // NASA daily: the day it shows (the time is set on the time bar)
+  const latest = it.date ? h('p', { class: 'note latest' }) : null;
   // water properties: the depth (under the first item on that is drawn at a depth, the same for all)
   const depth = it.cmems && Object.values(CMEMS[it.id]).some((v) => v.depth) ? h('label', { class: 'depthsel' }, h('span', {}, 'Depth'),
     h('select', { 'aria-label': 'Depth', onchange: (e) => setDepth(+e.target.value) },
       CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface')))) : null;
   const cnote = it.cmems ? h('p', { class: 'note cmems-note' }) : null;
-  return h('div', { class: 'controls' }, variant, period, date, latest, hour, depth, cnote);
+  return h('div', { class: 'controls' }, variant, period, latest, depth, cnote);
 }
 function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
@@ -575,11 +587,6 @@ function renderMenu() {
     if (it.group === 'base') r.input.setAttribute('aria-checked', String(on));
     else r.input.checked = on;
     r.controls.hidden = !on || !(it.variants || it.date || it.density || it.cmems);
-    const hs = r.controls.querySelector('.hourstep');
-    if (hs) {
-      hs.hidden = cmemsOn()[0] !== it;
-      hs.querySelector('.when').textContent = `${fmtHour(state.time)} · ${relHour(state.time)}`;
-    }
     const ds = r.controls.querySelector('.depthsel');
     if (ds) {
       ds.hidden = depthOn()[0] !== it;
@@ -596,17 +603,12 @@ function renderMenu() {
     if (per) per.value = state.period[it.id];
     const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
     if (rng) rng.value = state.opacity[it.id];
-    const dt = r.controls.querySelector('input[type=date]');
-    if (dt) {
-      const last = gibsLast || today();
-      dt.value = state.date;
-      dt.max = last;
-      r.controls.querySelector('.next').disabled = state.date >= last;
-      r.controls.querySelector('.latest').textContent = gibsLast ? `Newest published: ${gibsLast}` : '';
-    }
+    const lt = r.controls.querySelector('.latest');
+    if (lt) lt.textContent = `${state.date}${gibsLast && state.date === gibsLast && new Date(state.time).toISOString().slice(0, 10) > gibsLast ? ' (newest published)' : ''}`;
   }
   for (const s of segs) s.render();
   cmemsNotes();
+  renderTimeBar();
   for (const g of groupEls) {
     const n = g._items.filter((it) => state.on.has(it.id)).length;
     g.querySelector('.count').textContent = g._exclusive || !n ? '' : String(n);

@@ -230,10 +230,8 @@ export const GROUPS = [
   { id: 'shipping', label: 'Shipping' },
   { id: 'land', label: 'Land' },
   { id: 'seastate', label: 'Sea state' },
-  { id: 'water', label: 'Water properties' },
-  { id: 'observed', label: 'Satellite observations' },
-  { id: 'quality', label: 'Water quality' },
-  { id: 'imagery', label: 'Daily imagery' },
+  { id: 'water', label: 'Water column' }, // model fields, daily, at one depth
+  { id: 'observed', label: 'Satellite' }, // observations, published late
   { id: 'labels', label: 'Labels & grid' },
 ];
 
@@ -293,11 +291,11 @@ export const ITEMS = [
     info: { src: 'Copernicus Marine Service: ocean colour, gap-free, Mediterranean (OCEANCOLOUR_MED_BGC_L4_NRT_009_142) over the global one (OCEANCOLOUR_GLO_BGC_L4_NRT_009_102)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Chlorophyll-a, daily, cloud gaps filled. Mediterranean 1 km; elsewhere 4 km. Logarithmic colours. Only the last two weeks or so are kept. Shows the latest day after its last one', url: 'https://marine.copernicus.eu' } },
   { id: 'sla', group: 'observed', label: 'Sea level anomaly', opacity: 0.85, cmems: true,
     info: { src: 'Copernicus Marine Service: satellite altimetry, all missions merged (SEALEVEL_GLO_PHY_L4_NRT_008_046)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Sea surface height above its 1993–2012 mean, daily, 0.125° (~14 km). Eddies and large-scale highs and lows; tides and storm surge removed. Shows the latest day after its last one', url: 'https://marine.copernicus.eu' } },
-  { id: 'bgc', group: 'quality', label: 'Biogeochemistry', opacity: 0.85, cmems: true,
+  { id: 'bgc', group: 'water', label: 'Water quality', opacity: 0.85, cmems: true,
     variants: Object.fromEntries(Object.entries(CMEMS.bgc).map(([k, v]) => [k, v.label])),
     info: { src: 'Copernicus Marine Service: Mediterranean biogeochemistry forecast (MEDSEA_ANALYSISFORECAST_BGC_006_014) over the global one (GLOBAL_ANALYSISFORECAST_BGC_001_028)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Daily means at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 0.25° (~28 km). Nitrate in logarithmic colours. Model analysis and forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
 
-  { id: 'gibs', group: 'imagery', label: 'NASA daily', opacity: 0.9, date: true,
+  { id: 'gibs', group: 'observed', label: 'NASA daily', opacity: 0.9, date: true,
     variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),
     info: { src: 'NASA EOSDIS GIBS (WMTS)', lic: 'NASA open data; attribution requested', res: 'True colour 250 m, to zoom 9 · SST and chlorophyll 1 km, to zoom 7. Clouds and swath gaps are real', url: 'https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api' } },
 

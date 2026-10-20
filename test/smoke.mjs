@@ -74,11 +74,14 @@ try {
   check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
   await pv.close();
 
-  // NASA SST is published about two days late: the date steps back to the newest one GIBS has
-  const sst = await open('#v=5/40/10/0&menu=1&g=imagery&on=chart,coastline,gibs&var=gibs:sst');
-  await sst.waitForFunction(() => document.querySelector('.latest')?.textContent, null, { timeout: 20000 }).catch(() => {});
-  const [shown, note] = await sst.evaluate(() => [document.querySelector('.datestep input').value, document.querySelector('.latest').textContent]);
-  check(/^Newest published: \d{4}-\d{2}-\d{2}$/.test(note) && note.endsWith(shown), `SST date is the newest published one (${shown}; ${note})`);
+  // NASA SST is published about two days late: at the current hour it shows the newest day GIBS
+  // has, says so, and asks for that day's tiles; the time bar shows where it has data
+  const sst = await open('#v=5/40/10/0&menu=1&g=observed&on=chart,coastline,gibs&var=gibs:sst');
+  await sst.waitForFunction(() => /newest published/.test(document.querySelector('.item:has(#i-gibs) .latest')?.textContent || ''), null, { timeout: 20000 }).catch(() => {});
+  const [note, sstTiles, rowsOn] = await sst.evaluate(() => [document.querySelector('.item:has(#i-gibs) .latest').textContent, map.getSource('gibs-sst').tiles[0],
+    [...document.querySelectorAll('#timebar .tb-name')].map((e) => e.textContent).join()]);
+  const day = note.slice(0, 10);
+  check(/^\d{4}-\d{2}-\d{2} \(newest published\)$/.test(note) && sstTiles.includes(`/${day}/`) && rowsOn === 'NASA daily', `NASA SST shows its newest day (${note}; time bar: ${rowsOn})`);
   await sst.close();
 
   // search: coordinates are read on the page (no request); a place comes from Photon
@@ -130,13 +133,17 @@ try {
   const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('label').textContent} (${r.title})`));
   check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`);
   check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown');
-  const before = await cm.evaluate(() => document.querySelector('.hourstep:not([hidden]) .when').textContent);
-  await cm.click('.hourstep:not([hidden]) button[aria-label="Next day"]');
+  // the time bar: a day ahead from the keyboard, an hour back with ‹, kept in the link
+  const hourOf = (p) => p.evaluate(() => [+document.querySelector('#timebar .tb-track').getAttribute('aria-valuenow'), document.querySelector('#timebar .tb-rel').textContent]);
+  const [before] = await hourOf(cm);
+  await cm.focus('#timebar .tb-track');
+  await cm.keyboard.press('PageUp');
+  await cm.click('#timebar button[aria-label^="Previous hour"]');
   await cm.waitForTimeout(1500);
-  const [after, cmHash] = await cm.evaluate(() => [document.querySelector('.hourstep:not([hidden]) .when').textContent, location.hash]);
-  check(after !== before && /in 24 h|in 1 days?/.test(after) && /[&#]t=\d{4}-\d{2}-\d{2}T\d{2}/.test(cmHash), `the hour steps a day ahead and goes in the link (${after})`);
+  const [after, rel] = await hourOf(cm), cmHash = await cm.evaluate(() => location.hash);
+  check(after === before + 23 * 36e5 && rel === 'in 23 h' && cmHash.includes(`t=${new Date(after).toISOString().slice(0, 13)}`), `the time bar steps a day ahead and an hour back, the link keeps it (${new Date(after).toISOString()}, ${rel})`);
   const cmAgain = await open(cmHash);
-  check((await cmAgain.evaluate(() => document.querySelector('.hourstep:not([hidden]) .when').textContent)) === after, 'the link reopens at that hour');
+  check((await hourOf(cmAgain))[0] === after, 'the link reopens at that hour');
   await cm.close(); await cmAgain.close();
   // water properties at a depth from the link: each model at its nearest level, said so
   const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');
