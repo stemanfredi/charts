@@ -24,7 +24,7 @@ const state = {
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
   date: defaultDate(),
-  open: new Set(['pack', 'base', 'sea']),
+  open: new Set(['base', 'sea']),
   menu: window.innerWidth >= 720,
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
@@ -330,9 +330,7 @@ const packBox = h('div', { class: 'packbox' }, packFile, packMeta, packMsg,
   h('div', { class: 'btns' },
     h('button', { type: 'button', id: 'pack-open', onclick: () => packFile.click() }, 'Open pack…'),
     h('button', { type: 'button', id: 'pack-fit', onclick: () => fitPack() }, 'Zoom to pack'),
-    h('button', { type: 'button', id: 'pack-close', onclick: () => closePack() }, 'Close'),
-    h('button', { type: 'button', id: 'pack-cmd', title: 'Copy the command that builds a pack for the current view',
-      onclick: (e) => copyBuildCommand(e.currentTarget) }, 'Build command')));
+    h('button', { type: 'button', id: 'pack-close', onclick: () => closePack() }, 'Close')));
 
 async function openPackFile(file) {
   try { await loadPack(await file.arrayBuffer(), ''); } catch (err) { packMsg.textContent = `Could not open ${file.name}: ${err.message}`; }
@@ -351,6 +349,8 @@ async function loadPack(buf, url) {
   pack.doc = doc;
   pack.url = url;
   packMsg.textContent = '';
+  const det = groupEls.find((g) => g._list);
+  if (!det.open) det.open = true; // show what was opened
   renderPack();
   fitPack();
   writeHash();
@@ -374,20 +374,15 @@ function renderPack() {
     h('p', {}, `Depths: ${p.depth.source}, ${p.depth.resolution}; to ${p.depth.max_m} m`),
     h('p', {}, `Coastline: ${p.land}`),
     h('p', {}, `Contours: ${p.levels_m.join(', ')} m`),
-  ] : [h('p', {}, 'A pack replaces the global depth layers inside its frame with gridded bathymetry and the exact coastline. Open one, or drop it on the map: it is read here and never uploaded.')]));
+  ] : [h('p', {}, 'Optional: detailed depths for one area, from a pack file (see README).')]));
   $('#pack-fit', packBox).hidden = $('#pack-close', packBox).hidden = !p;
   $('#pack-open', packBox).hidden = !!p;
   const det = groupEls.find((g) => g._list);
   det._list.hidden = !p;
   det.querySelector('.gname').textContent = p ? `Area pack · ${p.name}` : 'Area pack';
+  det._all.hidden = !p; // nothing to switch until a pack is open
+  det.querySelector('.count').hidden = !p;
   renderLegends();
-}
-async function copyBuildCommand(b) {
-  const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
-  const L = map.unproject([0, H / 2]), R = map.unproject([W, H / 2]), c = map.getCenter();
-  const halfKm = window.geodesic.Geodesic.WGS84.Inverse(L.lat, L.lng, R.lat, R.lng).s12 / 2000;
-  const cmd = `.venv/bin/python tools/build_pack.py area --center=${c.lat.toFixed(5)},${c.lng.toFixed(5)} --half-w-km ${halfKm.toFixed(2)} --aspect ${(H / W).toFixed(3)}`;
-  try { await navigator.clipboard.writeText(cmd); flash(b, 'Copied'); } catch { prompt('Build command', cmd); }
 }
 // drag and drop anywhere on the page
 window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); document.body.classList.add('drop'); } });

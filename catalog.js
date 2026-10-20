@@ -48,12 +48,12 @@ export function gibsTiles(key, date) {
 // opacity: default value of the item's slider (absent = no slider).
 // variants: alternatives inside one item; only the chosen variant's layers draw.
 export const GROUPS = [
-  { id: 'pack', label: 'Area pack', pack: true },
   { id: 'base', label: 'Base', exclusive: true },
   { id: 'sea', label: 'Sea' },
   { id: 'land', label: 'Land' },
   { id: 'imagery', label: 'Daily imagery' },
   { id: 'labels', label: 'Labels & grid' },
+  { id: 'pack', label: 'Area pack', pack: true }, // optional, power users: last and collapsed
 ];
 
 export const ITEMS = [

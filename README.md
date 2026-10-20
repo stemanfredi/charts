@@ -68,8 +68,7 @@ python3 -m venv .venv && .venv/bin/pip install -r tools/requirements.txt   # onc
 .venv/bin/python tools/build_pack.py spezia --center=44.075,9.86 --half-w-km 8
 ```
 
-The menu's *Build command* button copies this line for the current view. The
-first run downloads the OSMData land polygons (~900 MB) into `.cache/`, or you
+The first run downloads the OSMData land polygons (~900 MB) into `.cache/`, or you
 can point `--land` at a copy you already have. Grids are cached there too. A
 16 × 11 km harbour pack is about 0.4 MB; the 32 × 21 km Venice Lagoon is 0.65 MB gzipped.
 
