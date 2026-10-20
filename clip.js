@@ -43,7 +43,10 @@ const SEA_CLASSES = new Set(['ocean', 'dock']);
 // Salton Sea's do not). SRTM shore values are noisy by several metres and OSM splits one liman
 // into several polygons, so the margin sits above that noise (Odesa limans: 0–7 m).
 const SEA_LEVEL_WATER_M = 8;
-const waterLevel = new Map(); // OSM id → 'sea' (sea level), 'datum' (in a DATUMS water body), 'lake'
+// what a water body shows (also the values of the water mask, 0 being land): DEPTH real depths
+// (the sea, or a DATUMS water body), FLAT inland water at sea level, LAKE no depth source
+const DEPTH = 1, FLAT = 2, LAKE = 3;
+const waterLevel = new Map(); // OSM id → DEPTH, FLAT or LAKE
 const decidedListeners = new Set(); // notified with the id when a water body is classified
 // value the sea tiles carry for water without a depth source; depthRamp (catalog.js) paints it grey
 export const NO_DEPTH_M = 9000;
@@ -201,7 +204,7 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
   return null;
 }
 
-// Water mask for DEM tile z/x/y: 0 land, 1 OSM sea, 2 inland water at sea level, 3 lake.
+// Water mask for DEM tile z/x/y: 0 land, else DEPTH, FLAT or LAKE.
 // It must use the OpenMapTiles tile the basemap shows at the same map zoom, or the two
 // coastlines differ where OSM is generalised: 256 px raster-dem tiles at z show at map
 // zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
@@ -231,26 +234,23 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
     }
     if (vals.length < 10) { // still undecided: provisional, redrawn once decided
       if (f.id) pending.push(f.id);
-      return 'lake';
+      return LAKE;
     }
     vals.sort((a, b) => a - b);
     const atSea = vals[vals.length >> 2] <= SEA_LEVEL_WATER_M && vals[(3 * vals.length) >> 2] >= -SEA_LEVEL_WATER_M;
     // inland water at a DATUMS surface is that water body (OSM tiles carry the Caspian as
     // `lake` at some zooms): real depths from its surface, not the flat lagoon class
-    const v = !atSea ? 'lake' : datum * 2 > vals.length ? 'datum' : 'sea';
+    const v = !atSea ? LAKE : datum * 2 > vals.length ? DEPTH : FLAT;
     if (f.id) { waterLevel.set(f.id, v); for (const fn of decidedListeners) fn(f.id); }
     return v;
   };
-  // lakes in blue, sea-level inland water in green, sea in red over both
+  // painted as colour channels: LAKE blue, FLAT green, DEPTH red, each over the ones before
   const classes = new Map();
-  for (const f of layer.features) if (f.cls !== 'swimming_pool') classes.set(f, SEA_CLASSES.has(f.cls) ? 'datum' : await classify(f));
-  for (const kind of [3, 2, 1]) {
-    g.fillStyle = ['', '#f00', '#0f0', '#00f'][kind];
-    for (const f of layer.features) {
-      if (f.cls === 'swimming_pool') continue;
-      const c = classes.get(f);
-      const fk = c === 'datum' ? 1 : c === 'sea' ? 2 : 3;
-      if (fk !== kind) continue;
+  for (const f of layer.features) if (f.cls !== 'swimming_pool') classes.set(f, SEA_CLASSES.has(f.cls) ? DEPTH : await classify(f));
+  for (const kind of [LAKE, FLAT, DEPTH]) {
+    g.fillStyle = { [DEPTH]: '#f00', [FLAT]: '#0f0', [LAKE]: '#00f' }[kind];
+    for (const [f, c] of classes) {
+      if (c !== kind) continue;
       g.beginPath(); // one path per feature, so overlapping water features add up instead of cancelling
       for (const r of f.rings) {
         g.moveTo(r[0] * k - sx, r[1] * k - sy);
@@ -261,7 +261,7 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
     }
   }
   const px = g.getImageData(0, 0, SIZE, SIZE).data, mask = new Uint8Array(SIZE * SIZE);
-  for (let i = 0; i < mask.length; i++) mask[i] = px[i * 4] > 127 ? 1 : px[i * 4 + 1] > 127 ? 2 : px[i * 4 + 2] > 127 ? 3 : 0;
+  for (let i = 0; i < mask.length; i++) mask[i] = px[i * 4] > 127 ? DEPTH : px[i * 4 + 1] > 127 ? FLAT : px[i * 4 + 2] > 127 ? LAKE : 0;
   return { mask, pending };
 }
 
@@ -458,8 +458,8 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
           h = (at(i0, j0) * (1 - fi) + at(i0 + 1, j0) * fi) * (1 - fj) + (at(i0, j0 + 1) * (1 - fi) + at(i0 + 1, j0 + 1) * fi) * fj;
         }
         const m = mask[j * SIZE + i];
-        if (mode === 'sea') h = m === 0 ? 1 : m === 1 ? Math.min(h - surface(i, j), -1) : m === 2 ? -1 : NO_DEPTH_M;
-        else if (m === 1) h = 0;
+        if (mode === 'sea') h = m === 0 ? 1 : m === DEPTH ? Math.min(h - surface(i, j), -1) : m === FLAT ? -1 : NO_DEPTH_M;
+        else if (m === DEPTH) h = 0;
         out[j * SIZE + i] = h;
       }
     }

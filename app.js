@@ -130,15 +130,14 @@ const small = () => window.innerWidth < 720;
 
 // ---- bottom row: credits, scale note, cursor position, double scale ------------------------
 // The scale is double, as on OpenSeaMap: km above the line, nautical miles below. Credits stay
-// written out on desktop (Esri: data attribution "always visible"; OSM likewise); phones get
-// MapLibre's collapsible (i), which Esri allows on small screens.
+// written out on wide maps (Esri: data attribution "always visible"; OSM likewise); below 640 px
+// MapLibre folds them into its (i), which Esri allows on small screens, and it follows resizes.
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
-const scaleOpts = { maxWidth: small() ? 90 : 120 };
-const scales = [new maplibregl.ScaleControl({ ...scaleOpts, unit: 'metric' }), new maplibregl.ScaleControl({ ...scaleOpts, unit: 'nautical' })];
+const scales = ['metric', 'nautical'].map((unit) => new maplibregl.ScaleControl({ maxWidth: 100, unit }));
 const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s.onAdd(map)));
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
-const attribution = new maplibregl.AttributionControl({ compact: small() });
+const attribution = new maplibregl.AttributionControl();
 // credits on the left; the scale note, cursor position and scale grouped on the right
 statusEl.append(attribution.onAdd(map), h('div', { class: 'readout' }, scaleNoteEl, posEl, scalesEl));
 // the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits
@@ -345,19 +344,32 @@ function itemStatus(id) {
 
 // ---- small builders ---------------------------------------------------------
 const SVG_NS = 'http://www.w3.org/2000/svg';
-// a 20 px line icon from SVG path data (same look as the icons in index.html)
+// a 20 px line icon from SVG path data; a path given as [d, colour] is filled in that colour
 function icon(...paths) {
   const s = document.createElementNS(SVG_NS, 'svg');
   for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: 20, height: 20, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })) s.setAttribute(k, v);
-  for (const d of paths) { const p = document.createElementNS(SVG_NS, 'path'); p.setAttribute('d', d); s.append(p); }
+  for (const d of paths) {
+    const p = document.createElementNS(SVG_NS, 'path');
+    if (Array.isArray(d)) { p.setAttribute('d', d[0]); p.setAttribute('fill', d[1]); p.setAttribute('stroke', d[1]); } else p.setAttribute('d', d);
+    s.append(p);
+  }
   return s;
 }
 const ICON = {
+  search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'],
+  layers: ['M12 3 3 8l9 5 9-5-9-5z', 'm3 13 9 5 9-5'],
+  link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
+  png: ['M12 3v12M7 10l5 5 5-5', 'M4 19h16'],
+  plus: ['M12 5v14M5 12h14'],
+  minus: ['M5 12h14'],
+  compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v5', 'M12 8h.01'],
   ruler: ['M3 17 17 3l4 4L7 21z', 'm7 13 2 2M10 10l2 2M13 7l2 2'],
   area: ['m12 3 8 6-3 11H7L4 9z'],
   ring: ['M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M12 12h.01'],
 };
+// the page's own buttons name their icon: <i data-icon="…">
+for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...ICON[el.dataset.icon]));
 // two or three mutually exclusive buttons (a segmented control)
 function seg(label, options, get, set) {
   const el = h('div', { class: 'seg', role: 'group', 'aria-label': label },

@@ -21,7 +21,7 @@
 
   <!-- top left: places (OpenStreetMap, via Photon) or coordinates (read here, never sent) -->
   <div id="search" class="search" role="search">
-    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+    <i data-icon="search"></i>
     <input id="q" type="search" role="combobox" aria-label="Search places or coordinates" aria-autocomplete="list" aria-controls="results" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="Place, or 35 54N 14 31E">
     <button type="button" id="q-clear" class="x" aria-label="Clear search" title="Clear" hidden>×</button>
     <div id="results" class="results" hidden>
@@ -34,15 +34,15 @@
        the left of this column), then copy link and PNG, which act at once; zoom and compass lower
        down. The column never moves. -->
   <nav id="rail" class="rail" aria-label="Map controls">
-    <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false" title="Layers (L)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg><span>Layers</span></button>
-    <button type="button" id="b-measure" aria-controls="panel" aria-expanded="false" title="Measure: ruler (R), area (A), range ring (C)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg><span>Measure</span></button>
-    <button type="button" id="link" title="Copy a link to this exact view"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg><span>Link</span></button>
-    <button type="button" id="png" title="Export the view as a PNG image"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>PNG</span></button>
+    <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false" title="Layers (L)"><i data-icon="layers"></i><span>Layers</span></button>
+    <button type="button" id="b-measure" aria-controls="panel" aria-expanded="false" title="Measure: ruler (R), area (A), range ring (C)"><i data-icon="ruler"></i><span>Measure</span></button>
+    <button type="button" id="link" title="Copy a link to this exact view"><i data-icon="link"></i><span>Link</span></button>
+    <button type="button" id="png" title="Export the view as a PNG image"><i data-icon="png"></i><span>PNG</span></button>
   </nav>
   <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
-    <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
-    <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 4 9h-8z" fill="#b42318" stroke="#b42318"/><path d="m12 21-4-9h8z"/></svg></button>
+    <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><i data-icon="plus"></i></button>
+    <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><i data-icon="minus"></i></button>
+    <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><i data-icon="compass"></i></button>
   </div>
 
   <aside id="panel" class="panel" aria-labelledby="panel-title" hidden>
