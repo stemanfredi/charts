@@ -53,6 +53,19 @@ try {
   check((await again.evaluate(() => map.getZoom().toFixed(2))) === '6.00' && (await visible(again, 'isobaths')) === 'visible', 'the copied link reopens the same view and layers');
   check(again.errors.length === 0, `reloaded view without errors ${again.errors.join(' | ')}`);
 
+  // vessel density (EMODnet, off by default): loads, has a legend, type and year change the tiles
+  const tr = await open('#v=7/37.5/14/0&on=chart,coastline,traffic,legend&menu=1&g=sea');
+  check(tr.errors.length === 0 && !(await tr.evaluate(() => document.querySelector('#i-traffic').closest('.item').classList.contains('error'))), `vessel density loads ${tr.errors.join(' | ')}`);
+  check(await tr.evaluate(() => !!document.querySelector('#legends canvas[data-legend=traffic]')), 'vessel density legend shown');
+  await tr.selectOption('.item:has(#i-traffic) select.variant', 't10');
+  await tr.selectOption('.item:has(#i-traffic) select.year', '2019');
+  await tr.waitForTimeout(500); // the URL is written 250 ms after a change
+  const tiles = await tr.evaluate(() => map.getSource('traffic').tiles[0]);
+  const hash = await tr.evaluate(() => location.hash);
+  check(/vesseldensity_10avg&/.test(tiles) && /time=2019-/.test(tiles), 'ship type and year select the WMS layer and time');
+  check(/var=[^&]*traffic:t10/.test(hash) && /[&#]y=2019/.test(hash), 'ship type and year are kept in the link');
+  await tr.close();
+
   // PNG export
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());

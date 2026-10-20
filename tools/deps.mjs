@@ -23,7 +23,7 @@ export const PINS = [
 export const TILE_HOSTS = [
   'https://tiles.openfreemap.org', 'https://s3.amazonaws.com', 'https://tiles.maps.eox.at',
   'https://server.arcgisonline.com',
-  'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org',
+  'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org', 'https://ows.emodnet-humanactivities.eu',
 ];
 const CDN = 'https://cdn.jsdelivr.net';
 

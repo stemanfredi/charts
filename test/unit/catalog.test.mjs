@@ -30,7 +30,7 @@ test('layer ids unique, sources defined, item layers start hidden', () => {
 });
 
 test('variants: each choice has a layer, except colour schemes', () => {
-  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth')) {
+  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth' && i.variantsBy !== 'tiles')) { // tiles: one layer, URL per choice
     for (const v of Object.keys(it.variants)) {
       assert.ok(style.layers.some((l) => l.metadata?.item === it.id && l.metadata.variant === v), `${it.id}/${v}: no layer`);
     }
@@ -64,4 +64,15 @@ test('depth schemes: ascending depths; atlas darkens with depth, nautical lighte
 test('test-only GeographicLib matches the version the page loads', async () => {
   const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url)));
   assert.equal(pkg.devDependencies['geographiclib-geodesic'], PINS.find((p) => p.name === 'geographiclib-geodesic').version);
+});
+
+test('vessel density: "all types" is the default, codes map to WMS layers, 2023 by default', async () => {
+  const { TRAFFIC, trafficTiles } = await import('../../catalog.js');
+  const it = ITEMS.find((i) => i.id === 'traffic');
+  assert.equal(Object.keys(it.variants)[0], 'all'); // the app's default variant is the first key
+  assert.equal(it.on, undefined, 'off by default');
+  assert.match(trafficTiles('t10', 2021)[0], /layers=vesseldensity_10avg&.*time=2021-01-01T/);
+  assert.match(trafficTiles('all', 2023)[0], /layers=vesseldensity_allavg&/);
+  assert.equal(TRAFFIC.defaultYear, 2023);
+  assert.ok(TRAFFIC.years.includes(TRAFFIC.defaultYear));
 });

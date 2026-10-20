@@ -30,6 +30,24 @@ export function defaultDate() {
   return new Date(Date.now() - 864e5).toISOString().slice(0, 10);
 }
 
+// EMODnet Human Activities vessel density (WMS, keyless, CORS): hours ships spend per km² and
+// month, from AIS, on a 1 km grid over EU and neighbouring seas; annual averages per ship type.
+// Colour stops as the service publishes them (GetLegendGraphic, format=application/json).
+export const TRAFFIC = {
+  // menu order; keys are the WMS ship-type codes with a 't' prefix, because integer-like
+  // object keys ('10', '11', '12') would be sorted ahead of all the others
+  types: { all: 'All ship types', t09: 'Cargo', t10: 'Tanker', t08: 'Passenger', t01: 'Fishing', t05: 'Pleasure craft',
+    t04: 'Sailing', t06: 'High-speed craft', t07: 'Tug and towing', t02: 'Service', t03: 'Dredging, underwater ops',
+    t11: 'Military, law enforcement', t00: 'Other', t12: 'Unknown' },
+  years: [2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017],
+  defaultYear: 2023, // 2024 is thinner: the AIS provider lost satellite data from June 2024
+  stops: [[0, '#0b2c7a'], [0.5, '#20998f'], [2, '#00db00'], [5, '#ffff00'], [10, '#eda113'], [20, '#dd3a1b'], [100, '#9b1800']],
+};
+export function trafficTiles(type, year) {
+  return [`https://ows.emodnet-humanactivities.eu/wms?service=WMS&version=1.3.0&request=GetMap&layers=vesseldensity_${type.replace(/^t/, '')}avg&styles=`
+    + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true&time=${year}-01-01T00:00:00.000Z`];
+}
+
 export const GIBS = {
   terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
   viirs: { label: 'True colour · VIIRS NOAA-20', layer: 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
@@ -67,6 +85,9 @@ export const ITEMS = [
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
     info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Spacing widens with depth and tightens with zoom: 5 m, every 10 m to 50 m, 50 m to 200 m, then 500/200/100 m to 3000 m and 1000/500 m below ( indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
+  { id: 'traffic', group: 'sea', label: 'Vessel density', opacity: 0.85, year: true, variantsBy: 'tiles',
+    variants: TRAFFIC.types,
+    info: { src: 'EMODnet Human Activities vessel density (Cogea), from AIS bought from CLS, ORBCOMM and vesseltracker.com', lic: 'EMODnet open data, no access constraints; attribution requested', res: '1 km grid, annual averages of hours per km² per month, 2017–2024. EU and neighbouring seas only. 2024 is incomplete (satellite AIS lost from June). Not real time', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -98,7 +119,7 @@ export const ITEMS = [
 ];
 
 // ---- sources ----------------------------------------------------------------
-function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date }) {
+function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, traffic = ['all', TRAFFIC.defaultYear] }) {
   const ATTR_OSM = '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
   const ATTR_DEM = 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen/AWS Terrain Tiles</a>';
   const s = {
@@ -113,6 +134,9 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date }) {
       tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg'] },
     esri: { type: 'raster', tileSize: 256, maxzoom: 18, attribution: 'Imagery: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
+    // the grid is 1 km: beyond zoom 10 the map overzooms instead of asking for more tiles
+    traffic: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: trafficTiles(...traffic),
+      attribution: 'Vessel density: <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a> (Cogea; AIS: CLS, ORBCOMM, vesseltracker.com)' },
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: 'Seamarks: <a href="https://openseamap.org">OpenSeaMap</a>',
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
@@ -229,6 +253,7 @@ function layers() {
       paint: { 'line-color': C.boundary, 'line-dasharray': [3, 2],
         'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
 
+    raster('traffic', 'traffic'),
     { ...raster('seamarks', 'seamarks'), minzoom: 9 },
 
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
