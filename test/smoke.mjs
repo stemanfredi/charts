@@ -38,10 +38,10 @@ try {
   check(broken.length === 0, `no source marked failing ${broken.join(', ')}`);
   check(referred.size === 0, `no request to a tile host carries a Referer ${[...referred].join(', ')}`);
 
-  // menu: a group checkbox switches all its items; base radio swaps chart and satellite
-  await p.click('details[data-group=sea] summary input');
-  check((await visible(p, 'seamarks')) === 'visible', 'group checkbox turns on all its items');
-  await p.click('label[for=i-sat]');
+  // menu: a row's switch turns its layer on; the base cards swap chart and satellite
+  await p.click('label[for=i-seamarks]');
+  check((await visible(p, 'seamarks')) === 'visible', 'a layer row turns its layer on');
+  await p.click('.basecard[data-base=sat]');
   check((await visible(p, 'esri')) === 'visible' && (await visible(p, 'water')) === 'none', 'satellite replaces the chart base');
   await p.waitForTimeout(1500);
   const credits = await p.evaluate(() => document.querySelector('.maplibregl-ctrl-attrib-inner')?.textContent || '');
@@ -53,9 +53,10 @@ try {
 
   // URL state: view, layers and measurements survive a reload; Link copies the current view
   p = await open('#v=9/43.4/9.9/0&on=chart,coastline,depth,isobaths&u=nm&m=r:9.5,43.6;10.1,43.2~c:10,43.5;15000&menu=1&g=measure');
-  const kinds = (await p.evaluate(() => [...document.querySelectorAll('.mlist .item .line label')].map((l) => l.textContent.split(' ')[0]))).join();
+  const kinds = (await p.evaluate(() => [...document.querySelectorAll('.mlist label.name')].map((l) => l.textContent.split(' ')[0]))).join();
   check(kinds === 'Ruler,Ring', `measurements load from the URL as ruler and ring (${kinds})`);
   await p.evaluate(() => map.jumpTo({ center: [12, 41], zoom: 6 }));
+  await p.click('#b-share');
   await p.click('#link');
   const link = await p.evaluate(() => navigator.clipboard.readText());
   check(link.includes('v=6.00/41.00000/12.00000') && link.includes('c:10,43.5;15000'), 'Link copies the current view with its measurements');
@@ -64,7 +65,7 @@ try {
   check(again.errors.length === 0, `reloaded view without errors ${again.errors.join(' | ')}`);
 
   // vessel density (EMODnet, off by default): loads, has a legend, type and year change the tiles
-  const tr = await open('#v=7/37.5/14/0&on=chart,coastline,traffic,legend&menu=1&g=sea');
+  const tr = await open('#v=7/37.5/14/0&on=chart,coastline,traffic,legend&menu=1&g=shipping');
   check(tr.errors.length === 0 && !(await tr.evaluate(() => document.querySelector('#i-traffic').closest('.item').classList.contains('error'))), `vessel density loads ${tr.errors.join(' | ')}`);
   check(await tr.evaluate(() => !!document.querySelector('#legends canvas[data-legend=traffic]')), 'vessel density legend shown');
   await tr.selectOption('.item:has(#i-traffic) select.variant', 't10');
@@ -77,7 +78,7 @@ try {
   await tr.close();
 
   // route density (EMSA, monthly): newest month by default, month and type change the tiles
-  const rt = await open('#v=7/37.5/14/0&on=chart,coastline,routes,legend&menu=1&g=sea');
+  const rt = await open('#v=7/37.5/14/0&on=chart,coastline,routes,legend&menu=1&g=shipping');
   check(rt.errors.length === 0 && !(await rt.evaluate(() => document.querySelector('#i-routes').closest('.item').classList.contains('error'))), `route density loads ${rt.errors.join(' | ')}`);
   await rt.selectOption('.item:has(#i-routes) select.variant', 't04');
   await rt.selectOption('.item:has(#i-routes) select.period', '2025-11');
@@ -90,6 +91,7 @@ try {
 
 
   // PNG export
+  await again.click('#b-share');
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());
   check(png.length > 50_000 && png.subarray(1, 4).toString() === 'PNG', `PNG export (${Math.round(png.length / 1024)} KB)`);

@@ -36,16 +36,24 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 | Route density (off by default) | EMSA route density via EMODnet Human Activities, WMS | CC BY 4.0 | 1 km, monthly from Jan 2019, about 3 months behind; counts routes crossing each cell; EU and neighbouring seas |
 | NASA daily | GIBS: MODIS / VIIRS true colour, MUR SST, chlorophyll-a | NASA open data | 250 m / 1 km; date picker, default yesterday UTC |
 
-Every row in the menu has a ⋯ panel with the same provenance, and the
-attribution line lists only the sources currently drawn.
+Every row in the Layers panel has an ⓘ with the same provenance, and the
+credits list only the sources currently drawn.
 
-Layout follows Google Maps: *Layers* top left (the panel opens down the left
-edge, a bottom sheet on phones), tools top right (ruler, area, ring; copy link,
-PNG), zoom, compass, cursor position and scale bar bottom right. The scale bar
-is double, as on OpenSeaMap: km above the line, nautical miles below (also in the PNG).
+Layout, by task. The right edge holds what you use: *Layers*, *Measure* and
+*Share* at the top, zoom lower down, and a compass only when the map is
+rotated. The Layers panel (open by default on screens 1200 px and wider) and
+the Measure and Share popovers open to the left of that column, which never
+moves; on phones they are sheets from the bottom (the Layers sheet has a
+handle). The map's edges hold what you read: legend chips bottom left, and a
+status bar with the cursor position, the scale bar and the credits. The scale
+bar is double, as on OpenSeaMap: km above the line, nautical miles below (also
+in the PNG). While a measurement is drawn, a bar at the top shows its live
+value with Undo, Done and Cancel. Keys: <kbd>L</kbd> layers, <kbd>R</kbd>
+ruler, <kbd>A</kbd> area, <kbd>C</kbd> range ring, <kbd>Esc</kbd> closes or
+cancels. *About* (foot of the Layers panel) carries the not-for-navigation notice.
 
-Colour layers get a legend (bottom left, also in the PNG; *Legends* in the
-menu hides them): depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for
+Colour layers get a legend: a chip each, bottom left, which opens it (one at
+a time; the PNG includes them all). Depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for
 the layer (0.15 °C classes), fetched once when first shown. Vessel and route density use
 the colour stops their WMS publishes. `npm run deps` (weekly in CI) reports when
 the WMS offers newer periods than `catalog.js` lists.
@@ -130,9 +138,9 @@ coastline the basemap draws:
 - Distances, bearings (true), areas and rings are geodesic on WGS 84
   (GeographicLib), and lines are drawn as densified geodesics.
 - The map is Web Mercator, so the scale bar is exact only at the centre
-  latitude. When the scale varies by more than 1% across the view (from the
-  lowest to the highest latitude in it), a note under the scale bar says so, on
-  screen and in the PNG. For exact distances use the ruler, which is geodesic.
+  latitude. When the scale varies by more than 3% across the view (from the
+  lowest to the highest latitude in it), a note beside the scale bar says so, on
+  screen and in the PNG; below that the bar reads as exact. For exact distances use the ruler, which is geodesic.
 - Depth colours have two schemes (the Depth shading item's menu, also used by the
   legend): *darker = deeper* (atlas and ocean maps, the default) and
   *darker = shallower* (nautical charts, IHO S-52, where shallow water is the hazard).

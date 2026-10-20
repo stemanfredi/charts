@@ -8,13 +8,11 @@
 import { chromium } from 'playwright-core';
 import { serve, chromeOptions } from './serve.mjs';
 
-const VIEWPORTS = [['phone', 390, 844], ['tablet', 820, 1180], ['desktop', 1280, 800]];
-const MIN = 44;
+// phone and tablet are touch devices (pointer: coarse, 44 px targets); desktop has a mouse (36 px)
+const VIEWPORTS = [['phone', 390, 844, true], ['tablet', 820, 1180, true], ['desktop', 1280, 800, false]];
 // overlays that must not collide (screen-space boxes of floating UI)
 const OVERLAYS = {
-  layers: '#toggle', panel: '#panel', tools: '#tools', legend: '#legends', readout: '#pos',
-  zoom: '.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group', scale: '#scales',
-  note: '#scalenote', attribution: '.maplibregl-ctrl-attrib',
+  rail: '#rail', zoom: '#zoom', panel: '#panel', legend: '#legends', status: '#status',
 };
 
 const server = await serve();
@@ -23,16 +21,18 @@ const failures = [];
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); if (!ok) failures.push(what); };
 
 try {
-  for (const [name, width, height] of VIEWPORTS) {
+  for (const [name, width, height, touch] of VIEWPORTS) {
     for (const menu of [0, 1]) {
-      const page = await browser.newPage({ viewport: { width, height } });
-      // a zoomed-out view (scale note shown), a legend, measurements in the menu
-      await page.goto(`${server.url}#v=5/45/14/0&menu=${menu}&g=sea,measure&m=r:12,44;13,44.5`);
+      const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
+      // a zoomed-out view (scale note shown), three legend chips (they used to stack over the
+      // credits), a measurement
+      await page.goto(`${server.url}#v=5/45/14/0&menu=${menu}&g=base,sea&on=chart,coastline,depth,isobaths,traffic,gibs&var=gibs:sst&m=r:12,44;13,44.5`);
       await page.waitForFunction(() => window.map?.loaded(), null, { timeout: 90000 });
       await page.mouse.move(width / 2, height / 2); // shows the cursor readout
       await page.waitForTimeout(800);
       if (process.env.UI_SHOTS) await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}-${menu ? 'menu' : 'map'}.png` });
-      const r = await page.evaluate(({ OVERLAYS, MIN }) => {
+      const r = await page.evaluate(({ OVERLAYS }) => {
+        const MIN = matchMedia('(pointer: coarse)').matches ? 44 : 36;
         const seen = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[hidden]') === null; };
         const boxes = {};
         for (const [k, sel] of Object.entries(OVERLAYS)) {
@@ -69,12 +69,12 @@ try {
             small.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} ${Math.round(b.width)}×${Math.round(b.height)}`);
           }
         }
-        return { overlaps, offscreen, small: [...new Set(small)] };
-      }, { OVERLAYS, MIN });
+        return { overlaps, offscreen, small: [...new Set(small)], MIN };
+      }, { OVERLAYS });
       const where = `${name} ${width}px, menu ${menu ? 'open' : 'closed'}`;
       check(!r.overlaps.length, `${where}: no overlapping overlays ${r.overlaps.join(', ')}`);
       check(!r.offscreen.length, `${where}: nothing off screen ${r.offscreen.join(', ')}`);
-      check(!r.small.length, `${where}: targets ≥ ${MIN} px ${r.small.join(', ')}`);
+      check(!r.small.length, `${where}: targets ≥ ${r.MIN} px ${r.small.join(', ')}`);
       await page.close();
     }
   }

@@ -19,9 +19,19 @@
 <body>
   <div id="map" role="region" aria-label="Map"></div>
 
-  <button type="button" id="toggle" class="toggle" aria-controls="panel" aria-expanded="false">
-    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg><span>Layers</span>
-  </button>
+  <!-- right edge: what the map shows, measuring, sharing; zoom and compass lower down.
+       The panel and the popovers open to the left of this column, which never moves. -->
+  <nav id="rail" class="rail" aria-label="Map controls">
+    <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false" title="Layers (L)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg><span>Layers</span></button>
+    <button type="button" id="b-measure" aria-controls="measure-pop" aria-expanded="false" title="Measure: ruler (R), area (A), range ring (C)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg><span>Measure</span></button>
+    <button type="button" id="b-share" aria-controls="share-pop" aria-expanded="false" title="Copy a link or export a PNG"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7h14v-7"/></svg><span>Share</span></button>
+  </nav>
+  <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
+    <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
+    <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 4 9h-8z" fill="#b42318" stroke="#b42318"/><path d="m12 21-4-9h8z"/></svg></button>
+  </div>
+
   <aside id="panel" class="panel" aria-label="Layers" hidden>
     <header>
       <h1>Layers</h1>
@@ -29,18 +39,31 @@
       <button type="button" id="close" class="x" aria-label="Close layers" title="Close">×</button>
     </header>
     <div id="menu"></div>
+    <footer><button type="button" class="about-link" data-about>About · not for navigation</button></footer>
   </aside>
 
-  <div id="tools" class="tools" role="toolbar" aria-label="Map tools">
-    <button type="button" data-tool="ruler" aria-pressed="false" aria-label="Ruler" title="Ruler: distance and bearing (click again to finish)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg></button>
-    <button type="button" data-tool="area" aria-pressed="false" aria-label="Area" title="Area (click again to finish)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 6-3 11H7L4 9z"/></svg></button>
-    <button type="button" data-tool="ring" aria-pressed="false" aria-label="Range ring" title="Range ring: click centre, then radius"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg></button>
-    <span class="sep"></span>
-    <button type="button" id="link" aria-label="Copy link" title="Copy a link to this exact view"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg></button>
-    <button type="button" id="png" aria-label="Export PNG" title="Export the view as PNG"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg></button>
-  </div>
+  <section id="measure-pop" class="pop" aria-label="Measure" hidden></section>
+  <section id="share-pop" class="pop" aria-label="Share" hidden>
+    <button type="button" id="link" class="action"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg><span>Copy link to this view</span></button>
+    <button type="button" id="png" class="action"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>Export PNG</span></button>
+  </section>
 
+  <div id="mbar" class="mbar" role="status" hidden></div>
   <div id="legends" class="legends" aria-label="Legends"></div>
+  <footer id="status" class="status"></footer>
+
+  <dialog id="about" aria-labelledby="about-title">
+    <h2 id="about-title">Charts</h2>
+    <p><b>Not for navigation.</b> Positions, depths and coastlines come from open datasets of varying accuracy; depths are a coarse elevation model, not soundings.</p>
+    <p>Each layer's source, licence and resolution are behind its <b>ⓘ</b> in the Layers panel.</p>
+    <p>Tile requests tell each provider which area you are viewing; a hidden layer makes none.</p>
+    <h3>Keys</h3>
+    <ul class="keys">
+      <li><kbd>L</kbd> layers</li><li><kbd>R</kbd> ruler · <kbd>A</kbd> area · <kbd>C</kbd> range ring</li>
+      <li><kbd>Enter</kbd> or double-click finishes · <kbd>Backspace</kbd> undoes · <kbd>Esc</kbd> cancels</li>
+    </ul>
+    <button type="button" class="action" data-close>Close</button>
+  </dialog>
   <noscript>This chart needs JavaScript and WebGL.</noscript>
 </body>
 </html>

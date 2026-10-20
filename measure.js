@@ -136,11 +136,11 @@ export class Measure {
     map.on('mousemove', (e) => { if (this.tool) { this.hover = [e.lngLat.lng, e.lngLat.lat]; this.render(); } });
     map.on('dblclick', (e) => { if (this.tool) { e.preventDefault(); this.finish(); } });
     window.addEventListener('keydown', (e) => {
-      // not while typing, nor on a focused button (its own Enter click would restart the tool)
-      if (!this.tool || e.target.closest('input,select,textarea,button')) return;
+      // not while typing; Enter on a focused button is that button's own click (Undo, a tool…)
+      if (!this.tool || e.target.closest('input,select,textarea')) return;
       if (e.key === 'Escape') this.cancel();
-      else if (e.key === 'Enter') this.finish();
-      else if (e.key === 'Backspace' && this.draft?.pts.length) { this.draft.pts.pop(); this.render(); }
+      else if (e.key === 'Enter' && !e.target.closest('button')) this.finish();
+      else if (e.key === 'Backspace') this.undo();
     });
   }
 
@@ -183,6 +183,17 @@ export class Measure {
     this.onChange('list');
   }
 
+  undo() { if (this.draft?.pts.length) { this.draft.pts.pop(); if (this.draft.kind === 'ring') this.draft.r = 0; this.render(); } }
+
+  // the measurement being drawn, with the cursor as its next point (or the ring's edge)
+  preview() {
+    const d = this.draft;
+    if (!d || !this.hover || !d.pts.length) return d;
+    return d.kind === 'ring'
+      ? { ...d, r: G.Inverse(d.pts[0][1], d.pts[0][0], this.hover[1], this.hover[0]).s12, edge: this.hover }
+      : { ...d, pts: [...d.pts, this.hover] };
+  }
+
   setHidden(id, hidden) { for (const x of this.list) if (id == null || x.id === id) x.hidden = hidden; this.render(); this.onChange('list'); }
   remove(id) { this.list = this.list.filter((x) => id != null && x.id !== id); this.render(); this.onChange('list'); }
   setRadius(id, r) { const x = this.list.find((y) => y.id === id); if (x && r > 0) { x.r = r; this.render(); this.onChange('list'); } }
@@ -191,17 +202,9 @@ export class Measure {
   render() {
     const f = [];
     for (const x of this.list) if (!x.hidden) f.push(...features(x, this.units, false));
-    if (this.draft) {
-      const d = this.draft;
-      let preview = d;
-      if (this.hover && d.pts.length) {
-        preview = d.kind === 'ring'
-          ? { ...d, r: G.Inverse(d.pts[0][1], d.pts[0][0], this.hover[1], this.hover[0]).s12, edge: this.hover }
-          : { ...d, pts: [...d.pts, this.hover] };
-      }
-      f.push(...features(preview, this.units, true));
-    }
+    if (this.draft) f.push(...features(this.preview(), this.units, true));
     this.map.getSource('measure')?.setData({ type: 'FeatureCollection', features: f });
+    if (this.draft) this.onChange('draft'); // the live total in the measuring bar
   }
 
   // compact text for the URL: r:lon,lat;lon,lat  a:…  c:lon,lat;radius  (! = hidden)
