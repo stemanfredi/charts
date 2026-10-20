@@ -3,28 +3,13 @@
 // errors, the menu drives the map, URL state survives a reload, PNG export works.
 //   CHROME=/path/to/chrome npm run smoke     (default: /usr/bin/google-chrome)
 // Network-dependent by design: it is also what tells us a provider changed or went down.
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+import { serve, chromeOptions } from './serve.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
-const server = createServer(async (req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
-  try {
-    const body = await readFile(join(ROOT, path === '/' ? 'index.html' : path));
-    res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'text/html', 'cache-control': 'no-store' }).end(body);
-  } catch { res.writeHead(404).end(); }
-}).listen(0, '127.0.0.1');
-await new Promise((r) => server.once('listening', r));
-const base = `http://127.0.0.1:${server.address().port}/`;
-
-const browser = await chromium.launch({
-  executablePath: process.env.CHROME || '/usr/bin/google-chrome',
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-});
+const server = await serve();
+const base = server.url;
+const browser = await chromium.launch(chromeOptions());
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
 const failures = [];
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); if (!ok) failures.push(what); };

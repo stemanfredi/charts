@@ -18,29 +18,28 @@
 <body>
   <div id="map" role="region" aria-label="Map"></div>
 
-  <div id="tools" class="tools" role="toolbar" aria-label="Map tools">
-    <button type="button" data-tool="ruler" aria-pressed="false" title="Ruler: distance and bearing">Ruler</button>
-    <button type="button" data-tool="area" aria-pressed="false" title="Area">Area</button>
-    <button type="button" data-tool="ring" aria-pressed="false" title="Range ring: click centre, then radius">Ring</button>
-    <span class="sep"></span>
-    <button type="button" id="png" title="Export the view as PNG">PNG</button>
-    <button type="button" id="link" title="Copy a link to this exact view">Link</button>
-  </div>
-
-  <button type="button" id="toggle" class="toggle" aria-controls="panel" aria-expanded="false">Layers</button>
+  <button type="button" id="toggle" class="toggle" aria-controls="panel" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg><span>Layers</span>
+  </button>
   <aside id="panel" class="panel" aria-label="Layers" hidden>
     <header>
-      <h1>Charts</h1>
+      <h1>Layers</h1>
       <span class="spin" aria-hidden="true"></span>
-      <button type="button" id="close" class="x" aria-label="Collapse menu" title="Collapse">×</button>
+      <button type="button" id="close" class="x" aria-label="Close layers" title="Close">×</button>
     </header>
     <div id="menu"></div>
   </aside>
 
-  <canvas id="latscale" class="latscale" aria-hidden="true"></canvas>
-  <div id="scalenote" class="scalenote"></div>
+  <div id="tools" class="tools" role="toolbar" aria-label="Map tools">
+    <button type="button" data-tool="ruler" aria-pressed="false" aria-label="Ruler" title="Ruler: distance and bearing (click again to finish)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg></button>
+    <button type="button" data-tool="area" aria-pressed="false" aria-label="Area" title="Area (click again to finish)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 6-3 11H7L4 9z"/></svg></button>
+    <button type="button" data-tool="ring" aria-pressed="false" aria-label="Range ring" title="Range ring: click centre, then radius"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg></button>
+    <span class="sep"></span>
+    <button type="button" id="link" aria-label="Copy link" title="Copy a link to this exact view"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg></button>
+    <button type="button" id="png" aria-label="Export PNG" title="Export the view as PNG"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg></button>
+  </div>
+
   <div id="legends" class="legends" aria-label="Legends"></div>
-  <div id="pos" class="pos" aria-live="off"></div>
   <noscript>This chart needs JavaScript and WebGL.</noscript>
 </body>
 </html>

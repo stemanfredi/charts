@@ -94,7 +94,7 @@ export const ITEMS = [
   { id: 'legend', group: 'labels', label: 'Legends', on: true,
     info: { src: 'Drawn from the same colour stops as the map; SST from NASA GIBS’s published colour map', lic: '—', res: 'Depth shading: approximate DEM classes · SST: 0.15 °C classes', url: 'https://nasa-gibs.github.io/gibs-api-docs/' } },
   { id: 'graticule', group: 'labels', label: 'Graticule', on: true,
-    info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. Longitudes are labelled along the bottom edge, latitudes along the right. With the map north-up, a latitude scale runs down the left edge: 1′ of latitude = 1 NM anywhere on the chart, unlike the scale bar, which is exact only at the centre', url: '' } },
+    info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. With the map north-up, longitudes are labelled along the bottom edge and latitudes along the left', url: '' } },
 ];
 
 // ---- sources ----------------------------------------------------------------

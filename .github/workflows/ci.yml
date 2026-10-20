@@ -29,6 +29,9 @@ jobs:
       - run: npm run smoke            # headless Chrome against the live providers
         env:
           CHROME: /usr/bin/google-chrome
+      - run: npm run ui               # layout: no overlaps, 44 px targets, at 390 / 820 / 1280 px
+        env:
+          CHROME: /usr/bin/google-chrome
       - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: npm run deps             # newer library versions show as notices
 

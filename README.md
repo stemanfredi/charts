@@ -37,6 +37,10 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 Every row in the menu has a ⋯ panel with the same provenance, and the
 attribution line lists only the sources currently drawn.
 
+Layout follows Google Maps: *Layers* top left (the panel opens down the left
+edge, a bottom sheet on phones), tools top right (ruler, area, ring; copy link,
+PNG), zoom, compass, cursor position and scale bar bottom right.
+
 Colour layers get a legend (bottom left, also in the PNG; *Legends* in the
 menu hides them): depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for
 the layer (0.15 °C classes), fetched once when first shown.
@@ -106,11 +110,9 @@ coastline the basemap draws:
 - Distances, bearings (true), areas and rings are geodesic on WGS 84
   (GeographicLib), and lines are drawn as densified geodesics.
 - The map is Web Mercator, so the scale bar is exact only at the centre
-  latitude. As on a paper Mercator chart, the **latitude scale** down the left
-  edge (shown with the graticule, north-up) is the distance scale that is valid
-  everywhere: 1′ of latitude = 1 NM. When the scale varies by more than 1%
-  across the view (from the lowest to the highest latitude in it), a note says
-  so on screen and in the PNG, with or without the graticule.
+  latitude. When the scale varies by more than 1% across the view (from the
+  lowest to the highest latitude in it), a note under the scale bar says so, on
+  screen and in the PNG. For exact distances use the ruler, which is geodesic.
 - Depth colours have two schemes (the Depth shading item's menu, also used by the
   legend): *darker = deeper* (atlas and ocean maps, the default) and
   *darker = shallower* (nautical charts, IHO S-52, where shallow water is the hazard).
@@ -148,13 +150,15 @@ npm ci
 npm test            # unit tests, offline: formatting, geodesics, URL round trip, catalog consistency
 npm run check       # index.html CDN block = pins + SRI hashes + CSP hash (fetches the CDN files)
 npm run smoke       # headless Chrome on the live providers; CHROME=/path/to/chrome if not /usr/bin/google-chrome
+npm run ui          # layout at 390 / 820 / 1280 px, panel open and closed: no overlapping overlays,
+                    # nothing off screen, every control ≥ 44 px (UI_SHOTS=dir saves screenshots)
 npm run deps        # newer versions of the pinned libraries
 ```
 
 The catalog test also guards the CSP: a new source on a host missing from
 `TILE_HOSTS` fails it.
 
-CI (`.github/workflows/ci.yml`) runs `test`, `check` and `smoke` on every push
+CI (`.github/workflows/ci.yml`) runs `test`, `check`, `smoke` and `ui` on every push
 and pull request, and deploys `main` to GitHub Pages when they pass. Only the
 site files are published: `index.html`, `*.js`, `*.css`. It also runs every
 Monday, so a tile provider that changes or goes down fails a run, and newer

@@ -114,10 +114,17 @@ const map = new maplibregl.Map({
   attributionControl: false, fadeDuration: 150,
 });
 map.touchZoomRotate.disableRotation();
-map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), 'top-left');
-const scale = new maplibregl.ScaleControl({ maxWidth: 140, unit: 'metric' });
-map.addControl(scale, 'bottom-left');
-map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+// bottom-right, as in Google Maps; MapLibre stacks later bottom controls above earlier ones:
+// attribution at the bottom, then the scale note, the scale bar, the cursor readout, and zoom + compass on top
+const attribution = new maplibregl.AttributionControl({ compact: true });
+map.addControl(attribution, 'bottom-right');
+const scaleNoteEl = h('div', { class: 'maplibregl-ctrl scalenote', id: 'scalenote' });
+map.addControl({ onAdd: () => scaleNoteEl, onRemove: () => scaleNoteEl.remove() }, 'bottom-right');
+const scale = new maplibregl.ScaleControl({ maxWidth: window.innerWidth < 720 ? 90 : 140, unit: 'metric' }); // narrow on phones: clears the legend
+map.addControl(scale, 'bottom-right');
+const posEl = h('div', { class: 'maplibregl-ctrl pos', id: 'pos', 'aria-live': 'off' });
+map.addControl({ onAdd: () => posEl, onRemove: () => posEl.remove() }, 'bottom-right');
+map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), 'bottom-right');
 
 const measure = new Measure(map, (what) => { if (what === 'list') { renderMeasures(); writeHash(); } renderTools(); });
 if (urlUnits === 'nm') measure.units = 'nm';
@@ -146,7 +153,7 @@ function setOn(id, on) {
   on ? state.on.add(id) : state.on.delete(id);
   applyItem(id);
   if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); }
-  if (id === 'graticule') { updateGraticule(); drawLatScale(); }
+  if (id === 'graticule') updateGraticule();
   if (id === 'depth') { shoreFill(); labelPaint(); }
   renderMenu();
   writeHash();
@@ -217,11 +224,11 @@ function updateGraticule() {
   const s = Math.max(-85, b.getSouth()), n = Math.min(85, b.getNorth());
   const w = b.getWest(), e = b.getEast();
   const k0 = (x) => Math.round(x * 3600) / 3600;
-  // edge labels: meridians along the bottom, parallels along the right (the left edge has the
-  // latitude scale); only when north-up, where a screen edge is a parallel or a meridian
+  // edge labels: meridians along the bottom, parallels along the left; only when north-up,
+  // where a screen edge is a parallel or a meridian
   const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
   const edges = Math.abs(map.getBearing()) < 0.5;
-  const latBottom = map.unproject([W / 2, H - 42]).lat, lonRight = map.unproject([W - 8, H / 2]).lng;
+  const latBottom = map.unproject([W / 2, H - 42]).lat, lonLeft = map.unproject([8, H / 2]).lng;
   const label = (coord, text, anchor) => f.push({ type: 'Feature', properties: { label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
   for (let lon = Math.ceil(w / step) * step; lon <= e; lon += step) {
     const L = ((k0(lon) + 540) % 360) - 180;
@@ -233,7 +240,7 @@ function updateGraticule() {
     for (let x = w; x < e; x += (e - w) / 32) coords.push([x, lat]);
     coords.push([e, lat]);
     f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } });
-    if (edges) label([lonRight, lat], fmtAngle(k0(lat), 'N', 'S', step), 'right');
+    if (edges) label([lonLeft, lat], fmtAngle(k0(lat), 'N', 'S', step), 'left');
   }
   map.getSource('graticule').setData({ type: 'FeatureCollection', features: f });
 }
@@ -297,6 +304,9 @@ function itemRow(it) {
   return row;
 }
 
+// a header checkbox inside a 44 px label: tapping near it ticks it instead of folding the group
+const hit = (input) => (input ? h('label', { class: 'hit', onclick: (e) => e.stopPropagation() }, input) : null);
+
 function groupBlock(g) {
   const items = ITEMS.filter((it) => it.group === g.id);
   const all = g.exclusive ? null : h('input', { type: 'checkbox', 'aria-label': `All of ${g.label}`,
@@ -305,7 +315,7 @@ function groupBlock(g) {
   const list = h('ul', {}, items.map(itemRow));
   const det = h('details', { 'data-group': g.id, open: state.open.has(g.id),
     ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); writeHash(); } },
-    h('summary', {}, all, h('span', { class: 'gname' }, g.label), h('span', { class: 'count' })),
+    h('summary', {}, hit(all), h('span', { class: 'gname' }, g.label), h('span', { class: 'count' })),
     list);
   det._all = all;
   det._items = items;
@@ -320,7 +330,7 @@ const measureAll = h('input', { type: 'checkbox', 'aria-label': 'Show all measur
   onchange: (e) => measure.setHidden(null, !e.target.checked) });
 const measureGroup = h('details', { 'data-group': 'measure', open: state.open.has('measure'),
   ontoggle: (e) => { e.target.open ? state.open.add('measure') : state.open.delete('measure'); writeHash(); } },
-  h('summary', {}, measureAll, h('span', { class: 'gname' }, 'Measurements'), h('span', { class: 'count' })),
+  h('summary', {}, hit(measureAll), h('span', { class: 'gname' }, 'Measurements'), h('span', { class: 'count' })),
   h('div', { class: 'mhead' }, h('label', {}, 'Units ', unitSel)),
   measureList,
   h('p', { class: 'note' }, 'Geodesic on WGS 84. Click to add points; double-click or Enter finishes; Backspace undoes; Esc cancels.'));
@@ -422,6 +432,8 @@ const toggle = $('#toggle');
 function setMenu(open) {
   state.menu = open;
   panel.hidden = !open;
+  toggle.hidden = open; // the panel has its own close button, where the toggle was
+  document.body.classList.toggle('menu-open', open); // legends move aside / hide (style.css)
   toggle.setAttribute('aria-expanded', String(open));
   writeHash();
 }
@@ -444,20 +456,16 @@ async function copyLink(b) {
   writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
 }
-function flash(b, text) {
-  const t = b.textContent;
-  b.textContent = text;
-  setTimeout(() => { b.textContent = t; }, 1200);
+function flash(b, text) { // a short bubble under the button; its icon stays
+  b.dataset.flash = text;
+  setTimeout(() => delete b.dataset.flash, 1200);
 }
 
 // cursor position readout
-const pos = $('#pos');
+const pos = posEl;
 map.on('mousemove', (e) => { pos.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
 
-// ---- latitude scale: on a Mercator chart, 1′ of latitude = 1 NM wherever you read it ----
-const latCanvas = $('#latscale');
-const MIN_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600, 1200];
-// relative change of the map scale between the top and bottom of the view
+// ---- scale note: the Mercator scale bar is exact only at the centre latitude ------------
 // relative change of the Mercator scale (∝ 1/cos lat) across the view: from the lowest to the
 // highest |lat| in view, the lowest being 0 when the view crosses the equator
 function scaleVariation() {
@@ -466,44 +474,10 @@ function scaleVariation() {
 }
 function scaleNote() {
   const v = scaleVariation();
-  $('#scalenote').textContent = v > 0.01 ? `scale varies ${(v * 100).toFixed(0)}% across the view${latCanvas.hidden ? '' : ' · use the latitude scale (1′ = 1 NM)'}` : '';
+  scaleNoteEl.textContent = v > 0.01 ? `scale varies ${(v * 100).toFixed(0)}% across the view` : '';
 }
-function drawLatScale() {
-  const show = state.on.has('graticule') && Math.abs(map.getBearing()) < 0.5;
-  latCanvas.hidden = !show;
-  scaleNote();
-  if (!show) return;
-  const top = latCanvas.offsetTop, H = latCanvas.clientHeight, W = latCanvas.clientWidth, dpr = window.devicePixelRatio || 1;
-  latCanvas.width = W * dpr;
-  latCanvas.height = H * dpr;
-  const g = latCanvas.getContext('2d');
-  g.scale(dpr, dpr);
-  const yOf = (lat) => map.project([map.getCenter().lng, lat]).y - top;
-  const lat0 = map.unproject([0, top + H]).lat, lat1 = map.unproject([0, top]).lat;
-  const perMin = H / ((lat1 - lat0) * 60);
-  const step = MIN_STEPS.find((s) => s * perMin >= 7) || 1200;
-  const lstep = MIN_STEPS.find((s) => s >= step && s * perMin >= 46 && (s / step) % 1 === 0) || step * 10;
-  g.font = '10px system-ui, sans-serif';
-  g.textBaseline = 'middle';
-  for (let k = Math.floor((lat0 * 60) / step); k * step <= lat1 * 60; k++) {
-    const m0 = k * step, y0 = yOf(m0 / 60), y1 = yOf((m0 + step) / 60);
-    g.fillStyle = k % 2 ? '#2b3a46' : '#ffffff';
-    g.fillRect(4, Math.min(y0, y1), 5, Math.abs(y1 - y0));
-    const lm = Math.round(m0 * 10) / 10;
-    if (Math.abs((lm / lstep) - Math.round(lm / lstep)) < 1e-6) {
-      const d = Math.floor(Math.abs(lm) / 60 + 1e-9), mm = Math.abs(lm) - d * 60;
-      const t = `${d}°${mm.toFixed(step < 1 ? 1 : 0).padStart(step < 1 ? 4 : 2, '0')}′${lm >= 0 ? 'N' : 'S'}`;
-      g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.9)'; g.strokeText(t, 12, y0);
-      g.fillStyle = '#2b3a46'; g.fillText(t, 12, y0);
-      g.fillRect(3, y0 - 0.5, 8, 1);
-    }
-  }
-  g.strokeStyle = '#2b3a46'; g.lineWidth = 1; g.strokeRect(3.5, 0, 6, H);
-  latCanvas.title = `Latitude scale: 1′ of latitude = 1 nautical mile, valid anywhere on this chart (ticks every ${step}′)`;
-}
-let latRaf = 0;
-map.on('move', () => { cancelAnimationFrame(latRaf); latRaf = requestAnimationFrame(drawLatScale); });
-window.addEventListener('resize', drawLatScale);
+let noteRaf = 0;
+map.on('move', () => { cancelAnimationFrame(noteRaf); noteRaf = requestAnimationFrame(scaleNote); });
 
 // ---- PNG export: the map canvas plus scale, north arrow and a credit strip ---
 function attributionText() {
@@ -536,16 +510,21 @@ function exportPng() {
     const unitM = units === 'nm' ? 1852 : 1;
     const len = niceLen((120 * mpp) / unitM) * unitM;
     const px = len / mpp;
-    g.fillStyle = 'rgba(255,255,255,0.85)';
-    g.fillRect(10, H - 40, px + 20, 30);
-    g.strokeStyle = '#2b3a46';
-    g.lineWidth = 2;
-    g.beginPath(); g.moveTo(20, H - 24); g.lineTo(20, H - 18); g.lineTo(20 + px, H - 18); g.lineTo(20 + px, H - 24); g.stroke();
-    g.fillStyle = '#2b3a46';
+    // bottom-right, where the scale bar is on screen
     g.font = '11px system-ui, sans-serif';
     const v = scaleVariation();
-    g.fillText(`${fmtDist(len, units)} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > 0.01 ? ` (varies ${(v * 100).toFixed(0)}% top–bottom; 1′ lat = 1 NM)` : ''}`, 20, H - 26);
-    if (!latCanvas.hidden) g.drawImage(latCanvas, latCanvas.offsetLeft, latCanvas.offsetTop, latCanvas.clientWidth, latCanvas.clientHeight);
+    const text = `${fmtDist(len, units)} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > 0.01 ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
+    const bw = Math.max(px, g.measureText(text).width) + 20, x0 = W - 10 - bw;
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.fillRect(x0, H - 40, bw, 30);
+    g.strokeStyle = '#2b3a46';
+    g.lineWidth = 2;
+    const bx = W - 20 - px;
+    g.beginPath(); g.moveTo(bx, H - 24); g.lineTo(bx, H - 18); g.lineTo(bx + px, H - 18); g.lineTo(bx + px, H - 24); g.stroke();
+    g.fillStyle = '#2b3a46';
+    g.textAlign = 'right';
+    g.fillText(text, W - 20, H - 26);
+    g.textAlign = 'left';
     const box = map.getContainer().getBoundingClientRect();
     for (const el of legends.querySelectorAll('canvas')) {
       const r = el.getBoundingClientRect();
@@ -591,7 +570,7 @@ map.on('load', () => {
   renderMeasures();
   ready = true;
   setMenu(state.menu); // also writes the URL, now with everything applied
-  drawLatScale();
+  scaleNote();
 });
 map.on('moveend', () => { updateGraticule(); writeHash(); });
 let gratRaf = 0;
