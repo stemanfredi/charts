@@ -42,22 +42,13 @@ files until a hard reload.
 Every row in the Layers panel has an ⓘ with the same provenance, and the
 credits list only the sources currently drawn.
 
-Layout, by task. Top left, a search box: a place name (via Photon, see
-*Privacy*) or coordinates in any common form (`44.085, 9.85`, `44 05.1N 9 51E`,
-`44°05'06"N 009°51'E`). The right edge holds what you use: *Layers*, *Measure*,
-*Link* and *PNG* at the top, zoom lower down, and a compass only when the map is
-rotated. *Layers* and *Measure* switch one side panel, as tall as its
-content, that opens to the left of that column (open on Layers by default on
-screens 1200 px and wider; the button of the view shown closes it). *Link*
-copies a link to the view and *PNG* exports it, at once. The column never
-moves. On phones the panel is a sheet from the bottom, as tall as its content;
-drag its handle down to close it. The map's edges hold what you read: legends stacked bottom left, and a
-bottom row with the credits on the left and the cursor position and scale bar on the right (no bar: each item has its own light backing). The scale
-bar is double, as on OpenSeaMap: km above the line, nautical miles below (also
-in the PNG). While a measurement is drawn, a bar at the top shows its live
-value with Undo, Done and Cancel (under the search box). Keys: <kbd>/</kbd> search, <kbd>L</kbd> layers, <kbd>R</kbd>
-ruler, <kbd>A</kbd> area, <kbd>C</kbd> range ring, <kbd>Esc</kbd> closes or
-cancels. *About* (foot of the Layers panel) carries the not-for-navigation notice.
+Search (top left) takes a place name (via Photon, see *Privacy*) or coordinates in
+any common form (`35.898, 14.513`, `35 53.9N 14 30.8E`, `35°53'54"N 014°30'48"E`).
+*Layers* and *Measure* (right) switch one side panel, a bottom sheet on phones;
+*Link* copies the view, *PNG* exports it. Keys: <kbd>/</kbd> search, <kbd>L</kbd>
+layers, <kbd>R</kbd> ruler, <kbd>A</kbd> area, <kbd>C</kbd> range ring, <kbd>Esc</kbd>
+cancels. The scale bar is double, km above the line and nautical miles below, as
+on OpenSeaMap (also in the PNG). *About* carries the not-for-navigation notice.
 
 Colour layers get a legend, stacked bottom left (the *Legends* switch in
 *Labels & grid* hides them; the PNG always includes them). Depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for
@@ -250,3 +241,8 @@ Lessons from the pack tool, worth keeping:
 - Caspian depths are measured from its −28 m surface.
 - OpenFreeMap rejects Python's default User-Agent: send one.
 
+## Licence
+
+Code: GPL-3.0-or-later (`LICENSE`). The map data and imagery are not in this
+repository: the browser fetches them, and each layer keeps its provider's
+licence (see *Layers*; EOX 2024 is non-commercial, Esri has its own terms).

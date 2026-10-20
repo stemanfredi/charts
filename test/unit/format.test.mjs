@@ -36,18 +36,18 @@ test('wrap: lines up to n chars, long words kept', () => {
 
 test('parseLatLon: decimal, DM, DMS, hemispheres before or after, either order', () => {
   const near = (r, lat, lon) => assert.ok(r && Math.abs(r.lat - lat) < 1e-9 && Math.abs(r.lon - lon) < 1e-9, JSON.stringify(r));
-  near(parseLatLon('44.085, 9.85'), 44.085, 9.85);
+  near(parseLatLon('35.898, 14.513'), 35.898, 14.513);
   near(parseLatLon('-31.2 -51.3'), -31.2, -51.3);
-  near(parseLatLon('44 05.1N 9 51E'), 44 + 5.1 / 60, 9 + 51 / 60);
-  near(parseLatLon('44°05\'06"N 009°51\'W'), 44 + 5 / 60 + 6 / 3600, -(9 + 51 / 60));
-  near(parseLatLon('N44 05.1 E9 51'), 44 + 5.1 / 60, 9 + 51 / 60);
-  near(parseLatLon('9.85E 44.085S'), -44.085, 9.85);
-  near(parseLatLon('44°05.1′N, 9°51.0′E'), 44 + 5.1 / 60, 9 + 51 / 60);
-  near(parseLatLon('44 5 9 51'), 44 + 5 / 60, 9 + 51 / 60);
+  near(parseLatLon('35 53.9N 14 30.8E'), 35 + 53.9 / 60, 14 + 30.8 / 60);
+  near(parseLatLon('35°53\'54"N 014°30\'48"W'), 35 + 53 / 60 + 54 / 3600, -(14 + 30 / 60 + 48 / 3600));
+  near(parseLatLon('N35 53.9 E14 30.8'), 35 + 53.9 / 60, 14 + 30.8 / 60);
+  near(parseLatLon('14.513E 35.898S'), -35.898, 14.513);
+  near(parseLatLon('35°53.9′N, 14°30.8′E'), 35 + 53.9 / 60, 14 + 30.8 / 60);
+  near(parseLatLon('35 54 14 31'), 35 + 54 / 60, 14 + 31 / 60);
   near(parseLatLon('-0 30 10 0'), -0.5, 10);
 });
 
 test('parseLatLon: not coordinates', () => {
-  for (const t of ['', 'Genoa', 'Elba', 'SEN', '44.085', '1 2 3', '91 10', '44 10 200 0', '44 61N 9E', '44N 9N', '44.5 30N 9E', 'N44 E', '44N -9E'])
+  for (const t of ['', 'Lisbon', 'Crete', 'SEN', '35.898', '1 2 3', '91 10', '44 10 200 0', '44 61N 9E', '44N 9N', '44.5 30N 9E', 'N44 E', '44N -9E'])
     assert.equal(parseLatLon(t), null, t);
 });

@@ -10,7 +10,7 @@ export function fmtAngle(v, pos, neg, step) {
   return step >= 1 || mnt === 0 ? `${d}°${hemi}` : `${d}°${String(mnt).padStart(2, '0')}′${hemi}`;
 }
 
-// Position readout: degrees and decimal minutes, e.g. 44°05.123′N.
+// Position readout: degrees and decimal minutes, e.g. 35°53.900′N.
 export function dm(v, p, n) {
   const a = Math.abs(v);
   let d = Math.floor(a), m = ((a - d) * 60).toFixed(3);
@@ -45,9 +45,9 @@ export function wrap(text, n) {
 }
 
 // Coordinates typed into the search box → { lat, lon }, or null if the text is not coordinates.
-// Accepts decimal degrees ("44.085, 9.85", "-31.2 -51.3"), degrees and decimal minutes or
-// degrees, minutes and seconds, with hemisphere letters before or after ("44 05.1N 9 51E",
-// "44°05'06\"N 009°51'E", "N44 05.1 E9 51", "9.85E 44.085N"). Without letters, latitude first.
+// Accepts decimal degrees ("35.898, 14.513", "-31.2 -51.3"), degrees and decimal minutes or
+// degrees, minutes and seconds, with hemisphere letters before or after ("35 53.9N 14 30.8E",
+// "35°53'54\"N 014°30'48\"E", "N35 53.9 E14 30.8", "14.513E 35.898N"). Without letters, latitude first.
 export function parseLatLon(text) {
   const t = text.toUpperCase().replace(/[°º˚′'″",;]/g, ' ').replace(/([NSEW])/g, ' $1 ').trim();
   if (!t || /[^0-9NSEW.+\-\s]/.test(t)) return null;

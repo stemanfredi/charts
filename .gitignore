@@ -1,6 +1,2 @@
-.cache/
 .DS_Store
 node_modules/
-packs/
-__pycache__/
-.venv/
