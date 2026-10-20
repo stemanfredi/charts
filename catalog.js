@@ -9,7 +9,10 @@ export const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrariu
 // Terrarium carries bathymetry only up to zoom 10: above that most seas read 0 m
 // (SRTM fills water with 0). `native` is the zoom read from the server, `max` the
 // zoom served after clipping to the OSM coastline (clip.js), upsampled in between.
-export const DEM_SEA = { native: 10, max: 12 };
+// sea max 13: depth shading shows up to map zoom 13, and a 256 px tile at z shows at map zoom
+// z − 1 and is cut with the OSM coastline of that zoom; capped at 12, map zoom 12 was cut with the
+// zoom-11 coastline, where small islands do not exist yet, and they vanished under the tint
+export const DEM_SEA = { native: 10, max: 13 };
 export const DEM_LAND = { native: 12, max: 12 }; // no upsampling: slopes of an upsampled DEM shade in facets
 export const OMT_TILEJSON = 'https://tiles.openfreemap.org/planet';
 
@@ -155,7 +158,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     omt: { type: 'vector', url: OMT_TILEJSON, attribution: ATTR_OSM },
     'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: ATTR_DEM },
     dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
-    isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: DEM_SEA.max, attribution: ATTR_DEM },
+    isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: 12, attribution: ATTR_DEM }, // 512 px tiles: z12 is cut with the z12 coastline
     contours: { type: 'vector', tiles: [contourUrl], maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
     eox16: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2016 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2016), CC BY 4.0',
       tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'] },

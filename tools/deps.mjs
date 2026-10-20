@@ -67,7 +67,7 @@ async function regenerate() {
     `style-src 'self' ${CDN} 'unsafe-inline'`,
     `img-src 'self' data: blob: ${TILE_HOSTS.join(' ')}`,
     `connect-src 'self' ${CDN} ${TILE_HOSTS.join(' ')}`,
-    `worker-src blob: ${CDN}`, 'child-src blob:',
+    `worker-src 'self' blob: ${CDN}`, 'child-src blob:', // 'self': clip-worker.js
     "base-uri 'none'", "form-action 'none'", "object-src 'none'",
   ].join('; ');
   const tags = [

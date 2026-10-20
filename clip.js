@@ -151,22 +151,66 @@ async function fetchOk(url, signal) {
 // at z show at map zoom z → OMT z (omtOffset 0). levelAt(px, py) is the DEM height above the
 // local surface (sea level, or a DATUMS surface); inDatum(px, py) says whether that is a datum.
 // Returns the mask and the ids of water bodies drawn before they could be classified.
-async function seaMask(omtTemplate, z, x, y, levelAt, inDatum, omtOffset, signal) {
-  const oz = Math.max(0, Math.min(z - omtOffset, OMT_MAXZOOM)), d = z - oz;
-  const ox = x >> d, oy = y >> d;
-  const layer = await omtCache(`${oz}/${ox}/${oy}`, async () => {
+// the `water` layer of OpenMapTiles tile oz/ox/oy (cached)
+function omtLayer(omtTemplate, oz, ox, oy, signal) {
+  return omtCache(`${oz}/${ox}/${oy}`, async () => {
     const url = (await omtTemplate()).replace('{z}', oz).replace('{x}', ox).replace('{y}', oy);
     const r = await fetch(url, { signal, credentials: 'omit' });
     if (r.status === 204 || r.status === 404) return { extent: 4096, features: [] }; // empty tile
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return waterLayer(new Uint8Array(await r.arrayBuffer()));
   });
+}
+
+// surface of the DATUMS water body at lon/lat, or 0 (sea level)
+export const datumAt = (lon, lat) => {
+  for (const [, b, h0] of DATUMS) if (lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3]) return h0;
+  return 0;
+};
+
+// Shore samples of water body `id` from the nearest lower-zoom OpenMapTiles tile that contains
+// its shoreline: a tile that shows only the inside of a large lagoon has none of its own.
+// OpenMapTiles keeps a water body's id across zooms. Heights come from the DEM tile that
+// matches that zoom (≤ native). Returns { vals, datum } or null.
+async function ancestorShore(ctx, id, oz, ox, oy) {
+  for (let k = 2; k <= 8; k += 2) {
+    const az = oz - k;
+    if (az < 0) break;
+    const ax = ox >> k, ay = oy >> k;
+    const layer = await omtLayer(ctx.omtTemplate, az, ax, ay);
+    const f = layer.features.find((g) => g.id === id);
+    if (!f) continue;
+    const dz = Math.min(az + 1, ctx.native), n = 2 ** dz; // a 512 px OMT tile at az ≈ 256 px DEM at az + 1
+    const all = f.rings.flatMap((r) => { const pts = []; for (let i = 0; i < r.length; i += 2) pts.push([r[i], r[i + 1]]); return pts; })
+      .filter(([vx, vy]) => vx > 0 && vy > 0 && vx < layer.extent && vy < layer.extent); // tile-edge clip points are not shore
+    if (all.length < 10) continue;
+    const stride = Math.max(1, Math.floor(all.length / 300)), vals = [];
+    let datum = 0;
+    for (let i = 0; i < all.length; i += stride) {
+      const X = (ax + all[i][0] / layer.extent) / 2 ** az, Y = (ay + all[i][1] / layer.extent) / 2 ** az; // 0..1 web mercator
+      const lon = X * 360 - 180, lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * Y))) * 180) / Math.PI;
+      const tx = Math.min(n - 1, Math.floor(X * n)), ty = Math.min(n - 1, Math.floor(Y * n));
+      const t = await demMetres(ctx.template.replace('{z}', dz).replace('{x}', tx).replace('{y}', ty));
+      const px = Math.min(SIZE - 1, Math.floor((X * n - tx) * SIZE)), py = Math.min(SIZE - 1, Math.floor((Y * n - ty) * SIZE));
+      const h0 = datumAt(lon, lat);
+      vals.push(t.e[py * SIZE + px] - h0);
+      if (h0) datum++;
+    }
+    return { vals, datum };
+  }
+  return null;
+}
+
+async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
+  const oz = Math.max(0, Math.min(z - omtOffset, OMT_MAXZOOM)), d = z - oz;
+  const ox = x >> d, oy = y >> d;
+  const layer = await omtLayer(ctx.omtTemplate, oz, ox, oy, signal);
   const c = new OffscreenCanvas(SIZE, SIZE), g = c.getContext('2d');
   const k = (SIZE * 2 ** d) / layer.extent, sx = (x - (ox << d)) * SIZE, sy = (y - (oy << d)) * SIZE;
   const pending = [];
-  const classify = (f) => {
+  const classify = async (f) => {
     if (f.id && waterLevel.has(f.id)) return waterLevel.get(f.id); // decided once: every tile agrees
-    const vals = [];
+    let vals = [];
     let datum = 0;
     for (const r of f.rings) {
       for (let i = 0; i < r.length && vals.length < 300; i += 2) {
@@ -174,7 +218,11 @@ async function seaMask(omtTemplate, z, x, y, levelAt, inDatum, omtOffset, signal
         if (px >= 0 && py >= 0 && px < SIZE && py < SIZE) { vals.push(levelAt(px, py)); if (inDatum(px, py)) datum++; }
       }
     }
-    if (vals.length < 10) { // no (or too little) shore in this tile: provisional, redrawn once decided
+    if (vals.length < 10 && f.id) { // little or no shore in this tile: read it at a lower zoom
+      const a = await ancestorShore(ctx, f.id, oz, ox, oy).catch(() => null);
+      if (a) ({ vals, datum } = a);
+    }
+    if (vals.length < 10) { // still undecided: provisional, redrawn once decided
       if (f.id) pending.push(f.id);
       return 'lake';
     }
@@ -187,11 +235,13 @@ async function seaMask(omtTemplate, z, x, y, levelAt, inDatum, omtOffset, signal
     return v;
   };
   // lakes in blue, sea-level inland water in green, sea in red over both
+  const classes = new Map();
+  for (const f of layer.features) if (f.cls !== 'swimming_pool') classes.set(f, SEA_CLASSES.has(f.cls) ? 'datum' : await classify(f));
   for (const kind of [3, 2, 1]) {
     g.fillStyle = ['', '#f00', '#0f0', '#00f'][kind];
     for (const f of layer.features) {
       if (f.cls === 'swimming_pool') continue;
-      const c = SEA_CLASSES.has(f.cls) ? 'datum' : classify(f);
+      const c = classes.get(f);
       const fk = c === 'datum' ? 1 : c === 'sea' ? 2 : 3;
       if (fk !== kind) continue;
       g.beginPath(); // one path per feature, so overlapping water features add up instead of cancelling
@@ -279,7 +329,7 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
       return 0;
     };
     const demAt = (px, py) => at(Math.floor(gx + px * step), Math.floor(gy + py * step));
-    const { mask, pending } = await seaMask(omtTemplate, z, x, y,
+    const { mask, pending } = await seaMask({ omtTemplate, template, native }, z, x, y,
       (px, py) => demAt(px, py) - surface(px, py), (px, py) => surface(px, py) !== 0, omtOffset);
     for (const id of pending) (waiting.get(id) || waiting.set(id, new Set()).get(id)).add(key);
     const out = new Float32Array(SIZE * SIZE);
@@ -301,12 +351,9 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
     return out;
     });
   };
-  const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
   return {
-    // maplibregl.addProtocol handler for a raster-dem source: Terrarium-encoded ImageBitmap
-    protocol: async (params, abortController) => {
-      const [z, x, y] = zxy(params.url);
-      if (abortController?.signal.aborted) throw new Error('aborted');
+    // Terrarium-encoded ImageBitmap for a raster-dem source
+    async bitmap(z, x, y) {
       const e = await elevation(z, x, y);
       const img = new ImageData(SIZE, SIZE), o = img.data;
       for (let k = 0; k < e.length; k++) {
@@ -316,16 +363,53 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
         const t = (mode === 'sea' && e[k] === 1 ? LAND_SHADE_M : e[k]) + 32768, q = k * 4;
         o[q] = Math.floor(t / 256); o[q + 1] = Math.floor(t) % 256; o[q + 2] = Math.floor((t - Math.floor(t)) * 256); o[q + 3] = 255;
       }
-      return { data: await createImageBitmap(img, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) };
+      return createImageBitmap(img, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
     },
-    // maplibre-contour LocalDemManager hooks: hand over the metres directly
-    getTile: async (url) => {
-      const [z, x, y] = zxy(url);
+    // metres for maplibre-contour (512 px contour tiles: cut with the coastline of the same zoom)
+    async contourElevation(z, x, y) {
       const e = await elevation(z, x, y, 0);
       // lakes carry NO_DEPTH_M for the shading's grey; for contours they are just "not sea"
       // (+1 m), or every lake would be ringed by contours from 0 to 9000 m
-      return { data: { elevation: mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v)) : e } };
+      return mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v)) : e;
     },
+  };
+}
+
+// ---- main thread: the same clipper running in a Web Worker (clip-worker.js) -------------
+// The cutting is the page's heaviest work (seconds of main-thread time while panning); in a
+// worker the map stays responsive. Tiles come back transferred, not copied.
+const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
+let worker = null, seq = 0;
+const replies = new Map(), staleHandlers = {};
+function clipWorker() {
+  if (worker) return worker;
+  worker = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
+  worker.onmessage = ({ data }) => {
+    if (data.stale) { staleHandlers[data.stale]?.(); return; }
+    const r = replies.get(data.seq);
+    replies.delete(data.seq);
+    if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);
+  };
+  worker.onerror = (e) => console.error('clip worker:', e.message);
+  return worker;
+}
+const ask = (msg, signal) => new Promise((resolve, reject) => {
+  const n = ++seq;
+  replies.set(n, { resolve, reject });
+  signal?.addEventListener('abort', () => { replies.delete(n); reject(new Error('aborted')); }, { once: true });
+  clipWorker().postMessage({ ...msg, seq: n });
+});
+
+// MapLibre protocol handler and maplibre-contour hooks for one clipper (mode 'sea' or 'land')
+export function workerClipper({ template, native, mode, omtTileJson, onStale }) {
+  staleHandlers[mode] = onStale;
+  clipWorker().postMessage({ init: { template, native, mode, omtTileJson } });
+  return {
+    protocol: async (params, abortController) => {
+      if (abortController?.signal.aborted) throw new Error('aborted');
+      return { data: await ask({ mode, op: 'bitmap', zxy: zxy(params.url) }, abortController?.signal) };
+    },
+    getTile: async (url) => ({ data: { elevation: await ask({ mode, op: 'contourElevation', zxy: zxy(url) }) } }),
     decodeImage: async (data) => ({ width: SIZE, height: SIZE, data: data.elevation }),
   };
 }
