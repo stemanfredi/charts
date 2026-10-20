@@ -5,7 +5,7 @@ import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle } from '../../catalog.js';
 import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });
-const NO_LAYERS = new Set(); // items that drive the page, not style layers
+const NO_LAYERS = new Set(['legend']); // items that drive the page, not style layers
 
 test('every menu item has a group and layers; every item layer has an item', () => {
   const groups = new Set(GROUPS.map((g) => g.id));

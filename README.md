@@ -46,7 +46,7 @@ Layout, by task. Top left, a search box: a place name (via Photon, see
 rotated. The Layers panel (open by default on screens 1200 px and wider) and
 the Measure and Share popovers open to the left of that column, which never
 moves; on phones they are sheets from the bottom (the Layers sheet has a
-handle). The map's edges hold what you read: legend chips bottom left, and a
+handle). The map's edges hold what you read: legends stacked bottom left, and a
 status bar with the cursor position, the scale bar and the credits. The scale
 bar is double, as on OpenSeaMap: km above the line, nautical miles below (also
 in the PNG). While a measurement is drawn, a bar at the top shows its live
@@ -54,8 +54,8 @@ value with Undo, Done and Cancel (under the search box). Keys: <kbd>/</kbd> sear
 ruler, <kbd>A</kbd> area, <kbd>C</kbd> range ring, <kbd>Esc</kbd> closes or
 cancels. *About* (foot of the Layers panel) carries the not-for-navigation notice.
 
-Colour layers get a legend: a chip each, bottom left, which opens it (one at
-a time; the PNG includes them all). Depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for
+Colour layers get a legend, stacked bottom left (the *Legends* switch in
+*Labels & grid* hides them; the PNG always includes them). Depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for
 the layer (0.15 °C classes), fetched once when first shown. Vessel and route density use
 the colour stops their WMS publishes. `npm run deps` (weekly in CI) reports when
 the WMS offers newer periods than `catalog.js` lists.

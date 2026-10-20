@@ -19,7 +19,7 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 svg { flex: none; }
 
-/* Layout: the map's edges hold what you read (legend chips and the status bar at the bottom);
+/* Layout: the map's edges hold what you read (legends and the status bar at the bottom);
    the right edge holds what you use (Layers, Measure, Share; zoom and compass lower down).
    The panel and the popovers open to the left of that column, so its buttons never move. */
 .rail, .zoom, .panel, .pop, .mbar { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
@@ -158,14 +158,10 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .mbar button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: 44px; padding: 0 12px; flex: none; }
 .mbar button.done { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
-/* ---- legend chips, bottom left above the status bar; one opens at a time ---- */
-.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: calc(100% - var(--rail) - 40px); }
+/* ---- legends, stacked bottom left above the status bar ---- */
+.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .legends:empty { display: none; }
 .legends canvas { display: block; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { display: flex; align-items: center; gap: 6px; min-height: var(--row); padding: 0 12px 0 8px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.95); box-shadow: var(--shadow); font-size: 12px; }
-.chip i { width: 22px; height: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); }
-.chip[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
 /* ---- status bar: position, double scale, scale note, credits ---- */
 .status {

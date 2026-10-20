@@ -139,6 +139,8 @@ export const ITEMS = [
     variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),
     info: { src: 'NASA EOSDIS GIBS (WMTS)', lic: 'NASA open data; attribution requested', res: 'True colour 250 m, to zoom 9 · SST and chlorophyll 1 km, to zoom 7. Clouds and swath gaps are real', url: 'https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api' } },
 
+  { id: 'legend', group: 'labels', label: 'Legends', on: true,
+    info: { src: 'Drawn from the same colour stops as the map; SST from NASA GIBS’s published colour map; vessel and route density from the stops their WMS publishes', lic: '—', res: 'Shown bottom left for every colour layer that is drawn; the PNG always includes them', url: 'https://nasa-gibs.github.io/gibs-api-docs/' } },
   { id: 'places', group: 'labels', label: 'Place names', on: true,
     info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'English name where tagged, else local name', url: 'https://openfreemap.org' } },
   { id: 'seanames', group: 'labels', label: 'Sea names', on: true,

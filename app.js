@@ -142,7 +142,7 @@ const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const attribution = new maplibregl.AttributionControl({ compact: small() });
 statusEl.append(posEl, scalesEl, scaleNoteEl, attribution.onAdd(map));
-// the panel, zoom buttons and legend chips sit above the status bar, whose height follows its credits
+// the panel, zoom buttons and legends sit above the status bar, whose height follows its credits
 new ResizeObserver(() => document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`)).observe(statusEl);
 
 // ---- zoom and compass (the compass only appears when the map is rotated) -------------------
@@ -276,7 +276,7 @@ function updateGraticule() {
   const k0 = (x) => Math.round(x * 3600) / 3600;
   // edge labels: meridians along the top, parallels along the left (the controls and the panel
   // are on the right); only when north-up, where a screen edge is a parallel or a meridian.
-  // The bottom edge is busy with legend chips and the status bar.
+  // The bottom edge is busy with legends and the status bar.
   const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
   const edges = Math.abs(map.getBearing()) < 0.5;
   const latTop = map.unproject([W / 2, 64]).lat, lonLeft = map.unproject([8, H / 2]).lng;
@@ -465,20 +465,13 @@ function renderMenu() {
   renderLegends();
 }
 
-// ---- legends: a chip per drawn colour layer; one opens at a time ---------------------
-// The canvases are drawn for every legend (the PNG copies them all), shown only when open.
+// ---- legends: stacked bottom left, one per drawn colour layer (the Legends switch shows them) ----
+// The canvases are drawn whenever their layer is (the PNG copies them, switch or not).
 const legends = $('#legends');
 const legendEls = {};
 let legendWant = [];
-let openLegend = small() ? null : 'auto'; // 'auto': the first one, until the user picks
 function legendEl(id) {
   return (legendEls[id] ||= h('canvas', { role: 'img', 'data-legend': id }));
-}
-const gradient = (stops) => `linear-gradient(90deg, ${stops.map(([, c]) => c).join(', ')})`;
-function legendChip(id) {
-  if (id === 'depth') return ['Depth', gradient(depthStops())];
-  if (DENSITY[id]) return [DENSITY[id].title, gradient(DENSITY[id].stops)];
-  return [GIBS[state.variant.gibs].legend.title, 'linear-gradient(90deg, #2b001a, #3b4cc0, #2fb5e8, #f6e43c, #d7301f, #6b0200)'];
 }
 function renderLegends() {
   const on = (id) => state.on.has(id);
@@ -509,13 +502,7 @@ function renderLegends() {
       }
     }
   }
-  const shown = openLegend === 'auto' ? want[0] : want.includes(openLegend) ? openLegend : null;
-  const chips = h('div', { class: 'chips' }, want.map((id) => {
-    const [name, swatch] = legendChip(id);
-    return h('button', { type: 'button', class: 'chip', 'aria-expanded': String(id === shown), title: id === shown ? 'Hide legend' : 'Show legend',
-      onclick: () => { openLegend = id === shown ? null : id; renderLegends(); } }, h('i', { style: `background:${swatch}` }), name);
-  }));
-  legends.replaceChildren(...(want.length ? [...(shown ? [legendEls[shown]] : []), chips] : []));
+  legends.replaceChildren(...(on('legend') ? want.map((id) => legendEls[id]) : []));
 }
 function renderStatus() {
   for (const it of ITEMS) {
@@ -803,7 +790,7 @@ function exportPng() {
     g.fillText(kmText, W - 20, H - 44);
     g.fillText(nmText, W - 20, H - 16);
     g.textAlign = 'left';
-    // every legend of the drawn layers, stacked bottom left, whichever chip is open on screen
+    // every legend of the drawn layers, stacked bottom left (as on screen, even with the switch off)
     let ly = H - 10;
     for (const id of [...legendWant].reverse()) {
       const el = legendEls[id], lw = parseFloat(el.style.width), lh = parseFloat(el.style.height);
