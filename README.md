@@ -21,7 +21,10 @@ tools/deps.mjs  pin / hash / check / upgrade the CDN libraries
 test/        unit tests (node --test) and a headless-Chrome smoke test
 ```
 
-Run locally: `python3 -m http.server` in this folder, open http://localhost:8000.
+Run locally: `npm run serve` in this folder (Node ≥ 22, nothing to install), open
+http://localhost:8000. It turns browser caching off, so a reload always runs the
+current files; `python3 -m http.server` also works, but browsers may keep old
+files until a hard reload.
 
 ## Layers
 
@@ -195,15 +198,16 @@ the script.
 
 ## Development
 
-The site needs nothing; `package.json` exists for the checks only (Node ≥ 22).
+The site needs nothing; `package.json` exists for development only (Node ≥ 22).
 
 ```
+npm run serve       # the site on port 8000 with caching off (--port, --host to change)
 npm ci
 npm test            # unit tests, offline: formatting, geodesics, URL round trip, catalog consistency
 npm run check       # index.html CDN block = pins + SRI hashes + CSP hash (fetches the CDN files)
 npm run smoke       # headless Chrome on the live providers; CHROME=/path/to/chrome if not /usr/bin/google-chrome
 npm run ui          # layout at 390 / 820 / 1280 px, panel open and closed: no overlapping overlays,
-                    # nothing off screen, every control ≥ 44 px (UI_SHOTS=dir saves screenshots)
+                    # nothing off screen, controls ≥ 44 px on touch, ≥ 36 px with a mouse (UI_SHOTS=dir saves screenshots)
 npm run deps        # newer versions of the pinned libraries
 ```
 

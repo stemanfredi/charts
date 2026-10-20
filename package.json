@@ -8,7 +8,8 @@
     "check": "node tools/deps.mjs --check",
     "smoke": "node test/smoke.mjs",
     "ui": "node test/ui.mjs",
-    "deps": "node tools/deps.mjs"
+    "deps": "node tools/deps.mjs",
+    "serve": "node test/serve.mjs"
   },
   "engines": { "node": ">=22" },
   "devDependencies": {
