@@ -87,3 +87,11 @@ export function parseLatLon(text) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
   return { lat, lon };
 }
+
+// Export file name (and STAC id): chart-YYYYMMDD-HHMM in UTC, then the view's centre to 0.01°
+// (about 1 km), e.g. chart-20261020-1636-40.51N-17.16E: sorts by time, says where
+export function exportName(when, lat, lng) {
+  lng = ((((lng + 180) % 360) + 360) % 360) - 180;
+  const deg = (v, pos, neg) => { const t = Math.abs(v).toFixed(2); return `${t}${v >= 0 || t === '0.00' ? pos : neg}`; };
+  return `chart-${when.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}-${deg(lat, 'N', 'S')}-${deg(lng, 'E', 'W')}`;
+}

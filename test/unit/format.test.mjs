@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon } from '../../format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon, exportName } from '../../format.js';
 
 test('fmtAngle: degrees, minutes, hemispheres, carry', () => {
   assert.equal(fmtAngle(44, 'N', 'S', 1), '44°N');
@@ -50,4 +50,11 @@ test('parseLatLon: decimal, DM, DMS, hemispheres before or after, either order',
 test('parseLatLon: not coordinates', () => {
   for (const t of ['', 'Lisbon', 'Crete', 'SEN', '35.898', '1 2 3', '91 10', '44 10 200 0', '44 61N 9E', '44N 9N', '44.5 30N 9E', 'N44 E', '44N -9E'])
     assert.equal(parseLatLon(t), null, t);
+});
+
+test('exportName: UTC time, then the centre to 0.01° with hemispheres', () => {
+  const t = new Date('2026-10-20T16:36:59Z');
+  assert.equal(exportName(t, 40.51147, 17.16421), 'chart-20261020-1636-40.51N-17.16E');
+  assert.equal(exportName(t, -33.8688, -151.2093), 'chart-20261020-1636-33.87S-151.21W');
+  assert.equal(exportName(t, -0.001, 190), 'chart-20261020-1636-0.00N-170.00W', 'no "-0.00S"; a world copy east of 180°');
 });

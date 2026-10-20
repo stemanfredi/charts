@@ -3,7 +3,7 @@ import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles } from './catalog.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
-import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon } from './format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon, exportName } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
 import { affine, mercator, worldFile, pamXml, stacItem } from './export.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
@@ -804,8 +804,8 @@ function download(blob, name) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-// chart-YYYYMMDD-HHMM (UTC): the file names and the STAC id
-const exportName = (when) => `chart-${when.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}`;
+// the file names and the STAC id: time and the view's centre (format.js)
+const fileName = (when) => { const c = map.getCenter(); return exportName(when, c.lat, c.lng); };
 // the map canvas plus scale, north arrow, legends and a credit strip
 function chartCanvas(src, when) {
   const dpr = src.width / src.clientWidth;
@@ -868,8 +868,8 @@ function chartCanvas(src, when) {
 }
 function exportPng() {
   onFrame(async (src) => {
-    const when = new Date();
-    download(await pngOf(chartCanvas(src, when)), `${exportName(when)}.png`);
+    const when = new Date(), name = fileName(when);
+    download(await pngOf(chartCanvas(src, when)), `${name}.png`);
   });
 }
 
@@ -927,7 +927,7 @@ async function exportZip() {
   let clipping;
   try { clipping = await polygonClipping(); } catch (e) { console.error('GIS export:', e.message); return; }
   onFrame(async (src) => {
-    const when = new Date();
+    const when = new Date(), name = fileName(when); // the view as captured, however long the rest takes
     const plain = h('canvas', { width: src.width, height: src.height });
     plain.getContext('2d').drawImage(src, 0, 0);
     const chart = chartCanvas(src, when);
@@ -954,7 +954,7 @@ async function exportZip() {
     const measured = measureFeatures(measure.list);
     if (measured.length) vectors.push({ key: 'vector/measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
     const item = stacItem({
-      id: exportName(when), when, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers,
+      id: name, when, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers,
       attribution: attributionText(), link: location.href,
       assets: {
         map: { href: './map.png', type: 'image/png', title: 'The map as drawn, georeferenced (world file map.pgw, CRS in map.png.aux.xml)', roles: ['visual'],
@@ -976,7 +976,7 @@ async function exportZip() {
       { name: 'chart.png', data: chartPng },
       ...vectors.map((v) => ({ name: v.file, data: v.data })),
       ...rasters.map((r) => ({ name: r.file, data: r.data })),
-    ], when), `${exportName(when)}.zip`);
+    ], when), `${name}.zip`);
   });
 }
 
