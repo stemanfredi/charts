@@ -35,7 +35,7 @@ svg { flex: none; }
 .rail button[aria-expanded="true"] { background: #e3edf4; color: var(--accent); }
 .rail button.active { background: var(--magenta); color: #fff; } /* a measuring tool is in use */
 .zoom { z-index: 6; right: 10px; bottom: calc(var(--status-h) + 10px); width: var(--rail); display: flex; flex-direction: column; padding: 2px; gap: 2px; }
-.zoom button { height: 44px; }
+.zoom button { height: 54px; } /* square, like the buttons above */
 
 /* ---- layers panel, left of the column ---- */
 .panel {
