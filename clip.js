@@ -263,7 +263,38 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
   return { mask, pending };
 }
 
-// Terrarium tile at zoom ≤ native, decoded to metres
+// Terrarium has a few pits at the coast: a handful of pixels hundreds of metres deep inside a
+// harbour or cove (Marciana Marina, Elba: −485 m among −1 to −20 m), which the isobaths ring and
+// the shading darkens. A depression that small cannot be real on this grid, so a pixel below sea
+// level that is more than PIT_M deeper than every pixel on the square ring PIT_R pixels around
+// it becomes the median of that ring's water, or −1 m (the shallowest class: unknown depth) when
+// the ring is all land, as in a cove the coarse grid does not have (Sant'Andrea, Elba: −336 m).
+// A canyon or slope goes on outward, so the ring has something as deep and the pixel stays;
+// land above sea level and tile borders are not touched.
+const PIT_R = 3, PIT_M = 50;
+export function fillPits(e, w) {
+  const src = e.slice(), ring = [];
+  for (let j = PIT_R; j < w - PIT_R; j++) {
+    for (let i = PIT_R; i < w - PIT_R; i++) {
+      const v = src[j * w + i];
+      if (v >= 0) continue;
+      ring.length = 0;
+      let deepest = Infinity;
+      for (let dj = -PIT_R; dj <= PIT_R; dj++) {
+        for (let di = -PIT_R; di <= PIT_R; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== PIT_R) continue; // the ring only
+          const r = src[(j + dj) * w + i + di];
+          if (r < deepest) deepest = r;
+          if (r < 0) ring.push(r);
+        }
+      }
+      if (v < deepest - PIT_M) e[j * w + i] = ring.length ? ring.sort((a, b) => a - b)[ring.length >> 1] : -1;
+    }
+  }
+  return e;
+}
+
+// Terrarium tile at zoom ≤ native, decoded to metres (coastal pits filled)
 function demMetres(url, signal) {
   return demCache(url, async () => {
     const img = await createImageBitmap(await (await fetchOk(url, signal)).blob());
@@ -273,6 +304,7 @@ function demMetres(url, signal) {
     let max = -Infinity;
     for (let i = 0; i < e.length; i++) { e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768; if (e[i] > max) max = e[i]; }
     if (img.width !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
+    fillPits(e, SIZE); // only raises pixels below sea level, so the maximum is unchanged
     return { w: img.width, e, max };
   });
 }

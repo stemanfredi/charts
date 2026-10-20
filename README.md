@@ -152,6 +152,12 @@ coastline the basemap draws:
   the OSM coastline, but their shapes near the shore are only as good as the
   1–2 km data, and sea the DEM calls dry is shown as the shallowest class.
   Lakes above sea level are grey: no depth source.
+- The elevation tiles have a few false pits at the coast (Marciana Marina,
+  Elba: −485 m inside the harbour among −1 to −20 m), which drew stacks of
+  tiny isobath rings. A pixel below sea level more than 50 m deeper than
+  everything about 3 pixels around it is filled from the water on that ring
+  (or set to the shallowest class when the ring is all land); canyons and
+  slopes, which continue outward, are left alone (`fillPits` in clip.js).
 - **Not for navigation.**
 
 ## Privacy
