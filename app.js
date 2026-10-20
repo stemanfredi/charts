@@ -141,7 +141,8 @@ const scales = [new maplibregl.ScaleControl({ ...scaleOpts, unit: 'metric' }), n
 const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s.onAdd(map)));
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const attribution = new maplibregl.AttributionControl({ compact: small() });
-statusEl.append(posEl, scalesEl, scaleNoteEl, attribution.onAdd(map));
+// credits on the left; the scale note, cursor position and scale grouped on the right
+statusEl.append(attribution.onAdd(map), h('div', { class: 'readout' }, scaleNoteEl, posEl, scalesEl));
 // the panel, zoom buttons and legends sit above the status bar, whose height follows its credits
 new ResizeObserver(() => document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`)).observe(statusEl);
 
