@@ -61,9 +61,12 @@ on-screen credits and the PNG list only the sources that are drawn.
   and relief shading never spills into the sea. Inland water is classified once
   per water body: water at sea level (lagoons, harbour basins), lakes without
   depth data, or seas with their own surface level, such as the Caspian.
-- **Honest depths.** The elevation model is coarse offshore. Before contouring,
-  false pits and tile-edge seams are removed, but shoals are never removed.
-  Isobath spacing widens with depth and tightens with zoom. EMODnet and GEBCO
+- **Honest depths.** The elevation model is coarse offshore and has defects
+  where its land and sea sources meet: false pits at the coast (and false
+  peaks on the land side), and bends at tile edges. Before contouring, small
+  enclosed pits are raised, which only ever makes water shallower; the seam
+  blur touches only a few pixels along tile edges; coastal land spikes are
+  clamped. Everywhere else the data is drawn as it is. Isobath spacing widens with depth and tightens with zoom. EMODnet and GEBCO
   image layers are not used: their own land is baked into the picture and
   cannot be cut away.
 - **Geodesic measurement.** Distances, bearings, areas and rings use
@@ -127,8 +130,7 @@ notices. Pages must be enabled once in the repository settings, with
 
 MapLibre GL JS, maplibre-contour and GeographicLib load from jsDelivr at pinned
 versions with Subresource Integrity. MapLibre's worker script is pinned and
-verified too: the page fetches it with its hash and gives MapLibre the verified
-copy. The pins are listed in `PINS` in `tools/deps.mjs`.
+verified too: the page checks its hash and gives MapLibre the verified copy. The pins are listed in `PINS` in `tools/deps.mjs`.
 
 To upgrade, change a version in `PINS`, run `node tools/deps.mjs --write`, and
 test. The script refetches the files and rewrites the generated block in

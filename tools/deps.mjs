@@ -16,10 +16,10 @@ import { fileURLToPath } from 'node:url';
 export const PINS = [
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl.mjs', kind: 'module' },
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl.css', kind: 'style' },
-  // MapLibre's worker: app.js fetches it with this hash and hands MapLibre the verified copy
+  // MapLibre's worker: app.js checks it against this hash and hands MapLibre the verified copy
   // (left alone, MapLibre imports it from the CDN with no integrity check). Preloaded so it
-  // downloads alongside MapLibre; the hash rides in data-integrity, since Chrome ignores (and
-  // warns about) integrity on a fetch preload
+  // downloads alongside MapLibre, once; the hash rides in data-integrity, which only app.js
+  // reads (see verifiedWorker there for why neither the preload nor the fetch carries it)
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl-worker.mjs', kind: 'worker' },
   { name: 'maplibre-contour', version: '0.1.1', file: 'dist/index.mjs', kind: 'module' },
   { name: 'geographiclib-geodesic', version: '2.2.0', file: 'geographiclib-geodesic.min.js', kind: 'script' },

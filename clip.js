@@ -325,17 +325,21 @@ export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN
 
 // Terrarium resampled each tile on its own, so the depth gradient jumps at tile edges; magnified
 // several times (zoom-10 data at map zoom 12–13) every isobath crossing an edge bends there
-// (9.84375°E, Canale di Corsica). The seabed data is ~1 km offshore, so two passes of a 3 × 3
-// [1 2 1] blur over 110 m pixels lose nothing real. Only sea pixels change, averaged only with
-// sea neighbours, so land never pulls coastal depths up; the tile margin makes edges vanish.
-export function smoothSea(e, w, h, passes = 2) {
+// (9.84375°E, Canale di Corsica). Two passes of a 3 × 3 [1 2 1] blur straighten it, applied only
+// within `band` pixels of the edges (`seams`: the first pixel after each edge, along both axes):
+// everywhere else, shoals included, the data stays exactly as it is. A blur that never deepens
+// would fix only the bends where the slope flattens, not where it steepens. Only sea pixels
+// change, averaged only with sea neighbours, so land never pulls coastal depths up.
+export function smoothSea(e, w, h, seams, passes = 2, band = 4) {
   const K = [1, 2, 1];
+  const near = (v) => seams.some((s) => v >= s - band && v < s + band);
   for (let pass = 0; pass < passes; pass++) {
     const src = e.slice();
     for (let y = 1; y < h - 1; y++) {
+      const nearY = near(y);
       for (let x = 1; x < w - 1; x++) {
         const p = y * w + x;
-        if (src[p] >= 0) continue;
+        if (src[p] >= 0 || !(nearY || near(x))) continue;
         let sum = 0, wt = 0;
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
@@ -345,6 +349,39 @@ export function smoothSea(e, w, h, passes = 2) {
         }
         e[p] = sum / wt;
       }
+    }
+  }
+  return e;
+}
+
+// The same seam that makes the sea's pits makes false peaks on the land side: at Elba, zoom 10 has
+// a dozen pixels up to 211 m above every neighbour, all within 3 px of the sea (none at zooms 11–12).
+// A land pixel that near the OSM sea, standing more than SPIKE_M beyond all its land neighbours,
+// takes the nearest of their values. Only land neighbours count, so an islet is never flattened
+// against the sea, and inland terrain (summits included) is never touched.
+const SPIKE_MAXZOOM = 10, SPIKE_M = 40, SPIKE_REACH = 3;
+export function clampCoastalSpikes(e, sea, w, h) {
+  const src = e.slice();
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x;
+      if (sea[p]) continue;
+      let lo = Infinity, hi = -Infinity, n = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const q = p + dy * w + dx;
+          if ((dx || dy) && !sea[q]) { lo = Math.min(lo, src[q]); hi = Math.max(hi, src[q]); n++; }
+        }
+      }
+      if (n < 3 || (src[p] <= hi + SPIKE_M && src[p] >= lo - SPIKE_M)) continue;
+      let coastal = false;
+      for (let dy = -SPIKE_REACH; dy <= SPIKE_REACH && !coastal; dy++) {
+        for (let dx = -SPIKE_REACH; dx <= SPIKE_REACH; dx++) {
+          const yy = y + dy, xx = x + dx;
+          if (yy >= 0 && xx >= 0 && yy < h && xx < w && sea[yy * w + xx]) { coastal = true; break; }
+        }
+      }
+      if (coastal) e[p] = src[p] > hi ? hi : lo;
     }
   }
   return e;
@@ -365,7 +402,7 @@ function seaDem(template, z, x, y) {
       }
     }
     fillSmallDepressions(area, W, W, levelsFor(z));
-    smoothSea(area, W, W);
+    smoothSea(area, W, W, [MARGIN, MARGIN + SIZE]);
     const e = new Float32Array(SIZE * SIZE);
     for (let j = 0; j < SIZE; j++) e.set(area.subarray((j + MARGIN) * W + MARGIN, (j + MARGIN) * W + MARGIN + SIZE), j * SIZE);
     return e;
@@ -452,6 +489,7 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
         out[j * SIZE + i] = h;
       }
     }
+    if (mode === 'land' && nz <= SPIKE_MAXZOOM) clampCoastalSpikes(out, mask.map((m) => m === DEPTH), SIZE, SIZE);
     return out;
     });
   };

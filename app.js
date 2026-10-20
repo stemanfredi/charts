@@ -118,10 +118,21 @@ const style = buildStyle({
 style.layers.push(...MEASURE_LAYERS);
 
 // MapLibre's worker from the pinned, hashed URL in index.html (tools/deps.mjs): a copy the browser
-// has checked against the hash, instead of MapLibre's own unchecked import from the CDN
-const workerPin = $('#maplibre-gl-worker');
-const workerSrc = await fetch(workerPin.href, { integrity: workerPin.dataset.integrity, referrerPolicy: 'no-referrer' });
-maplibregl.setWorkerUrl(URL.createObjectURL(new Blob([await workerSrc.text()], { type: 'text/javascript' })));
+// has checked against the hash, instead of MapLibre's own unchecked import from the CDN. The hash
+// is checked here, not by fetch(): Firefox does not hand a fetch with `integrity` the preloaded
+// copy (it downloads the worker twice), and Chrome warns about integrity on a fetch preload.
+async function verifiedWorker({ href, dataset: { integrity } }) {
+  const opts = { referrerPolicy: 'no-referrer' };
+  // plain http (a phone on the LAN, npm run serve) has no SubtleCrypto: fetch checks, downloading twice
+  if (!crypto.subtle) return (await fetch(href, { ...opts, integrity })).blob();
+  const r = await fetch(href, opts);
+  if (!r.ok) throw new Error(`MapLibre worker: HTTP ${r.status}`);
+  const code = await r.arrayBuffer();
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-384', code));
+  if (`sha384-${btoa(String.fromCharCode(...digest))}` !== integrity) throw new Error(`MapLibre worker: hash mismatch (${href})`);
+  return new Blob([code], { type: 'text/javascript' });
+}
+maplibregl.setWorkerUrl(URL.createObjectURL(await verifiedWorker($('#maplibre-gl-worker'))));
 
 const map = new maplibregl.Map({
   container: 'map', style, ...view,

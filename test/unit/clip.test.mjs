@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { datumAt, DATUMS, fillSmallDepressions, smoothSea } from '../../clip.js';
+import { datumAt, DATUMS, fillSmallDepressions, smoothSea, clampCoastalSpikes } from '../../clip.js';
 import { levelsFor, DEPTH_LEVELS } from '../../catalog.js';
 
 test('Caspian surface applies inside its box only (per point, not per tile)', () => {
@@ -44,20 +44,42 @@ test('fillSmallDepressions: pits and pockets go, level by level; canyons, basins
   assert.ok([...e].every((v) => v === 120));
 });
 
-test('smoothSea: a gradient kink at a tile edge is smoothed; land and the coast are not pulled up', () => {
-  const w = 20, e = new Float32Array(w * w);
-  // depth falls 6 m per pixel left of column 10 and 13 m per pixel right of it (the Terrarium seam)
-  for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) e[y * w + x] = x < 10 ? -400 - 6 * x : -460 - 13 * (x - 10);
-  const bend = (a) => Math.abs((a[10 * w + 11] - a[10 * w + 10]) - (a[10 * w + 10] - a[10 * w + 9]));
-  const before = bend(e);
-  smoothSea(e, w, w);
-  assert.ok(bend(e) < before / 2, `bend ${before} → ${bend(e)}`);
+test('smoothSea: a kink at a tile edge is smoothed either way; away from edges nothing changes', () => {
+  const w = 30, row = 15;
+  const bend = (a) => Math.abs((a[row * w + 11] - a[row * w + 10]) - (a[row * w + 10] - a[row * w + 9]));
+  // depth slope changes at column 10 (the Terrarium seam): steeper, then flatter, beyond it
+  for (const [l, r] of [[6, 13], [13, 6]]) {
+    const e = new Float32Array(w * w);
+    for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) e[y * w + x] = x < 10 ? -400 - l * x : -400 - l * 10 - r * (x - 10);
+    // a one-pixel shoal far from the edge
+    e[row * w + 24] = -50;
+    const before = bend(e);
+    smoothSea(e, w, w, [10]);
+    assert.ok(bend(e) < before / 2, `${l}→${r}: bend ${before} → ${bend(e)}`);
+    assert.equal(e[row * w + 24], -50, 'a shoal away from the edges is left exactly as it is');
+  }
   // land stays as it is; a sea pixel beside land is averaged only with sea, so it stays below 0
   const c = new Float32Array(w * w).fill(80);
   for (let y = 0; y < w; y++) for (let x = 10; x < w; x++) c[y * w + x] = -20;
-  smoothSea(c, w, w);
-  assert.equal(c[10 * w + 9], 80);
-  assert.equal(c[10 * w + 10], -20);
+  smoothSea(c, w, w, [10]);
+  assert.equal(c[row * w + 9], 80);
+  assert.equal(c[row * w + 10], -20);
+});
+
+test('clampCoastalSpikes: false peaks beside the sea go; inland summits and islets stay', () => {
+  const w = 20, at = (x, y) => y * w + x;
+  // land 100 m in columns 0–9, sea in columns 10–19
+  const e = new Float32Array(w * w), sea = new Uint8Array(w * w);
+  for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) { e[at(x, y)] = x < 10 ? 100 : 0; sea[at(x, y)] = x >= 10 ? 1 : 0; }
+  e[at(8, 5)] = 311;  // the Elba spike: 2 px from the sea
+  e[at(8, 9)] = -100; // a false pit beside the sea
+  e[at(2, 14)] = 400; // a summit 7 px inland
+  e[at(15, 15)] = 60; sea[at(15, 15)] = 0; // a one-pixel islet
+  clampCoastalSpikes(e, sea, w, w);
+  assert.equal(e[at(8, 5)], 100);
+  assert.equal(e[at(8, 9)], 100);
+  assert.equal(e[at(2, 14)], 400);
+  assert.equal(e[at(15, 15)], 60);
 });
 
 test('levelsFor: only the depths drawn at that DEM zoom', () => {
