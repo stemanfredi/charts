@@ -78,7 +78,7 @@ export function stats(mm) {
 
 export function summary(mm, units) {
   const st = stats(mm);
-  if (mm.kind === 'ring') return `${KIND.ring} ${fmtDist(st.r, units)}`;
+  if (mm.kind === 'ring') return `${KIND.ring} r ${fmtDist(st.r, units)}`;
   if (mm.kind === 'area') return `${KIND.area} ${fmtArea(st.area, units)}`;
   return `${KIND.ruler} ${fmtDist(st.len, units)}`;
 }
@@ -93,8 +93,14 @@ function features(mm, units, draft) {
     if (!mm.r) return f;
     const pts = circle(mm.pts[0], mm.r);
     f.push({ type: 'Feature', properties: { ...tag, ring: 1 }, geometry: { type: 'LineString', coordinates: pts } });
-    const north = G.Direct(mm.pts[0][1], mm.pts[0][0], 0, mm.r);
-    label([north.lon2, north.lat2], fmtDist(mm.r, units), 'bottom');
+    if (draft && mm.edge) {
+      // while drawing: the radius being dragged out, labelled at the cursor (gone once finished)
+      f.push({ type: 'Feature', properties: tag, geometry: { type: 'LineString', coordinates: pathOf([mm.pts[0], mm.edge], false) } });
+      label(mm.edge, `r ${fmtDist(mm.r, units)}`, 'bottom-left');
+    } else {
+      const north = G.Direct(mm.pts[0][1], mm.pts[0][0], 0, mm.r);
+      label([north.lon2, north.lat2], `r ${fmtDist(mm.r, units)}`, 'bottom');
+    }
     return f;
   }
   if (mm.pts.length < 2) return f;
@@ -190,7 +196,7 @@ export class Measure {
       let preview = d;
       if (this.hover && d.pts.length) {
         preview = d.kind === 'ring'
-          ? { ...d, r: G.Inverse(d.pts[0][1], d.pts[0][0], this.hover[1], this.hover[0]).s12 }
+          ? { ...d, r: G.Inverse(d.pts[0][1], d.pts[0][0], this.hover[1], this.hover[0]).s12, edge: this.hover }
           : { ...d, pts: [...d.pts, this.hover] };
       }
       f.push(...features(preview, this.units, true));

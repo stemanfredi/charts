@@ -24,6 +24,11 @@ test('area: 1°×1° cell at the equator ≈ 12 308.8 km²', () => {
   assert.match(summary({ kind: 'area', pts: [[0, 0], [1, 0], [1, 1], [0, 1]] }, 'km'), /^Area 1230[89]\.\d km²$/);
 });
 
+test('ring: labelled as a radius', () => {
+  assert.equal(summary({ kind: 'ring', pts: [[10, 43.5]], r: 15000 }, 'km'), 'Ring r 15.00 km');
+  assert.equal(summary({ kind: 'ring', pts: [[10, 43.5]], r: 1852 * 3 }, 'nm'), 'Ring r 3.00 NM');
+});
+
 test('URL round trip; bad rings dropped; hidden flag kept', () => {
   const fake = { on() {}, getSource() {}, getCanvas: () => ({ style: {} }), doubleClickZoom: { enable() {}, disable() {} } };
   globalThis.window ??= { addEventListener() {} };
