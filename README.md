@@ -41,7 +41,8 @@ attribution line lists only the sources currently drawn.
 
 Layout follows Google Maps: *Layers* top left (the panel opens down the left
 edge, a bottom sheet on phones), tools top right (ruler, area, ring; copy link,
-PNG), zoom, compass, cursor position and scale bar bottom right.
+PNG), zoom, compass, cursor position and scale bar bottom right. The scale bar
+is double, as on OpenSeaMap: km above the line, nautical miles below (also in the PNG).
 
 Colour layers get a legend (bottom left, also in the PNG; *Legends* in the
 menu hides them): depth shading uses the same colour stops as the map, and sea surface temperature uses the colour map NASA GIBS publishes for

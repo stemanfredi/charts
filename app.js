@@ -4,7 +4,7 @@ import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACIT
 import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap } from './format.js';
-import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
+import { Measure, MEASURE_LAYERS, summary } from './measure.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const h = (tag, attrs = {}, ...kids) => {
@@ -136,8 +136,14 @@ const attribution = new maplibregl.AttributionControl({ compact: window.innerWid
 map.addControl(attribution, 'bottom-right');
 const scaleNoteEl = h('div', { class: 'maplibregl-ctrl scalenote', id: 'scalenote' });
 map.addControl({ onAdd: () => scaleNoteEl, onRemove: () => scaleNoteEl.remove() }, 'bottom-right');
-const scale = new maplibregl.ScaleControl({ maxWidth: window.innerWidth < 720 ? 90 : 140, unit: 'metric' }); // narrow on phones: clears the legend
-map.addControl(scale, 'bottom-right');
+// km above nautical miles as one double scale bar, as on OpenSeaMap (narrow on phones: clears the legend)
+const scaleOpts = { maxWidth: window.innerWidth < 720 ? 90 : 140 };
+const scales = [new maplibregl.ScaleControl({ ...scaleOpts, unit: 'metric' }), new maplibregl.ScaleControl({ ...scaleOpts, unit: 'nautical' })];
+const scalesEl = h('div', { class: 'maplibregl-ctrl scales', id: 'scales' });
+map.addControl({
+  onAdd: (m) => { scalesEl.append(...scales.map((s) => s.onAdd(m))); return scalesEl; },
+  onRemove: () => { for (const s of scales) s.onRemove(); scalesEl.remove(); },
+}, 'bottom-right');
 const posEl = h('div', { class: 'maplibregl-ctrl pos', id: 'pos', 'aria-live': 'off' });
 map.addControl({ onAdd: () => posEl, onRemove: () => posEl.remove() }, 'bottom-right');
 map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), 'bottom-right');
@@ -475,7 +481,6 @@ function renderMeasures() {
   measureAll.disabled = !measure.list.length;
   measureGroup.querySelector('.count').textContent = measure.list.length ? `${shown}/${measure.list.length}` : '';
   unitSel.value = measure.units;
-  scale.setUnit(measure.units === 'nm' ? 'nautical' : 'metric');
 }
 
 // ---- panel + toolbar --------------------------------------------------------
@@ -556,27 +561,29 @@ function exportPng() {
     g.drawImage(src, 0, 0);
     g.scale(dpr, dpr);
     const W = src.clientWidth, H = src.clientHeight;
-    // scale bar at the centre latitude (Web Mercator scale varies with latitude)
+    // double scale bar at the centre latitude (Web Mercator scale varies with latitude), bottom
+    // right as on screen: km above a shared line, nautical miles below it
     const lat = map.getCenter().lat;
     const mpp = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** map.getZoom());
-    const units = measure.units;
-    const unitM = units === 'nm' ? 1852 : 1;
-    const len = niceLen((120 * mpp) / unitM) * unitM;
-    const px = len / mpp;
-    // bottom-right, where the scale bar is on screen
-    g.font = '11px system-ui, sans-serif';
+    const bar = (unitM) => { const len = niceLen((120 * mpp) / unitM) * unitM; return { len, px: len / mpp }; };
+    const km = bar(1), nm = bar(1852);
     const v = scaleVariation();
-    const text = `${fmtDist(len, units)} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > 0.01 ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
-    const bw = Math.max(px, g.measureText(text).width) + 20, x0 = W - 10 - bw;
+    const kmText = `${km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > 0.01 ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
+    const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
+    g.font = '11px system-ui, sans-serif';
+    const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20, line = H - 34;
     g.fillStyle = 'rgba(255,255,255,0.85)';
-    g.fillRect(x0, H - 40, bw, 30);
+    g.fillRect(W - 10 - bw, H - 58, bw, 48);
     g.strokeStyle = '#2b3a46';
     g.lineWidth = 2;
-    const bx = W - 20 - px;
-    g.beginPath(); g.moveTo(bx, H - 24); g.lineTo(bx, H - 18); g.lineTo(bx + px, H - 18); g.lineTo(bx + px, H - 24); g.stroke();
+    for (const [b, tick] of [[km, -6], [nm, 6]]) {
+      const bx = W - 20 - b.px;
+      g.beginPath(); g.moveTo(bx, line + tick); g.lineTo(bx, line); g.lineTo(bx + b.px, line); g.lineTo(bx + b.px, line + tick); g.stroke();
+    }
     g.fillStyle = '#2b3a46';
     g.textAlign = 'right';
-    g.fillText(text, W - 20, H - 26);
+    g.fillText(kmText, W - 20, H - 44);
+    g.fillText(nmText, W - 20, H - 16);
     g.textAlign = 'left';
     const box = map.getContainer().getBoundingClientRect();
     for (const el of legends.querySelectorAll('canvas')) {

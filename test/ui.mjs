@@ -13,7 +13,7 @@ const MIN = 44;
 // overlays that must not collide (screen-space boxes of floating UI)
 const OVERLAYS = {
   layers: '#toggle', panel: '#panel', tools: '#tools', legend: '#legends', readout: '#pos',
-  zoom: '.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group', scale: '.maplibregl-ctrl-scale',
+  zoom: '.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group', scale: '#scales',
   note: '#scalenote', attribution: '.maplibregl-ctrl-attrib',
 };
 
