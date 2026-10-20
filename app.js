@@ -130,7 +130,7 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 const small = () => window.innerWidth < 720;
 
-// ---- status bar: cursor position, double scale, scale note, credits ------------------------
+// ---- bottom row: credits, scale note, cursor position, double scale ------------------------
 // The scale is double, as on OpenSeaMap: km above the line, nautical miles below. Credits stay
 // written out on desktop (Esri: data attribution "always visible"; OSM likewise); phones get
 // MapLibre's collapsible (i), which Esri allows on small screens.
@@ -143,7 +143,7 @@ const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const attribution = new maplibregl.AttributionControl({ compact: small() });
 // credits on the left; the scale note, cursor position and scale grouped on the right
 statusEl.append(attribution.onAdd(map), h('div', { class: 'readout' }, scaleNoteEl, posEl, scalesEl));
-// the panel, zoom buttons and legends sit above the status bar, whose height follows its credits
+// the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits
 new ResizeObserver(() => document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`)).observe(statusEl);
 
 // ---- zoom and compass (the compass only appears when the map is rotated) -------------------
@@ -277,7 +277,7 @@ function updateGraticule() {
   const k0 = (x) => Math.round(x * 3600) / 3600;
   // edge labels: meridians along the top, parallels along the left (the controls and the panel
   // are on the right); only when north-up, where a screen edge is a parallel or a meridian.
-  // The bottom edge is busy with legends and the status bar.
+  // The bottom edge is busy with legends, credits and the scale.
   const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
   const edges = Math.abs(map.getBearing()) < 0.5;
   const latTop = map.unproject([W / 2, 64]).lat, lonLeft = map.unproject([8, H / 2]).lng;

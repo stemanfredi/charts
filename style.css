@@ -5,7 +5,7 @@
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
   --rail: 60px;         /* width of the control column on the right */
-  --status-h: 36px;     /* height of the status bar, kept current by app.js */
+  --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
 }
 @media (pointer: fine) { :root { --row: 36px; } }
@@ -19,7 +19,7 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 svg { flex: none; }
 
-/* Layout: the map's edges hold what you read (legends and the status bar at the bottom);
+/* Layout: the map's edges hold what you read (legends, credits and the scale at the bottom);
    the right edge holds what you use (Layers, Measure, Share; zoom and compass lower down).
    The panel and the popovers open to the left of that column, so its buttons never move. */
 .rail, .zoom, .panel, .pop, .mbar { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
@@ -158,25 +158,29 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .mbar button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: 44px; padding: 0 12px; flex: none; }
 .mbar button.done { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
-/* ---- legends, stacked bottom left above the status bar ---- */
+/* ---- legends, stacked bottom left above the credits ---- */
 .legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .legends:empty { display: none; }
 .legends canvas { display: block; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
 
-/* ---- status bar: position, double scale, scale note, credits ---- */
+/* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
+   transparent (clicks reach the map) and each item carries its own light backing. ---- */
 .status {
-  position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; min-height: 36px;
-  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; padding: 3px 10px;
-  background: rgba(255,255,255,.9); border-top: 1px solid var(--line); font-size: 11px; color: var(--soft);
+  position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; pointer-events: none;
+  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 4px 12px; padding: 0 10px 6px;
+  font-size: 11px; color: var(--soft);
 }
-.pos { font: 11.5px var(--mono); color: var(--ink); white-space: nowrap; min-width: 24ch; }
+.status > *, .readout > * { pointer-events: auto; }
+.pos, .scalenote, .status .maplibregl-ctrl-attrib:not(.maplibregl-compact) { background: rgba(255,255,255,.85); border-radius: 4px; padding: 1px 6px; }
+.pos { font: 11.5px var(--mono); color: var(--ink); white-space: nowrap; }
+.pos:empty { display: none; }
 .scalenote { color: var(--warn); }
 .scalenote:empty { display: none; }
-.status .maplibregl-ctrl-attrib { margin: 0; padding: 0; background: none; text-align: left; flex: 1 1 320px; }
-.readout { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+.status .maplibregl-ctrl-attrib { margin: 0; text-align: left; flex: 0 1 auto; max-width: 62%; }
+.readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; }
 .status .maplibregl-ctrl-attrib.maplibregl-compact { flex: 0 0 auto; background: #fff; }
 /* phones: MapLibre shows the credits in full until the first drag, then folds them into (i) */
-.status .maplibregl-ctrl-attrib.maplibregl-compact-show { flex: 1 1 100%; text-align: left; padding-right: 28px; } /* clear of the (i) */
+.status .maplibregl-ctrl-attrib.maplibregl-compact-show { flex: 1 1 100%; max-width: none; text-align: left; padding-right: 28px; } /* clear of the (i) */
 .status .maplibregl-ctrl-attrib-inner { white-space: normal; }
 .maplibregl-ctrl-scale { border-color: var(--ink); color: var(--ink); background: rgba(255, 255, 255, .85); font: 11px var(--font); }
 /* double scale (as on OpenSeaMap): km bar open at the top, NM bar hanging below the same line */

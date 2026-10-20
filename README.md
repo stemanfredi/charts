@@ -47,7 +47,7 @@ rotated. The Layers panel (open by default on screens 1200 px and wider) and
 the Measure and Share popovers open to the left of that column, which never
 moves; on phones they are sheets from the bottom (the Layers sheet has a
 handle). The map's edges hold what you read: legends stacked bottom left, and a
-status bar with the credits on the left and the cursor position and scale bar on the right. The scale
+bottom row with the credits on the left and the cursor position and scale bar on the right (no bar: each item has its own light backing). The scale
 bar is double, as on OpenSeaMap: km above the line, nautical miles below (also
 in the PNG). While a measurement is drawn, a bar at the top shows its live
 value with Undo, Done and Cancel (under the search box). Keys: <kbd>/</kbd> search, <kbd>L</kbd> layers, <kbd>R</kbd>
