@@ -71,8 +71,10 @@ coastline the basemap draws:
   isobath), and sea that the DEM calls dry becomes −1 m, the shallowest class.
   For the land layers, sea becomes 0 m. Depth tiles are upsampled from zoom 10
   to 12 and masked at 12, so the shore stays sharp.
-  Sea tiles are cut at every zoom, so land below sea level (the Caspian
-  Depression, polders) is never tinted. The cut tiles go to MapLibre as
+  Every tile is cut, at every zoom: each shortcut tried (deep ocean, low zooms)
+  left a hole somewhere, such as islands under the tint, an isobath through the
+  Jordan valley, or seabed relief over satellite imagery. Land below sea level
+  (the Caspian Depression, polders) is never tinted. The cut tiles go to MapLibre as
   bitmaps and to maplibre-contour as numbers, with no PNG round trip.
 - Water bodies that OSM maps with a coastline but whose surface is not at sea
   level are listed in `DATUMS` (clip.js). Today that's the
@@ -94,11 +96,16 @@ coastline the basemap draws:
   fills cover it; where water meets land, the land-side half remains. Piers
   are drawn on top as land at about their real width.
 - Inland water is classified once per water body, from the DEM along its
-  shore (lower quartile over its polygon's vertices, remembered by OSM id so all
-  tiles agree; the 8 m threshold sits above SRTM's noise, so the several OSM
-  polygons of one liman agree). At sea level (≤ 8 m: limans, lagoons, harbour basins) it is shown flat
-  in the shallowest class with no isobaths, because the DEM inside it is not a
-  depth. Lakes above that are grey (no depth data). Over satellite no water colour is drawn at all: the image shows the water, with isobaths on top.
+  shore (its polygon's vertices, relative to any `DATUMS` surface there), and
+  remembered by OSM id so all tiles agree. It is at sea level when the shore
+  both dips to within 8 m of sea level (lower quartile) and rises to within
+  8 m of it (upper quartile): raised lakes fail the first, the Dead Sea,
+  Galilee and the Salton Sea the second. At sea level (limans, lagoons, harbour
+  basins) it is shown flat in the shallowest class with no isobaths, because the
+  DEM inside it is not a depth; other lakes are grey (no depth data). A tile
+  that shows only the inside of a water body draws it provisionally as a lake
+  and is redrawn once a tile with shore has classified it. Over satellite no
+  water colour is drawn at all: the image shows the water, with isobaths on top.
 - Relief shading and land contours are drawn under the vector sea fill, so the
   fill cuts them exactly at the shore. The land DEM is not upsampled, because
   the slopes of an upsampled surface shade in visible facets.

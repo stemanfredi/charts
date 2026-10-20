@@ -88,7 +88,9 @@ const urlUnits = readHash();
 const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: false, cacheSize: 200 };
 const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA.max });
 const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND.max });
-const seaClip = clipper({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON });
+// a water body classified after some of its tiles were drawn: redraw the depth shading
+const reloadDepth = () => map.getSource('dem-sea')?.setTiles(['clip-sea://{z}/{x}/{y}']);
+const seaClip = clipper({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON, onStale: reloadDepth });
 const landClip = clipper({ template: DEM_TILES, native: DEM_LAND.native, mode: 'land', omtTileJson: OMT_TILEJSON });
 for (const [dem, clip] of [[seaDem, seaClip], [landDem, landClip]]) {
   dem.manager.getTile = clip.getTile;
@@ -102,7 +104,7 @@ const style = buildStyle({
   seaDemUrl: 'clip-sea://{z}/{x}/{y}',
   landDemUrl: 'clip-land://{z}/{x}/{y}',
   // zoom → [minor, major] interval in metres
-  isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: { 4: [1000, 2000], 6: [200, 1000], 8: [100, 500], 10: [20, 100], 11: [5, 50] } }), // 5 m generated, drawn as 10 m + the 5 m line (catalog.js)
+  isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: { 4: [1000, 2000], 6: [200, 1000], 8: [100, 500], 10: [10, 50], 11: [5, 50] } }), // generated finer than drawn: catalog.js keeps 5 m, 10s to 50, then 50s
   contourUrl: landDem.contourProtocolUrl({ ...contourOpts, thresholds: { 9: [100, 500], 11: [50, 250], 12: [20, 100] } }),
   date: state.date,
 });
@@ -224,16 +226,18 @@ function updateGraticule() {
   const s = Math.max(-85, b.getSouth()), n = Math.min(85, b.getNorth());
   const w = b.getWest(), e = b.getEast();
   const k0 = (x) => Math.round(x * 3600) / 3600;
-  // edge labels: meridians along the bottom, parallels along the left; only when north-up,
-  // where a screen edge is a parallel or a meridian
+  // edge labels: meridians along the top (under the top controls), parallels along the left
+  // (right of the panel when it is open beside the map); only when north-up, where a screen
+  // edge is a parallel or a meridian. The bottom edge is busy with legend, scale and credits.
   const W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
   const edges = Math.abs(map.getBearing()) < 0.5;
-  const latBottom = map.unproject([W / 2, H - 42]).lat, lonLeft = map.unproject([8, H / 2]).lng;
+  const left = state.menu && W >= 720 ? panel.getBoundingClientRect().right + 8 : 8;
+  const latTop = map.unproject([W / 2, 64]).lat, lonLeft = map.unproject([left, H / 2]).lng;
   const label = (coord, text, anchor) => f.push({ type: 'Feature', properties: { label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
   for (let lon = Math.ceil(w / step) * step; lon <= e; lon += step) {
     const L = ((k0(lon) + 540) % 360) - 180;
     f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[lon, s], [lon, n]] } });
-    if (edges) label([lon, latBottom], fmtAngle(L, 'E', 'W', step), 'center');
+    if (edges) label([lon, latTop], fmtAngle(L, 'E', 'W', step), 'top');
   }
   for (let lat = Math.ceil(s / step) * step; lat <= n; lat += step) {
     const coords = [];
@@ -434,6 +438,7 @@ function setMenu(open) {
   panel.hidden = !open;
   toggle.hidden = open; // the panel has its own close button, where the toggle was
   document.body.classList.toggle('menu-open', open); // legends move aside / hide (style.css)
+  if (ready) updateGraticule(); // latitude labels move right of the panel
   toggle.setAttribute('aria-expanded', String(open));
   writeHash();
 }
@@ -546,10 +551,11 @@ function exportPng() {
     g.fillStyle = '#5d6d79';
     lines.forEach((t, i) => g.fillText(t, 8, H + 30 + i * 14));
     out.toBlob((blob) => {
+      exporting = false;
+      if (!blob) { console.error('PNG export failed: the browser returned no image'); return; }
       const a = h('a', { href: URL.createObjectURL(blob), download: `chart-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}.png` });
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      exporting = false;
     }, 'image/png');
   });
   map.triggerRepaint();
@@ -560,7 +566,12 @@ map.on('load', () => {
   // Raster sources round the zoom when picking tiles; the vector basemap floors it. Floor
   // here too, so the clipped elevation tiles are cut with the coastline the basemap draws
   // (clip.js seaMask). roundZoom is a property of MapLibre's raster tile sources.
-  for (const id of ['dem-sea', 'dem']) map.getSource(id).roundZoom = false;
+  for (const id of ['dem-sea', 'dem']) {
+    const src = map.getSource(id);
+    // private MapLibre property: if an upgrade renames it, say so (the smoke test fails on this)
+    if (typeof src.roundZoom !== 'boolean') console.error(`MapLibre: ${id}.roundZoom missing; elevation tiles may not match the coastline`);
+    src.roundZoom = false;
+  }
   for (const it of ITEMS) applyItem(it.id);
   depthColours();
   labelPaint();
