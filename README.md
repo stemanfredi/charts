@@ -39,7 +39,9 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 Every row in the Layers panel has an ⓘ with the same provenance, and the
 credits list only the sources currently drawn.
 
-Layout, by task. The right edge holds what you use: *Layers*, *Measure* and
+Layout, by task. Top left, a search box: a place name (via Photon, see
+*Privacy*) or coordinates in any common form (`44.085, 9.85`, `44 05.1N 9 51E`,
+`44°05'06"N 009°51'E`). The right edge holds what you use: *Layers*, *Measure* and
 *Share* at the top, zoom lower down, and a compass only when the map is
 rotated. The Layers panel (open by default on screens 1200 px and wider) and
 the Measure and Share popovers open to the left of that column, which never
@@ -48,7 +50,7 @@ handle). The map's edges hold what you read: legend chips bottom left, and a
 status bar with the cursor position, the scale bar and the credits. The scale
 bar is double, as on OpenSeaMap: km above the line, nautical miles below (also
 in the PNG). While a measurement is drawn, a bar at the top shows its live
-value with Undo, Done and Cancel. Keys: <kbd>L</kbd> layers, <kbd>R</kbd>
+value with Undo, Done and Cancel (under the search box). Keys: <kbd>/</kbd> search, <kbd>L</kbd> layers, <kbd>R</kbd>
 ruler, <kbd>A</kbd> area, <kbd>C</kbd> range ring, <kbd>Esc</kbd> closes or
 cancels. *About* (foot of the Layers panel) carries the not-for-navigation notice.
 
@@ -155,6 +157,11 @@ coastline the basemap draws:
 `no-referrer`, and a Content-Security-Policy that allows only the CDN and the
 tile hosts listed in `tools/deps.mjs`. Global tile requests still tell each
 provider which area you are viewing; a hidden layer makes no requests.
+
+Search: coordinates typed into the box are read on the page and never sent.
+A place name goes to [Photon](https://photon.komoot.io) (komoot, OpenStreetMap
+data) as you type (after 3 characters, 300 ms pause), with the map's centre
+rounded to 0.1° so nearby results come first; the results list says so.
 
 ## Dependencies
 

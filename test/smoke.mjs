@@ -64,6 +64,23 @@ try {
   check((await again.evaluate(() => map.getZoom().toFixed(2))) === '6.00' && (await visible(again, 'isobaths')) === 'visible', 'the copied link reopens the same view and layers');
   check(again.errors.length === 0, `reloaded view without errors ${again.errors.join(' | ')}`);
 
+  // search: coordinates are read on the page (no request); a place comes from Photon
+  const sp = await open('#v=6/41/12/0&menu=0');
+  const near = (lat, lon, tol) => sp.evaluate(({ lat, lon, tol }) => { const c = map.getCenter(); return Math.abs(c.lat - lat) < tol && Math.abs(c.lng - lon) < tol; }, { lat, lon, tol });
+  let photonCalls = 0;
+  sp.on('request', (r) => { if (r.url().includes('photon.komoot.io')) photonCalls++; });
+  await sp.fill('#q', '44 05N 9 51E');
+  await sp.keyboard.press('Enter');
+  await sp.waitForTimeout(2500);
+  check((await near(44 + 5 / 60, 9.85, 0.01)) && photonCalls === 0, 'coordinates in the search box go there, without a request');
+  await sp.fill('#q', 'Porto Venere');
+  await sp.waitForSelector('#results li[role=option]', { timeout: 15000 }).catch(() => {});
+  await sp.keyboard.press('Enter');
+  await sp.waitForTimeout(2500);
+  check((await near(44.05, 9.83, 0.05)) && photonCalls > 0, 'a place name is found (Photon) and the map goes there');
+  check(sp.errors.length === 0, `search without errors ${sp.errors.join(' | ')}`);
+  await sp.close();
+
   // vessel density (EMODnet, off by default): loads, has a legend, type and year change the tiles
   const tr = await open('#v=7/37.5/14/0&on=chart,coastline,traffic,legend&menu=1&g=shipping');
   check(tr.errors.length === 0 && !(await tr.evaluate(() => document.querySelector('#i-traffic').closest('.item').classList.contains('error'))), `vessel density loads ${tr.errors.join(' | ')}`);

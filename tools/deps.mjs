@@ -26,6 +26,8 @@ export const TILE_HOSTS = [
   'https://server.arcgisonline.com',
   'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org', 'https://ows.emodnet-humanactivities.eu',
 ];
+// Hosts the page calls for data but never draws from (connect-src only).
+export const API_HOSTS = ['https://photon.komoot.io']; // place search (app.js)
 const CDN = 'https://cdn.jsdelivr.net';
 
 const url = (p) => `${CDN}/npm/${p.name}@${p.version}/${p.file}`;
@@ -66,7 +68,7 @@ async function regenerate() {
     `script-src 'self' ${CDN} '${sri(Buffer.from(importmap), 'sha256')}'`,
     `style-src 'self' ${CDN} 'unsafe-inline'`,
     `img-src 'self' data: blob: ${TILE_HOSTS.join(' ')}`,
-    `connect-src 'self' ${CDN} ${TILE_HOSTS.join(' ')}`,
+    `connect-src 'self' ${CDN} ${TILE_HOSTS.join(' ')} ${API_HOSTS.join(' ')}`,
     `worker-src 'self' blob: ${CDN}`, 'child-src blob:', // 'self': clip-worker.js
     "base-uri 'none'", "form-action 'none'", "object-src 'none'",
   ].join('; ');

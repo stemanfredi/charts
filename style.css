@@ -133,8 +133,25 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .mlist .empty { padding: 4px; color: var(--soft); }
 .note { margin: 2px 4px; font-size: 11.5px; color: var(--soft); }
 
-/* ---- measuring bar: top centre, only while drawing ---- */
-.mbar { z-index: 7; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; max-width: calc(100vw - var(--rail) - 40px); }
+/* ---- search, top left: a place or coordinates ---- */
+.search {
+  position: absolute; z-index: 7; top: 10px; left: 10px; width: min(380px, calc(100vw - var(--rail) - 40px));
+  display: flex; align-items: center; gap: 6px; padding: 0 0 0 12px; min-height: 46px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); color: var(--soft);
+}
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; height: 44px; font-size: 14px; color: var(--ink); }
+.search input::-webkit-search-cancel-button { display: none; }
+.search:focus-within { border-color: var(--accent); }
+.results { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; max-height: 60vh; overflow-y: auto; }
+.results ul { list-style: none; margin: 0; padding: 0; }
+.results li { min-height: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
+.results li small { color: var(--soft); font-size: 11.5px; }
+.results li[aria-selected="true"], .results li:hover { background: #e3edf4; }
+.results li.none { cursor: default; color: var(--soft); background: none; }
+.pin { width: 18px; height: 18px; border-radius: 50%; background: var(--magenta); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+
+/* ---- measuring bar: under the search box, only while drawing ---- */
+.mbar { z-index: 7; top: 66px; left: 10px; display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; max-width: calc(100vw - var(--rail) - 40px); }
 .mbar .what { font-weight: 600; white-space: nowrap; }
 .mbar .val { font-family: var(--mono); white-space: nowrap; }
 .mbar .tip { color: var(--soft); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

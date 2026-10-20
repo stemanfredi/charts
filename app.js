@@ -3,7 +3,7 @@ import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, densityTiles } from './catalog.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
-import { fmtAngle, dm, mercatorVariation, niceLen, wrap } from './format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon } from './format.js';
 import { Measure, MEASURE_LAYERS, summary } from './measure.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -618,11 +618,12 @@ const about = $('#about');
 for (const b of document.querySelectorAll('[data-about]')) b.addEventListener('click', () => about.showModal());
 about.querySelector('[data-close]').addEventListener('click', () => about.close());
 
-// keys: L layers, R / A / C measuring tools, Esc closes a popover (measure.js handles Esc while drawing)
+// keys: / search, L layers, R / A / C measuring tools, Esc closes a popover (measure.js handles Esc while drawing)
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || about.open || e.target.closest('input, select, textarea')) return;
   const k = e.key.toLowerCase();
   if (k === 'escape') closePops();
+  else if (k === '/') { e.preventDefault(); q.focus(); }
   else if (k === 'l') setMenu(!state.menu);
   else if ({ r: 'ruler', a: 'area', c: 'ring' }[k]) { closePops(); measure.start({ r: 'ruler', a: 'area', c: 'ring' }[k]); }
 });
@@ -655,6 +656,85 @@ handle.addEventListener('pointerdown', (e) => {
   handle.addEventListener('pointerup', up, { once: true });
 });
 setSheet(sheet);
+
+// ---- search: coordinates are read here; place names go to Photon (OpenStreetMap data) ---------
+const PHOTON = 'https://photon.komoot.io/api/';
+const q = $('#q'), qClear = $('#q-clear'), results = $('#results'), resultList = results.querySelector('ul');
+let hits = [], active = -1, searchCtl = null, searchTimer = 0, pin = null;
+const ZOOM_OF = { city: 11, town: 12, village: 13, hamlet: 14, island: 11, sea: 6, ocean: 4, bay: 10, strait: 9 };
+function showResults(list) {
+  hits = list;
+  active = list.length && list[0].go ? 0 : -1;
+  resultList.replaceChildren(...(list.length ? list.map((r, i) => h('li', { role: 'option', id: `r-${i}`, 'aria-selected': String(i === active),
+    onpointerdown: (e) => e.preventDefault(), // keep the focus in the box
+    onclick: () => choose(i) }, r.name, r.where ? h('small', {}, r.where) : null))
+    : [h('li', { class: 'none' }, 'No places found')]));
+  results.hidden = false;
+  q.setAttribute('aria-expanded', 'true');
+  q.setAttribute('aria-activedescendant', active >= 0 ? `r-${active}` : '');
+}
+function hideResults() {
+  results.hidden = true;
+  q.setAttribute('aria-expanded', 'false');
+  q.removeAttribute('aria-activedescendant');
+}
+function setActive(i) {
+  if (!hits.length) return;
+  active = (i + hits.length) % hits.length;
+  for (const [k, li] of [...resultList.children].entries()) li.setAttribute('aria-selected', String(k === active));
+  q.setAttribute('aria-activedescendant', `r-${active}`);
+  resultList.children[active]?.scrollIntoView({ block: 'nearest' });
+}
+function choose(i) {
+  const r = hits[i];
+  if (!r) return;
+  hideResults();
+  pin?.remove();
+  pin = new maplibregl.Marker({ element: h('div', { class: 'pin', title: r.name }) }).setLngLat(r.at).addTo(map);
+  if (r.bounds) map.fitBounds(r.bounds, { padding: 60, maxZoom: 15, bearing: map.getBearing() });
+  else map.flyTo({ center: r.at, zoom: Math.max(map.getZoom(), r.zoom) });
+  q.blur();
+}
+async function searchPlaces(text) {
+  searchCtl?.abort();
+  searchCtl = new AbortController();
+  const c = map.getCenter(); // results near the view come first; rounded, the view is not sent exactly
+  const url = `${PHOTON}?${new URLSearchParams({ q: text, limit: 7, lang: 'en', lat: c.lat.toFixed(1), lon: c.lng.toFixed(1) })}`;
+  try {
+    const r = await fetch(url, { signal: searchCtl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const { features } = await r.json();
+    showResults(features.map((f) => {
+      const p = f.properties, e = p.extent; // [west, north, east, south]
+      return { go: true, name: p.name || p.street || text, at: f.geometry.coordinates,
+        where: [p.osm_value?.replace(/_/g, ' '), p.city !== p.name ? p.city : null, p.state, p.country].filter(Boolean).join(' · '),
+        bounds: e ? [[e[0], e[3]], [e[2], e[1]]] : null, zoom: ZOOM_OF[p.osm_value] || 14 };
+    }));
+  } catch (err) {
+    if (err.name !== 'AbortError') showResults([{ name: 'Place search is not available right now', where: err.message }]);
+  }
+}
+q.addEventListener('input', () => {
+  const text = q.value.trim();
+  qClear.hidden = !text;
+  clearTimeout(searchTimer);
+  if (!text) { searchCtl?.abort(); hideResults(); return; }
+  const ll = parseLatLon(text);
+  if (ll) { // coordinates: nothing leaves the page
+    searchCtl?.abort();
+    showResults([{ go: true, name: `${dm(ll.lat, 'N', 'S')}  ${dm(ll.lon, 'E', 'W')}`, where: 'coordinates', at: [ll.lon, ll.lat], zoom: 11 }]);
+  } else if (text.length >= 3) searchTimer = setTimeout(() => searchPlaces(text), 300);
+  else hideResults();
+});
+q.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); setActive(active + 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(active - 1); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (hits[active]?.go) choose(active); }
+  else if (e.key === 'Escape') { if (!results.hidden) hideResults(); else { q.value = ''; qClear.hidden = true; pin?.remove(); pin = null; q.blur(); } }
+});
+q.addEventListener('focus', () => { if (q.value.trim() && hits.length) showResults(hits); });
+q.addEventListener('blur', () => setTimeout(hideResults, 150));
+qClear.addEventListener('click', () => { q.value = ''; qClear.hidden = true; hideResults(); pin?.remove(); pin = null; q.focus(); });
 
 // cursor position readout
 const pos = posEl;
