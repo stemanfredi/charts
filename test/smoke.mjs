@@ -127,10 +127,12 @@ try {
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());
   check(png.length > 50_000 && png.subarray(1, 4).toString() === 'PNG', `PNG export (${Math.round(png.length / 1024)} KB)`);
-  // ZIP export: a zip whose STAC item lists the georeferenced map and the files beside it
+  // ZIP export: a zip whose STAC item lists the georeferenced map and the files beside it;
+  // polygon-clipping loads on this first export, not with the page
+  check(await again.evaluate(() => !('polygonClipping' in window) && !document.querySelector('script[src*=polygon-clipping]')), 'polygon-clipping not loaded with the page');
   const [dz] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#zip')]);
   const z = await readFile(await dz.path());
-  const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png'];
+  const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png', 'vector/coastline.geojson', 'vector/isobaths.geojson'];
   check(z.readUInt32LE(0) === 0x04034b50 && names.every((n) => z.includes(n)) && dz.suggestedFilename().endsWith('.zip'), `ZIP export holds ${names.join(', ')} (${Math.round(z.length / 1024)} KB)`);
 } catch (err) {
   check(false, `smoke run crashed: ${err.message}`);

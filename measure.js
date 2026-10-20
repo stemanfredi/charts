@@ -120,6 +120,30 @@ function features(mm, units, draft) {
   return f;
 }
 
+// The measurements shown, as GeoJSON features with their geodesic values in metres and degrees
+// true (the ZIP export). Rings and areas are polygons, counter-clockwise (RFC 7946).
+export function measureFeatures(list) {
+  const ccw = (ring) => {
+    let a = 0;
+    for (let i = 0; i < ring.length - 1; i++) a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+    return a < 0 ? ring.slice().reverse() : ring;
+  };
+  const brg = (azi) => +(((azi % 360) + 360) % 360).toFixed(1);
+  const out = [];
+  for (const mm of list) {
+    if (mm.hidden) continue;
+    const st = stats(mm);
+    if (mm.kind === 'ring' && st.r > 0) {
+      out.push({ type: 'Feature', properties: { kind: 'ring', radius_m: +st.r.toFixed(2), centre: mm.pts[0] }, geometry: { type: 'Polygon', coordinates: [ccw(circle(mm.pts[0], st.r))] } });
+    } else if (mm.kind === 'area' && mm.pts.length > 2) {
+      out.push({ type: 'Feature', properties: { kind: 'area', area_m2: Math.round(Math.abs(st.area)), perimeter_m: +st.len.toFixed(2) }, geometry: { type: 'Polygon', coordinates: [ccw(pathOf(mm.pts, true))] } });
+    } else if (mm.kind === 'ruler' && mm.pts.length > 1) {
+      out.push({ type: 'Feature', properties: { kind: 'ruler', length_m: +st.len.toFixed(2), legs: st.segs.map((g) => ({ length_m: +g.s.toFixed(2), bearing_deg: brg(g.azi) })) }, geometry: { type: 'LineString', coordinates: pathOf(mm.pts, false) } });
+    }
+  }
+  return out;
+}
+
 export class Measure {
   constructor(map, onChange) {
     this.map = map;

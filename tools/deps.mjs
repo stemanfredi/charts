@@ -23,6 +23,10 @@ export const PINS = [
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl-worker.mjs', kind: 'worker' },
   { name: 'maplibre-contour', version: '0.1.1', file: 'dist/index.mjs', kind: 'module' },
   { name: 'geographiclib-geodesic', version: '2.2.0', file: 'geographiclib-geodesic.min.js', kind: 'script' },
+  // polygon union and clipping for the ZIP export's GeoJSON (vector.js); the bundle carries its
+  // two small dependencies. Lazy: app.js loads it on the first ZIP export, from the URL and hash
+  // in its <meta>
+  { name: 'polygon-clipping', version: '0.15.7', file: 'dist/polygon-clipping.umd.min.js', kind: 'lazy' },
 ];
 
 // Every host the page may talk to (Content-Security-Policy).
@@ -85,6 +89,7 @@ async function regenerate() {
     ...PINS.filter((p) => p.kind === 'worker').map((p) => `<link rel="preload" as="fetch" id="${p.name}-worker" href="${url(p)}" data-integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
     `<script type="importmap">${importmap}</script>`,
     ...PINS.filter((p) => p.kind === 'script').map((p) => `<script src="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous"></script>`),
+    ...PINS.filter((p) => p.kind === 'lazy').map((p) => `<meta name="lazy-script" id="${p.name}" content="${url(p)}" data-integrity="${hashes[url(p)]}">`),
   ];
   const html = await readFile(INDEX, 'utf8');
   if (!BLOCK.test(html)) throw new Error('deps markers not found in index.html');

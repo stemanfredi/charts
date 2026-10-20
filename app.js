@@ -4,9 +4,10 @@ import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBAT
 import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon } from './format.js';
-import { Measure, MEASURE_LAYERS, summary } from './measure.js';
+import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
 import { affine, worldFile, pamXml, stacItem } from './export.js';
 import { zip } from './zip.js';
+import { viewFeatures } from './vector.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const h = (tag, attrs = {}, ...kids) => {
@@ -878,8 +879,44 @@ function drawnItems() {
   return ITEMS.filter((it) => (layersOf[it.id] || []).some((l) => map.getLayoutProperty(l.id, 'visibility') === 'visible' && z >= (l.minzoom ?? 0) && z < (l.maxzoom ?? 24)))
     .map((it) => ({ ...it, variant: it.variants?.[state.variant[it.id]], date: it.date && state.date, period: DENSITY[it.id] && state.period[it.id] }));
 }
-function exportZip() {
+// what the item's vector layers draw, as pieces for vector.js: one query per source layer and
+// filter (a line and its casing, or a line and its labels, are the same features). Symbols placed
+// along lines are labels of features exported anyway; computed overlays (graticule) are left out.
+function vectorPieces(id) {
+  const z = map.getZoom(), queries = new Map();
+  for (const l of layersOf[id] || []) {
+    if (map.getSource(l.source)?.type !== 'vector' || !['line', 'fill', 'symbol'].includes(l.type) || l.layout?.['symbol-placement'] === 'line') continue;
+    if (map.getLayoutProperty(l.id, 'visibility') !== 'visible' || z < (l.minzoom ?? 0) || z >= (l.maxzoom ?? 24)) continue;
+    queries.set(JSON.stringify([l.source, l['source-layer'], l.filter]), l);
+  }
+  const pieces = [];
+  for (const l of queries.values()) {
+    const fs = map.querySourceFeatures(l.source, { sourceLayer: l['source-layer'], filter: l.filter });
+    // private MapLibre fields: the tile each copy comes from (lines are cut at its edges); if an
+    // upgrade renames them, say so (the smoke test fails on this)
+    if (fs.length && !Number.isInteger(fs[0]._z)) console.error('MapLibre: feature tile (_z/_x/_y) missing; exported lines keep their tile overlaps');
+    const zmax = Math.max(...fs.map((f) => f._z ?? 0)); // tiles kept from another zoom while loading: not twice
+    for (const f of fs) {
+      if ((f._z ?? 0) !== zmax) continue;
+      pieces.push({ id: f.id, properties: { ...f.properties, layer: l['source-layer'] }, geometry: f.geometry, tile: Number.isInteger(f._z) ? [f._z, f._x, f._y] : null });
+    }
+  }
+  return pieces;
+}
+const featureCollection = (name, features) => `${JSON.stringify({ type: 'FeatureCollection', name, features })}\n`;
+
+// polygon-clipping (vector.js) loads on the first ZIP export, not with the page: a script from
+// the pinned URL in index.html, checked by the browser against its hash (tools/deps.mjs)
+let clipLib = null;
+const polygonClipping = () => (clipLib ||= new Promise((resolve, reject) => {
+  const { content: src, dataset: { integrity } } = $('#polygon-clipping');
+  document.head.append(h('script', { src, integrity, crossorigin: 'anonymous', onload: () => resolve(globalThis.polygonClipping),
+    onerror: () => { clipLib = null; reject(new Error('polygon-clipping did not load')); } }));
+}));
+async function exportZip() {
   writeHashNow(); // the item links back to the view as it is now
+  let clipping;
+  try { clipping = await polygonClipping(); } catch (e) { console.error('ZIP export:', e.message); return; }
   onFrame(async (src) => {
     const when = new Date();
     const plain = h('canvas', { width: src.width, height: src.height });
@@ -888,8 +925,17 @@ function exportZip() {
     const W = src.clientWidth, H = src.clientHeight;
     const corners = [[0, 0], [W, 0], [W, H], [0, H]].map((p) => { const ll = map.unproject(p); return [ll.lng, ll.lat]; });
     const transform = affine(corners, src.width, src.height);
+    // vector/<item>.geojson for each item drawn with features in view, and the measurements
+    const layers = drawnItems(), vectors = [];
+    for (const it of layers) {
+      const fs = viewFeatures(vectorPieces(it.id), corners, clipping);
+      if (fs.length) vectors.push({ key: it.id, title: it.label, file: `vector/${it.id}.geojson`, data: featureCollection(it.label, fs), n: fs.length, how: 'clipped to the view' });
+      it.assets = fs.length ? [it.id] : []; // in item.json: the files that hold this layer as data
+    }
+    const measured = measureFeatures(measure.list);
+    if (measured.length) vectors.push({ key: 'measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
     const item = stacItem({
-      id: exportName(when), when, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers: drawnItems(),
+      id: exportName(when), when, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers,
       attribution: attributionText(), link: location.href,
       assets: {
         map: { href: './map.png', type: 'image/png', title: 'The map as drawn, georeferenced (world file map.pgw, CRS in map.png.aux.xml)', roles: ['visual'],
@@ -897,6 +943,7 @@ function exportZip() {
         worldfile: { href: './map.pgw', type: 'text/plain', title: 'World file of map.png', roles: ['metadata'] },
         crs: { href: './map.png.aux.xml', type: 'application/xml', title: 'CRS of map.png (GDAL sidecar)', roles: ['metadata'] },
         chart: { href: './chart.png', type: 'image/png', title: 'The map with scale, legends and credits, as the PNG export', roles: ['overview'] },
+        ...Object.fromEntries(vectors.map((v) => [v.key, { href: `./${v.file}`, type: 'application/geo+json', title: `${v.title}: ${v.n} feature${v.n === 1 ? '' : 's'}, ${v.how}`, roles: ['data'] }])),
       },
     });
     const [mapPng, chartPng] = await Promise.all([pngOf(plain), pngOf(chart)]);
@@ -906,6 +953,7 @@ function exportZip() {
       { name: 'map.pgw', data: worldFile(transform) },
       { name: 'map.png.aux.xml', data: pamXml() },
       { name: 'chart.png', data: chartPng },
+      ...vectors.map((v) => ({ name: v.file, data: v.data })),
     ], when), `${exportName(when)}.zip`);
   });
 }
