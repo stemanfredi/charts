@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Smoke test in headless Chrome, against the live tile providers: the page loads without
-// errors, the menu drives the map, URL state survives a reload, PNG export works.
+// errors, the menu drives the map, URL state survives a reload, PNG and ZIP export work.
 //   CHROME=/path/to/chrome npm run smoke     (default: /usr/bin/google-chrome)
 // Network-dependent by design: it is also what tells us a provider changed or went down.
 import { readFile } from 'node:fs/promises';
@@ -127,6 +127,11 @@ try {
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());
   check(png.length > 50_000 && png.subarray(1, 4).toString() === 'PNG', `PNG export (${Math.round(png.length / 1024)} KB)`);
+  // ZIP export: a zip whose STAC item lists the georeferenced map and the files beside it
+  const [dz] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#zip')]);
+  const z = await readFile(await dz.path());
+  const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png'];
+  check(z.readUInt32LE(0) === 0x04034b50 && names.every((n) => z.includes(n)) && dz.suggestedFilename().endsWith('.zip'), `ZIP export holds ${names.join(', ')} (${Math.round(z.length / 1024)} KB)`);
 } catch (err) {
   check(false, `smoke run crashed: ${err.message}`);
 } finally {

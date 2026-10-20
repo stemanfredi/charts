@@ -15,7 +15,11 @@ Layers are grouped by task, each with an ⓘ for its source, licence and
 resolution. Depth shading and isobaths end at the OpenStreetMap coastline.
 Ruler, area and range ring are geodesic on WGS 84, in kilometres or nautical
 miles. Search takes place names or coordinates. The link reopens the exact
-view, and the PNG export carries the scale, legends and credits.
+view, and the PNG export carries the scale, legends and credits. The ZIP export
+packs the view for GIS: the map as a georeferenced PNG (world file, Web
+Mercator), the PNG export, and a [STAC](https://stacspec.org) Item (`item.json`)
+with the view's footprint, the layers drawn, their sources and licences. QGIS
+opens the map straight from the zip.
 
 ## Data sources
 
@@ -86,7 +90,9 @@ The reasons behind each rule are documented next to the code that applies it.
 | `index.html` | Page shell. The CDN block is generated; see *Dependencies*. |
 | `style.css` | All styling. |
 | `catalog.js` | Sources, style layers in draw order, menu items and their provenance. |
-| `app.js` | Map setup, panels, URL state, search, legends, graticule, PNG export. |
+| `app.js` | Map setup, panels, URL state, search, legends, graticule, PNG and ZIP export. |
+| `export.js` | ZIP export contents: georeferencing and the STAC Item. |
+| `zip.js` | Zip writer (the browser's own deflate). |
 | `clip.js`, `clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
 | `measure.js` | Geodesic ruler, area and range ring. |
 | `legend.js` | Legend drawing. |

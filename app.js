@@ -5,6 +5,8 @@ import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon } from './format.js';
 import { Measure, MEASURE_LAYERS, summary } from './measure.js';
+import { affine, worldFile, pamXml, stacItem } from './export.js';
+import { zip } from './zip.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const h = (tag, attrs = {}, ...kids) => {
@@ -376,6 +378,7 @@ const ICON = {
   layers: ['M12 3 3 8l9 5 9-5-9-5z', 'm3 13 9 5 9-5'],
   link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
   png: ['M12 3v12M7 10l5 5 5-5', 'M4 19h16'],
+  zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
   plus: ['M12 5v14M5 12h14'],
   minus: ['M5 12h14'],
   compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
@@ -631,9 +634,10 @@ function setPanel(view) {
 for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => setPanel(state.panel === v ? null : v));
 $('#close').addEventListener('click', () => setPanel(null));
 
-// Link and PNG act at once (no menu): the link button says "Copied" for a moment
+// Link, PNG and ZIP act at once (no menu): the link button says "Copied" for a moment
 $('#link').addEventListener('click', (e) => copyLink(e.currentTarget));
 $('#png').addEventListener('click', () => exportPng());
+$('#zip').addEventListener('click', () => exportZip());
 async function copyLink(b) {
   writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
@@ -778,79 +782,132 @@ function attributionText() {
   // parsed in an inert document: no image loads, no handlers run, whatever the text holds
   return [...new Set(parts)].map((p) => new DOMParser().parseFromString(p, 'text/html').body.textContent).join(' · ');
 }
-// waits for pending tiles, so a layer switched on a moment ago is in the picture
-let exporting = false; // one export at a time, however often PNG is clicked
-function exportPng() {
+// The map's next frame, after pending tiles (so a layer switched on a moment ago is in the
+// picture): fn(canvas) runs while the canvas still holds it, and must read it before awaiting.
+let exporting = false; // one export at a time, however often the buttons are clicked
+function onFrame(fn) {
   if (exporting) return;
   exporting = true;
-  if (!(map.loaded() && map.areTilesLoaded())) { map.once('idle', () => { exporting = false; exportPng(); }); return; }
-  map.once('render', () => {
-    const src = map.getCanvas();
-    const dpr = src.width / src.clientWidth;
-    const lines = wrap(attributionText(), Math.floor(src.clientWidth / 6.2));
-    const footer = (22 + lines.length * 14) * dpr;
-    const out = h('canvas', { width: src.width, height: src.height + footer });
-    const g = out.getContext('2d');
-    g.drawImage(src, 0, 0);
-    g.scale(dpr, dpr);
-    const W = src.clientWidth, H = src.clientHeight;
-    // double scale bar at the centre latitude (Web Mercator scale varies with latitude), bottom
-    // right as on screen: km above a shared line, nautical miles below it
-    const lat = map.getCenter().lat;
-    const mpp = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** map.getZoom());
-    const bar = (unitM) => { const len = niceLen((120 * mpp) / unitM) * unitM; return { len, px: len / mpp }; };
-    const km = bar(1), nm = bar(1852);
-    const v = scaleVariation();
-    const kmText = `${km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > NOTE_AT ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
-    const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
-    g.font = '11px system-ui, sans-serif';
-    const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20, line = H - 34;
-    g.fillStyle = 'rgba(255,255,255,0.85)';
-    g.fillRect(W - 10 - bw, H - 58, bw, 48);
-    g.strokeStyle = '#2b3a46';
-    g.lineWidth = 2;
-    for (const [b, tick] of [[km, -6], [nm, 6]]) {
-      const bx = W - 20 - b.px;
-      g.beginPath(); g.moveTo(bx, line + tick); g.lineTo(bx, line); g.lineTo(bx + b.px, line); g.lineTo(bx + b.px, line + tick); g.stroke();
-    }
-    g.fillStyle = '#2b3a46';
-    g.textAlign = 'right';
-    g.fillText(kmText, W - 20, H - 44);
-    g.fillText(nmText, W - 20, H - 16);
-    g.textAlign = 'left';
-    // every legend of the drawn layers, stacked bottom left (as on screen, even with the switch off)
-    let ly = H - 10;
-    for (const id of [...legendWant].reverse()) {
-      const el = legendEls[id], lw = parseFloat(el.style.width), lh = parseFloat(el.style.height);
-      if (!lw || !lh) continue; // not drawn yet (the SST colour map still loading)
-      ly -= lh;
-      g.drawImage(el, 10, ly, lw, lh);
-      ly -= 6;
-    }
-    // north arrow
-    g.save();
-    g.translate(W - 28, 34);
-    g.rotate((-map.getBearing() * Math.PI) / 180);
-    g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(0, 0, 18, 0, 2 * Math.PI); g.fill();
-    g.fillStyle = '#2b3a46'; g.beginPath(); g.moveTo(0, -14); g.lineTo(6, 6); g.lineTo(0, 2); g.lineTo(-6, 6); g.closePath(); g.fill();
-    g.font = 'bold 10px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('N', 0, 15);
-    g.restore();
-    // credit strip
-    g.fillStyle = '#fff'; g.fillRect(0, H, W, footer / dpr);
-    g.fillStyle = '#2b3a46'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'left';
-    const c = map.getCenter();
-    g.fillText(`Centre ${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')} · zoom ${map.getZoom().toFixed(1)} · Web Mercator · exported ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC · NOT FOR NAVIGATION`, 8, H + 15);
-    g.fillStyle = '#5d6d79';
-    lines.forEach((t, i) => g.fillText(t, 8, H + 30 + i * 14));
-    out.toBlob((blob) => {
-      exporting = false;
-      if (!blob) { console.error('PNG export failed: the browser returned no image'); return; }
-      const a = h('a', { href: URL.createObjectURL(blob), download: `chart-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}.png` });
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    }, 'image/png');
+  const go = () => {
+    map.once('render', async () => {
+      try { await fn(map.getCanvas()); } catch (e) { console.error('export failed:', e.message); } finally { exporting = false; }
+    });
+    map.triggerRepaint();
+  };
+  if (map.loaded() && map.areTilesLoaded()) go(); else map.once('idle', go);
+}
+const pngOf = (canvas) => new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('the browser returned no image'))), 'image/png'));
+function download(blob, name) {
+  const a = h('a', { href: URL.createObjectURL(blob), download: name });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+// chart-YYYYMMDD-HHMM (UTC): the file names and the STAC id
+const exportName = (when) => `chart-${when.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}`;
+// the map canvas plus scale, north arrow, legends and a credit strip
+function chartCanvas(src, when) {
+  const dpr = src.width / src.clientWidth;
+  const lines = wrap(attributionText(), Math.floor(src.clientWidth / 6.2));
+  const footer = (22 + lines.length * 14) * dpr;
+  const out = h('canvas', { width: src.width, height: src.height + footer });
+  const g = out.getContext('2d');
+  g.drawImage(src, 0, 0);
+  g.scale(dpr, dpr);
+  const W = src.clientWidth, H = src.clientHeight;
+  // double scale bar at the centre latitude (Web Mercator scale varies with latitude), bottom
+  // right as on screen: km above a shared line, nautical miles below it
+  const lat = map.getCenter().lat;
+  const mpp = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** map.getZoom());
+  const bar = (unitM) => { const len = niceLen((120 * mpp) / unitM) * unitM; return { len, px: len / mpp }; };
+  const km = bar(1), nm = bar(1852);
+  const v = scaleVariation();
+  const kmText = `${km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > NOTE_AT ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
+  const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
+  g.font = '11px system-ui, sans-serif';
+  const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20, line = H - 34;
+  g.fillStyle = 'rgba(255,255,255,0.85)';
+  g.fillRect(W - 10 - bw, H - 58, bw, 48);
+  g.strokeStyle = '#2b3a46';
+  g.lineWidth = 2;
+  for (const [b, tick] of [[km, -6], [nm, 6]]) {
+    const bx = W - 20 - b.px;
+    g.beginPath(); g.moveTo(bx, line + tick); g.lineTo(bx, line); g.lineTo(bx + b.px, line); g.lineTo(bx + b.px, line + tick); g.stroke();
+  }
+  g.fillStyle = '#2b3a46';
+  g.textAlign = 'right';
+  g.fillText(kmText, W - 20, H - 44);
+  g.fillText(nmText, W - 20, H - 16);
+  g.textAlign = 'left';
+  // every legend of the drawn layers, stacked bottom left (as on screen, even with the switch off)
+  let ly = H - 10;
+  for (const id of [...legendWant].reverse()) {
+    const el = legendEls[id], lw = parseFloat(el.style.width), lh = parseFloat(el.style.height);
+    if (!lw || !lh) continue; // not drawn yet (the SST colour map still loading)
+    ly -= lh;
+    g.drawImage(el, 10, ly, lw, lh);
+    ly -= 6;
+  }
+  // north arrow
+  g.save();
+  g.translate(W - 28, 34);
+  g.rotate((-map.getBearing() * Math.PI) / 180);
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(0, 0, 18, 0, 2 * Math.PI); g.fill();
+  g.fillStyle = '#2b3a46'; g.beginPath(); g.moveTo(0, -14); g.lineTo(6, 6); g.lineTo(0, 2); g.lineTo(-6, 6); g.closePath(); g.fill();
+  g.font = 'bold 10px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('N', 0, 15);
+  g.restore();
+  // credit strip
+  g.fillStyle = '#fff'; g.fillRect(0, H, W, footer / dpr);
+  g.fillStyle = '#2b3a46'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'left';
+  const c = map.getCenter();
+  g.fillText(`Centre ${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')} · zoom ${map.getZoom().toFixed(1)} · Web Mercator · exported ${when.toISOString().slice(0, 16).replace('T', ' ')} UTC · NOT FOR NAVIGATION`, 8, H + 15);
+  g.fillStyle = '#5d6d79';
+  lines.forEach((t, i) => g.fillText(t, 8, H + 30 + i * 14));
+  return out;
+}
+function exportPng() {
+  onFrame(async (src) => {
+    const when = new Date();
+    download(await pngOf(chartCanvas(src, when)), `${exportName(when)}.png`);
   });
-  map.triggerRepaint();
+}
+
+// ---- ZIP export: the view as GIS data (export.js, zip.js) --------------------------------
+// the menu items the view draws: switched on, over their base, in their zoom range
+function drawnItems() {
+  const z = map.getZoom();
+  return ITEMS.filter((it) => (layersOf[it.id] || []).some((l) => map.getLayoutProperty(l.id, 'visibility') === 'visible' && z >= (l.minzoom ?? 0) && z < (l.maxzoom ?? 24)))
+    .map((it) => ({ ...it, variant: it.variants?.[state.variant[it.id]], date: it.date && state.date, period: DENSITY[it.id] && state.period[it.id] }));
+}
+function exportZip() {
+  writeHashNow(); // the item links back to the view as it is now
+  onFrame(async (src) => {
+    const when = new Date();
+    const plain = h('canvas', { width: src.width, height: src.height });
+    plain.getContext('2d').drawImage(src, 0, 0);
+    const chart = chartCanvas(src, when);
+    const W = src.clientWidth, H = src.clientHeight;
+    const corners = [[0, 0], [W, 0], [W, H], [0, H]].map((p) => { const ll = map.unproject(p); return [ll.lng, ll.lat]; });
+    const transform = affine(corners, src.width, src.height);
+    const item = stacItem({
+      id: exportName(when), when, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers: drawnItems(),
+      attribution: attributionText(), link: location.href,
+      assets: {
+        map: { href: './map.png', type: 'image/png', title: 'The map as drawn, georeferenced (world file map.pgw, CRS in map.png.aux.xml)', roles: ['visual'],
+          'proj:code': 'EPSG:3857', 'proj:shape': [src.height, src.width], 'proj:transform': transform },
+        worldfile: { href: './map.pgw', type: 'text/plain', title: 'World file of map.png', roles: ['metadata'] },
+        crs: { href: './map.png.aux.xml', type: 'application/xml', title: 'CRS of map.png (GDAL sidecar)', roles: ['metadata'] },
+        chart: { href: './chart.png', type: 'image/png', title: 'The map with scale, legends and credits, as the PNG export', roles: ['overview'] },
+      },
+    });
+    const [mapPng, chartPng] = await Promise.all([pngOf(plain), pngOf(chart)]);
+    download(await zip([
+      { name: 'item.json', data: `${JSON.stringify(item, null, 2)}\n` },
+      { name: 'map.png', data: mapPng },
+      { name: 'map.pgw', data: worldFile(transform) },
+      { name: 'map.png.aux.xml', data: pamXml() },
+      { name: 'chart.png', data: chartPng },
+    ], when), `${exportName(when)}.zip`);
+  });
 }
 
 // ---- go ---------------------------------------------------------------------
