@@ -13,7 +13,7 @@ index.html   page shell; the CDN block is generated (see Dependencies)
 style.css    all styling
 catalog.js   sources, style layers in draw order, menu items, provenance
 app.js       map, menu, URL state, graticule, source health, PNG export
-clip.js      elevation tiles cut to the OSM coastline
+clip.js      elevation tiles cut to the OSM coastline (runs in clip-worker.js)
 legend.js    colour legends
 measure.js   geodesic measurements (GeographicLib, WGS 84)
 format.js    pure formatting helpers (angles, scale, wrap)
@@ -107,9 +107,16 @@ coastline the basemap draws:
   Galilee and the Salton Sea the second. At sea level (limans, lagoons, harbour
   basins) it is shown flat in the shallowest class with no isobaths, because the
   DEM inside it is not a depth; other lakes are grey (no depth data). A tile
-  that shows only the inside of a water body draws it provisionally as a lake
-  and is redrawn once a tile with shore has classified it. Over satellite no
-  water colour is drawn at all: the image shows the water, with isobaths on top.
+  that shows only the inside of a water body classifies it from the same water
+  body in a lower-zoom OpenMapTiles tile, where its shore is (ids are stable
+  across zooms); if even that fails, it is drawn as a lake and redrawn once
+  another tile has classified it. Over satellite no water colour is drawn at
+  all: the image shows the water, with isobaths on top.
+- The cutting runs in a Web Worker (`clip-worker.js`): on the main thread it
+  blocked the page for seconds while panning. A worker loaded from its own file
+  does not inherit the page's `<meta>` security policy (only HTTP headers would
+  apply, and GitHub Pages sets none); its requests are fixed in code, to the
+  elevation tiles and OpenFreeMap.
 - Relief shading and land contours are drawn under the vector sea fill, so the
   fill cuts them exactly at the shore. The land DEM is not upsampled, because
   the slopes of an upsampled surface shade in visible facets.
