@@ -1,26 +1,9 @@
 // Colour legends, drawn on canvases so the PNG export can copy them as they are.
-// Depth legends use the same stops as the map layers; the SST legend uses the
+// The depth legend uses the same stops as the map layer; the SST legend uses the
 // colour map NASA GIBS publishes for the layer, so the classes are the real ones.
 
 const W = 236, H = 44, KEY = 16, BAR = { x: 8, y: 20, w: 220, h: 9 };
 const INK = '#2b3a46', SOFT = '#5d6d79';
-
-function hexRgb(c) {
-  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c);
-  return m ? m.slice(1).map((x) => parseInt(x, 16)) : [255, 255, 255];
-}
-// linear RGB interpolation, as MapLibre's `interpolate` does for colours
-export function colourAt(stops, v) {
-  if (v <= stops[0][0]) return stops[0][1];
-  for (let i = 1; i < stops.length; i++) {
-    const [d1, c1] = stops[i];
-    if (v <= d1) {
-      const [d0, c0] = stops[i - 1], t = (v - d0) / (d1 - d0), a = hexRgb(c0), b = hexRgb(c1);
-      return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * t)).join(',')})`;
-    }
-  }
-  return stops[stops.length - 1][1];
-}
 
 // noData: optional { colour, label } key drawn on an extra row below the bar
 function canvas(el, noData) {
@@ -91,20 +74,6 @@ export function drawRamp(el, text, sub, stops, noData) {
     g.fillRect(BAR.x + i * seg, BAR.y, seg + 0.5, BAR.h);
   }
   ticks(g, stops.map(([d], i) => [BAR.x + i * seg, i === n ? `${d}+` : `${d}`, i === 0 ? 'left' : i === n ? 'right' : 'center']));
-}
-
-// One swatch per class (from edges[i] to the next edge); endLabel closes the last one.
-export function drawClasses(el, text, sub, edges, colours, endLabel, noData) {
-  const g = canvas(el, noData);
-  title(g, text, sub);
-  const n = colours.length, seg = BAR.w / n;
-  colours.forEach((c, i) => { g.fillStyle = c; g.fillRect(BAR.x + i * seg, BAR.y, seg + 0.5, BAR.h); });
-  // label every edge that fits (~22 px apart)
-  const every = Math.max(1, Math.ceil(22 / seg));
-  const marks = edges.map((d, i) => [BAR.x + i * seg, `${d}`, i === 0 ? 'left' : 'center']).filter((_, i) => i % every === 0);
-  if (marks.length && BAR.x + BAR.w - marks[marks.length - 1][0] < 22) marks.pop();
-  marks.push([BAR.x + BAR.w, `${endLabel}`, 'right']);
-  ticks(g, marks);
 }
 
 // GIBS colour map (v1.3 XML): entries with value="[lo,hi)" and rgb="r,g,b".

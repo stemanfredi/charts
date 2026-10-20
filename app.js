@@ -1,8 +1,8 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, packBands, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, buildStyle, defaultDate, gibsTiles } from './catalog.js';
 import { clipper } from './clip.js';
-import { colourAt, drawRamp, drawClasses, loadColormap, drawColormap } from './legend.js';
+import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { Measure, MEASURE_LAYERS, summary, fmtDist } from './measure.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -29,7 +29,6 @@ const state = {
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 let measureState = '';
-let packParam = '';
 
 function readHash() {
   const q = new URLSearchParams(location.hash.slice(1));
@@ -45,10 +44,9 @@ function readHash() {
     if (k in state.opacity && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.date = q.get('d');
-  if (q.has('g')) state.open = new Set(q.get('g').split(','));
+  if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => g === 'measure' || GROUPS.some((x) => x.id === g)));
   if (q.has('menu')) state.menu = q.get('menu') === '1';
   measureState = q.get('m') || '';
-  packParam = q.get('pack') || '';
   return q.get('u');
 }
 
@@ -68,7 +66,6 @@ function writeHash() {
     if (measure.units !== 'km') q.set('u', measure.units);
     const m = measure.serialize();
     if (m) q.set('m', m);
-    if (pack.url) q.set('pack', pack.url);
     q.set('g', [...state.open].join(','));
     q.set('menu', state.menu ? '1' : '0');
     history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
@@ -128,7 +125,7 @@ function applyItem(id) {
   const on = state.on.has(id);
   for (const l of layersOf[id] || []) {
     const vis = on && (!l.metadata.variant || l.metadata.variant === state.variant[id])
-      && (!l.metadata.base || state.on.has(l.metadata.base)); // e.g. pack fills only over the chart base
+      && (!l.metadata.base || state.on.has(l.metadata.base)); // e.g. depth shading only over the chart base
     map.setLayoutProperty(l.id, 'visibility', vis ? 'visible' : 'none');
     const prop = OPACITY_PROP[l.type];
     if (it.opacity != null && prop) map.setPaintProperty(l.id, prop, state.opacity[id]);
@@ -153,7 +150,7 @@ function shoreFill() {
   const zmax = style.layers.find((l) => l.id === 'depth').maxzoom; // shading hides itself above this
   map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], depthStops()[0][1], zmax, '#ffffff'] : '#ffffff');
 }
-// the depth colour scheme (Depth shading item's variant) also colours the pack depth areas
+// the depth colour scheme is the Depth shading item's variant
 const depthStops = () => DEPTH_SCHEMES[state.variant.depth];
 // isobaths under the atlas scheme: navy over its pale shallow blues, pale over its dark deep
 // blues (one colour can't read on both); the nautical scheme keeps the style's own blue
@@ -166,14 +163,13 @@ const ISOBATH_INK = {
 function depthColours() {
   map.setPaintProperty('depth', 'color-relief-color', depthRamp(depthStops()));
   labelPaint();
-  map.setPaintProperty('pack-bands', 'fill-color', packBands(depthStops()));
   shoreFill();
   renderLegends();
 }
 // Over satellite, labels flip to light text on a dark halo (dark-on-white reads badly on imagery).
 const SAT_LABELS = {
   places: '#ffffff', islands: '#ffffff', 'graticule-labels': '#ffffff',
-  'sea-names': '#cfe6ff', 'sea-names-line': '#cfe6ff', 'pack-isobath-labels': '#cfe6ff',
+  'sea-names': '#cfe6ff', 'sea-names-line': '#cfe6ff',
   ...Object.fromEntries(style.layers.filter((l) => l.id.startsWith('isobath-labels')).map((l) => [l.id, '#cfe6ff'])),
 };
 const chartLabelPaint = {};
@@ -187,17 +183,14 @@ function labelPaint() {
     map.setPaintProperty(id, 'text-halo-width', sat ? 1.4 : p['text-halo-width']);
   }
   const ink = state.on.has('depth') && state.on.has('chart') ? ISOBATH_INK[state.variant.depth] : null;
-  for (const id of LINE_IDS) {
-    const own = id.startsWith('pack') ? null : ink; // pack isobaths carry `d`, not `ele`
-    map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : own ? own.line : chartLineColour[id]);
-  }
+  for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : ink ? ink.line : chartLineColour[id]);
   for (const id of Object.keys(SAT_LABELS).filter((k) => /^isobath-labels/.test(k))) {
     if (sat || !ink) continue;
     map.setPaintProperty(id, 'text-color', ink.text);
     map.setPaintProperty(id, 'text-halo-color', ink.halo);
   }
 }
-const LINE_IDS = style.layers.filter((l) => /^(pack-)?isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
+const LINE_IDS = style.layers.filter((l) => /^isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
 const chartLineColour = Object.fromEntries(LINE_IDS.map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
 function setDate(date) {
   state.date = date;
@@ -313,96 +306,10 @@ function groupBlock(g) {
   const det = h('details', { 'data-group': g.id, open: state.open.has(g.id),
     ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); writeHash(); } },
     h('summary', {}, all, h('span', { class: 'gname' }, g.label), h('span', { class: 'count' })),
-    g.pack ? packBox : null, list);
-  if (g.pack) det._list = list;
+    list);
   det._all = all;
   det._items = items;
   return det;
-}
-
-// ---- area pack: one GeoJSON file, read in the browser, never uploaded ---------
-const pack = { doc: null, url: '' };
-const packFile = h('input', { type: 'file', accept: '.geojson,.json,.gz,application/geo+json', hidden: true,
-  onchange: (e) => { const f = e.target.files[0]; if (f) openPackFile(f); e.target.value = ''; } });
-const packMeta = h('div', { class: 'packmeta' });
-const packMsg = h('p', { class: 'note' });
-const packBox = h('div', { class: 'packbox' }, packFile, packMeta, packMsg,
-  h('div', { class: 'btns' },
-    h('button', { type: 'button', id: 'pack-open', onclick: () => packFile.click() }, 'Open pack…'),
-    h('button', { type: 'button', id: 'pack-fit', onclick: () => fitPack() }, 'Zoom to pack'),
-    h('button', { type: 'button', id: 'pack-close', onclick: () => closePack() }, 'Close')));
-
-async function openPackFile(file) {
-  try { await loadPack(await file.arrayBuffer(), ''); } catch (err) { packMsg.textContent = `Could not open ${file.name}: ${err.message}`; }
-}
-async function loadPack(buf, url) {
-  let bytes = new Uint8Array(buf);
-  if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-    bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-  }
-  const doc = JSON.parse(new TextDecoder().decode(bytes));
-  if (doc?.type !== 'FeatureCollection' || !doc.pack) throw new Error('not an area pack');
-  if (doc.pack.version !== 2) throw new Error(`pack format ${doc.pack.version}; rebuild it with the current tools/build_pack.py`);
-  const src = map.getSource('pack');
-  src.attribution = doc.pack.credits || '';
-  src.setData(doc);
-  pack.doc = doc;
-  pack.url = url;
-  packMsg.textContent = '';
-  const det = groupEls.find((g) => g._list);
-  if (!det.open) det.open = true; // show what was opened
-  renderPack();
-  fitPack();
-  writeHash();
-}
-function closePack() {
-  pack.doc = null;
-  pack.url = '';
-  const src = map.getSource('pack');
-  src.attribution = '';
-  src.setData({ type: 'FeatureCollection', features: [] });
-  renderPack();
-  writeHash();
-}
-function fitPack() {
-  if (pack.doc) map.fitBounds(pack.doc.pack.bbox, { padding: 40, bearing: map.getBearing() });
-}
-function renderPack() {
-  const p = pack.doc?.pack;
-  packMeta.replaceChildren(...(p ? [
-    h('p', {}, h('b', {}, p.name), ` · built ${p.built}`),
-    h('p', {}, `Depths: ${p.depth.source}, ${p.depth.resolution}; to ${p.depth.max_m} m`),
-    h('p', {}, `Coastline: ${p.land}`),
-    h('p', {}, `Contours: ${p.levels_m.join(', ')} m`),
-  ] : [h('p', {}, 'Optional: detailed depths for one area, from a pack file (see README).')]));
-  $('#pack-fit', packBox).hidden = $('#pack-close', packBox).hidden = !p;
-  $('#pack-open', packBox).hidden = !!p;
-  const det = groupEls.find((g) => g._list);
-  det._list.hidden = !p;
-  det.querySelector('.gname').textContent = p ? `Area pack · ${p.name}` : 'Area pack';
-  det._all.hidden = !p; // nothing to switch until a pack is open
-  det.querySelector('.count').hidden = !p;
-  renderLegends();
-}
-// drag and drop anywhere on the page
-window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); document.body.classList.add('drop'); } });
-window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('drop'); });
-window.addEventListener('drop', (e) => {
-  e.preventDefault();
-  document.body.classList.remove('drop');
-  const f = e.dataTransfer?.files[0];
-  if (f) openPackFile(f);
-});
-// a pack hosted next to the page: #pack=packs/name.geojson (same origin only)
-async function loadPackParam() {
-  if (!packParam) return;
-  try {
-    const u = new URL(packParam, location.href);
-    if (u.origin !== location.origin) throw new Error('only packs on this site can be linked');
-    const r = await fetch(u);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    await loadPack(await r.arrayBuffer(), packParam);
-  } catch (err) { packMsg.textContent = `Could not load ${packParam}: ${err.message}`; }
 }
 
 const groupEls = GROUPS.map(groupBlock);
@@ -457,7 +364,6 @@ function renderLegends() {
   const on = (id) => state.on.has(id);
   const want = [];
   if (on('legend')) {
-    if (pack.doc && on('pack-depth') && on('chart')) want.push('pack');
     if (on('depth') && on('chart') && map.getZoom() < 13) want.push('depth');
     if (on('gibs') && GIBS[state.variant.gibs].legend) want.push('gibs');
   }
@@ -467,11 +373,6 @@ function renderLegends() {
     if (id === 'depth') {
       drawRamp(el, 'Depth shading', 'm · approximate (DEM)', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
       el.setAttribute('aria-label', `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`);
-    } else if (id === 'pack') {
-      const p = pack.doc.pack, edges = [0, ...p.levels_m];
-      drawClasses(el, 'Pack depth', `m · ${p.depth.source.split(',')[0]}`, edges, edges.map((d) => colourAt(depthStops(), d)), `${Math.round(p.depth.max_m)}`,
-        { colour: NO_DEPTH, label: 'water without depth data' });
-      el.setAttribute('aria-label', `Pack depth legend: classes from ${edges.join(', ')} metres`);
     } else {
       const g = GIBS[state.variant.gibs], key = `${state.variant.gibs}|${state.date}`;
       if (el.dataset.key !== key) {
@@ -693,10 +594,8 @@ map.on('load', () => {
   updateGraticule();
   renderMenu();
   renderMeasures();
-  renderPack();
   setMenu(state.menu);
   drawLatScale();
-  loadPackParam();
 });
 map.on('moveend', () => { updateGraticule(); writeHash(); });
 let gratRaf = 0;
