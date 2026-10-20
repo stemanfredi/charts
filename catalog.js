@@ -1,5 +1,3 @@
-import { NO_DEPTH_M } from './clip.js';
-
 // Layer catalog: every source, every style layer (in draw order), and the menu
 // items that switch them. A style layer belongs to a menu item through
 // metadata.item; layers of a hidden item are set to visibility:none, and
@@ -215,12 +213,36 @@ export function depthRamp(stops) {
     NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 }
 
-// Isobaths are generated at a regular interval per zoom (app.js); drawn with nautical spacing
+// Isobaths, in one table: what each zoom traces (maplibre-contour thresholds, app.js), draws (the
+// style filters below) and cleans up in the DEM (levelsFor, used by clip.js). Nautical spacing
 // that widens with depth and tightens with zoom, so steep deep slopes don't fill with lines and
-// zoomed-in slopes aren't empty: 5 m, every 10 m to 50 m, every 50 m to 200 m, then per zoom
-// range (filters can't use zoom, so one layer per range): [minzoom, maxzoom, step to 3000 m, step below].
+// zoomed-in slopes aren't empty: 5 m, every 10 m to 50 m, every 50 m to 200 m, then every `mid`
+// to 3000 m and every `deep` below. Traced finer than drawn: a line is drawn if it is both.
+// [from zoom, traced every m, thicker line every m, mid, deep]
+export const ISOBATH_ZOOMS = [
+  [4, 1000, 2000, 500, 1000],
+  [6, 200, 1000, 500, 1000],
+  [8, 100, 500, 500, 1000],
+  [10, 10, 50, 200, 500],
+  [11, 5, 50, 200, 500],
+  [12, 5, 50, 100, 500],
+];
+const drawnAt = (d, [, step, , mid, deep]) => d % step === 0
+  && (d === 5 || (d <= 50 && d % 10 === 0) || (d <= 200 && d % 50 === 0) || (d <= 3000 && d % mid === 0) || d % deep === 0);
+const range = (a, b, step) => Array.from({ length: Math.floor((b - a) / step) + 1 }, (_, k) => a + k * step);
+// every depth an isobath is drawn at, at some zoom
+export const DEPTH_LEVELS = range(5, 11000, 5).filter((d) => ISOBATH_ZOOMS.some((row) => drawnAt(d, row)));
+// the depths drawn from DEM tiles of zoom z: the native zoom serves every map zoom above it
+export function levelsFor(z) {
+  if (z >= DEM_SEA.native) return DEPTH_LEVELS;
+  const row = ISOBATH_ZOOMS.findLast(([z0]) => z0 <= z) || ISOBATH_ZOOMS[0];
+  return DEPTH_LEVELS.filter((d) => drawnAt(d, row));
+}
+// the same rule as drawnAt as a style filter; one layer per run of zooms with the same spacing
+// (filters can't use zoom): [minzoom, maxzoom, mid, deep]
+const ISOBATH_RANGES = ISOBATH_ZOOMS.filter((r, k, a) => !k || r[3] !== a[k - 1][3] || r[4] !== a[k - 1][4])
+  .map((r, k, a) => [r[0], a[k + 1]?.[0] ?? 24, r[3], r[4]]);
 const DEPTH = ['abs', ['get', 'ele']];
-const ISOBATH_RANGES = [[4, 10, 500, 1000], [10, 12, 200, 500], [12, 24, 100, 500]];
 const isobathFilter = (mid, deep) => ['all', ['<', ['get', 'ele'], 0], ['any',
   ['==', DEPTH, 5],
   ['all', ['<=', DEPTH, 50], ['==', ['%', DEPTH, 10], 0]],
@@ -229,6 +251,8 @@ const isobathFilter = (mid, deep) => ['all', ['<', ['get', 'ele'], 0], ['any',
   ['==', ['%', DEPTH, deep], 0]]];
 
 export const NO_DEPTH = C.noDepth;
+// value the sea tiles carry for water without a depth source (clip.js); depthRamp paints it grey
+export const NO_DEPTH_M = 9000;
 
 function layers() {
   const L = [

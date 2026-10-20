@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { datumAt, DATUMS, fillSmallDepressions, smoothSea, levelsFor, DEPTH_LEVELS } from '../../clip.js';
+import { datumAt, DATUMS, fillSmallDepressions, smoothSea } from '../../clip.js';
+import { levelsFor, DEPTH_LEVELS } from '../../catalog.js';
 
 test('Caspian surface applies inside its box only (per point, not per tile)', () => {
   assert.equal(DATUMS[0][0], 'Caspian Sea');
@@ -64,4 +65,6 @@ test('levelsFor: only the depths drawn at that DEM zoom', () => {
   assert.ok(levelsFor(8).includes(100) && levelsFor(8).includes(500));
   assert.ok(!levelsFor(7).includes(100) && levelsFor(7).includes(200) && levelsFor(7).includes(1000) && !levelsFor(7).includes(500));
   assert.deepEqual(levelsFor(5).slice(0, 3), [1000, 2000, 3000]);
+  const range = (a, b, s) => Array.from({ length: (b - a) / s + 1 }, (_, k) => a + k * s);
+  assert.deepEqual(DEPTH_LEVELS, [5, 10, 20, 30, 40, 50, 100, 150, 200, ...range(300, 3000, 100), ...range(3500, 11000, 500)]);
 });

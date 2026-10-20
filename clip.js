@@ -13,6 +13,8 @@
 // Above the DEM's native zoom, tiles are upsampled bilinearly (in metres, not in
 // the encoded bytes) and masked at the higher zoom, so the coast stays sharp.
 
+import { NO_DEPTH_M, DEPTH_LEVELS, levelsFor } from './catalog.js';
+
 const OMT_MAXZOOM = 14;
 // Every tile is cut, at every zoom: each shortcut tried (deep ocean, low zooms) left a hole
 // somewhere (islands under the tint, isobaths across the Jordan valley, seabed relief over
@@ -48,8 +50,6 @@ const SEA_LEVEL_WATER_M = 8;
 const DEPTH = 1, FLAT = 2, LAKE = 3;
 const waterLevel = new Map(); // OSM id → DEPTH, FLAT or LAKE
 const decidedListeners = new Set(); // notified with the id when a water body is classified
-// value the sea tiles carry for water without a depth source; depthRamp (catalog.js) paints it grey
-export const NO_DEPTH_M = 9000;
 // land value in the shaded sea tiles (contours still get +1 m): pulls the tint edge back to the
 // water pixels, so it never covers the shore line; the sliver it leaves shows the water fill,
 // which app.js colours like the shallowest band while depth shading is on
@@ -288,17 +288,6 @@ function demMetres(url, signal) {
 // shallower: shoals and banks (the hazards) are never removed. Each tile is filtered with a
 // MARGIN from its neighbours, and a patch reaching the edge of that area counts as large, so
 // neighbouring tiles agree.
-const range = (a, b, step) => Array.from({ length: Math.floor((b - a) / step) + 1 }, (_, k) => a + k * step);
-export const DEPTH_LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, ...range(300, 3000, 100), ...range(3500, 11000, 500)];
-// The depths isobaths are drawn at from DEM zoom z: zoom 10 serves map zooms 10 and up (all of
-// DEPTH_LEVELS); below, the contour step (app.js thresholds) meets the drawn spacing (catalog.js
-// isobathFilter): 100 m at zooms 8–9, 200 m at 6–7, 1000 m below. Filtering only these keeps the
-// work to a few levels where the sea is deep.
-export function levelsFor(z) {
-  if (z >= 10) return DEPTH_LEVELS;
-  const step = z >= 8 ? 100 : z >= 6 ? 200 : 1000;
-  return [100, 200, ...range(500, 3000, 500), ...range(4000, 11000, 1000)].filter((l) => l % step === 0);
-}
 const MIN_PX = 64; // about 0.8 km² at zoom 10, where the seabed data is ~1 km or coarser
 const MARGIN = 32;
 export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN_PX) {
