@@ -21,7 +21,7 @@ tools/deps.mjs  pin / hash / check / upgrade the CDN libraries
 test/        unit tests (node --test) and a headless-Chrome smoke test
 ```
 
-Run locally: `npm run serve` in this folder (Node ≥ 22, nothing to install), open
+Run locally: `npm run serve` in this folder (Node ≥ 24, nothing to install), open
 http://localhost:8000. It turns browser caching off, so a reload always runs the
 current files; `python3 -m http.server` also works, but browsers may keep old
 files until a hard reload.
@@ -198,7 +198,7 @@ the script.
 
 ## Development
 
-The site needs nothing; `package.json` exists for development only (Node ≥ 22).
+The site needs nothing; `package.json` exists for development only (Node ≥ 24).
 
 ```
 npm run serve       # the site on port 8000 with caching off (--port, --host to change)
