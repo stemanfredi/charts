@@ -136,7 +136,7 @@ function lru(max) {
   get.delete = (key) => m.delete(key);
   return get;
 }
-const omtCache = lru(48), demCache = lru(64);
+const omtCache = lru(48), demCache = lru(128); // the sea reads each DEM tile with its 8 neighbours
 
 // This code runs in a worker loaded from its own file, which does not inherit the page's
 // <meta name="referrer" content="no-referrer">: without this, every tile request would carry
@@ -263,38 +263,7 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
   return { mask, pending };
 }
 
-// Terrarium has a few pits at the coast: a handful of pixels hundreds of metres deep inside a
-// harbour or cove (Marciana Marina, Elba: −485 m among −1 to −20 m), which the isobaths ring and
-// the shading darkens. A depression that small cannot be real on this grid, so a pixel below sea
-// level that is more than PIT_M deeper than every pixel on the square ring PIT_R pixels around
-// it becomes the median of that ring's water, or −1 m (the shallowest class: unknown depth) when
-// the ring is all land, as in a cove the coarse grid does not have (Sant'Andrea, Elba: −336 m).
-// A canyon or slope goes on outward, so the ring has something as deep and the pixel stays;
-// land above sea level and tile borders are not touched.
-const PIT_R = 3, PIT_M = 50;
-export function fillPits(e, w) {
-  const src = e.slice(), ring = [];
-  for (let j = PIT_R; j < w - PIT_R; j++) {
-    for (let i = PIT_R; i < w - PIT_R; i++) {
-      const v = src[j * w + i];
-      if (v >= 0) continue;
-      ring.length = 0;
-      let deepest = Infinity;
-      for (let dj = -PIT_R; dj <= PIT_R; dj++) {
-        for (let di = -PIT_R; di <= PIT_R; di++) {
-          if (Math.max(Math.abs(di), Math.abs(dj)) !== PIT_R) continue; // the ring only
-          const r = src[(j + dj) * w + i + di];
-          if (r < deepest) deepest = r;
-          if (r < 0) ring.push(r);
-        }
-      }
-      if (v < deepest - PIT_M) e[j * w + i] = ring.length ? ring.sort((a, b) => a - b)[ring.length >> 1] : -1;
-    }
-  }
-  return e;
-}
-
-// Terrarium tile at zoom ≤ native, decoded to metres (coastal pits filled)
+// Terrarium tile at zoom ≤ native, decoded to metres
 function demMetres(url, signal) {
   return demCache(url, async () => {
     const img = await createImageBitmap(await (await fetchOk(url, signal)).blob());
@@ -304,8 +273,112 @@ function demMetres(url, signal) {
     let max = -Infinity;
     for (let i = 0; i < e.length; i++) { e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768; if (e[i] > max) max = e[i]; }
     if (img.width !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
-    fillPits(e, SIZE); // only raises pixels below sea level, so the maximum is unchanged
     return { w: img.width, e, max };
+  });
+}
+
+// ---- no closed isobath smaller than the data can resolve --------------------------------
+// Isobaths are traced at fixed depths, and a closed ring around a patch a few pixels wide is
+// noise, not seabed: the coarse grid has false pits at the coast (Marciana Marina, Elba: −485 m
+// inside the harbour) and pockets in coves it only half has, which drew stacks of tiny rings.
+// The standard rule from contour generalisation: for each depth, deepest first, a patch deeper
+// than it that is enclosed and smaller than MIN_PX pixels is raised to just above that depth, so
+// a pit drops out level by level. Only depressions are changed, which only ever makes water
+// shallower: shoals and banks (the hazards) are never removed. Each tile is filtered with a
+// MARGIN from its neighbours, and a patch reaching the edge of that area counts as large, so
+// neighbouring tiles agree.
+const range = (a, b, step) => Array.from({ length: Math.floor((b - a) / step) + 1 }, (_, k) => a + k * step);
+export const DEPTH_LEVELS = [5, 10, 20, 30, 40, 50, 100, 150, 200, ...range(300, 3000, 100), ...range(3500, 11000, 500)];
+// The depths isobaths are drawn at from DEM zoom z: zoom 10 serves map zooms 10 and up (all of
+// DEPTH_LEVELS); below, the contour step (app.js thresholds) meets the drawn spacing (catalog.js
+// isobathFilter): 100 m at zooms 8–9, 200 m at 6–7, 1000 m below. Filtering only these keeps the
+// work to a few levels where the sea is deep.
+export function levelsFor(z) {
+  if (z >= 10) return DEPTH_LEVELS;
+  const step = z >= 8 ? 100 : z >= 6 ? 200 : 1000;
+  return [100, 200, ...range(500, 3000, 500), ...range(4000, 11000, 1000)].filter((l) => l % step === 0);
+}
+const MIN_PX = 64; // about 0.8 km² at zoom 10, where the seabed data is ~1 km or coarser
+const MARGIN = 32;
+export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN_PX) {
+  let deepest = 0;
+  for (const v of e) if (v < deepest) deepest = v;
+  const seen = new Int32Array(w * h), stack = new Int32Array(w * h), patch = new Int32Array(minPx);
+  let stamp = 0;
+  for (const level of [...levels].reverse()) {
+    if (-level <= deepest) continue; // nothing this deep here
+    const t = -level;
+    stamp++;
+    for (let p = 0; p < w * h; p++) {
+      if (e[p] >= t || seen[p] === stamp) continue;
+      // the patch deeper than t that p belongs to (8-connected: diagonal neighbours join it)
+      let n = 0, top = 0, open = false;
+      stack[top++] = p;
+      seen[p] = stamp;
+      while (top) {
+        const q = stack[--top], x = q % w, y = (q - x) / w;
+        if (n < minPx) patch[n] = q;
+        n++;
+        if (x === 0 || y === 0 || x === w - 1 || y === h - 1) open = true;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy, r = ny * w + nx;
+            if ((dx || dy) && nx >= 0 && ny >= 0 && nx < w && ny < h && e[r] < t && seen[r] !== stamp) { seen[r] = stamp; stack[top++] = r; }
+          }
+        }
+      }
+      if (!open && n < minPx) for (let k = 0; k < n; k++) e[patch[k]] = t + 0.01;
+    }
+  }
+  return e;
+}
+
+// Terrarium resampled each tile on its own, so the depth gradient jumps at tile edges; magnified
+// several times (zoom-10 data at map zoom 12–13) every isobath crossing an edge bends there
+// (9.84375°E, Canale di Corsica). The seabed data is ~1 km offshore, so two passes of a 3 × 3
+// [1 2 1] blur over 110 m pixels lose nothing real. Only sea pixels change, averaged only with
+// sea neighbours, so land never pulls coastal depths up; the tile margin makes edges vanish.
+export function smoothSea(e, w, h, passes = 2) {
+  const K = [1, 2, 1];
+  for (let pass = 0; pass < passes; pass++) {
+    const src = e.slice();
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const p = y * w + x;
+        if (src[p] >= 0) continue;
+        let sum = 0, wt = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const v = src[p + dy * w + dx];
+            if (v < 0) { const k = K[dx + 1] * K[dy + 1]; sum += k * v; wt += k; }
+          }
+        }
+        e[p] = sum / wt;
+      }
+    }
+  }
+  return e;
+}
+
+// sea DEM tile z/x/y with small depressions filled and seams smoothed, looked at with a margin
+// from its neighbours
+const seaDemCache = lru(64);
+function seaDem(template, z, x, y) {
+  return seaDemCache(`${z}/${x}/${y}`, async () => {
+    const n = 2 ** z, url = (tx, ty) => template.replace('{z}', z).replace('{x}', ((tx % n) + n) % n).replace('{y}', Math.min(n - 1, Math.max(0, ty)));
+    const tiles = await Promise.all([-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => demMetres(url(x + dx, y + dy)))));
+    const W = SIZE + 2 * MARGIN, area = new Float32Array(W * W);
+    for (let j = 0; j < W; j++) {
+      for (let i = 0; i < W; i++) {
+        const gi = i - MARGIN, gj = j - MARGIN, ti = Math.floor(gi / SIZE), tj = Math.floor(gj / SIZE);
+        area[j * W + i] = tiles[(tj + 1) * 3 + ti + 1].e[(gj - tj * SIZE) * SIZE + gi - ti * SIZE];
+      }
+    }
+    fillSmallDepressions(area, W, W, levelsFor(z));
+    smoothSea(area, W, W);
+    const e = new Float32Array(SIZE * SIZE);
+    for (let j = 0; j < SIZE; j++) e.set(area.subarray((j + MARGIN) * W + MARGIN, (j + MARGIN) * W + MARGIN + SIZE), j * SIZE);
+    return { w: SIZE, e, max: tiles[4].max }; // filling only raises water, so the maximum stands
   });
 }
 
@@ -348,7 +421,11 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
     const ty0 = d === 0 ? y : Math.max(0, Math.floor((gy - 1) / w)), ty1 = d === 0 ? y : Math.min(n - 1, Math.floor((gy + w * step + 1) / w));
     const want = [];
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) want.push([tx, ty]);
-    const tiles = await Promise.all(want.map(([tx, ty]) => demMetres(template.replace('{z}', nz).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty))));
+    // the sea reads the filtered DEM (no isobath rings smaller than the data); depths measured from
+    // a DATUMS surface and the land layers read it as it is
+    const filtered = mode === 'sea' && !datums.length;
+    const tiles = await Promise.all(want.map(([tx, ty]) => (filtered ? seaDem(template, nz, ((tx % n) + n) % n, ty)
+      : demMetres(template.replace('{z}', nz).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty)))));
     // the source tiles as one flat buffer (sw × sh), so sampling is plain indexing
     const sw = (tx1 - tx0 + 1) * w, sh = (ty1 - ty0 + 1) * w, src = new Float32Array(sw * sh);
     want.forEach(([tx, ty], k) => {

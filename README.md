@@ -152,12 +152,19 @@ coastline the basemap draws:
   the OSM coastline, but their shapes near the shore are only as good as the
   1–2 km data, and sea the DEM calls dry is shown as the shallowest class.
   Lakes above sea level are grey: no depth source.
-- The elevation tiles have a few false pits at the coast (Marciana Marina,
-  Elba: −485 m inside the harbour among −1 to −20 m), which drew stacks of
-  tiny isobath rings. A pixel below sea level more than 50 m deeper than
-  everything about 3 pixels around it is filled from the water on that ring
-  (or set to the shallowest class when the ring is all land); canyons and
-  slopes, which continue outward, are left alone (`fillPits` in clip.js).
+- Two defects of the elevation tiles are corrected before the sea is shaded and
+  contoured (`seaDem` in clip.js), each tile with a 32-pixel margin from its
+  neighbours so tiles agree:
+  - *Closed isobaths smaller than the data.* False pits at the coast
+    (Marciana Marina, Elba: −485 m inside the harbour) and pockets in coves the
+    grid only half has drew stacks of tiny rings. As in contour generalisation,
+    for each drawn depth an enclosed patch deeper than it and smaller than 64
+    pixels (~0.8 km² at zoom 10) is raised just above it. Only depressions
+    change, so water only ever gets shallower; shoals and banks stay.
+  - *Bends at tile edges.* Terrarium resampled each tile on its own, so the
+    depth gradient jumps at tile edges, and magnified isobaths bent there. Sea
+    depths get a light blur (two 3 × 3 passes over ~110 m pixels; the seabed
+    data is ~1 km), using sea neighbours only, so land never lifts the coast.
 - **Not for navigation.**
 
 ## Privacy
