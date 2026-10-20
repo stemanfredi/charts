@@ -138,6 +138,13 @@ try {
   const cmAgain = await open(cmHash);
   check((await cmAgain.evaluate(() => document.querySelector('.hourstep:not([hidden]) .when').textContent)) === after, 'the link reopens at that hour');
   await cm.close(); await cmAgain.close();
+  // water properties at a depth from the link: each model at its nearest level, said so
+  const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');
+  await wp.waitForFunction(() => /at \d+ m/.test(document.querySelector('.item:has(#i-temperature) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
+  const [wpNote, wpDepth, wpBroken] = await wp.evaluate(() => [document.querySelector('.item:has(#i-temperature) .cmems-note').textContent, document.querySelector('.item:has(#i-temperature) .depthsel select').value,
+    [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
+  check(wpDepth === '100' && /daily mean/.test(wpNote) && /at \d+ m/.test(wpNote) && !wpBroken.length && !wp.errors.length, `temperature at 100 m: ${wpNote} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
+  await wp.close();
 
   // PNG export
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);

@@ -75,7 +75,7 @@ export function stacItem({ id, when, corners, zoom, bearing, layers, attribution
       'chart:zoom': +zoom.toFixed(2),
       'chart:bearing': +bearing.toFixed(1),
       // assets: the files that hold the layer as data (absent: it is only in the pictures)
-      'chart:layers': layers.map(({ id: lid, label, variant, date, period, time, assets: a }) => ({ id: lid, title: label, ...(variant && { variant }), ...(date && { date }), ...(period && { period }), ...(time && { time }), ...(a?.length && { assets: a }) })),
+      'chart:layers': layers.map(({ id: lid, label, variant, date, period, time, depth, assets: a }) => ({ id: lid, title: label, ...(variant && { variant }), ...(date && { date }), ...(period && { period }), ...(time && { time }), ...(depth != null && { depth_m: depth }), ...(a?.length && { assets: a }) })),
     },
     links: link ? [{ rel: 'via', href: link, type: 'text/html', title: 'This view in Charts' }] : [],
     assets,

@@ -114,6 +114,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .hourstep .steps { display: grid; grid-template-columns: repeat(4, var(--row)) 1fr; gap: 4px; }
 .hourstep button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); font-size: 16px; }
 .hourstep .now { font-size: 13px; }
+.depthsel { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; margin-left: 4px; font-size: 12.5px; }
 .opacity { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
 .opacity span { flex: none; min-width: 52px; }
 .opacity input[type=range] { flex: 1; height: var(--row); accent-color: var(--accent); margin: 0; }

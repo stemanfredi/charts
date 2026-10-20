@@ -2,8 +2,8 @@
 
 A world chart in a single static web page. It combines an OpenStreetMap base
 map with satellite imagery, depth shading and isobaths, seamarks, shipping
-density, Copernicus Marine sea state (waves, currents, wind) and NASA daily
-imagery, and adds geodesic measuring tools. Every source
+density, Copernicus Marine sea state (waves, currents, wind) and water
+properties (temperature, salinity, mixed layer), and NASA daily imagery, and adds geodesic measuring tools. Every source
 is public and needs no API key. There is no build step and no backend.
 
 **Not for navigation.** Positions, coastlines and depths come from open
@@ -46,13 +46,14 @@ them from each provider, and each layer stays under its provider's licence.
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
 | Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
 | Route density | EMSA, via EMODnet Human Activities | CC BY 4.0 |
-| Waves, currents, wind | Copernicus Marine Service | Copernicus Marine licence: free, attribution required |
+| Waves, currents, wind, temperature, salinity, mixed layer | Copernicus Marine Service | Copernicus Marine licence: free, attribution required |
 | Daily imagery | NASA EOSDIS GIBS | NASA open data |
 | Place search | Photon (komoot), OpenStreetMap data | ODbL |
 
-Sea state is shown for one hour, chosen in the Layers panel (UTC, now by default,
-forecasts about 9 days ahead). In the Mediterranean it comes from the 4.2 km
-regional models, elsewhere from the global ones. Wind is a satellite observation
+Copernicus layers are shown for one hour, chosen in the Layers panel (UTC, now by
+default, forecasts about 9 days ahead); water properties are daily means, at one
+depth chosen there. In the Mediterranean they come from the 4.2 km regional
+models, elsewhere from the global ones. Wind is a satellite observation
 published about a day late: after its latest hour it shows that hour, and says so.
 
 Esri imagery is not open data: it is used under Esri's terms of use. The EOX

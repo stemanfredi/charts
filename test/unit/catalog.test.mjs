@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, durationMs, timeDomain, snapTime } from '../../catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../catalog.js';
 import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });
@@ -121,4 +121,17 @@ test('Copernicus time: durations, a dataset\'s domain from its capabilities, sna
   // every 3 hours from 03:00: noon is a step, 13:00 draws noon
   const w = [{ start: t('2022-11-01T03:00:00Z'), end: t('2026-10-30T00:00:00Z'), step: 3 * 36e5 }];
   assert.equal(snapTime(w, t('2026-10-21T13:00:00Z')), t('2026-10-21T12:00:00Z'));
+});
+
+test('Copernicus depth: levels from capabilities, the nearest one to the depth chosen', () => {
+  const xml = `<Layer><ows:Identifier>P/D/thetao</ows:Identifier><Dimension><ows:Identifier>elevation</ows:Identifier><UOM>m</UOM>
+    <Default>-1.0182366371154785</Default><Value>-110.0</Value><Value>-98.5</Value><Value>-10.5</Value><Value>-1.0182366371154785</Value></Dimension>
+    <Dimension><ows:Identifier>time</ows:Identifier><Value>2024-01-01T00:00:00Z/2024-01-02T00:00:00Z/P1D</Value></Dimension></Layer>`;
+  const levels = depthLevels(xml, 'thetao');
+  assert.deepEqual(levels, ['-110.0', '-98.5', '-10.5', '-1.0182366371154785'], 'as listed, for the ELEVATION parameter');
+  assert.equal(nearestLevel(levels, 0), '-1.0182366371154785', 'surface: the top level');
+  assert.equal(nearestLevel(levels, 100), '-98.5');
+  assert.equal(nearestLevel(levels, 1000), '-110.0', 'below the deepest: the deepest');
+  assert.equal(nearestLevel([], 100), null, 'a variable without depth');
+  assert.deepEqual(depthLevels(xml.replace('elevation', 'x'), 'thetao'), []);
 });

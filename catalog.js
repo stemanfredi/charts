@@ -109,9 +109,18 @@ const MED_WAV = 'MEDSEA_ANALYSISFORECAST_WAV_006_017/cmems_mod_med_wav_anfc_4.2k
 const GLO_CUR = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_merged-uv_PT1H-i_202211';
 const MED_CUR = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-cur_anfc_4.2km-2D_PT1H-m_202511';
 const WIND = 'WIND_GLO_PHY_L4_NRT_012_004/cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H_202207';
+// water properties: daily means, at depth (the 3D datasets) or one value per point (2D)
+const GLO_TEM = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m_202406';
+const GLO_SAL = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-so_anfc_0.083deg_P1D-m_202406';
+const GLO_2D = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083deg_P1D-m_202406';
+const MED_TEM = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-tem_anfc_4.2km_P1D-m_202511';
+const MED_SAL = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-sal_anfc_4.2km_P1D-m_202511';
+const MED_MLD = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-mld_anfc_4.2km_P1D-m_202511';
 // item → variant → { label, unit, range, cmap, vector (arrows drawn by the service: 'solidAndVector' over the colours,
 //   'vector' alone, coloured by speed), parts: [dataset/variable],
-//   observed (an observation, published late: after its last step it shows that step, said so) }
+//   observed (an observation, published late: after its last step it shows that step, said so),
+//   daily (daily means), depth (drawn at the depth chosen, each dataset at its nearest level) }
+// Ranges serve the global and the regional model alike, so a colour means the same everywhere.
 // No sea level: the models' sea surface height (zos) carries each model's own mean offset (the
 // Mediterranean model reads −0.4 m in the Mediterranean and +0.8 m in its Atlantic box beside it),
 // which the tile service cannot subtract, so its colours changed at model edges for no physical reason.
@@ -122,13 +131,19 @@ export const CMEMS = {
   },
   currents: { surface: { label: 'Surface current', unit: 'm/s', range: [0, 1.5], cmap: 'speed', vector: 'solidAndVector', parts: [`${GLO_CUR}/sea_water_velocity`, `${MED_CUR}/sea_water_velocity`] } },
   // wind as arrows alone, over the chart and the waves: thermal starts dark, so light winds stay visible
+  temperature: {
+    depth: { label: 'Temperature', unit: '°C', range: [0, 30], cmap: 'thermal', daily: true, depth: true, parts: [`${GLO_TEM}/thetao`, `${MED_TEM}/thetao`] },
+    bottom: { label: 'Bottom temperature', unit: '°C', range: [0, 30], cmap: 'thermal', daily: true, parts: [`${GLO_2D}/tob`, `${MED_TEM}/bottomT`] },
+  },
+  salinity: { depth: { label: 'Salinity', unit: 'PSU', range: [32, 40], cmap: 'haline', daily: true, depth: true, parts: [`${GLO_SAL}/so`, `${MED_SAL}/so`] } },
+  mld: { depth: { label: 'Mixed layer depth', unit: 'm', range: [0, 200], cmap: 'plasma', daily: true, parts: [`${GLO_2D}/mlotst`, `${MED_MLD}/mlotst`] } },
   wind: { observed: { label: 'Wind (satellite)', unit: 'm/s', range: [0, 25], cmap: 'thermal', vector: 'vector', observed: true, parts: [`${WIND}/wind`] } },
 };
 export const cmemsStyle = (v) => `cmap:${v.cmap},range:${v.range.join('/')}${v.vector ? `,vectorStyle:${v.vector}` : ''}`;
 // 512 px tiles (the @2x matrix set): arrows at a readable spacing, and sharp on high-density screens
-export function cmemsTileUrl(part, style, time, z, x, y) {
+export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
   return `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}`
-    + `&TILEMATRIXSET=EPSG:3857@2x&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=image/png&TIME=${time}`;
+    + `&TILEMATRIXSET=EPSG:3857@2x&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=image/png&TIME=${time}${level === null ? '' : `&ELEVATION=${level}`}`;
 }
 export const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
 // one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
@@ -164,6 +179,18 @@ export function snapTime(domain, t) {
   return best;
 }
 export const domainEndMs = (domain) => Math.max(...domain.map((r) => r.end));
+// depths offered for the 3D variables, metres below the surface (0: the model's top level)
+export const CMEMS_DEPTHS = [0, 10, 20, 50, 100, 200, 500, 1000];
+// the depth levels of `variable` in a WMTS capabilities document, as listed (elevation, m, ≤ 0)
+export function depthLevels(xml, variable) {
+  const id = xml.indexOf(`/${variable}</ows:Identifier>`);
+  if (id < 0) return [];
+  const layer = xml.slice(id, xml.indexOf('</Layer>', id));
+  const dim = /<ows:Identifier>elevation<\/ows:Identifier>([\s\S]*?)<\/Dimension>/.exec(layer)?.[1] || '';
+  return [...dim.matchAll(/<Value>([^<]*)<\/Value>/g)].map((m) => m[1]).filter((v) => Number.isFinite(+v));
+}
+// the level nearest to depth (m below the surface): one of levels, or null if there are none
+export const nearestLevel = (levels, depth) => (levels.length ? levels.reduce((a, b) => (Math.abs(-b - depth) < Math.abs(-a - depth) ? b : a)) : null);
 
 // ---- menu -------------------------------------------------------------------
 // exclusive: items in the group behave as radio buttons.
@@ -176,6 +203,7 @@ export const GROUPS = [
   { id: 'shipping', label: 'Shipping' },
   { id: 'land', label: 'Land' },
   { id: 'seastate', label: 'Sea state' },
+  { id: 'water', label: 'Water properties' },
   { id: 'imagery', label: 'Daily imagery' },
   { id: 'labels', label: 'Labels & grid' },
 ];
@@ -220,6 +248,14 @@ export const ITEMS = [
     info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global surface currents (GLOBAL_ANALYSISFORECAST_PHY_001_024, with tides and wave drift)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Surface, hourly. Mediterranean 4.2 km (with tides); elsewhere 1/12° (~9 km). Arrows show the direction the water flows. Model forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
   { id: 'wind', group: 'seastate', label: 'Wind', opacity: 0.85, cmems: true,
     info: { src: 'Copernicus Marine Service: global ocean wind from satellite scatterometers, blended with a weather model (WIND_GLO_PHY_L4_NRT_012_004)', lic: 'Copernicus Marine Service licence: free, attribution required', res: '0.125° (~14 km), hourly, 10 m above the sea. An observation, not a forecast: published about a day late. At hours after the latest observation it shows the latest, and says so. Arrows show where the wind blows to', url: 'https://marine.copernicus.eu' } },
+
+  { id: 'temperature', group: 'water', label: 'Temperature', opacity: 0.85, cmems: true,
+    variants: Object.fromEntries(Object.entries(CMEMS.temperature).map(([k, v]) => [k, v.label === 'Temperature' ? 'At the depth chosen' : 'At the seabed'])),
+    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Potential temperature, daily means. Mediterranean 4.2 km, 141 levels; elsewhere 1/12° (~9 km), 50 levels: each at its level nearest the depth chosen. Model analysis and forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
+  { id: 'salinity', group: 'water', label: 'Salinity', opacity: 0.85, cmems: true,
+    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Practical salinity (PSU), daily means, at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 1/12° (~9 km). Model analysis and forecast', url: 'https://marine.copernicus.eu' } },
+  { id: 'mld', group: 'water', label: 'Mixed layer depth', opacity: 0.85, cmems: true,
+    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Depth of the well-mixed surface layer (density criterion), daily means. Shallow in summer, deep in winter. Mediterranean 4.2 km; elsewhere 1/12°. Model analysis and forecast', url: 'https://marine.copernicus.eu' } },
 
   { id: 'gibs', group: 'imagery', label: 'NASA daily', opacity: 0.9, date: true,
     variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),
@@ -267,7 +303,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
   };
   // tiles set by app.js once the hour is known (cmems:// is cmems.js's tile handler)
   for (const id of Object.keys(CMEMS)) {
-    s[`cmems-${id}`] = { type: 'raster', tileSize: 512, maxzoom: 10, tiles: [], attribution: 'Sea state: <a href="https://marine.copernicus.eu">Copernicus Marine Service</a>' };
+    s[`cmems-${id}`] = { type: 'raster', tileSize: 512, maxzoom: 10, tiles: [], attribution: 'Ocean data: <a href="https://marine.copernicus.eu">Copernicus Marine Service</a>' };
   }
   for (const [k, g] of Object.entries(GIBS)) {
     s[`gibs-${k}`] = { type: 'raster', tileSize: 256, maxzoom: g.level, tiles: gibsTiles(k, date),
