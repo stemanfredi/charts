@@ -246,8 +246,10 @@ function layers() {
     // Shore line drawn UNDER the water fill at twice its width: where two water polygons meet
     // (sea and a harbour basin, a lagoon and its canals; OSM draws a straight line between pier
     // heads) both fills cover it; where water meets land, the land-side half stays as the shore.
+    // Ponds (irrigation tanks, cisterns, small reservoirs) get no shore line: a 20 m pond inside a
+    // 2 px ring reads as a dark dot on land; they show as water fill alone, as on most maps.
     { id: 'coastline', type: 'line', source: 'omt', 'source-layer': 'water', ...m('coastline'),
-      filter: ['!=', ['get', 'class'], 'swimming_pool'],
+      filter: ['in', ['get', 'class'], ['literal', ['ocean', 'dock', 'lake', 'river']]],
       layout: { 'line-join': 'round' },
       paint: {
         'line-color': C.ink,

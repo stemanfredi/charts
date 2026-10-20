@@ -111,7 +111,9 @@ coastline the basemap draws:
   and its canals), but all of it is filled the same. The shore line is drawn
   *under* that fill at twice its width: where two water polygons meet, both
   fills cover it; where water meets land, the land-side half remains. Piers
-  are drawn on top as land at about their real width.
+  are drawn on top as land at about their real width. Ponds (irrigation tanks,
+  cisterns) get no shore line, only the water fill: ringed, a 20 m pond read as a
+  dark dot on land.
 - Inland water is classified once per water body, from the DEM along its
   shore (its polygon's vertices, relative to any `DATUMS` surface there), and
   remembered by OSM id so all tiles agree. It is at sea level when the shore
