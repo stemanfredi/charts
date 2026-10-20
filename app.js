@@ -3,7 +3,7 @@ import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, domainEndMs } from './catalog.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend, regionOf } from './cmems.js';
 import { workerClipper } from './clip.js';
-import { drawRamp, loadColormap, drawColormap } from './legend.js';
+import { drawRamp, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon, exportName } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
 import { affine, mercator, worldFile, pamXml, stacItem } from './export.js';
@@ -340,12 +340,19 @@ function setTime(t) {
 // ---- the time bar: one hour for every layer that changes with time (timebar.js) ----------
 const timeOn = () => ITEMS.filter((it) => (it.cmems || it.date) && state.on.has(it.id));
 const timeEl = $('#timebar'), bar = timeBar(timeEl, setTime);
+// the depth, for the layers drawn at one (Water column), beside the hour: both are the map's
+const depthSel = h('label', { class: 'tb-depth' }, h('span', {}, 'Depth'),
+  h('select', { 'aria-label': 'Depth', onchange: (e) => setDepth(+e.target.value) },
+    CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface'))));
+bar.slot.append(depthSel);
 // the legends stand on the bar while it is shown
 new ResizeObserver(() => document.documentElement.style.setProperty('--tb-h', timeEl.hidden ? '0px' : `${timeEl.offsetHeight + 8}px`)).observe(timeEl);
 let barSeq = 0;
 async function renderTimeBar() {
   const items = timeOn(), seq = ++barSeq;
   timeEl.hidden = !items.length;
+  depthSel.hidden = !depthOn().length;
+  depthSel.querySelector('select').value = state.depth;
   document.documentElement.style.setProperty('--tb-h', timeEl.hidden ? '0px' : `${timeEl.offsetHeight + 8}px`);
   if (!items.length) return;
   // where each has data: the union of its datasets' ranges; NASA from its first day to its newest
@@ -365,10 +372,9 @@ async function renderTimeBar() {
 const variantOf = (id) => state.variant[id] || Object.keys(CMEMS[id])[0];
 const fmtHour = (t) => { const d = new Date(t); return `${d.toUTCString().slice(0, 11)}, ${d.toISOString().slice(11, 16)} UTC`; };
 const fmtDay = (t) => new Date(t).toUTCString().slice(0, 11);
-// a time drawn, as the variant has it: daily means are a day, not an hour
-const fmtDrawn = (v, t) => (v.daily ? `daily mean of ${fmtDay(t)}` : fmtHour(t));
 const fmtLevel = (level) => `${Math.abs(+level) < 10 ? Math.abs(+level).toFixed(1) : Math.round(Math.abs(+level))} m`;
-// what each sea-state item has at the hour shown, under its row: drawn from which time, or up to when there is data
+// under each Copernicus item, what the time bar cannot show: the level drawn, the step drawn when it
+// is not the hour shown (3-hourly), an observation's latest day, or no data at all
 const cmemsEmpty = new Set(); // sea-state items with no data at the hour shown: no legend
 async function cmemsNotes() {
   for (const it of cmemsOn()) {
@@ -378,16 +384,18 @@ async function cmemsNotes() {
     const ends = await Promise.all(v.parts.map((p) => domainOf(p).then((d) => domainEndMs(d.time), () => null)));
     const names = v.parts.map((p) => regionOf(p)?.name || (v.parts.length > 1 ? 'global' : ''));
     const parts = times.map((pt, i) => {
-      const who = names[i] ? `${names[i]}: ` : '';
-      if (pt === undefined) return `${who}time range unknown`;
-      if (pt === null) return `${who}no data at this hour (${ends[i] ? `data until ${fmtHour(ends[i])}` : 'outside its range'})`;
-      const at = levels[i] !== null ? ` at ${fmtLevel(levels[i])}` : '';
-      const latest = v.observed && pt === ends[i] && t > ends[i] ? ' (latest observation)' : '';
-      if (v.daily) return `${who}${v.observed ? fmtDay(pt) : fmtDrawn(v, pt)}${latest}${at}`;
-      if (pt === t) return `${who}to ${fmtHour(ends[i])}${at}`;
-      return `${who}shown at ${fmtHour(pt)}${latest}${at}`;
-    });
+      let what;
+      if (pt === undefined) what = 'time range unknown';
+      else if (pt === null) what = 'no data at this hour';
+      else {
+        const latest = v.observed && pt === ends[i] && t > ends[i];
+        const when = latest ? `latest: ${v.daily ? fmtDay(pt) : fmtHour(pt)}` : !v.daily && pt !== t ? fmtHour(pt).slice(-9) : '';
+        what = [when, levels[i] !== null ? `at ${fmtLevel(levels[i])}` : ''].filter(Boolean).join(', ');
+      }
+      return what && (names[i] ? `${names[i]}: ${what}` : what);
+    }).filter(Boolean);
     note.textContent = parts.join(' · ');
+    note.hidden = !parts.length;
     const empty = times.every((pt) => pt === null);
     if (empty !== cmemsEmpty.has(it.id)) { empty ? cmemsEmpty.add(it.id) : cmemsEmpty.delete(it.id); renderLegends(); }
   }
@@ -530,12 +538,8 @@ function controlsOf(it) {
     DENSITY[it.id].periods.map((p) => h('option', { value: p }, DENSITY[it.id].periodLabel(p)))) : null;
   // NASA daily: the day it shows (the time is set on the time bar)
   const latest = it.date ? h('p', { class: 'note latest' }) : null;
-  // water properties: the depth (under the first item on that is drawn at a depth, the same for all)
-  const depth = it.cmems && Object.values(CMEMS[it.id]).some((v) => v.depth) ? h('label', { class: 'depthsel' }, h('span', {}, 'Depth'),
-    h('select', { 'aria-label': 'Depth', onchange: (e) => setDepth(+e.target.value) },
-      CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface')))) : null;
   const cnote = it.cmems ? h('p', { class: 'note cmems-note' }) : null;
-  return h('div', { class: 'controls' }, variant, period, latest, depth, cnote);
+  return h('div', { class: 'controls' }, variant, period, latest, cnote);
 }
 function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
@@ -587,11 +591,6 @@ function renderMenu() {
     if (it.group === 'base') r.input.setAttribute('aria-checked', String(on));
     else r.input.checked = on;
     r.controls.hidden = !on || !(it.variants || it.date || it.density || it.cmems);
-    const ds = r.controls.querySelector('.depthsel');
-    if (ds) {
-      ds.hidden = depthOn()[0] !== it;
-      ds.querySelector('select').value = state.depth;
-    }
     if (r.infos && r.more.getAttribute('aria-expanded') === 'true') r.infos[it.id].hidden = !on;
     const low = it.minzoom && z < it.minzoom, high = it.maxzoom && z >= it.maxzoom + 1;
     r.row.classList.toggle('dim', !!(on && (low || high)));
@@ -603,8 +602,11 @@ function renderMenu() {
     if (per) per.value = state.period[it.id];
     const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
     if (rng) rng.value = state.opacity[it.id];
-    const lt = r.controls.querySelector('.latest');
-    if (lt) lt.textContent = `${state.date}${gibsLast && state.date === gibsLast && new Date(state.time).toISOString().slice(0, 10) > gibsLast ? ' (newest published)' : ''}`;
+    const lt = r.controls.querySelector('.latest'); // NASA: only when it shows its newest day, not the hour's
+    if (lt) {
+      lt.hidden = !(gibsLast && state.date === gibsLast && new Date(state.time).toISOString().slice(0, 10) > gibsLast);
+      lt.textContent = `latest: ${fmtDay(Date.parse(`${state.date}T00:00:00Z`))}`;
+    }
   }
   for (const s of segs) s.render();
   cmemsNotes();
@@ -630,7 +632,6 @@ function renderLegends() {
   const want = [];
   if (on('depth') && on('chart') && map.getZoom() < 13) want.push('depth');
   for (const id of Object.keys(DENSITY)) if (on(id)) want.push(id);
-  if (on('gibs') && GIBS[state.variant.gibs].legend) want.push('gibs');
   for (const it of cmemsOn()) if (!cmemsEmpty.has(it.id)) want.push(it.id);
   legendWant = want;
   for (const id of want) {
@@ -642,7 +643,7 @@ function renderLegends() {
       const d = DENSITY[id];
       drawRamp(el, d.title, `${d.unit} · ${d.types[state.variant[id]]} · ${d.periodLabel(state.period[id])}`, d.stops);
       el.setAttribute('aria-label', `${d.title} legend: ${d.stops.map(([v]) => v).join(', ')} ${d.unit}`);
-    } else if (CMEMS[id]) {
+    } else {
       const v = CMEMS[id][variantOf(id)], key = `${variantOf(id)}|${state.time}|${v.depth ? state.depth : ''}`;
       if (el.dataset.key !== key) {
         el.dataset.key = key;
@@ -657,17 +658,6 @@ function renderLegends() {
             drawColormap(el, v.label, sub, cm, [v.log || v.range[0] + (v.offset || 0) < 0, true], v.log);
             el.setAttribute('aria-label', `${v.label} legend${v.unit ? `, ${v.unit}` : ''}`);
             renderLegends(); // drawn after the stack was laid out: lay it out again with its size
-          })
-          .catch((err) => { el.dataset.key = ''; console.warn('legend colour map:', err.message); });
-      }
-    } else {
-      const g = GIBS[state.variant.gibs], key = `${state.variant.gibs}|${state.date}`;
-      if (el.dataset.key !== key) {
-        el.dataset.key = key;
-        loadColormap(g.legend.colormap)
-          .then((cm) => {
-            drawColormap(el, g.legend.title, `${g.legend.units} · ${state.date}`, cm);
-            el.setAttribute('aria-label', `${g.legend.title} legend, ${g.legend.units}`);
           })
           .catch((err) => { el.dataset.key = ''; console.warn('legend colour map:', err.message); });
       }

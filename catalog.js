@@ -78,10 +78,8 @@ export const esriAttribution = (copyrightText) => `Powered by <a href="https://w
 export const GIBS = {
   terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
   viirs: { label: 'True colour · VIIRS NOAA-20', layer: 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
-  sst:   { label: 'Sea surface temperature · MUR', layer: 'GHRSST_L4_MUR_Sea_Surface_Temperature', level: 7, ext: 'png', res: '1 km',
-    legend: { title: 'Sea surface temperature', units: '°C', colormap: 'https://gibs.earthdata.nasa.gov/colormaps/v1.3/GHRSST_Sea_Surface_Temperature.xml' } },
-  chl:   { label: 'Chlorophyll-a · MODIS Aqua', layer: 'MODIS_Aqua_L2_Chlorophyll_A', level: 7, ext: 'png', res: '1 km' },
 };
+// (sea surface temperature and chlorophyll come from Copernicus: gap-free, with Mediterranean detail)
 export function gibsTiles(key, date) {
   const g = GIBS[key];
   return [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${g.layer}/default/${date}/GoogleMapsCompatible_Level${g.level}/{z}/{y}/{x}.${g.ext}`];
@@ -297,10 +295,10 @@ export const ITEMS = [
 
   { id: 'gibs', group: 'observed', label: 'NASA daily', opacity: 0.9, date: true,
     variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),
-    info: { src: 'NASA EOSDIS GIBS (WMTS)', lic: 'NASA open data; attribution requested', res: 'True colour 250 m, to zoom 9 · SST and chlorophyll 1 km, to zoom 7. Clouds and swath gaps are real', url: 'https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api' } },
+    info: { src: 'NASA EOSDIS GIBS (WMTS)', lic: 'NASA open data; attribution requested', res: 'True colour, 250 m, to zoom 9. A picture of the day as the satellite saw it: clouds and swath gaps are real. Shows the newest published day after it', url: 'https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api' } },
 
   { id: 'legend', group: 'labels', label: 'Legends', on: true,
-    info: { src: 'Drawn from the same colour stops as the map; SST from NASA GIBS’s published colour map; vessel and route density from the stops their WMS publishes', lic: '—', res: 'Shown bottom left for every colour layer that is drawn; the PNG always includes them', url: 'https://nasa-gibs.github.io/gibs-api-docs/' } },
+    info: { src: 'Drawn from the same colour stops as the map; Copernicus from the colour maps its service publishes; vessel and route density from the stops their WMS publishes', lic: '—', res: 'Shown bottom left for every colour layer that is drawn; the PNG always includes them', url: '' } },
   { id: 'places', group: 'labels', label: 'Place names', on: true,
     info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'English name where tagged, else local name', url: 'https://openfreemap.org' } },
   { id: 'seanames', group: 'labels', label: 'Sea names', on: true,

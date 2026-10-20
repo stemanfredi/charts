@@ -40,7 +40,8 @@ function fmtLocal(t) {
   return `${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} local`;
 }
 
-// root: the bar's element; onChange(t): an hour picked (ms, on the hour)
+// root: the bar's element; onChange(t): an hour picked (ms, on the hour). Returns render, and
+// slot: a place in the bar's top line for other settings of the whole map (the depth)
 export function timeBar(root, onChange) {
   const button = (cls, text, label, fn) => {
     const b = el('button', cls, text);
@@ -59,6 +60,7 @@ export function timeBar(root, onChange) {
     button('tb-step', '‹', 'Previous hour (←)', () => onChange(shown.time - HOUR)),
     el('span', 'tb-label', when, local, rel),
     button('tb-step', '›', 'Next hour (→)', () => onChange(shown.time + HOUR)),
+    el('span', 'tb-slot'),
     cal,
     button('tb-now', 'Now', 'The current hour (Home)', () => onChange(floorHour(Date.now()))));
   const days = el('div', 'tb-days'), rows = el('div', 'tb-rows');
@@ -134,5 +136,5 @@ export function timeBar(root, onChange) {
     if (step) { e.preventDefault(); onChange(shown.time + step); } else if (e.key === 'Home') { e.preventDefault(); onChange(floorHour(Date.now())); }
   });
   new ResizeObserver(() => drawDays()).observe(days);
-  return { render };
+  return { render, slot: head.querySelector('.tb-slot') };
 }

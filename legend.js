@@ -1,6 +1,6 @@
 // Colour legends, drawn on canvases so the PNG export can copy them as they are.
-// The depth legend uses the same stops as the map layer; the SST legend uses the
-// colour map NASA GIBS publishes for the layer, so the classes are the real ones.
+// The depth legend uses the same stops as the map layer; Copernicus legends the colour maps its
+// service publishes for the layer (cmems.js), so the colours are the real ones.
 
 const W = 236, H = 44, KEY = 16, BAR = { x: 8, y: 20, w: 220, h: 9 };
 const INK = '#2b3a46', SOFT = '#5d6d79';
@@ -74,25 +74,6 @@ export function drawRamp(el, text, sub, stops, noData) {
     g.fillRect(BAR.x + i * seg, BAR.y, seg + 0.5, BAR.h);
   }
   ticks(g, stops.map(([d], i) => [BAR.x + i * seg, i === n ? `${d}+` : `${d}`, i === 0 ? 'left' : i === n ? 'right' : 'center']));
-}
-
-// GIBS colour map (v1.3 XML): entries with value="[lo,hi)" and rgb="r,g,b".
-const cmapCache = {};
-export function loadColormap(url) {
-  return (cmapCache[url] ||= fetch(url, { credentials: 'omit' })
-    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
-    .then((xml) => {
-      const doc = new DOMParser().parseFromString(xml, 'application/xml');
-      const out = [];
-      for (const e of doc.querySelectorAll('ColorMap:not([title="No Data"]) ColorMapEntry')) {
-        const m = /^[[(]([^,]+),([^)\]]+)[)\]]$/.exec(e.getAttribute('value') || '');
-        if (!m || e.getAttribute('transparent') === 'true') continue;
-        out.push({ lo: parseFloat(m[1]), hi: parseFloat(m[2]), rgb: `rgb(${e.getAttribute('rgb')})` });
-      }
-      if (!out.length) throw new Error('empty colour map');
-      return out;
-    })
-    .catch((err) => { delete cmapCache[url]; throw err; }));
 }
 
 // open: whether values run on beyond the first and last colour ('<' and '≥' on the end labels);

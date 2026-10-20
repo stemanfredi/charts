@@ -106,7 +106,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .seg button { border: 0; background: #fff; min-height: var(--row); padding: 0 6px; font-size: 12px; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
-.depthsel { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; margin-left: 4px; font-size: 12.5px; }
+
 .opacity { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
 .opacity span { flex: none; min-width: 52px; }
 .opacity input[type=range] { flex: 1; height: var(--row); accent-color: var(--accent); margin: 0; }
@@ -172,7 +172,10 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .tb-head button, .tb-cal { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); flex: none; }
 .tb-step { width: var(--row); font-size: 16px; }
 .tb-now { padding: 0 12px; }
-.tb-cal { padding: 0 6px; margin-left: auto; }
+.tb-slot { margin-left: auto; display: flex; gap: 4px; }
+.tb-depth { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--soft); }
+.tb-depth select { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 6px; color: var(--ink); }
+.tb-cal { padding: 0 6px; }
 .tb-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 0 6px; min-width: 0; }
 .tb-when { font-weight: 600; white-space: nowrap; }
 .tb-local, .tb-rel { color: var(--soft); font-size: 12px; white-space: nowrap; }
@@ -235,7 +238,8 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .handle::after { content: ""; position: absolute; left: 28px; right: 28px; top: 8px; height: 5px; border-radius: 3px; background: #c3ccd3; }
   .panel header { padding-top: 10px; }
   body.menu-open .legends, body.menu-open .timebar { display: none; }
-  .tb-rows, .tb-local { display: none; } /* phones: the days and the hour, without the layers' rows */
+  .tb-rows, .tb-local, .tb-depth > span { display: none; } /* phones: the days and the hour, without the layers' rows */
+  .tb-head { flex-wrap: wrap; }
   .tb-cal { display: none; }
   .mbar { right: calc(var(--rail) + 20px); flex-wrap: wrap; }
   .mbar .tip { display: none; }

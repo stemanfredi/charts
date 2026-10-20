@@ -47,7 +47,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
 | Route density | EMSA, via EMODnet Human Activities | CC BY 4.0 |
 | Sea state, water properties, satellite observations, water quality | Copernicus Marine Service | Copernicus Marine licence: free, attribution required |
-| Daily imagery | NASA EOSDIS GIBS | NASA open data |
+| NASA daily (true colour) | NASA EOSDIS GIBS | NASA open data |
 | Place search | Photon (komoot), OpenStreetMap data | ODbL |
 
 Layers that change with time (Copernicus and NASA daily) share one hour, set on a
@@ -57,7 +57,8 @@ the bar shows where it has data. Copernicus layers: waves, currents and wind;
 temperature, salinity, mixed layer depth and water quality (dissolved oxygen, pH,
 nitrate, primary production); satellite sea surface temperature (and its anomaly),
 chlorophyll and sea level anomaly. Daily products show the day of that hour, and
-variables with depth are drawn at one depth chosen in the Layers panel. In the Mediterranean they come from
+variables with depth are drawn at one depth, chosen on the same bar. NASA daily
+is true colour: the day as the satellite saw it. In the Mediterranean they come from
 the regional products, elsewhere from the global ones. Observations (wind and
 the satellite layers, NASA daily too) are published late: after their latest day
 or hour they show it, and say so.

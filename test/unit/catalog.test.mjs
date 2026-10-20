@@ -86,7 +86,7 @@ test('GIBS: the newest date a layer has, from DescribeDomains', () => {
   assert.equal(domainEnd('<Domains><DimensionDomain><Domain>2026-08-20/2026-10-18/P1D</Domain></DimensionDomain></Domains>'), '2026-10-18');
   assert.equal(domainEnd('<Domain>2026-08-20/2026-09-01/P1D,2026-09-03/2026-10-19/P1D</Domain>'), '2026-10-19');
   assert.equal(domainEnd('<Domains></Domains>'), null);
-  assert.match(gibsDomainUrl('sst', '2026-08-20', '2026-10-20'), /GHRSST_L4_MUR_Sea_Surface_Temperature\/default\/GoogleMapsCompatible_Level7\/all\/2026-08-20--2026-10-20\.xml$/);
+  assert.match(gibsDomainUrl('terra', '2026-08-20', '2026-10-20'), /MODIS_Terra_CorrectedReflectance_TrueColor\/default\/GoogleMapsCompatible_Level9\/all\/2026-08-20--2026-10-20\.xml$/);
 });
 
 test('Copernicus: items, variants and parts agree; styles fix the range', () => {

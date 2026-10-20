@@ -74,15 +74,16 @@ try {
   check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
   await pv.close();
 
-  // NASA SST is published about two days late: at the current hour it shows the newest day GIBS
-  // has, says so, and asks for that day's tiles; the time bar shows where it has data
-  const sst = await open('#v=5/40/10/0&menu=1&g=observed&on=chart,coastline,gibs&var=gibs:sst');
-  await sst.waitForFunction(() => /newest published/.test(document.querySelector('.item:has(#i-gibs) .latest')?.textContent || ''), null, { timeout: 20000 }).catch(() => {});
-  const [note, sstTiles, rowsOn] = await sst.evaluate(() => [document.querySelector('.item:has(#i-gibs) .latest').textContent, map.getSource('gibs-sst').tiles[0],
-    [...document.querySelectorAll('#timebar .tb-name')].map((e) => e.textContent).join()]);
-  const day = note.slice(0, 10);
-  check(/^\d{4}-\d{2}-\d{2} \(newest published\)$/.test(note) && sstTiles.includes(`/${day}/`) && rowsOn === 'NASA daily', `NASA SST shows its newest day (${note}; time bar: ${rowsOn})`);
-  await sst.close();
+  // NASA true colour at the current hour: today's tiles if NASA has today, else its newest day,
+  // said so under its row; the time bar has its row
+  const tc = await open('#v=5/40/10/0&menu=1&g=observed&on=chart,coastline,gibs');
+  await tc.waitForFunction(() => map.getLayoutProperty('gibs-terra', 'visibility') === 'visible', null, { timeout: 20000 }).catch(() => {});
+  const [tcNote, tcHidden, tcTiles, rowsOn] = await tc.evaluate(() => [document.querySelector('.item:has(#i-gibs) .latest').textContent, document.querySelector('.item:has(#i-gibs) .latest').hidden,
+    map.getSource('gibs-terra').tiles[0], [...document.querySelectorAll('#timebar .tb-name')].map((e) => e.textContent).join()]);
+  const tcDay = /\/(\d{4}-\d{2}-\d{2})\//.exec(tcTiles)?.[1] || '', todayUtc = new Date().toISOString().slice(0, 10);
+  const said = `latest: ${new Date(`${tcDay}T00:00:00Z`).toUTCString().slice(0, 11)}`;
+  check(rowsOn === 'NASA daily' && (tcDay === todayUtc ? tcHidden : !tcHidden && tcNote === said), `NASA true colour: today or its newest day, said so (${tcDay}; ${tcHidden ? 'no note' : tcNote})`);
+  await tc.close();
 
   // search: coordinates are read on the page (no request); a place comes from Photon
   const sp = await open('#v=6/41/12/0&menu=0');
@@ -148,15 +149,15 @@ try {
   // water properties at a depth from the link: each model at its nearest level, said so
   const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');
   await wp.waitForFunction(() => /at \d+ m/.test(document.querySelector('.item:has(#i-temperature) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
-  const [wpNote, wpDepth, wpBroken] = await wp.evaluate(() => [document.querySelector('.item:has(#i-temperature) .cmems-note').textContent, document.querySelector('.item:has(#i-temperature) .depthsel select').value,
+  const [wpNote, wpDepth, wpBroken] = await wp.evaluate(() => [document.querySelector('.item:has(#i-temperature) .cmems-note').textContent, document.querySelector('#timebar .tb-depth select').value,
     [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(wpDepth === '100' && /daily mean/.test(wpNote) && /at \d+ m/.test(wpNote) && !wpBroken.length && !wp.errors.length, `temperature at 100 m: ${wpNote} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
+  check(wpDepth === '100' && /global: at \d+ m · Mediterranean: at \d+ m/.test(wpNote) && !wpBroken.length && !wp.errors.length, `temperature at 100 m, the depth on the time bar: ${wpNote} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
   await wp.close();
   // a satellite observation at the current hour: its latest day, said so
   const ob = await open('#v=5/40/10/0&on=chart,coastline,sst,legend&menu=1&g=observed');
-  await ob.waitForFunction(() => /latest observation/.test(document.querySelector('.item:has(#i-sst) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
+  await ob.waitForFunction(() => /latest:/.test(document.querySelector('.item:has(#i-sst) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
   const [obNote, obBroken] = await ob.evaluate(() => [document.querySelector('.item:has(#i-sst) .cmems-note').textContent, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(/Mediterranean: .*latest observation/.test(obNote) && !obBroken.length && !ob.errors.length, `sea surface temperature shows its latest day: ${obNote} ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);
+  check(/Mediterranean: latest: /.test(obNote) && !obBroken.length && !ob.errors.length, `sea surface temperature shows its latest day: ${obNote} ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);
   await ob.close();
 
   // PNG export
