@@ -30,13 +30,14 @@
     </div>
   </div>
 
-  <!-- right edge: what the map shows, measuring, sharing; zoom and compass lower down.
-       Layers and Measure switch one side panel; Share is a small menu. Both open to the left
-       of this column, which never moves. -->
+  <!-- right edge: what the map shows and measuring (they switch one side panel, which opens to
+       the left of this column), then copy link and PNG, which act at once; zoom and compass lower
+       down. The column never moves. -->
   <nav id="rail" class="rail" aria-label="Map controls">
     <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false" title="Layers (L)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></svg><span>Layers</span></button>
     <button type="button" id="b-measure" aria-controls="panel" aria-expanded="false" title="Measure: ruler (R), area (A), range ring (C)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg><span>Measure</span></button>
-    <button type="button" id="b-share" aria-controls="share-pop" aria-expanded="false" title="Copy a link or export a PNG"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7h14v-7"/></svg><span>Share</span></button>
+    <button type="button" id="link" title="Copy a link to this exact view"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg><span>Link</span></button>
+    <button type="button" id="png" title="Export the view as a PNG image"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>PNG</span></button>
   </nav>
   <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
     <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -54,11 +55,6 @@
     <div id="mview" class="view" hidden></div>
     <footer><button type="button" class="about-link" data-about>About · not for navigation</button></footer>
   </aside>
-
-  <section id="share-pop" class="pop" aria-label="Share" hidden>
-    <button type="button" id="link" class="action"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg><span>Copy link to this view</span></button>
-    <button type="button" id="png" class="action"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg><span>Export PNG</span></button>
-  </section>
 
   <div id="mbar" class="mbar" role="status" hidden></div>
   <div id="legends" class="legends" aria-label="Legends"></div>

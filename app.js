@@ -556,7 +556,7 @@ function renderTools() {
   mbarTip.textContent = TIP[measure.tool];
 }
 
-// ---- side panel, share menu, about -------------------------------------------------------
+// ---- side panel, link and PNG, about -----------------------------------------------------
 // One side panel; the Layers and Measure buttons switch what it shows, and the button of the
 // view already shown closes it. It keeps its place and size, so nothing overlaps.
 const panel = $('#panel'), panelTitle = $('#panel-title');
@@ -570,35 +570,14 @@ function setPanel(view) {
     if (v === view) panelTitle.textContent = title;
   }
   document.body.classList.toggle('menu-open', !!view); // phones: the legend makes way for the sheet
-  if (view && small()) closePops();
   writeHash();
 }
 for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => setPanel(state.panel === v ? null : v));
 $('#close').addEventListener('click', () => setPanel(null));
 
-// Share opens beside its button (from the bottom on phones), over the panel like any menu
-const POPS = { 'b-share': $('#share-pop') };
-function closePops() {
-  for (const [id, el] of Object.entries(POPS)) { el.hidden = true; $(`#${id}`).setAttribute('aria-expanded', 'false'); }
-  document.body.classList.remove('pop-open');
-}
-function togglePop(id) {
-  const el = POPS[id], show = el.hidden;
-  closePops();
-  if (!show) return;
-  if (small()) setPanel(null);
-  el.style.top = small() ? '' : `${$(`#${id}`).getBoundingClientRect().top - 2}px`;
-  el.hidden = false;
-  $(`#${id}`).setAttribute('aria-expanded', 'true');
-  document.body.classList.add('pop-open');
-}
-for (const id of Object.keys(POPS)) $(`#${id}`).addEventListener('click', () => togglePop(id));
-// a click elsewhere closes an open popover (not one inside it, nor on its own button)
-document.addEventListener('pointerdown', (e) => {
-  if (!e.target.closest('.pop, #rail')) closePops();
-});
+// Link and PNG act at once (no menu): the link button says "Copied" for a moment
 $('#link').addEventListener('click', (e) => copyLink(e.currentTarget));
-$('#png').addEventListener('click', () => { closePops(); exportPng(); });
+$('#png').addEventListener('click', () => exportPng());
 async function copyLink(b) {
   writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
@@ -612,44 +591,32 @@ const about = $('#about');
 for (const b of document.querySelectorAll('[data-about]')) b.addEventListener('click', () => about.showModal());
 about.querySelector('[data-close]').addEventListener('click', () => about.close());
 
-// keys: / search, L layers, R / A / C measuring tools, Esc closes a popover (measure.js handles Esc while drawing)
+// keys: / search, L layers, R / A / C measuring tools (measure.js handles Esc while drawing)
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || about.open || e.target.closest('input, select, textarea')) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') closePops();
-  else if (k === '/') { e.preventDefault(); q.focus(); }
+  if (k === '/') { e.preventDefault(); q.focus(); }
   else if (k === 'l') setPanel(state.panel === 'layers' ? null : 'layers');
-  else if ({ r: 'ruler', a: 'area', c: 'ring' }[k]) { closePops(); if (small()) setPanel(null); measure.start({ r: 'ruler', a: 'area', c: 'ring' }[k]); }
+  else if ({ r: 'ruler', a: 'area', c: 'ring' }[k]) { if (small()) setPanel(null); measure.start({ r: 'ruler', a: 'area', c: 'ring' }[k]); }
 });
 
-// phones: the panel is a sheet with a handle; drag it to any height, it settles at a third, a half
-// or nearly all of the screen; dragged low enough, it closes. A tap steps through the heights.
+// phones: the panel is a sheet as tall as its content; drag its handle down to close it
 const handle = h('div', { class: 'handle', 'aria-hidden': 'true' });
 panel.prepend(handle);
-const SNAPS = [0.3, 0.55, 0.92];
-let sheet = 0.55;
-function setSheet(f) { sheet = f; panel.style.setProperty('--sheet-h', `${Math.round(f * 100)}vh`); }
 handle.addEventListener('pointerdown', (e) => {
-  const y0 = e.clientY, h0 = panel.getBoundingClientRect().height;
-  let moved = false;
+  const y0 = e.clientY;
   handle.setPointerCapture(e.pointerId);
   panel.classList.add('dragging');
-  const move = (ev) => {
-    if (Math.abs(ev.clientY - y0) > 4) moved = true;
-    panel.style.setProperty('--sheet-h', `${Math.max(80, h0 + y0 - ev.clientY)}px`);
-  };
+  const move = (ev) => { panel.style.transform = `translateY(${Math.max(0, ev.clientY - y0)}px)`; };
   const up = (ev) => {
     handle.removeEventListener('pointermove', move);
     panel.classList.remove('dragging');
-    const f = (h0 + y0 - ev.clientY) / innerHeight;
-    if (!moved) setSheet(SNAPS[(SNAPS.indexOf(sheet) + 1) % SNAPS.length]);
-    else if (f < 0.18) { setSheet(0.55); setPanel(null); }
-    else setSheet(SNAPS.reduce((a, b) => (Math.abs(b - f) < Math.abs(a - f) ? b : a)));
+    panel.style.transform = '';
+    if (ev.clientY - y0 > 80) setPanel(null);
   };
   handle.addEventListener('pointermove', move);
   handle.addEventListener('pointerup', up, { once: true });
 });
-setSheet(sheet);
 
 // ---- search: coordinates are read here; place names go to Photon (OpenStreetMap data) ---------
 const PHOTON = 'https://photon.komoot.io/api/';

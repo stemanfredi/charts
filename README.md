@@ -41,12 +41,14 @@ credits list only the sources currently drawn.
 
 Layout, by task. Top left, a search box: a place name (via Photon, see
 *Privacy*) or coordinates in any common form (`44.085, 9.85`, `44 05.1N 9 51E`,
-`44°05'06"N 009°51'E`). The right edge holds what you use: *Layers*, *Measure* and
-*Share* at the top, zoom lower down, and a compass only when the map is
-rotated. *Layers* and *Measure* switch one side panel that opens to the left
-of that column (open on Layers by default on screens 1200 px and wider; the
-button of the view shown closes it); *Share* is a small menu. The column never
-moves. On phones the panel is a sheet from the bottom with a handle. The map's edges hold what you read: legends stacked bottom left, and a
+`44°05'06"N 009°51'E`). The right edge holds what you use: *Layers*, *Measure*,
+*Link* and *PNG* at the top, zoom lower down, and a compass only when the map is
+rotated. *Layers* and *Measure* switch one side panel, as tall as its
+content, that opens to the left of that column (open on Layers by default on
+screens 1200 px and wider; the button of the view shown closes it). *Link*
+copies a link to the view and *PNG* exports it, at once. The column never
+moves. On phones the panel is a sheet from the bottom, as tall as its content;
+drag its handle down to close it. The map's edges hold what you read: legends stacked bottom left, and a
 bottom row with the credits on the left and the cursor position and scale bar on the right (no bar: each item has its own light backing). The scale
 bar is double, as on OpenSeaMap: km above the line, nautical miles below (also
 in the PNG). While a measurement is drawn, a bar at the top shows its live

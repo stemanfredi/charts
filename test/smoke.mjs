@@ -56,7 +56,6 @@ try {
   const kinds = (await p.evaluate(() => [...document.querySelectorAll('.mlist label.name')].map((l) => l.textContent.split(' ')[0]))).join();
   check(kinds === 'Ruler,Ring', `measurements load from the URL as ruler and ring (${kinds})`);
   await p.evaluate(() => map.jumpTo({ center: [12, 41], zoom: 6 }));
-  await p.click('#b-share');
   await p.click('#link');
   const link = await p.evaluate(() => navigator.clipboard.readText());
   check(link.includes('v=6.00/41.00000/12.00000') && link.includes('c:10,43.5;15000'), 'Link copies the current view with its measurements');
@@ -118,7 +117,6 @@ try {
 
 
   // PNG export
-  await again.click('#b-share');
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());
   check(png.length > 50_000 && png.subarray(1, 4).toString() === 'PNG', `PNG export (${Math.round(png.length / 1024)} KB)`);
