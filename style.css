@@ -171,16 +171,14 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
   font-size: 11px; color: var(--soft);
 }
 .status > *, .readout > * { pointer-events: auto; }
-.pos, .scalenote, .status .maplibregl-ctrl-attrib:not(.maplibregl-compact) { background: rgba(255,255,255,.85); border-radius: 4px; padding: 1px 6px; }
+.pos, .scalenote { background: rgba(255,255,255,.85); border-radius: 4px; padding: 1px 6px; }
 .pos { font: 11.5px var(--mono); color: var(--ink); white-space: nowrap; }
 .pos:empty { display: none; }
 .scalenote { color: var(--warn); }
 .scalenote:empty { display: none; }
-.status .maplibregl-ctrl-attrib { margin: 0; text-align: left; flex: 0 1 auto; max-width: 62%; }
+/* credits: always written out (no (i) toggle), wrapping within the left of the row */
+.status .maplibregl-ctrl-attrib { margin: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); text-align: left; flex: 0 1 auto; max-width: 62%; }
 .readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; }
-.status .maplibregl-ctrl-attrib.maplibregl-compact { flex: 0 0 auto; background: #fff; }
-/* phones: MapLibre shows the credits in full until the first drag, then folds them into (i) */
-.status .maplibregl-ctrl-attrib.maplibregl-compact-show { flex: 1 1 100%; max-width: none; text-align: left; padding-right: 28px; } /* clear of the (i) */
 .status .maplibregl-ctrl-attrib-inner { white-space: normal; }
 .maplibregl-ctrl-scale { border-color: var(--ink); color: var(--ink); background: rgba(255, 255, 255, .85); font: 11px var(--font); }
 /* double scale (as on OpenSeaMap): km bar open at the top, NM bar hanging below the same line */

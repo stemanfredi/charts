@@ -2,8 +2,7 @@
 // Layout check: at phone, tablet and desktop width, with the layers panel closed and open,
 //  - no two overlays overlap, except under the panel (which must then be on top);
 //  - nothing on screen leaves the viewport;
-//  - every visible control is a ≥ 44 × 44 px target (labels count for their checkbox;
-//    MapLibre's 24 px attribution button is exempt: it meets WCAG 2.2 AA's 24 px).
+//  - every visible control is a ≥ 44 × 44 px target (labels count for their checkbox).
 //   CHROME=/path/to/chrome npm run ui        Screenshots go to $UI_SHOTS if set.
 import { chromium } from 'playwright-core';
 import { serve, chromeOptions } from './serve.mjs';
@@ -58,9 +57,7 @@ try {
         }
         // targets: controls, except checkboxes/radios whose label is the target
         const small = [];
-        // MapLibre's attribution (i) is exempt: a 24 px third-party control, which meets WCAG 2.2 AA (24 px)
         for (const el of document.querySelectorAll('button, select, summary, input, label')) {
-          if (el.closest('.maplibregl-ctrl-attrib')) continue;
           if (!seen(el) || el.closest('#menu details:not([open]) > ul')) continue;
           if (el.matches('input[type=checkbox], input[type=radio]') && (el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`)))) continue;
           if (el.matches('label') && !el.querySelector('input') && !el.htmlFor) continue; // plain text labels

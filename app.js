@@ -129,15 +129,14 @@ map.touchZoomRotate.disableRotation();
 const small = () => window.innerWidth < 720;
 
 // ---- bottom row: credits, scale note, cursor position, double scale ------------------------
-// The scale is double, as on OpenSeaMap: km above the line, nautical miles below. Credits stay
-// written out on wide maps (Esri: data attribution "always visible"; OSM likewise); below 640 px
-// MapLibre folds them into its (i), which Esri allows on small screens, and it follows resizes.
+// The scale is double, as on OpenSeaMap: km above the line, nautical miles below. Credits are
+// always written out, at every width (Esri: data attribution "always visible"; OSM likewise).
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
 const scales = ['metric', 'nautical'].map((unit) => new maplibregl.ScaleControl({ maxWidth: 100, unit }));
 const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s.onAdd(map)));
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
-const attribution = new maplibregl.AttributionControl();
+const attribution = new maplibregl.AttributionControl({ compact: false });
 // credits on the left; the scale note, cursor position and scale grouped on the right
 statusEl.append(attribution.onAdd(map), h('div', { class: 'readout' }, scaleNoteEl, posEl, scalesEl));
 // the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits
