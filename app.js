@@ -66,25 +66,23 @@ function writeHash() {
 function writeHashNow() {
   clearTimeout(hashTimer);
   if (!ready) return;
-  {
-    const c = map.getCenter();
-    const q = new URLSearchParams();
-    q.set('v', [map.getZoom().toFixed(2), c.lat.toFixed(5), c.lng.toFixed(5), Math.round(map.getBearing())].join('/'));
-    q.set('on', [...state.on].join(','));
-    const variants = Object.entries(state.variant).filter(([k, v]) => v !== Object.keys(byId[k].variants)[0]);
-    if (variants.length) q.set('var', variants.map((kv) => kv.join(':')).join(','));
-    const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
-    if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
-    if (state.on.has('gibs')) q.set('d', state.date);
-    const per = Object.entries(state.period).filter(([id, v]) => state.on.has(id) && v !== DENSITY[id].defaultPeriod);
-    if (per.length) q.set('per', per.map((kv) => kv.join(':')).join(','));
-    if (measure.units !== 'km') q.set('u', measure.units);
-    const m = measure.serialize();
-    if (m) q.set('m', m);
-    q.set('g', [...state.open].join(','));
-    q.set('menu', state.panel === 'measure' ? 'measure' : state.panel ? '1' : '0');
-    history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
-  }
+  const c = map.getCenter();
+  const q = new URLSearchParams();
+  q.set('v', [map.getZoom().toFixed(2), c.lat.toFixed(5), c.lng.toFixed(5), Math.round(map.getBearing())].join('/'));
+  q.set('on', [...state.on].join(','));
+  const variants = Object.entries(state.variant).filter(([k, v]) => v !== Object.keys(byId[k].variants)[0]);
+  if (variants.length) q.set('var', variants.map((kv) => kv.join(':')).join(','));
+  const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
+  if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
+  if (state.on.has('gibs')) q.set('d', state.date);
+  const per = Object.entries(state.period).filter(([id, v]) => state.on.has(id) && v !== DENSITY[id].defaultPeriod);
+  if (per.length) q.set('per', per.map((kv) => kv.join(':')).join(','));
+  if (measure.units !== 'km') q.set('u', measure.units);
+  const m = measure.serialize();
+  if (m) q.set('m', m);
+  q.set('g', [...state.open].join(','));
+  q.set('menu', state.panel === 'measure' ? 'measure' : state.panel ? '1' : '0');
+  history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
 }
 
 const urlUnits = readHash();
@@ -622,12 +620,13 @@ for (const b of document.querySelectorAll('[data-about]')) b.addEventListener('c
 about.querySelector('[data-close]').addEventListener('click', () => about.close());
 
 // keys: / search, L layers, R / A / C measuring tools (measure.js handles Esc while drawing)
+const TOOL_KEY = { r: 'ruler', a: 'area', c: 'ring' };
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || about.open || e.target.closest('input, select, textarea')) return;
   const k = e.key.toLowerCase();
   if (k === '/') { e.preventDefault(); q.focus(); }
   else if (k === 'l') setPanel(state.panel === 'layers' ? null : 'layers');
-  else if ({ r: 'ruler', a: 'area', c: 'ring' }[k]) { if (small()) setPanel(null); measure.start({ r: 'ruler', a: 'area', c: 'ring' }[k]); }
+  else if (TOOL_KEY[k]) { if (small()) setPanel(null); measure.start(TOOL_KEY[k]); }
 });
 
 // phones: the panel is a sheet as tall as its content; drag its handle down to close it
@@ -728,8 +727,7 @@ q.addEventListener('blur', () => setTimeout(hideResults, 150));
 qClear.addEventListener('click', () => { q.value = ''; qClear.hidden = true; hideResults(); pin?.remove(); pin = null; q.focus(); });
 
 // cursor position readout
-const pos = posEl;
-map.on('mousemove', (e) => { pos.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
+map.on('mousemove', (e) => { posEl.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
 
 // ---- scale note: the Mercator scale bar is exact only at the centre latitude ------------
 // relative change of the Mercator scale (∝ 1/cos lat) across the view: from the lowest to the
@@ -743,8 +741,6 @@ function scaleNote() {
   const v = scaleVariation();
   scaleNoteEl.textContent = v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}% across the view` : '';
 }
-let noteRaf = 0;
-map.on('move', () => { cancelAnimationFrame(noteRaf); noteRaf = requestAnimationFrame(scaleNote); });
 
 // ---- PNG export: the map canvas plus scale, north arrow and a credit strip ---
 function attributionText() {
@@ -854,11 +850,11 @@ map.on('load', () => {
   scaleNote();
   renderCompass();
 });
-map.on('moveend', () => { updateGraticule(); writeHash(); });
-let gratRaf = 0;
-map.on('move', () => { cancelAnimationFrame(gratRaf); gratRaf = requestAnimationFrame(updateGraticule); }); // edge labels follow the frame
+map.on('moveend', writeHash);
+let moveRaf = 0; // once per frame while moving: the graticule's edge labels follow the frame, the scale note the view
+map.on('move', () => { cancelAnimationFrame(moveRaf); moveRaf = requestAnimationFrame(() => { updateGraticule(); scaleNote(); }); });
 map.on('zoomend', renderMenu);
 map.on('dataloading', () => document.body.classList.add('loading'));
 map.on('idle', () => document.body.classList.remove('loading'));
 window.addEventListener('hashchange', () => location.reload());
-window.map = map; // handy from the console
+window.map = map; // the browser tests drive the map through it; handy from the console too

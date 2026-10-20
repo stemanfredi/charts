@@ -8,8 +8,6 @@ const { STANDARD, DISTANCE_IN, LONG_UNROLL } = globalThis.geodesic.Geodesic;
 const MASK = STANDARD | DISTANCE_IN | LONG_UNROLL; // DISTANCE_IN: positions along a line by distance
 const NM = 1852;
 
-const KIND = { ruler: 'Ruler', area: 'Area', ring: 'Ring' };
-
 export function fmtDist(m, units) {
   if (units === 'nm') return m < NM ? `${(m / NM).toFixed(3)} NM` : `${(m / NM).toFixed(m < 100 * NM ? 2 : 1)} NM`;
   return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 100e3 ? 2 : 1)} km`;
@@ -78,9 +76,9 @@ export function stats(mm) {
 
 export function summary(mm, units) {
   const st = stats(mm);
-  if (mm.kind === 'ring') return `${KIND.ring} r ${fmtDist(st.r, units)}`;
-  if (mm.kind === 'area') return `${KIND.area} ${fmtArea(st.area, units)}`;
-  return `${KIND.ruler} ${fmtDist(st.len, units)}`;
+  if (mm.kind === 'ring') return `Ring r ${fmtDist(st.r, units)}`;
+  if (mm.kind === 'area') return `Area ${fmtArea(st.area, units)}`;
+  return `Ruler ${fmtDist(st.len, units)}`;
 }
 
 function features(mm, units, draft) {
@@ -194,8 +192,8 @@ export class Measure {
       : { ...d, pts: [...d.pts, this.hover] };
   }
 
-  setHidden(id, hidden) { for (const x of this.list) if (id == null || x.id === id) x.hidden = hidden; this.render(); this.onChange('list'); }
-  remove(id) { this.list = this.list.filter((x) => id != null && x.id !== id); this.render(); this.onChange('list'); }
+  setHidden(id, hidden) { const x = this.list.find((y) => y.id === id); if (x) x.hidden = hidden; this.render(); this.onChange('list'); }
+  remove(id) { this.list = this.list.filter((x) => x.id !== id); this.render(); this.onChange('list'); }
   setRadius(id, r) { const x = this.list.find((y) => y.id === id); if (x && r > 0) { x.r = r; this.render(); this.onChange('list'); } }
   setUnits(u) { this.units = u; this.render(); this.onChange('list'); }
 
@@ -241,6 +239,6 @@ export const MEASURE_LAYERS = [
     paint: { 'circle-radius': 3.5, 'circle-color': '#fff', 'circle-stroke-color': '#b0127a', 'circle-stroke-width': 1.5 } },
   { id: 'measure-label', type: 'symbol', source: 'measure', filter: ['has', 'label'],
     layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-anchor': ['get', 'anchor'],
-      'text-offset': [0, 0], 'text-allow-overlap': true, 'text-ignore-placement': true, 'text-justify': 'center' },
+      'text-allow-overlap': true, 'text-ignore-placement': true, 'text-justify': 'center' },
     paint: { 'text-color': '#7a0d55', 'text-halo-color': '#fff', 'text-halo-width': 1.6 } },
 ];

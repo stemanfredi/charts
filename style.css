@@ -20,8 +20,8 @@ button { cursor: pointer; }
 svg { flex: none; }
 
 /* Layout: the map's edges hold what you read (legends, credits and the scale at the bottom);
-   the right edge holds what you use (Layers, Measure, Share; zoom and compass lower down).
-   The panel and the popovers open to the left of that column, so its buttons never move. */
+   the right edge holds what you use (Layers, Measure, Link, PNG; zoom and compass lower down).
+   The panel opens to the left of that column, so its buttons never move. */
 .rail, .zoom, .panel, .mbar { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 
 /* ---- right column ---- */
@@ -199,7 +199,6 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 
 /* ---- phones: sheets from the bottom, pinch instead of zoom buttons ---- */
 @media (max-width: 720px) {
-  .rail { top: 10px; }
   .zoom { background: none; border: 0; box-shadow: none; }
   #zoom-in, #zoom-out { display: none; }
   #compass { background: var(--bg); border: 1px solid var(--line); box-shadow: var(--shadow); }
@@ -210,7 +209,7 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .handle::after { content: ""; position: absolute; left: 28px; right: 28px; top: 8px; height: 5px; border-radius: 3px; background: #c3ccd3; }
   .panel header { padding-top: 10px; }
   body.menu-open .legends { display: none; }
-  .mbar { left: 10px; right: calc(var(--rail) + 20px); transform: none; flex-wrap: wrap; }
+  .mbar { right: calc(var(--rail) + 20px); flex-wrap: wrap; }
   .mbar .tip { display: none; }
   .pos { display: none; }
 }

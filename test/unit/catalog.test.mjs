@@ -30,7 +30,7 @@ test('layer ids unique, sources defined, item layers start hidden', () => {
 });
 
 test('variants: each choice has a layer, except colour schemes', () => {
-  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth' && i.variantsBy !== 'tiles')) { // tiles: one layer, URL per choice
+  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth' && !i.density)) { // density: one layer, a tile URL per choice
     for (const v of Object.keys(it.variants)) {
       assert.ok(style.layers.some((l) => l.metadata?.item === it.id && l.metadata.variant === v), `${it.id}/${v}: no layer`);
     }

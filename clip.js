@@ -28,9 +28,11 @@ export const DATUMS = [
   ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28, [5, 6]],
 ];
 const DATUM_DOWNSAMPLE_MINZOOM = 3;
+// Web Mercator y (0 at the top of the world, 1 at the bottom) → latitude
+const latOf = (t) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * t))) * 180) / Math.PI;
 const tileBounds = (z, x, y) => {
-  const n = 2 ** z, lat = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI;
-  return [(x / n) * 360 - 180, lat(y + 1), ((x + 1) / n) * 360 - 180, lat(y)];
+  const n = 2 ** z;
+  return [(x / n) * 360 - 180, latOf((y + 1) / n), ((x + 1) / n) * 360 - 180, latOf(y / n)];
 };
 const SEA_CLASSES = new Set(['ocean', 'dock']);
 // Inland water (OSM lagoons, limans, harbour basins, lakes) is classified once per water
@@ -43,7 +45,7 @@ const SEA_CLASSES = new Set(['ocean', 'dock']);
 const SEA_LEVEL_WATER_M = 8;
 const waterLevel = new Map(); // OSM id → 'sea' (sea level), 'datum' (in a DATUMS water body), 'lake'
 const decidedListeners = new Set(); // notified with the id when a water body is classified
-// value the sea tiles carry for water without a depth source; DEPTH_RAMP paints it grey
+// value the sea tiles carry for water without a depth source; depthRamp (catalog.js) paints it grey
 export const NO_DEPTH_M = 9000;
 // land value in the shaded sea tiles (contours still get +1 m): pulls the tint edge back to the
 // water pixels, so it never covers the shore line; the sliver it leaves shows the water fill,
@@ -186,12 +188,12 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
     let datum = 0;
     for (let i = 0; i < all.length; i += stride) {
       const X = (ax + all[i][0] / layer.extent) / 2 ** az, Y = (ay + all[i][1] / layer.extent) / 2 ** az; // 0..1 web mercator
-      const lon = X * 360 - 180, lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * Y))) * 180) / Math.PI;
+      const lon = X * 360 - 180, lat = latOf(Y);
       const tx = Math.min(n - 1, Math.floor(X * n)), ty = Math.min(n - 1, Math.floor(Y * n));
       const t = await demMetres(ctx.template.replace('{z}', dz).replace('{x}', tx).replace('{y}', ty));
       const px = Math.min(SIZE - 1, Math.floor((X * n - tx) * SIZE)), py = Math.min(SIZE - 1, Math.floor((Y * n - ty) * SIZE));
       const h0 = datumAt(lon, lat);
-      vals.push(t.e[py * SIZE + px] - h0);
+      vals.push(t[py * SIZE + px] - h0);
       if (h0) datum++;
     }
     return { vals, datum };
@@ -263,17 +265,16 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
   return { mask, pending };
 }
 
-// Terrarium tile at zoom ≤ native, decoded to metres
+// Terrarium tile at zoom ≤ native, decoded to metres (row-major SIZE × SIZE)
 function demMetres(url, signal) {
   return demCache(url, async () => {
     const img = await createImageBitmap(await (await fetchOk(url, signal)).blob());
-    const c = new OffscreenCanvas(img.width, img.height), g = c.getContext('2d', { willReadFrequently: true });
+    if (img.width !== SIZE || img.height !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
+    const g = new OffscreenCanvas(SIZE, SIZE).getContext('2d', { willReadFrequently: true });
     g.drawImage(img, 0, 0);
-    const px = g.getImageData(0, 0, img.width, img.height).data, e = new Float32Array(img.width * img.height);
-    let max = -Infinity;
-    for (let i = 0; i < e.length; i++) { e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768; if (e[i] > max) max = e[i]; }
-    if (img.width !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
-    return { w: img.width, e, max };
+    const px = g.getImageData(0, 0, SIZE, SIZE).data, e = new Float32Array(SIZE * SIZE);
+    for (let i = 0; i < e.length; i++) e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
+    return e;
   });
 }
 
@@ -371,14 +372,14 @@ function seaDem(template, z, x, y) {
     for (let j = 0; j < W; j++) {
       for (let i = 0; i < W; i++) {
         const gi = i - MARGIN, gj = j - MARGIN, ti = Math.floor(gi / SIZE), tj = Math.floor(gj / SIZE);
-        area[j * W + i] = tiles[(tj + 1) * 3 + ti + 1].e[(gj - tj * SIZE) * SIZE + gi - ti * SIZE];
+        area[j * W + i] = tiles[(tj + 1) * 3 + ti + 1][(gj - tj * SIZE) * SIZE + gi - ti * SIZE];
       }
     }
     fillSmallDepressions(area, W, W, levelsFor(z));
     smoothSea(area, W, W);
     const e = new Float32Array(SIZE * SIZE);
     for (let j = 0; j < SIZE; j++) e.set(area.subarray((j + MARGIN) * W + MARGIN, (j + MARGIN) * W + MARGIN + SIZE), j * SIZE);
-    return { w: SIZE, e, max: tiles[4].max }; // filling only raises water, so the maximum stands
+    return e;
   });
 }
 
@@ -429,14 +430,14 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
     // the source tiles as one flat buffer (sw × sh), so sampling is plain indexing
     const sw = (tx1 - tx0 + 1) * w, sh = (ty1 - ty0 + 1) * w, src = new Float32Array(sw * sh);
     want.forEach(([tx, ty], k) => {
-      const e = tiles[k].e, ox = (tx - tx0) * w, oy = (ty - ty0) * w;
+      const e = tiles[k], ox = (tx - tx0) * w, oy = (ty - ty0) * w;
       for (let r = 0; r < w; r++) src.set(e.subarray(r * w, r * w + w), (oy + r) * sw + ox);
     });
     const bx = tx0 * w, by = ty0 * w; // global pixel of src[0]
     const at = (X, Y) => src[(Math.min(sh - 1, Math.max(0, Y - by))) * sw + Math.min(sw - 1, Math.max(0, X - bx))];
     // surface per tile pixel: 0, or a DATUMS surface for pixels inside its box
     const lonAt = (i) => tw + ((i + 0.5) / SIZE) * (te - tw);
-    const latAt = (j) => { const t = y + (j + 0.5) / SIZE, m = 2 ** z; return (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / m))) * 180) / Math.PI; };
+    const latAt = (j) => latOf((y + (j + 0.5) / SIZE) / 2 ** z);
     const surface = (i, j) => {
       if (!datums.length) return 0;
       for (const [, b, h0] of datums) { const lo = lonAt(i), la = latAt(j); if (lo >= b[0] && lo <= b[2] && la >= b[1] && la <= b[3]) return h0; }
