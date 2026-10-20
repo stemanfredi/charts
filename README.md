@@ -50,14 +50,14 @@ them from each provider, and each layer stays under its provider's licence.
 | NASA daily (true colour) | NASA EOSDIS GIBS | NASA open data |
 | Place search | Photon (komoot), OpenStreetMap data | ODbL |
 
-Layers that change with time (Copernicus and NASA daily) share one hour, set on a
-time bar along the bottom of the map: UTC, now by default, a week back to about
-nine days of forecast ahead, a calendar for any other day. For each such layer on,
-the bar shows where it has data. Copernicus layers: waves, currents and wind;
+Layers that change with time (Copernicus and NASA daily) share one time, now by
+default. While one is on, a button in the right-hand column shows it (in local
+time); tapping it opens the browser's date and time picker, and clearing the
+picker goes back to now. Forecasts reach about nine days ahead. Copernicus layers: waves, currents and wind;
 temperature, salinity, mixed layer depth and water quality (dissolved oxygen, pH,
 nitrate, primary production); satellite sea surface temperature (and its anomaly),
 chlorophyll and sea level anomaly. Daily products show the day of that hour, and
-variables with depth are drawn at one depth, chosen on the same bar. NASA daily
+variables with depth are drawn at one depth, chosen in the Water column group. NASA daily
 is true colour: the day as the satellite saw it. In the Mediterranean they come from
 the regional products, elsewhere from the global ones. Observations (wind and
 the satellite layers, NASA daily too) are published late: after their latest day
@@ -121,7 +121,6 @@ The reasons behind each rule are documented next to the code that applies it.
 | `vector.js` | Vector layers of the view as GeoJSON: tile pieces joined, clipped to the view. |
 | `geotiff.js` | Elevation grids of the view as GeoTIFF. |
 | `cmems.js` | Copernicus Marine tiles (regional over global), time ranges, legends. |
-| `timebar.js` | The time bar: one hour for every layer that changes with time. |
 | `zip.js` | Zip writer (the browser's own deflate). |
 | `clip.js`, `clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
 | `measure.js` | Geodesic ruler, area and range ring. |

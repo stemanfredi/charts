@@ -9,7 +9,6 @@ import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js'
 import { affine, mercator, worldFile, pamXml, stacItem } from './export.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
-import { timeBar, floorHour } from './timebar.js';
 import { viewFeatures } from './vector.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -30,7 +29,7 @@ const state = {
   on: new Set(ITEMS.filter((it) => it.on).map((it) => it.id)),
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
-  time: Math.floor(Date.now() / 36e5) * 36e5, // the map's time: the hour shown (UTC, ms), now by default (timebar.js)
+  time: Math.floor(Date.now() / 36e5) * 36e5, // the map's time: the hour shown (ms), now by default
   date: defaultDate(), // NASA daily: the day drawn, that of the hour shown or the newest published before it
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
@@ -331,47 +330,41 @@ function setDepth(d) {
   renderMenu();
 }
 function setTime(t) {
-  state.time = floorHour(t);
+  state.time = Math.floor(t / 36e5) * 36e5; // on the hour
   for (const it of cmemsOn()) showCmems(it.id);
   checkGibsDate();
   writeHash();
   renderMenu();
 }
-// ---- the time bar: one hour for every layer that changes with time (timebar.js) ----------
+// ---- the map's time: a button in the rail, for every layer that changes with time ----------
+// It shows the time drawn, in local time; a tap opens the browser's own date and time picker,
+// and clearing it there goes back to now.
 const timeOn = () => ITEMS.filter((it) => (it.cmems || it.date) && state.on.has(it.id));
-const timeEl = $('#timebar'), bar = timeBar(timeEl, setTime);
-// the depth, for the layers drawn at one (Water column), beside the hour: both are the map's
-const depthSel = h('label', { class: 'tb-depth' }, h('span', {}, 'Depth'),
-  h('select', { 'aria-label': 'Depth', onchange: (e) => setDepth(+e.target.value) },
-    CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface'))));
-bar.slot.append(depthSel);
-// the legends stand on the bar while it is shown
-new ResizeObserver(() => document.documentElement.style.setProperty('--tb-h', timeEl.hidden ? '0px' : `${timeEl.offsetHeight + 8}px`)).observe(timeEl);
-let barSeq = 0;
-async function renderTimeBar() {
-  const items = timeOn(), seq = ++barSeq;
-  timeEl.hidden = !items.length;
-  depthSel.hidden = !depthOn().length;
-  depthSel.querySelector('select').value = state.depth;
-  document.documentElement.style.setProperty('--tb-h', timeEl.hidden ? '0px' : `${timeEl.offsetHeight + 8}px`);
+const timeBtn = $('#b-time'), timeInput = timeBtn.querySelector('input');
+const pad = (n) => String(n).padStart(2, '0');
+// the picker's value: local date and time (datetime-local has no time zone)
+const localValue = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+timeBtn.addEventListener('click', (e) => {
+  if (e.target === timeInput) return; // a browser without showPicker: the field itself was tapped
+  try { timeInput.showPicker(); } catch { timeInput.focus(); }
+});
+timeInput.addEventListener('change', () => setTime(timeInput.value ? new Date(timeInput.value).getTime() : Date.now()));
+function renderTime() {
+  const items = timeOn();
+  timeBtn.hidden = !items.length;
   if (!items.length) return;
-  // where each has data: the union of its datasets' ranges; NASA from its first day to its newest
-  const rowsData = await Promise.all(items.map(async (it) => {
-    if (it.date) {
-      const end = gibsLast ? Date.parse(`${gibsLast}T00:00:00Z`) + 864e5 : Date.now();
-      return { label: it.label, spans: [[Date.parse('2012-05-08T00:00:00Z'), end]], title: gibsLast ? `Newest published: ${gibsLast}` : '' };
-    }
-    const v = CMEMS[it.id][variantOf(it.id)];
-    const ds = await Promise.all(v.parts.map((p) => domainOf(p).then((d) => d.time, () => [])));
-    const spans = ds.flat().map((r) => [r.start, r.end + (r.step || 864e5)]);
-    const end = Math.max(...spans.map((s) => s[1]));
-    return { label: it.label, spans, title: Number.isFinite(end) ? `${v.observed ? 'Observed' : 'Data'} until ${fmtHour(end - (v.daily ? 864e5 : 36e5))}` : '' };
-  }));
-  if (seq === barSeq) bar.render(state.time, rowsData);
+  const d = new Date(state.time), hourly = items.some((it) => it.cmems && !CMEMS[it.id][variantOf(it.id)].daily);
+  const today = new Date().toDateString() === d.toDateString();
+  timeBtn.querySelector('.day').textContent = today ? 'Today' : `${d.toLocaleDateString([], { weekday: 'short' })} ${d.getDate()}`; // "Wed 21" in every locale
+  timeBtn.querySelector('.hour').textContent = hourly ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  timeBtn.title = `${d.toLocaleString([], { dateStyle: 'full', timeStyle: 'short' })}: change (clear for now)`;
+  timeInput.value = localValue(state.time);
 }
 const variantOf = (id) => state.variant[id] || Object.keys(CMEMS[id])[0];
-const fmtHour = (t) => { const d = new Date(t); return `${d.toUTCString().slice(0, 11)}, ${d.toISOString().slice(11, 16)} UTC`; };
-const fmtDay = (t) => new Date(t).toUTCString().slice(0, 11);
+// times in local time; a daily product's day is its own calendar day (UTC)
+const fmtHour = (t) => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const fmtDay = (t) => new Date(t).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const fmtLevel = (level) => `${Math.abs(+level) < 10 ? Math.abs(+level).toFixed(1) : Math.round(Math.abs(+level))} m`;
 // under each Copernicus item, what the time bar cannot show: the level drawn, the step drawn when it
 // is not the hour shown (3-hourly), an observation's latest day, or no data at all
@@ -389,7 +382,7 @@ async function cmemsNotes() {
       else if (pt === null) what = 'no data at this hour';
       else {
         const latest = v.observed && pt === ends[i] && t > ends[i];
-        const when = latest ? `latest: ${v.daily ? fmtDay(pt) : fmtHour(pt)}` : !v.daily && pt !== t ? fmtHour(pt).slice(-9) : '';
+        const when = latest ? `latest: ${v.daily ? fmtDay(pt) : fmtHour(pt)}` : !v.daily && pt !== t ? `shown at ${fmtTime(pt)}` : '';
         what = [when, levels[i] !== null ? `at ${fmtLevel(levels[i])}` : ''].filter(Boolean).join(', ');
       }
       return what && (names[i] ? `${names[i]}: ${what}` : what);
@@ -538,8 +531,12 @@ function controlsOf(it) {
     DENSITY[it.id].periods.map((p) => h('option', { value: p }, DENSITY[it.id].periodLabel(p)))) : null;
   // NASA daily: the day it shows (the time is set on the time bar)
   const latest = it.date ? h('p', { class: 'note latest' }) : null;
+  // Water column: the depth (under the first item on that is drawn at a depth, the same for all)
+  const depth = it.cmems && Object.values(CMEMS[it.id]).some((v) => v.depth) ? h('label', { class: 'depthsel' }, h('span', {}, 'Depth'),
+    h('select', { 'aria-label': 'Depth', onchange: (e) => setDepth(+e.target.value) },
+      CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface')))) : null;
   const cnote = it.cmems ? h('p', { class: 'note cmems-note' }) : null;
-  return h('div', { class: 'controls' }, variant, period, latest, cnote);
+  return h('div', { class: 'controls' }, variant, period, latest, depth, cnote);
 }
 function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
@@ -602,6 +599,11 @@ function renderMenu() {
     if (per) per.value = state.period[it.id];
     const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
     if (rng) rng.value = state.opacity[it.id];
+    const ds = r.controls.querySelector('.depthsel');
+    if (ds) {
+      ds.hidden = depthOn()[0] !== it;
+      ds.querySelector('select').value = state.depth;
+    }
     const lt = r.controls.querySelector('.latest'); // NASA: only when it shows its newest day, not the hour's
     if (lt) {
       lt.hidden = !(gibsLast && state.date === gibsLast && new Date(state.time).toISOString().slice(0, 10) > gibsLast);
@@ -610,7 +612,7 @@ function renderMenu() {
   }
   for (const s of segs) s.render();
   cmemsNotes();
-  renderTimeBar();
+  renderTime();
   for (const g of groupEls) {
     const n = g._items.filter((it) => state.on.has(it.id)).length;
     g.querySelector('.count').textContent = g._exclusive || !n ? '' : String(n);

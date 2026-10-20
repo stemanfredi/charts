@@ -34,6 +34,12 @@ svg { flex: none; }
 .rail button:hover, .zoom button:hover { background: var(--line2); }
 .rail button[aria-expanded="true"] { background: #e3edf4; color: var(--accent); }
 .rail button.active { background: var(--magenta); color: #fff; } /* a measuring tool is in use */
+/* the time shown: day over hour, in place of an icon; the picker's field sits invisible under it */
+.rail .time { position: relative; gap: 1px; }
+.rail .time .day { font-size: 11px; font-weight: 600; }
+.rail .time .hour { font-size: 11px; white-space: nowrap; } /* "11:00 AM" on one line */
+.rail .time .hour:empty { display: none; }
+.rail .time input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; pointer-events: none; }
 .zoom { z-index: 6; right: 10px; bottom: calc(var(--status-h) + 10px); width: var(--rail); display: flex; flex-direction: column; padding: 2px; gap: 2px; }
 .zoom button { height: 54px; } /* square, like the buttons above */
 
@@ -130,6 +136,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .mlist .x { font-size: 18px; width: var(--row); height: var(--row); }
 .mlist .empty { padding: 4px; color: var(--soft); }
 .note { margin: 2px 4px; font-size: 11.5px; color: var(--soft); }
+.depthsel { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; margin-left: 4px; font-size: 12.5px; }
 
 /* ---- search, top left: a place or coordinates ---- */
 .search {
@@ -157,42 +164,9 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .mbar button.done { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
 /* ---- legends, stacked bottom left above the credits ---- */
-.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px + var(--tb-h, 0px)); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .legends:empty { display: none; }
 .legends canvas { display: block; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
-
-/* ---- time bar: above the credits, from the left edge to the control column (and to the panel,
-   when it is open beside the map); under the panel, which is on top where they meet ---- */
-.timebar {
-  position: absolute; z-index: 3; left: 10px; right: calc(var(--rail) + 20px); bottom: calc(var(--status-h) + 8px);
-  background: rgba(255,255,255,.94); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px 8px 6px;
-}
-@media (min-width: 721px) { body.menu-open .timebar { right: calc(var(--rail) + 30px + min(340px, 100vw - var(--rail) - 40px)); } }
-.tb-head { display: flex; align-items: center; gap: 4px; }
-.tb-head button, .tb-cal { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); flex: none; }
-.tb-step { width: var(--row); font-size: 16px; }
-.tb-now { padding: 0 12px; }
-.tb-slot { margin-left: auto; display: flex; gap: 4px; }
-.tb-depth { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--soft); }
-.tb-depth select { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 6px; color: var(--ink); }
-.tb-cal { padding: 0 6px; }
-.tb-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 0 6px; min-width: 0; }
-.tb-when { font-weight: 600; white-space: nowrap; }
-.tb-local, .tb-rel { color: var(--soft); font-size: 12px; white-space: nowrap; }
-.tb-local:empty { display: none; }
-/* the track: days, then one row per time layer on; now and the hour shown across all of it */
-.tb-track { position: relative; margin-top: 4px; cursor: pointer; touch-action: none; user-select: none; border-radius: 4px; }
-.tb-days { position: relative; height: 18px; border-bottom: 1px solid var(--line); }
-.tb-day { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line2); font-size: 10.5px; color: var(--soft); padding: 2px 0 0 3px; white-space: nowrap; overflow: visible; }
-.tb-day.today { color: var(--ink); font-weight: 600; }
-.tb-row { position: relative; height: 13px; }
-.tb-bar { position: absolute; left: 0; right: 0; top: 6px; height: 4px; background: var(--line2); border-radius: 2px; }
-.tb-bar i { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 2px; opacity: .65; }
-.tb-name { position: absolute; left: 2px; top: -1px; font-size: 9.5px; line-height: 1; color: var(--soft); background: rgba(255,255,255,.9); padding: 0 3px; border-radius: 2px; z-index: 1; }
-.tb-nowmark, .tb-cursor { position: absolute; top: 0; bottom: 0; width: 0; pointer-events: none; }
-.tb-nowmark { border-left: 1px dashed var(--soft); }
-.tb-cursor { border-left: 2px solid var(--magenta); }
-.tb-cursor::before { content: ""; position: absolute; top: -1px; left: -6px; border: 5px solid transparent; border-top: 6px solid var(--magenta); }
 
 /* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */
@@ -237,10 +211,7 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .handle { display: block; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 88px; height: 22px; border: 0; background: none; cursor: grab; touch-action: none; }
   .handle::after { content: ""; position: absolute; left: 28px; right: 28px; top: 8px; height: 5px; border-radius: 3px; background: #c3ccd3; }
   .panel header { padding-top: 10px; }
-  body.menu-open .legends, body.menu-open .timebar { display: none; }
-  .tb-rows, .tb-local, .tb-depth > span { display: none; } /* phones: the days and the hour, without the layers' rows */
-  .tb-head { flex-wrap: wrap; }
-  .tb-cal { display: none; }
+  body.menu-open .legends { display: none; }
   .mbar { right: calc(var(--rail) + 20px); flex-wrap: wrap; }
   .mbar .tip { display: none; }
   .pos { display: none; }

@@ -11,7 +11,7 @@ import { serve, chromeOptions } from './serve.mjs';
 const VIEWPORTS = [['phone', 390, 844, true], ['tablet', 820, 1180, true], ['desktop', 1280, 800, false]];
 // overlays that must not collide (screen-space boxes of floating UI)
 const OVERLAYS = {
-  search: '#search', rail: '#rail', zoom: '#zoom', panel: '#panel', legend: '#legends', status: '#status', timebar: '#timebar',
+  search: '#search', rail: '#rail', zoom: '#zoom', panel: '#panel', legend: '#legends', status: '#status',
 };
 
 const server = await serve();

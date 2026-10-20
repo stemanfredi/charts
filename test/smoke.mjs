@@ -75,14 +75,14 @@ try {
   await pv.close();
 
   // NASA true colour at the current hour: today's tiles if NASA has today, else its newest day,
-  // said so under its row; the time bar has its row
+  // said so under its row
   const tc = await open('#v=5/40/10/0&menu=1&g=observed&on=chart,coastline,gibs');
   await tc.waitForFunction(() => map.getLayoutProperty('gibs-terra', 'visibility') === 'visible', null, { timeout: 20000 }).catch(() => {});
   const [tcNote, tcHidden, tcTiles, rowsOn] = await tc.evaluate(() => [document.querySelector('.item:has(#i-gibs) .latest').textContent, document.querySelector('.item:has(#i-gibs) .latest').hidden,
-    map.getSource('gibs-terra').tiles[0], [...document.querySelectorAll('#timebar .tb-name')].map((e) => e.textContent).join()]);
+    map.getSource('gibs-terra').tiles[0], document.querySelector('#b-time').hidden ? 'hidden' : 'shown']);
   const tcDay = /\/(\d{4}-\d{2}-\d{2})\//.exec(tcTiles)?.[1] || '', todayUtc = new Date().toISOString().slice(0, 10);
   const said = `latest: ${new Date(`${tcDay}T00:00:00Z`).toUTCString().slice(0, 11)}`;
-  check(rowsOn === 'NASA daily' && (tcDay === todayUtc ? tcHidden : !tcHidden && tcNote === said), `NASA true colour: today or its newest day, said so (${tcDay}; ${tcHidden ? 'no note' : tcNote})`);
+  check(rowsOn === 'shown' && (tcDay === todayUtc ? tcHidden : !tcHidden && tcNote === said), `NASA true colour: today or its newest day, said so; the time button shown (${tcDay}; ${tcHidden ? 'no note' : tcNote})`);
   await tc.close();
 
   // search: coordinates are read on the page (no request); a place comes from Photon
@@ -134,24 +134,26 @@ try {
   const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('label').textContent} (${r.title})`));
   check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`);
   check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown');
-  // the time bar: a day ahead from the keyboard, an hour back with ‹, kept in the link
-  const hourOf = (p) => p.evaluate(() => [+document.querySelector('#timebar .tb-track').getAttribute('aria-valuenow'), document.querySelector('#timebar .tb-rel').textContent]);
-  const [before] = await hourOf(cm);
-  await cm.focus('#timebar .tb-track');
-  await cm.keyboard.press('PageUp');
-  await cm.click('#timebar button[aria-label^="Previous hour"]');
+  // the time button: shown with a time layer, a date and time picked in it (local time) draws that
+  // hour and goes in the link; clearing it goes back to now
+  const ahead = await cm.evaluate(() => { const d = new Date(Date.now() + 864e5); d.setMinutes(0, 0, 0); return d.getTime(); });
+  const local = await cm.evaluate((t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }, ahead);
+  await cm.fill('#b-time input', local);
   await cm.waitForTimeout(1500);
-  const [after, rel] = await hourOf(cm), cmHash = await cm.evaluate(() => location.hash);
-  check(after === before + 23 * 36e5 && rel === 'in 23 h' && cmHash.includes(`t=${new Date(after).toISOString().slice(0, 13)}`), `the time bar steps a day ahead and an hour back, the link keeps it (${new Date(after).toISOString()}, ${rel})`);
+  const [shownT, day, cmHash] = await cm.evaluate(() => [document.querySelector('#b-time input').value, document.querySelector('#b-time .day').textContent, location.hash]);
+  check(shownT === local && day !== 'Today' && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a time picked on the time button is drawn and kept in the link (${day} ${shownT})`);
   const cmAgain = await open(cmHash);
-  check((await hourOf(cmAgain))[0] === after, 'the link reopens at that hour');
+  check((await cmAgain.evaluate(() => document.querySelector('#b-time input').value)) === local, 'the link reopens at that time');
+  await cm.fill('#b-time input', '');
+  await cm.waitForTimeout(500);
+  check((await cm.evaluate(() => document.querySelector('#b-time .day').textContent)) === 'Today', 'clearing the picker goes back to now');
   await cm.close(); await cmAgain.close();
   // water properties at a depth from the link: each model at its nearest level, said so
   const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');
   await wp.waitForFunction(() => /at \d+ m/.test(document.querySelector('.item:has(#i-temperature) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
-  const [wpNote, wpDepth, wpBroken] = await wp.evaluate(() => [document.querySelector('.item:has(#i-temperature) .cmems-note').textContent, document.querySelector('#timebar .tb-depth select').value,
+  const [wpNote, wpDepth, wpBroken] = await wp.evaluate(() => [document.querySelector('.item:has(#i-temperature) .cmems-note').textContent, document.querySelector('.depthsel select').value,
     [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(wpDepth === '100' && /global: at \d+ m · Mediterranean: at \d+ m/.test(wpNote) && !wpBroken.length && !wp.errors.length, `temperature at 100 m, the depth on the time bar: ${wpNote} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
+  check(wpDepth === '100' && /global: at \d+ m · Mediterranean: at \d+ m/.test(wpNote) && !wpBroken.length && !wp.errors.length, `temperature at 100 m: ${wpNote} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
   await wp.close();
   // a satellite observation at the current hour: its latest day, said so
   const ob = await open('#v=5/40/10/0&on=chart,coastline,sst,legend&menu=1&g=observed');

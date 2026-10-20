@@ -33,7 +33,7 @@
   </div>
 
   <!-- right edge: what the map shows and measuring (they switch one side panel, which opens to
-       the left of this column), then copy link, PNG and GIS, which act at once; zoom and compass lower
+       the left of this column), then copy link, PNG and GIS, which act at once, and the time shown by layers that change with time; zoom and compass lower
        down. The column never moves. -->
   <nav id="rail" class="rail" aria-label="Map controls">
     <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false" title="Layers (L)"><i data-icon="layers"></i><span>Layers</span></button>
@@ -41,6 +41,7 @@
     <button type="button" id="link" title="Copy a link to this exact view"><i data-icon="link"></i><span>Link</span></button>
     <button type="button" id="png" title="Download the view as a picture"><i data-icon="png"></i><span>PNG</span></button>
     <button type="button" id="zip" title="Download the view as GIS data"><i data-icon="zip"></i><span>GIS</span></button>
+    <button type="button" id="b-time" class="time" hidden><span class="day"></span><span class="hour"></span><input type="datetime-local" step="3600" tabindex="-1" aria-label="Date and time shown"></button>
   </nav>
   <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
     <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><i data-icon="plus"></i></button>
@@ -60,7 +61,6 @@
   </aside>
 
   <div id="mbar" class="mbar" role="status" hidden></div>
-  <div id="timebar" class="timebar" role="group" aria-label="Time" hidden></div>
   <div id="legends" class="legends" aria-label="Legends"></div>
   <footer id="status" class="status"></footer>
 
