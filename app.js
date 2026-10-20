@@ -1,6 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, domainEndMs } from './catalog.js';
+import { cmemsTile, partTimes, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon, exportName } from './format.js';
@@ -29,6 +30,7 @@ const state = {
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
   date: defaultDate(),
+  time: Math.floor(Date.now() / 36e5) * 36e5, // Copernicus layers: the hour shown (UTC, ms); now by default
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   open: new Set(['base', 'sea']),
   panel: window.innerWidth >= 1200 ? 'layers' : null, // the side panel's view; open beside the map where it leaves room
@@ -50,6 +52,7 @@ function readHash() {
     if (k in state.opacity && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.date = q.get('d');
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(q.get('t') || '')) state.time = Date.parse(`${q.get('t')}:00:00Z`);
   if (DENSITY.traffic.periods.includes(q.get('y'))) state.period.traffic = q.get('y'); // links from before per=
   for (const kv of (q.get('per') || '').split(',')) {
     const [k, val] = kv.split(':');
@@ -79,6 +82,7 @@ function writeHashNow() {
   const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
   if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
   if (state.on.has('gibs')) q.set('d', state.date);
+  if (cmemsOn().length) q.set('t', new Date(state.time).toISOString().slice(0, 13));
   const per = Object.entries(state.period).filter(([id, v]) => state.on.has(id) && v !== DENSITY[id].defaultPeriod);
   if (per.length) q.set('per', per.map((kv) => kv.join(':')).join(','));
   if (measure.units !== 'km') q.set('u', measure.units);
@@ -109,6 +113,7 @@ for (const [dem, clip] of [[seaDem, seaClip], [landDem, landClip]]) {
 }
 maplibregl.addProtocol('clip-sea', seaClip.protocol);
 maplibregl.addProtocol('clip-land', landClip.protocol);
+maplibregl.addProtocol('cmems', cmemsTile);
 const contourOpts = { contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level', extent: 4096, buffer: 1 };
 const style = buildStyle({
   seaDemUrl: 'clip-sea://{z}/{x}/{y}',
@@ -200,7 +205,7 @@ function setOn(id, on) {
     for (const other of ITEMS) if (other.group === it.group && other.id !== id && state.on.delete(other.id)) applyItem(other.id);
   }
   on ? state.on.add(id) : state.on.delete(id);
-  id === 'gibs' && on ? showGibs() : applyItem(id);
+  id === 'gibs' && on ? showGibs() : byId[id].cmems && on ? showCmems(id) : applyItem(id);
   if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); creditEsri(); }
   if (id === 'graticule') updateGraticule();
   if (id === 'depth') { shoreFill(); labelPaint(); }
@@ -306,6 +311,48 @@ async function checkGibsDate() {
 
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
 const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
+// ---- Copernicus Marine: one hour for every sea-state layer (cmems.js draws the tiles) ------
+const cmemsOn = () => ITEMS.filter((it) => it.cmems && state.on.has(it.id));
+function showCmems(id) {
+  map.getSource(`cmems-${id}`).setTiles([`cmems://${id}/${state.variant[id] || Object.keys(CMEMS[id])[0]}/${state.time}/{z}/{x}/{y}`]);
+  applyItem(id);
+}
+function setTime(t) {
+  state.time = t;
+  for (const it of cmemsOn()) showCmems(it.id);
+  writeHash();
+  renderMenu();
+}
+const variantOf = (id) => state.variant[id] || Object.keys(CMEMS[id])[0];
+const fmtHour = (t) => { const d = new Date(t); return `${d.toUTCString().slice(0, 11)}, ${d.toISOString().slice(11, 16)} UTC`; };
+// "now", "in 20 h", "3 days ago": the hour relative to the current one
+function relHour(t) {
+  const h = Math.round((t - Math.floor(Date.now() / 36e5) * 36e5) / 36e5), a = Math.abs(h);
+  const n = a >= 48 ? `${Math.round(a / 24)} days` : `${a} h`;
+  return !h ? 'now' : h > 0 ? `in ${n}` : `${n} ago`;
+}
+// what each sea-state item has at the hour shown, under its row: drawn from which time, or up to when there is data
+const cmemsEmpty = new Set(); // sea-state items with no data at the hour shown: no legend
+async function cmemsNotes() {
+  for (const it of cmemsOn()) {
+    const v = CMEMS[it.id][variantOf(it.id)], note = rows[it.id].controls.querySelector('.cmems-note');
+    const t = state.time, times = await partTimes(it.id, variantOf(it.id), t);
+    if (t !== state.time) return; // the hour changed meanwhile: a newer call writes the notes
+    const ends = await Promise.all(v.parts.map((p) => domainOf(p).then(domainEndMs, () => null)));
+    const names = v.parts.map((p) => (p.startsWith('MEDSEA') ? 'Mediterranean' : v.parts.length > 1 ? 'global' : ''));
+    const parts = times.map((pt, i) => {
+      const who = names[i] ? `${names[i]}: ` : '';
+      if (pt === undefined) return `${who}time range unknown`;
+      if (pt === null) return `${who}no data at this hour (${ends[i] ? `data until ${fmtHour(ends[i])}` : 'outside its range'})`;
+      if (pt === t) return `${who}to ${fmtHour(ends[i])}`;
+      return `${who}shown at ${fmtHour(pt)}${v.observed && pt === ends[i] ? ' (latest observation)' : ''}`;
+    });
+    note.textContent = parts.join(' · ');
+    const empty = times.every((pt) => pt === null);
+    if (empty !== cmemsEmpty.has(it.id)) { empty ? cmemsEmpty.add(it.id) : cmemsEmpty.delete(it.id); renderLegends(); }
+  }
+}
+
 function updateGraticule() {
   if (!state.on.has('graticule')) return;
   const b = map.getBounds();
@@ -405,7 +452,7 @@ const rows = {};
 const segs = [];
 function setVariant(id, v) {
   state.variant[id] = v;
-  id === 'gibs' ? showGibs() : applyItem(id);
+  id === 'gibs' ? showGibs() : byId[id].cmems ? showCmems(id) : applyItem(id);
   if (id === 'depth') depthColours();
   if (DENSITY[id]) setDensity(id);
   if (id === 'sat') creditEsri();
@@ -446,7 +493,15 @@ function controlsOf(it) {
     h('input', { type: 'date', 'aria-label': 'Imagery date', max: today(), min: '2012-01-01', onchange: (e) => e.target.value && setDate(e.target.value) }),
     h('button', { type: 'button', class: 'next', 'aria-label': 'Next day', title: 'Next day', onclick: () => setDate(shiftDay(state.date, 1)) }, '›')) : null;
   const latest = it.date ? h('p', { class: 'note latest' }) : null; // the newest day NASA has published for this layer
-  return h('div', { class: 'controls' }, variant, period, date, latest);
+  // sea state: the hour (shown under the first item on, the same for all) and what this item has then
+  const hour = it.cmems ? h('div', { class: 'hourstep' },
+    h('p', { class: 'when' }),
+    h('div', { class: 'steps' },
+      ...[[-24, '«', 'Previous day'], [-1, '‹', 'Previous hour'], [1, '›', 'Next hour'], [24, '»', 'Next day']].map(([n, text, label]) =>
+        h('button', { type: 'button', 'aria-label': label, title: label, onclick: () => setTime(state.time + n * 36e5) }, text)),
+      h('button', { type: 'button', class: 'now', title: 'The current hour', onclick: () => setTime(Math.floor(Date.now() / 36e5) * 36e5) }, 'Now'))) : null;
+  const cnote = it.cmems ? h('p', { class: 'note cmems-note' }) : null;
+  return h('div', { class: 'controls' }, variant, period, date, latest, hour, cnote);
 }
 function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
@@ -497,7 +552,12 @@ function renderMenu() {
     const on = state.on.has(it.id);
     if (it.group === 'base') r.input.setAttribute('aria-checked', String(on));
     else r.input.checked = on;
-    r.controls.hidden = !on || !(it.variants || it.date || it.density);
+    r.controls.hidden = !on || !(it.variants || it.date || it.density || it.cmems);
+    const hs = r.controls.querySelector('.hourstep');
+    if (hs) {
+      hs.hidden = cmemsOn()[0] !== it;
+      hs.querySelector('.when').textContent = `${fmtHour(state.time)} · ${relHour(state.time)}`;
+    }
     if (r.infos && r.more.getAttribute('aria-expanded') === 'true') r.infos[it.id].hidden = !on;
     const low = it.minzoom && z < it.minzoom, high = it.maxzoom && z >= it.maxzoom + 1;
     r.row.classList.toggle('dim', !!(on && (low || high)));
@@ -519,6 +579,7 @@ function renderMenu() {
     }
   }
   for (const s of segs) s.render();
+  cmemsNotes();
   for (const g of groupEls) {
     const n = g._items.filter((it) => state.on.has(it.id)).length;
     g.querySelector('.count').textContent = g._exclusive || !n ? '' : String(n);
@@ -541,6 +602,7 @@ function renderLegends() {
   if (on('depth') && on('chart') && map.getZoom() < 13) want.push('depth');
   for (const id of Object.keys(DENSITY)) if (on(id)) want.push(id);
   if (on('gibs') && GIBS[state.variant.gibs].legend) want.push('gibs');
+  for (const it of cmemsOn()) if (!cmemsEmpty.has(it.id)) want.push(it.id);
   legendWant = want;
   for (const id of want) {
     const el = legendEl(id);
@@ -551,6 +613,20 @@ function renderLegends() {
       const d = DENSITY[id];
       drawRamp(el, d.title, `${d.unit} · ${d.types[state.variant[id]]} · ${d.periodLabel(state.period[id])}`, d.stops);
       el.setAttribute('aria-label', `${d.title} legend: ${d.stops.map(([v]) => v).join(', ')} ${d.unit}`);
+    } else if (CMEMS[id]) {
+      const v = CMEMS[id][variantOf(id)], key = `${variantOf(id)}|${state.time}`;
+      if (el.dataset.key !== key) {
+        el.dataset.key = key;
+        // the time drawn: the hour shown, or the dataset's own step (3-hourly, latest observation)
+        Promise.all([cmemsLegend(id, variantOf(id)), partTimes(id, variantOf(id), state.time)])
+          .then(([cm, times]) => {
+            const drawn = [...times].reverse().find((pt) => pt != null) ?? state.time; // the regional part, drawn on top
+            drawColormap(el, v.label, `${v.unit} · ${fmtHour(drawn)}`, cm, [v.range[0] < 0, true]); // nothing below 0 m, 0 m/s
+            el.setAttribute('aria-label', `${v.label} legend, ${v.unit}`);
+            renderLegends(); // drawn after the stack was laid out: lay it out again with its size
+          })
+          .catch((err) => { el.dataset.key = ''; console.warn('legend colour map:', err.message); });
+      }
     } else {
       const g = GIBS[state.variant.gibs], key = `${state.variant.gibs}|${state.date}`;
       if (el.dataset.key !== key) {
@@ -878,7 +954,8 @@ function exportPng() {
 function drawnItems() {
   const z = map.getZoom();
   return ITEMS.filter((it) => (layersOf[it.id] || []).some((l) => map.getLayoutProperty(l.id, 'visibility') === 'visible' && z >= (l.minzoom ?? 0) && z < (l.maxzoom ?? 24)))
-    .map((it) => ({ ...it, variant: it.variants?.[state.variant[it.id]], date: it.date && state.date, period: DENSITY[it.id] && state.period[it.id] }));
+    .map((it) => ({ ...it, variant: it.variants?.[state.variant[it.id]], date: it.date && state.date, period: DENSITY[it.id] && state.period[it.id],
+      time: it.cmems && new Date(state.time).toISOString() }));
 }
 // what the item's vector layers draw, as pieces for vector.js: one query per source layer and
 // filter (a line and its casing, or a line and its labels, are the same features). Symbols placed
@@ -951,6 +1028,12 @@ async function exportZip() {
       rasters.push({ ...r, file: `raster/${r.key}.tif`, asset: `raster/${r.key}`, data: geotiff(mosaic(grid, tiles), grid.w, grid.h, transform, { description: r.description }), grid, transform });
       for (const l of layers) if (r.items.includes(l.id)) l.assets.push(`raster/${r.key}`);
     }
+    // sea state: the time each layer drew (its own step, or an observation's latest), not just the hour asked
+    for (const l of layers.filter((x) => x.cmems)) {
+      const times = await partTimes(l.id, variantOf(l.id), state.time);
+      const drawn = [...times].reverse().find((pt) => pt != null);
+      l.time = drawn == null ? undefined : new Date(drawn).toISOString();
+    }
     const measured = measureFeatures(measure.list);
     if (measured.length) vectors.push({ key: 'vector/measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
     const item = stacItem({
@@ -991,7 +1074,7 @@ map.on('load', () => {
     if (typeof src.roundZoom !== 'boolean') console.error(`MapLibre: ${id}.roundZoom missing; elevation tiles may not match the coastline`);
     src.roundZoom = false;
   }
-  for (const it of ITEMS) if (it.id !== 'gibs') applyItem(it.id);
+  for (const it of ITEMS) if (it.id !== 'gibs') it.cmems && state.on.has(it.id) ? showCmems(it.id) : applyItem(it.id);
   depthColours();
   labelPaint();
   creditEsri();

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle, domainEnd, gibsDomainUrl } from '../../catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, durationMs, timeDomain, snapTime } from '../../catalog.js';
 import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });
@@ -30,7 +30,7 @@ test('layer ids unique, sources defined, item layers start hidden', () => {
 });
 
 test('variants: each choice has a layer, except colour schemes', () => {
-  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth' && !i.density)) { // density: one layer, a tile URL per choice
+  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth' && !i.density && !i.cmems)) { // density, Copernicus: one layer, a tile URL per choice
     for (const v of Object.keys(it.variants)) {
       assert.ok(style.layers.some((l) => l.metadata?.item === it.id && l.metadata.variant === v), `${it.id}/${v}: no layer`);
     }
@@ -87,4 +87,38 @@ test('GIBS: the newest date a layer has, from DescribeDomains', () => {
   assert.equal(domainEnd('<Domain>2026-08-20/2026-09-01/P1D,2026-09-03/2026-10-19/P1D</Domain>'), '2026-10-19');
   assert.equal(domainEnd('<Domains></Domains>'), null);
   assert.match(gibsDomainUrl('sst', '2026-08-20', '2026-10-20'), /GHRSST_L4_MUR_Sea_Surface_Temperature\/default\/GoogleMapsCompatible_Level7\/all\/2026-08-20--2026-10-20\.xml$/);
+});
+
+test('Copernicus: items, variants and parts agree; styles fix the range', () => {
+  for (const it of ITEMS.filter((i) => i.cmems)) {
+    assert.ok(CMEMS[it.id], `${it.id} has datasets`);
+    if (it.variants) assert.deepEqual(Object.keys(it.variants), Object.keys(CMEMS[it.id]));
+    else assert.equal(Object.keys(CMEMS[it.id]).length, 1, `${it.id}: one choice, or variants in the menu`);
+    assert.ok(style.layers.some((l) => l.metadata?.item === it.id && l.source === `cmems-${it.id}`));
+  }
+  for (const v of Object.values(CMEMS).flatMap(Object.values)) {
+    for (const p of v.parts) assert.equal(p.split('/').length, 3, `${p}: product/dataset/variable`);
+    assert.ok(v.range[0] < v.range[1]);
+  }
+  assert.equal(cmemsStyle(CMEMS.currents.surface), 'cmap:speed,range:0/1.5,vectorStyle:solidAndVector');
+});
+
+test('Copernicus time: durations, a dataset\'s domain from its capabilities, snapping', () => {
+  assert.equal(durationMs('PT1H'), 36e5);
+  assert.equal(durationMs('PT10800S'), 3 * 36e5);
+  assert.equal(durationMs('PT15M'), 9e5);
+  assert.equal(durationMs('P1D'), 864e5);
+  const xml = `<Layer><ows:Identifier>P/D/zos_detided</ows:Identifier><Dimension><ows:Identifier>time</ows:Identifier><Value>2020-01-01T00:00:00Z/2020-01-02T00:00:00Z/PT1H</Value></Dimension></Layer>
+    <Layer><ows:Identifier>P/D/zos</ows:Identifier><Dimension><ows:Identifier>time</ows:Identifier><Default>x</Default>
+    <Value>2024-06-25T00:00:00.000000000Z/2026-10-29T23:00:00Z/PT1H</Value></Dimension></Layer>`;
+  const d = timeDomain(xml, 'zos');
+  assert.deepEqual(d, [{ start: Date.parse('2024-06-25T00:00:00Z'), end: Date.parse('2026-10-29T23:00:00Z'), step: 36e5 }], 'zos, not zos_detided; nanoseconds read');
+  const t = (s) => Date.parse(s);
+  assert.equal(snapTime(d, t('2026-10-21T12:00:00Z')), t('2026-10-21T12:00:00Z'));
+  assert.equal(snapTime(d, t('2026-10-21T12:40:00Z')), t('2026-10-21T12:00:00Z'));
+  assert.equal(snapTime(d, t('2026-10-31T00:00:00Z')), null, 'after the forecast');
+  assert.equal(snapTime(d, t('2024-01-01T00:00:00Z')), null, 'before the first step');
+  // every 3 hours from 03:00: noon is a step, 13:00 draws noon
+  const w = [{ start: t('2022-11-01T03:00:00Z'), end: t('2026-10-30T00:00:00Z'), step: 3 * 36e5 }];
+  assert.equal(snapTime(w, t('2026-10-21T13:00:00Z')), t('2026-10-21T12:00:00Z'));
 });

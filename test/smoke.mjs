@@ -124,6 +124,21 @@ try {
   await rt.close();
 
 
+  // Copernicus sea state: tiles load, the hour steps and is kept in the link, the legend shows
+  const cm = await open('#v=6/40/14/0&on=chart,coastline,waves,currents,legend&menu=1&g=seastate');
+  await cm.waitForFunction(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2, null, { timeout: 30000 }).catch(() => {});
+  const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('label').textContent} (${r.title})`));
+  check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`);
+  check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown');
+  const before = await cm.evaluate(() => document.querySelector('.hourstep:not([hidden]) .when').textContent);
+  await cm.click('.hourstep:not([hidden]) button[aria-label="Next day"]');
+  await cm.waitForTimeout(1500);
+  const [after, cmHash] = await cm.evaluate(() => [document.querySelector('.hourstep:not([hidden]) .when').textContent, location.hash]);
+  check(after !== before && /in 24 h|in 1 days?/.test(after) && /[&#]t=\d{4}-\d{2}-\d{2}T\d{2}/.test(cmHash), `the hour steps a day ahead and goes in the link (${after})`);
+  const cmAgain = await open(cmHash);
+  check((await cmAgain.evaluate(() => document.querySelector('.hourstep:not([hidden]) .when').textContent)) === after, 'the link reopens at that hour');
+  await cm.close(); await cmAgain.close();
+
   // PNG export
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());

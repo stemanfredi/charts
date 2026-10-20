@@ -109,6 +109,11 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .datestep { display: grid; grid-template-columns: var(--row) 1fr var(--row); gap: 4px; }
 .datestep button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); font-size: 16px; }
 .datestep button:disabled { color: var(--line); cursor: default; }
+.hourstep { display: grid; gap: 4px; }
+.hourstep .when { margin: 0 4px; font-size: 12.5px; font-weight: 600; }
+.hourstep .steps { display: grid; grid-template-columns: repeat(4, var(--row)) 1fr; gap: 4px; }
+.hourstep button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); font-size: 16px; }
+.hourstep .now { font-size: 13px; }
 .opacity { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
 .opacity span { flex: none; min-width: 52px; }
 .opacity input[type=range] { flex: 1; height: var(--row); accent-color: var(--accent); margin: 0; }

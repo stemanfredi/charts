@@ -25,7 +25,7 @@ try {
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
       // a zoomed-out view (scale note shown), three stacked legends (they once ran over the
       // credits), a measurement
-      await page.goto(`${server.url}#v=5/45/14/0&menu=${menu}&g=base,sea&on=chart,coastline,depth,isobaths,traffic,gibs,legend&var=gibs:sst&m=r:12,44;13,44.5`);
+      await page.goto(`${server.url}#v=5/45/14/0&menu=${menu}&g=base,sea,seastate&on=chart,coastline,depth,isobaths,traffic,waves,gibs,legend&var=gibs:sst&m=r:12,44;13,44.5`);
       await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
       await page.mouse.move(width / 2, height / 2); // shows the cursor readout
       await page.waitForTimeout(800);

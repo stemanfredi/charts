@@ -95,7 +95,8 @@ export function loadColormap(url) {
     .catch((err) => { delete cmapCache[url]; throw err; }));
 }
 
-export function drawColormap(el, text, sub, entries) {
+// open: whether values run on beyond the first and last colour ('<' and '≥' on the end labels)
+export function drawColormap(el, text, sub, entries, open = [true, true]) {
   const g = canvas(el);
   title(g, text, sub);
   const finite = entries.flatMap((e) => [e.lo, e.hi]).filter(Number.isFinite);
@@ -106,11 +107,14 @@ export function drawColormap(el, text, sub, entries) {
     g.fillStyle = e.rgb;
     g.fillRect(a, BAR.y, Math.max(0.6, b - a + 0.4), BAR.h);
   }
-  const step = [1, 2, 4, 5, 10, 20, 50].find((s) => ((hi - lo) / s) <= 8) || 100;
+  const step = [0.1, 0.2, 0.25, 0.5, 1, 2, 4, 5, 10, 20, 50].find((s) => ((hi - lo) / s) <= 8) || 100;
   const marks = [];
-  for (let v = Math.ceil(lo / step) * step; v < hi - 1e-9; v += step) marks.push([x(v), `${v}`, v === lo ? 'left' : 'center']);
-  if (marks.length && marks[0][0] <= BAR.x + 0.5) marks[0][1] = `<${marks[0][1]}`;
+  for (let k = Math.ceil(lo / step - 1e-9); k * step < hi - 1e-9; k++) {
+    const v = +(k * step).toFixed(2);
+    marks.push([x(v), `${v}`, v === lo ? 'left' : 'center']);
+  }
+  if (open[0] && marks.length && marks[0][0] <= BAR.x + 0.5) marks[0][1] = `<${marks[0][1]}`;
   if (marks.length && BAR.x + BAR.w - marks[marks.length - 1][0] < 26) marks.pop(); // room for the end label
-  marks.push([BAR.x + BAR.w, `≥${hi}`, 'right']);
+  marks.push([BAR.x + BAR.w, `${open[1] ? '≥' : ''}${hi}`, 'right']);
   ticks(g, marks);
 }

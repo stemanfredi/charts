@@ -98,6 +98,73 @@ export function domainEnd(xml) {
   return ends.length ? ends.sort().at(-1) : null;
 }
 
+// ---- Copernicus Marine (WMTS, keyless, CORS) --------------------------------------------
+// Each item shows one variable; its parts are datasets drawn in order into one tile (cmems.js):
+// the global model, then the regional one over it where it has data (Mediterranean 4.2 km), so
+// the detail is regional and the coverage global, in one layer with one opacity. Colour ranges
+// are fixed, so a colour means the same at every hour; legends come from the service.
+export const CMEMS_WMTS = 'https://wmts.marine.copernicus.eu/teroWmts';
+const GLO_WAV = 'GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411';
+const MED_WAV = 'MEDSEA_ANALYSISFORECAST_WAV_006_017/cmems_mod_med_wav_anfc_4.2km_PT1H-i_202311';
+const GLO_CUR = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_merged-uv_PT1H-i_202211';
+const MED_CUR = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-cur_anfc_4.2km-2D_PT1H-m_202511';
+const WIND = 'WIND_GLO_PHY_L4_NRT_012_004/cmems_obs-wind_glo_phy_nrt_l4_0.125deg_PT1H_202207';
+// item → variant → { label, unit, range, cmap, vector (arrows drawn by the service: 'solidAndVector' over the colours,
+//   'vector' alone, coloured by speed), parts: [dataset/variable],
+//   observed (an observation, published late: after its last step it shows that step, said so) }
+// No sea level: the models' sea surface height (zos) carries each model's own mean offset (the
+// Mediterranean model reads −0.4 m in the Mediterranean and +0.8 m in its Atlantic box beside it),
+// which the tile service cannot subtract, so its colours changed at model edges for no physical reason.
+export const CMEMS = {
+  waves: {
+    height: { label: 'Significant wave height', unit: 'm', range: [0, 6], cmap: 'amp', parts: [`${GLO_WAV}/VHM0`, `${MED_WAV}/VHM0`] },
+    period: { label: 'Peak wave period', unit: 's', range: [0, 16], cmap: 'tempo', parts: [`${GLO_WAV}/VTPK`, `${MED_WAV}/VTPK`] },
+  },
+  currents: { surface: { label: 'Surface current', unit: 'm/s', range: [0, 1.5], cmap: 'speed', vector: 'solidAndVector', parts: [`${GLO_CUR}/sea_water_velocity`, `${MED_CUR}/sea_water_velocity`] } },
+  // wind as arrows alone, over the chart and the waves: thermal starts dark, so light winds stay visible
+  wind: { observed: { label: 'Wind (satellite)', unit: 'm/s', range: [0, 25], cmap: 'thermal', vector: 'vector', observed: true, parts: [`${WIND}/wind`] } },
+};
+export const cmemsStyle = (v) => `cmap:${v.cmap},range:${v.range.join('/')}${v.vector ? `,vectorStyle:${v.vector}` : ''}`;
+// 512 px tiles (the @2x matrix set): arrows at a readable spacing, and sharp on high-density screens
+export function cmemsTileUrl(part, style, time, z, x, y) {
+  return `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}`
+    + `&TILEMATRIXSET=EPSG:3857@2x&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=image/png&TIME=${time}`;
+}
+export const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
+// one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
+export const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
+
+// ISO 8601 duration (P1D, PT1H, PT900S, PT10800S, PT15M) → milliseconds
+export function durationMs(d) {
+  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(d);
+  if (!m) return NaN;
+  return (((+(m[1] || 0) * 24 + +(m[2] || 0)) * 60 + +(m[3] || 0)) * 60 + +(m[4] || 0)) * 1000;
+}
+// The time dimension of `variable` in a WMTS capabilities document: its <Value>s, each
+// start/end/step or one instant → [{ start, end, step }] in ms (step 0 for an instant)
+export function timeDomain(xml, variable) {
+  const id = xml.indexOf(`/${variable}</ows:Identifier>`);
+  if (id < 0) return [];
+  const layer = xml.slice(id, xml.indexOf('</Layer>', id));
+  const dim = /<ows:Identifier>time<\/ows:Identifier>([\s\S]*?)<\/Dimension>/.exec(layer)?.[1] || '';
+  return [...dim.matchAll(/<Value>([^<]*)<\/Value>/g)].flatMap(([, v]) => v.split(',')).map((v) => {
+    const [a, b, step] = v.trim().split('/');
+    return b ? { start: Date.parse(a), end: Date.parse(b), step: durationMs(step) } : { start: Date.parse(a), end: Date.parse(a), step: 0 };
+  }).filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end));
+}
+// the dataset's time to draw for the time t (ms): the last step at or before t, or null if t is
+// outside every range
+export function snapTime(domain, t) {
+  let best = null;
+  for (const r of domain) {
+    if (t < r.start || t > r.end + (r.step || 0)) continue;
+    const s = r.step ? Math.min(r.end, r.start + Math.floor((t - r.start) / r.step) * r.step) : r.start;
+    if (s <= t && (best === null || s > best)) best = s;
+  }
+  return best;
+}
+export const domainEndMs = (domain) => Math.max(...domain.map((r) => r.end));
+
 // ---- menu -------------------------------------------------------------------
 // exclusive: items in the group behave as radio buttons.
 // minzoom / maxzoom: outside them the item is greyed out with a hint and draws nothing.
@@ -108,6 +175,7 @@ export const GROUPS = [
   { id: 'sea', label: 'Sea' },
   { id: 'shipping', label: 'Shipping' },
   { id: 'land', label: 'Land' },
+  { id: 'seastate', label: 'Sea state' },
   { id: 'imagery', label: 'Daily imagery' },
   { id: 'labels', label: 'Labels & grid' },
 ];
@@ -143,6 +211,15 @@ export const ITEMS = [
     info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Minor roads appear from zoom 12', url: 'https://openfreemap.org' } },
   { id: 'buildings', group: 'land', label: 'Buildings', on: true, minzoom: 13, opacity: 1,
     info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Footprints as mapped in OSM; coverage varies by country', url: 'https://openfreemap.org' } },
+
+  // Copernicus Marine: one hour for all, forecasts about 9 days ahead (cmems.js)
+  { id: 'waves', group: 'seastate', label: 'Waves', opacity: 0.85, cmems: true,
+    variants: Object.fromEntries(Object.entries(CMEMS.waves).map(([k, v]) => [k, v.label])),
+    info: { src: 'Copernicus Marine Service: Mediterranean wave forecast (MEDSEA_ANALYSISFORECAST_WAV_006_017) over the global one (GLOBAL_ANALYSISFORECAST_WAV_001_027)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Mediterranean 4.2 km, hourly; elsewhere 1/12° (~9 km), every 3 hours. Model analysis and forecast, about 9 days ahead. Not for navigation', url: 'https://marine.copernicus.eu' } },
+  { id: 'currents', group: 'seastate', label: 'Currents', opacity: 0.85, cmems: true,
+    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global surface currents (GLOBAL_ANALYSISFORECAST_PHY_001_024, with tides and wave drift)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Surface, hourly. Mediterranean 4.2 km (with tides); elsewhere 1/12° (~9 km). Arrows show the direction the water flows. Model forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
+  { id: 'wind', group: 'seastate', label: 'Wind', opacity: 0.85, cmems: true,
+    info: { src: 'Copernicus Marine Service: global ocean wind from satellite scatterometers, blended with a weather model (WIND_GLO_PHY_L4_NRT_012_004)', lic: 'Copernicus Marine Service licence: free, attribution required', res: '0.125° (~14 km), hourly, 10 m above the sea. An observation, not a forecast: published about a day late. At hours after the latest observation it shows the latest, and says so. Arrows show where the wind blows to', url: 'https://marine.copernicus.eu' } },
 
   { id: 'gibs', group: 'imagery', label: 'NASA daily', opacity: 0.9, date: true,
     variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),
@@ -188,6 +265,10 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   };
+  // tiles set by app.js once the hour is known (cmems:// is cmems.js's tile handler)
+  for (const id of Object.keys(CMEMS)) {
+    s[`cmems-${id}`] = { type: 'raster', tileSize: 512, maxzoom: 10, tiles: [], attribution: 'Sea state: <a href="https://marine.copernicus.eu">Copernicus Marine Service</a>' };
+  }
   for (const [k, g] of Object.entries(GIBS)) {
     s[`gibs-${k}`] = { type: 'raster', tileSize: 256, maxzoom: g.level, tiles: gibsTiles(k, date),
       attribution: 'Imagery: <a href="https://earthdata.nasa.gov/gibs">NASA EOSDIS GIBS</a>' };
@@ -290,6 +371,7 @@ function layers() {
     // colour fills are chart-only: over satellite the image shows the water; isobaths still draw
     { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
     ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
+    ...Object.keys(CMEMS).map((id) => raster(`cmems-${id}`, id)),
 
     // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined
     ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobaths-${k}` : 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours',
