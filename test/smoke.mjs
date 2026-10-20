@@ -23,7 +23,7 @@ async function open(hash) {
   page.on('pageerror', (e) => page.errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && page.errors.push(m.text().slice(0, 200)));
   await page.goto(base + hash);
-  await page.waitForFunction(() => window.map?.loaded() && map.areTilesLoaded(), null, { timeout: 90000 });
+  await page.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
   await page.waitForTimeout(1000);
   return page;
 }
@@ -34,7 +34,7 @@ try {
   let p = await open('');
   check(p.errors.length === 0, `default view loads without errors ${p.errors.join(' | ')}`);
   check(await p.evaluate(() => map.getStyle().layers.length > 30), 'style has its layers');
-  const broken = await p.evaluate(() => [...document.querySelectorAll('.item.error')].map((r) => r.querySelector('label').textContent));
+  const broken = await p.evaluate(() => [...document.querySelectorAll('.item.error')].map((r) => `${r.querySelector('label').textContent} (${r.title})`));
   check(broken.length === 0, `no source marked failing ${broken.join(', ')}`);
   check(referred.size === 0, `no request to a tile host carries a Referer ${[...referred].join(', ')}`);
 

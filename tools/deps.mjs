@@ -17,7 +17,9 @@ export const PINS = [
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl.mjs', kind: 'module' },
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl.css', kind: 'style' },
   // MapLibre's worker: app.js fetches it with this hash and hands MapLibre the verified copy
-  // (left alone, MapLibre imports it from the CDN with no integrity check)
+  // (left alone, MapLibre imports it from the CDN with no integrity check). Preloaded so it
+  // downloads alongside MapLibre; the hash rides in data-integrity, since Chrome ignores (and
+  // warns about) integrity on a fetch preload
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl-worker.mjs', kind: 'worker' },
   { name: 'maplibre-contour', version: '0.1.1', file: 'dist/index.mjs', kind: 'module' },
   { name: 'geographiclib-geodesic', version: '2.2.0', file: 'geographiclib-geodesic.min.js', kind: 'script' },
@@ -80,7 +82,7 @@ async function regenerate() {
   const tags = [
     `<meta http-equiv="Content-Security-Policy" content="${csp}">`,
     ...PINS.filter((p) => p.kind === 'style').map((p) => `<link rel="stylesheet" href="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
-    ...PINS.filter((p) => p.kind === 'worker').map((p) => `<link rel="preload" as="fetch" id="${p.name}-worker" href="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
+    ...PINS.filter((p) => p.kind === 'worker').map((p) => `<link rel="preload" as="fetch" id="${p.name}-worker" href="${url(p)}" data-integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
     `<script type="importmap">${importmap}</script>`,
     ...PINS.filter((p) => p.kind === 'script').map((p) => `<script src="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous"></script>`),
   ];

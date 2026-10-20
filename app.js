@@ -120,7 +120,7 @@ style.layers.push(...MEASURE_LAYERS);
 // MapLibre's worker from the pinned, hashed URL in index.html (tools/deps.mjs): a copy the browser
 // has checked against the hash, instead of MapLibre's own unchecked import from the CDN
 const workerPin = $('#maplibre-gl-worker');
-const workerSrc = await fetch(workerPin.href, { integrity: workerPin.integrity, referrerPolicy: 'no-referrer' });
+const workerSrc = await fetch(workerPin.href, { integrity: workerPin.dataset.integrity, referrerPolicy: 'no-referrer' });
 maplibregl.setWorkerUrl(URL.createObjectURL(new Blob([await workerSrc.text()], { type: 'text/javascript' })));
 
 const map = new maplibregl.Map({
