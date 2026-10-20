@@ -123,6 +123,9 @@ const map = new maplibregl.Map({
   container: 'map', style, ...view,
   maxPitch: 0, pitchWithRotate: false, dragRotate: true, touchPitch: false,
   attributionControl: false, fadeDuration: 150,
+  // MapLibre's workers set the page address as the referrer explicitly, past the page's
+  // no-referrer meta tag: ask for none on every request it makes
+  transformRequest: (url) => ({ url, referrerPolicy: 'no-referrer' }),
 });
 map.touchZoomRotate.disableRotation();
 // bottom-right, as in Google Maps; MapLibre stacks later bottom controls above earlier ones:

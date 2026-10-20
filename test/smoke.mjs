@@ -12,6 +12,9 @@ const base = server.url;
 const browser = await chromium.launch(chromeOptions());
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
 const failures = [];
+// cross-origin requests that carried a Referer (the page and the clip worker both promise none)
+const referred = new Set();
+ctx.on('request', (r) => { const u = new URL(r.url()); if (u.origin !== new URL(base).origin && r.headers().referer) referred.add(u.host); });
 const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); if (!ok) failures.push(what); };
 
 async function open(hash) {
@@ -33,6 +36,7 @@ try {
   check(await p.evaluate(() => map.getStyle().layers.length > 30), 'style has its layers');
   const broken = await p.evaluate(() => [...document.querySelectorAll('.item.error')].map((r) => r.querySelector('label').textContent));
   check(broken.length === 0, `no source marked failing ${broken.join(', ')}`);
+  check(referred.size === 0, `no request to a tile host carries a Referer ${[...referred].join(', ')}`);
 
   // menu: a group checkbox switches all its items; base radio swaps chart and satellite
   await p.click('details[data-group=sea] summary input');

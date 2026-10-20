@@ -138,24 +138,22 @@ function lru(max) {
 }
 const omtCache = lru(48), demCache = lru(64);
 
+// This code runs in a worker loaded from its own file, which does not inherit the page's
+// <meta name="referrer" content="no-referrer">: without this, every tile request would carry
+// the site's address.
+const FETCH = { credentials: 'omit', referrerPolicy: 'no-referrer' };
+
 async function fetchOk(url, signal) {
-  const r = await fetch(url, { signal, credentials: 'omit' });
+  const r = await fetch(url, { ...FETCH, signal });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r;
 }
 
-// Water mask for DEM tile z/x/y: 0 land, 1 OSM sea, 2 inland water at sea level, 3 lake.
-// It must use the OpenMapTiles tile the basemap shows at the same map zoom, or the two
-// coastlines differ where OSM is generalised: 256 px raster-dem tiles at z show at map
-// zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
-// at z show at map zoom z → OMT z (omtOffset 0). levelAt(px, py) is the DEM height above the
-// local surface (sea level, or a DATUMS surface); inDatum(px, py) says whether that is a datum.
-// Returns the mask and the ids of water bodies drawn before they could be classified.
 // the `water` layer of OpenMapTiles tile oz/ox/oy (cached)
 function omtLayer(omtTemplate, oz, ox, oy, signal) {
   return omtCache(`${oz}/${ox}/${oy}`, async () => {
     const url = (await omtTemplate()).replace('{z}', oz).replace('{x}', ox).replace('{y}', oy);
-    const r = await fetch(url, { signal, credentials: 'omit' });
+    const r = await fetch(url, { ...FETCH, signal });
     if (r.status === 204 || r.status === 404) return { extent: 4096, features: [] }; // empty tile
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return waterLayer(new Uint8Array(await r.arrayBuffer()));
@@ -201,6 +199,13 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
   return null;
 }
 
+// Water mask for DEM tile z/x/y: 0 land, 1 OSM sea, 2 inland water at sea level, 3 lake.
+// It must use the OpenMapTiles tile the basemap shows at the same map zoom, or the two
+// coastlines differ where OSM is generalised: 256 px raster-dem tiles at z show at map
+// zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
+// at z show at map zoom z → OMT z (omtOffset 0). levelAt(px, py) is the DEM height above the
+// local surface (sea level, or a DATUMS surface); inDatum(px, py) says whether that is a datum.
+// Returns the mask and the ids of water bodies drawn before they could be classified.
 async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
   const oz = Math.max(0, Math.min(z - omtOffset, OMT_MAXZOOM)), d = z - oz;
   const ox = x >> d, oy = y >> d;
@@ -280,7 +285,7 @@ function demMetres(url, signal) {
 export function clipper({ template, native, mode, omtTileJson, onStale }) {
   // the OpenMapTiles tile URL, fetched once; a failure is retried on the next tile
   let omtUrl = null;
-  const omtTemplate = () => (omtUrl ||= fetch(omtTileJson, { credentials: 'omit' })
+  const omtTemplate = () => (omtUrl ||= fetch(omtTileJson, FETCH)
     .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then((tj) => tj.tiles[0])
     .catch((e) => { omtUrl = null; throw e; }));
@@ -370,7 +375,8 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
       const e = await elevation(z, x, y, 0);
       // lakes carry NO_DEPTH_M for the shading's grey; for contours they are just "not sea"
       // (+1 m), or every lake would be ringed by contours from 0 to 9000 m
-      return mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v)) : e;
+      // always a new array: the worker transfers it, which would empty the cached tile
+      return mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v)) : e.slice();
     },
   };
 }

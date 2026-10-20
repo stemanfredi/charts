@@ -116,7 +116,8 @@ coastline the basemap draws:
   blocked the page for seconds while panning. A worker loaded from its own file
   does not inherit the page's `<meta>` security policy (only HTTP headers would
   apply, and GitHub Pages sets none); its requests are fixed in code, to the
-  elevation tiles and OpenFreeMap.
+  elevation tiles and OpenFreeMap. It does not inherit the page's `no-referrer`
+  either, so each of its requests sets `referrerPolicy: 'no-referrer'` itself.
 - Relief shading and land contours are drawn under the vector sea fill, so the
   fill cuts them exactly at the shore. The land DEM is not upsampled, because
   the slopes of an upsampled surface shade in visible facets.
