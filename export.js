@@ -2,7 +2,7 @@
 // the view's corners and the layers drawn; app.js reads those from the map.
 //   map.png + map.pgw + map.png.aux.xml   the map as drawn, georeferenced in Web Mercator
 //   item.json                             a STAC Item describing the view and every file
-// (vector/*.geojson come from vector.js, the measurements from measure.js)
+// (vector/*.geojson come from vector.js, the measurements from measure.js, raster/*.tif from geotiff.js)
 
 const R = 6378137; // Web Mercator sphere (EPSG:3857)
 const D2R = Math.PI / 180;

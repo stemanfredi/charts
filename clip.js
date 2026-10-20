@@ -520,13 +520,13 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
       }
     }
     if (mode === 'land' && nz <= SPIKE_MAXZOOM) clampCoastalSpikes(out, mask.map((m) => m === DEPTH), SIZE, SIZE);
-    return out;
+    return { h: out, mask };
     });
   };
   return {
     // Terrarium-encoded ImageBitmap for a raster-dem source
     async bitmap(z, x, y) {
-      const e = await elevation(z, x, y);
+      const { h: e } = await elevation(z, x, y);
       const img = new ImageData(SIZE, SIZE), o = img.data;
       for (let k = 0; k < e.length; k++) {
         // The GPU interpolates between pixels, and the tint edge falls where the value
@@ -539,11 +539,17 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
     },
     // metres for maplibre-contour (512 px contour tiles: cut with the coastline of the same zoom)
     async contourElevation(z, x, y) {
-      const e = await elevation(z, x, y, 0);
+      const { h: e } = await elevation(z, x, y, 0);
       // lakes carry NO_DEPTH_M for the shading's grey; for contours they are just "not sea"
       // (+1 m), or every lake would be ringed by contours from 0 to 9000 m
       // always a new array: the worker transfers it, which would empty the cached tile
       return mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v)) : e.slice();
+    },
+    // metres as the raster-dem tile draws them, NaN where it shows no value of its own: for the sea
+    // land, lakes and inland water at sea level (flat, depth unknown); for the land the sea (ZIP export)
+    async metres(z, x, y) {
+      const { h, mask } = await elevation(z, x, y);
+      return h.map((v, k) => ((mode === 'sea' ? mask[k] === DEPTH : mask[k] !== DEPTH) ? v : NaN));
     },
   };
 }
@@ -584,5 +590,6 @@ export function workerClipper({ template, native, mode, omtTileJson, onStale }) 
     },
     getTile: async (url) => ({ data: { elevation: await ask({ mode, op: 'contourElevation', zxy: zxy(url) }) } }),
     decodeImage: async (data) => ({ width: SIZE, height: SIZE, data: data.elevation }),
+    metres: (z, x, y) => ask({ mode, op: 'metres', zxy: [z, x, y] }),
   };
 }

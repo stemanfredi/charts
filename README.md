@@ -19,7 +19,10 @@ view, and the PNG export carries the scale, legends and credits. The ZIP export
 packs the view for GIS: the map as a georeferenced PNG (world file, Web
 Mercator), the PNG export, one GeoJSON file per vector layer drawn (`vector/`:
 clipped to the view, pieces from neighbouring tiles joined) plus the
-measurements, and a [STAC](https://stacspec.org) Item (`item.json`) with the
+measurements, the depth and land elevation in metres as GeoTIFF (`raster/`, when
+depth shading or relief and contours are drawn: the elevation tiles the map
+draws, at their resolution, over the view's bounding box; imagery and density
+layers are in the pictures only), and a [STAC](https://stacspec.org) Item (`item.json`) with the
 view's footprint, the layers drawn, their sources, licences and files. QGIS
 opens every file straight from the zip.
 
@@ -101,6 +104,7 @@ The reasons behind each rule are documented next to the code that applies it.
 | `app.js` | Map setup, panels, URL state, search, legends, graticule, PNG and ZIP export. |
 | `export.js` | ZIP export contents: georeferencing and the STAC Item. |
 | `vector.js` | Vector layers of the view as GeoJSON: tile pieces joined, clipped to the view. |
+| `geotiff.js` | Elevation grids of the view as GeoTIFF. |
 | `zip.js` | Zip writer (the browser's own deflate). |
 | `clip.js`, `clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
 | `measure.js` | Geodesic ruler, area and range ring. |

@@ -4,6 +4,7 @@
 //   CHROME=/path/to/chrome npm run smoke     (default: /usr/bin/google-chrome)
 // Network-dependent by design: it is also what tells us a provider changed or went down.
 import { readFile } from 'node:fs/promises';
+import { inflateRawSync } from 'node:zlib';
 import { chromium } from 'playwright-core';
 import { serve, chromeOptions } from './serve.mjs';
 
@@ -132,8 +133,17 @@ try {
   check(await again.evaluate(() => !('polygonClipping' in window) && !document.querySelector('script[src*=polygon-clipping]')), 'polygon-clipping not loaded with the page');
   const [dz] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#zip')]);
   const z = await readFile(await dz.path());
-  const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png', 'vector/coastline.geojson', 'vector/isobaths.geojson'];
+  const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png', 'vector/coastline.geojson', 'vector/isobaths.geojson', 'raster/depth.tif'];
   check(z.readUInt32LE(0) === 0x04034b50 && names.every((n) => z.includes(n)) && dz.suggestedFilename().endsWith('.zip'), `ZIP export holds ${names.join(', ')} (${Math.round(z.length / 1024)} KB)`);
+  // item.json lists every file in the zip, once (central directory: name and local header offset)
+  const entries = [];
+  for (let p = z.readUInt32LE(z.length - 6); z.readUInt32LE(p) === 0x02014b50; p += 46 + z.readUInt16LE(p + 28)) {
+    entries.push({ name: z.toString('utf8', p + 46, p + 46 + z.readUInt16LE(p + 28)), at: z.readUInt32LE(p + 42), method: z.readUInt16LE(p + 10), size: z.readUInt32LE(p + 20) });
+  }
+  const ij = entries.find((e) => e.name === 'item.json'), body = z.subarray(ij.at + 30 + z.readUInt16LE(ij.at + 26), ij.at + 30 + z.readUInt16LE(ij.at + 26) + ij.size);
+  const item = JSON.parse((ij.method ? inflateRawSync(body) : body).toString());
+  const listed = Object.values(item.assets).map((a) => a.href.replace(/^\.\//, '')).sort().join();
+  check(listed === entries.map((e) => e.name).filter((n) => n !== 'item.json').sort().join(), `item.json lists every file in the zip (${Object.keys(item.assets).length} assets)`);
 } catch (err) {
   check(false, `smoke run crashed: ${err.message}`);
 } finally {

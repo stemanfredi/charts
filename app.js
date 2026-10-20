@@ -5,7 +5,8 @@ import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
-import { affine, worldFile, pamXml, stacItem } from './export.js';
+import { affine, mercator, worldFile, pamXml, stacItem } from './export.js';
+import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
 import { viewFeatures } from './vector.js';
 
@@ -903,6 +904,14 @@ function vectorPieces(id) {
   }
   return pieces;
 }
+// raster/<key>.tif: the clipped DEM an item draws, in metres, at the zoom of the tiles on screen
+// (256 px DEM tiles at z show at map zoom z − 1, clip.js)
+const RASTERS = [
+  { key: 'depth', items: ['depth'], clip: seaClip, native: DEM_SEA.native, max: DEM_SEA.max, title: 'Depth',
+    description: 'Seabed elevation in metres, negative below sea level, as the depth shading draws it: Terrarium DEM cut to the OSM coastline, pits and tile seams corrected; sea the DEM calls dry is -1. No data on land, lakes and inland water at sea level' },
+  { key: 'elevation', items: ['relief', 'contours'], clip: landClip, native: DEM_LAND.native, max: DEM_LAND.max, title: 'Land elevation',
+    description: 'Land elevation in metres, as the relief shading and land contours use it: Terrarium DEM (SRTM on land) cut to the OSM coastline. No data in the sea' },
+];
 const featureCollection = (name, features) => `${JSON.stringify({ type: 'FeatureCollection', name, features })}\n`;
 
 // polygon-clipping (vector.js) loads on the first ZIP export, not with the page: a script from
@@ -929,11 +938,21 @@ async function exportZip() {
     const layers = drawnItems(), vectors = [];
     for (const it of layers) {
       const fs = viewFeatures(vectorPieces(it.id), corners, clipping);
-      if (fs.length) vectors.push({ key: it.id, title: it.label, file: `vector/${it.id}.geojson`, data: featureCollection(it.label, fs), n: fs.length, how: 'clipped to the view' });
-      it.assets = fs.length ? [it.id] : []; // in item.json: the files that hold this layer as data
+      if (fs.length) vectors.push({ key: `vector/${it.id}`, title: it.label, file: `vector/${it.id}.geojson`, data: featureCollection(it.label, fs), n: fs.length, how: 'clipped to the view' });
+      it.assets = fs.length ? [`vector/${it.id}`] : []; // in item.json: the assets that hold this layer as data (keyed by path: a layer may be called chart, as the overview is)
+    }
+    // raster/<key>.tif for each elevation grid an item drawn reads
+    const rasters = [];
+    for (const r of RASTERS) {
+      if (!layers.some((l) => r.items.includes(l.id))) continue;
+      const grid = gridFor(corners.map(mercator), Math.max(0, Math.min(Math.floor(map.getZoom() + 1), r.max))), n = 2 ** grid.z;
+      const tiles = await Promise.all(grid.tiles.map(([tx, ty]) => r.clip.metres(grid.z, ((tx % n) + n) % n, ty)));
+      const transform = gridTransform(grid);
+      rasters.push({ ...r, file: `raster/${r.key}.tif`, asset: `raster/${r.key}`, data: geotiff(mosaic(grid, tiles), grid.w, grid.h, transform, { description: r.description }), grid, transform });
+      for (const l of layers) if (r.items.includes(l.id)) l.assets.push(`raster/${r.key}`);
     }
     const measured = measureFeatures(measure.list);
-    if (measured.length) vectors.push({ key: 'measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
+    if (measured.length) vectors.push({ key: 'vector/measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
     const item = stacItem({
       id: exportName(when), when, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers,
       attribution: attributionText(), link: location.href,
@@ -943,6 +962,8 @@ async function exportZip() {
         worldfile: { href: './map.pgw', type: 'text/plain', title: 'World file of map.png', roles: ['metadata'] },
         crs: { href: './map.png.aux.xml', type: 'application/xml', title: 'CRS of map.png (GDAL sidecar)', roles: ['metadata'] },
         chart: { href: './chart.png', type: 'image/png', title: 'The map with scale, legends and credits, as the PNG export', roles: ['overview'] },
+        ...Object.fromEntries(rasters.map((r) => [r.asset, { href: `./${r.file}`, type: 'image/tiff; application=geotiff', title: `${r.title}: DEM tiles of zoom ${r.grid.z}${r.grid.z > r.native ? `, upsampled from zoom ${r.native}` : ''}, over the view's bounding box`, description: r.description, roles: ['data'],
+          'proj:code': 'EPSG:3857', 'proj:shape': [r.grid.h, r.grid.w], 'proj:transform': r.transform, bands: [{ data_type: 'float32', nodata: 'nan', unit: 'm' }] }])),
         ...Object.fromEntries(vectors.map((v) => [v.key, { href: `./${v.file}`, type: 'application/geo+json', title: `${v.title}: ${v.n} feature${v.n === 1 ? '' : 's'}, ${v.how}`, roles: ['data'] }])),
       },
     });
@@ -954,6 +975,7 @@ async function exportZip() {
       { name: 'map.png.aux.xml', data: pamXml() },
       { name: 'chart.png', data: chartPng },
       ...vectors.map((v) => ({ name: v.file, data: v.data })),
+      ...rasters.map((r) => ({ name: r.file, data: r.data })),
     ], when), `${exportName(when)}.zip`);
   });
 }
