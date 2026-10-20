@@ -88,6 +88,17 @@ export function gibsTiles(key, date) {
   const g = GIBS[key];
   return [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${g.layer}/default/${date}/GoogleMapsCompatible_Level${g.level}/{z}/{y}/{x}.${g.ext}`];
 }
+// NASA publishes each layer after its own delay (true colour within a day, MUR SST about two days):
+// GIBS DescribeDomains lists the dates a layer has between from and to (YYYY-MM-DD)
+export function gibsDomainUrl(key, from, to) {
+  const g = GIBS[key];
+  return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/1.0.0/${g.layer}/default/GoogleMapsCompatible_Level${g.level}/all/${from}--${to}.xml`;
+}
+// the newest date in a DescribeDomains reply: <Domain>start/end/P1D[,start/end/P1D…]</Domain>
+export function domainEnd(xml) {
+  const ends = [...(/<Domain>([^<]*)<\/Domain>/.exec(xml)?.[1] || '').matchAll(/\d{4}-\d{2}-\d{2}\/(\d{4}-\d{2}-\d{2})/g)].map((m) => m[1]);
+  return ends.length ? ends.sort().at(-1) : null;
+}
 
 // ---- menu -------------------------------------------------------------------
 // exclusive: items in the group behave as radio buttons.

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle } from '../../catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle, domainEnd, gibsDomainUrl } from '../../catalog.js';
 import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });
@@ -80,4 +80,11 @@ test('density datasets: "all types" first, codes map to WMS layers and times, se
   assert.equal(DENSITY.routes.defaultPeriod, DENSITY.routes.periods[0], 'routes: newest month by default');
   assert.equal(DENSITY.routes.periods.length, 91); // Jan 2019 … Jul 2026, no gaps
   assert.equal(DENSITY.routes.periodLabel('2026-07'), 'Jul 2026');
+});
+
+test('GIBS: the newest date a layer has, from DescribeDomains', () => {
+  assert.equal(domainEnd('<Domains><DimensionDomain><Domain>2026-08-20/2026-10-18/P1D</Domain></DimensionDomain></Domains>'), '2026-10-18');
+  assert.equal(domainEnd('<Domain>2026-08-20/2026-09-01/P1D,2026-09-03/2026-10-19/P1D</Domain>'), '2026-10-19');
+  assert.equal(domainEnd('<Domains></Domains>'), null);
+  assert.match(gibsDomainUrl('sst', '2026-08-20', '2026-10-20'), /GHRSST_L4_MUR_Sea_Surface_Temperature\/default\/GoogleMapsCompatible_Level7\/all\/2026-08-20--2026-10-20\.xml$/);
 });

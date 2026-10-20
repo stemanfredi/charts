@@ -34,7 +34,7 @@ Run locally: `python3 -m http.server` in this folder, open http://localhost:8000
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 | crowd-sourced |
 | Vessel density (off by default) | EMODnet Human Activities (Cogea; AIS from CLS, ORBCOMM, vesseltracker.com), WMS | EMODnet open data, attribution | 1 km, annual averages 2017–2024 by ship type; EU and neighbouring seas; 2024 incomplete, so 2023 is the default |
 | Route density (off by default) | EMSA route density via EMODnet Human Activities, WMS | CC BY 4.0 | 1 km, monthly from Jan 2019, about 3 months behind; counts routes crossing each cell; EU and neighbouring seas |
-| NASA daily | GIBS: MODIS / VIIRS true colour, MUR SST, chlorophyll-a | NASA open data | 250 m / 1 km; date picker, default yesterday UTC |
+| NASA daily | GIBS: MODIS / VIIRS true colour, MUR SST, chlorophyll-a | NASA open data | 250 m / 1 km; date picker; default yesterday (UTC), or the newest day NASA has published for the layer (MUR SST runs about two days behind) |
 
 Every row in the Layers panel has an ⓘ with the same provenance, and the
 credits list only the sources currently drawn.

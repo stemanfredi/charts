@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, densityTiles } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles } from './catalog.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon } from './format.js';
@@ -183,7 +183,7 @@ function setOn(id, on) {
     for (const other of ITEMS) if (other.group === it.group && other.id !== id && state.on.delete(other.id)) applyItem(other.id);
   }
   on ? state.on.add(id) : state.on.delete(id);
-  applyItem(id);
+  id === 'gibs' && on ? showGibs() : applyItem(id);
   if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); creditEsri(); }
   if (id === 'graticule') updateGraticule();
   if (id === 'depth') { shoreFill(); labelPaint(); }
@@ -261,7 +261,30 @@ function setDate(date) {
   state.date = date;
   for (const k of Object.keys(GIBS)) map.getSource(`gibs-${k}`).setTiles(gibsTiles(k, date));
   writeHash();
-  renderLegends();
+  renderMenu(); // the date field and the next-day button follow; also redraws the legends
+}
+// NASA publishes each layer after its own delay (true colour within a day, MUR SST about two):
+// ask GIBS for the newest date of the layer shown, and step back to it rather than show nothing
+const gibsEnd = {}; // GIBS key → promise of its newest date, or null if unknown
+let gibsLast = null; // newest date of the layer shown, once known
+function latestGibs(key) {
+  return (gibsEnd[key] ||= fetch(gibsDomainUrl(key, shiftDay(today(), -60), today()), { credentials: 'omit' })
+    .then((r) => (r.ok ? r.text() : null))
+    .then((t) => (t ? domainEnd(t) : null))
+    .catch(() => { delete gibsEnd[key]; return null; }));
+}
+// the NASA layer is drawn only once its date is known, so it never asks for a day not published yet
+async function showGibs() {
+  await checkGibsDate();
+  applyItem('gibs');
+}
+async function checkGibsDate() {
+  if (!state.on.has('gibs')) return;
+  const key = state.variant.gibs, end = await latestGibs(key);
+  if (key !== state.variant.gibs) return; // switched meanwhile
+  gibsLast = end;
+  if (end && state.date > end) setDate(end);
+  else renderMenu();
 }
 
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
@@ -351,7 +374,7 @@ const rows = {};
 const segs = [];
 function setVariant(id, v) {
   state.variant[id] = v;
-  applyItem(id);
+  id === 'gibs' ? showGibs() : applyItem(id);
   if (id === 'depth') depthColours();
   if (DENSITY[id]) setDensity(id);
   if (id === 'sat') creditEsri();
@@ -391,7 +414,8 @@ function controlsOf(it) {
     h('button', { type: 'button', class: 'prev', 'aria-label': 'Previous day', title: 'Previous day', onclick: () => setDate(shiftDay(state.date, -1)) }, '‹'),
     h('input', { type: 'date', 'aria-label': 'Imagery date', max: today(), min: '2012-01-01', onchange: (e) => e.target.value && setDate(e.target.value) }),
     h('button', { type: 'button', class: 'next', 'aria-label': 'Next day', title: 'Next day', onclick: () => setDate(shiftDay(state.date, 1)) }, '›')) : null;
-  return h('div', { class: 'controls' }, variant, period, date);
+  const latest = it.date ? h('p', { class: 'note latest' }) : null; // the newest day NASA has published for this layer
+  return h('div', { class: 'controls' }, variant, period, date, latest);
 }
 function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
@@ -455,7 +479,13 @@ function renderMenu() {
     const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
     if (rng) rng.value = state.opacity[it.id];
     const dt = r.controls.querySelector('input[type=date]');
-    if (dt) { dt.value = state.date; r.controls.querySelector('.next').disabled = state.date >= today(); }
+    if (dt) {
+      const last = gibsLast || today();
+      dt.value = state.date;
+      dt.max = last;
+      r.controls.querySelector('.next').disabled = state.date >= last;
+      r.controls.querySelector('.latest').textContent = gibsLast ? `Newest published: ${gibsLast}` : '';
+    }
   }
   for (const s of segs) s.render();
   for (const g of groupEls) {
@@ -810,10 +840,11 @@ map.on('load', () => {
     if (typeof src.roundZoom !== 'boolean') console.error(`MapLibre: ${id}.roundZoom missing; elevation tiles may not match the coastline`);
     src.roundZoom = false;
   }
-  for (const it of ITEMS) applyItem(it.id);
+  for (const it of ITEMS) if (it.id !== 'gibs') applyItem(it.id);
   depthColours();
   labelPaint();
   creditEsri();
+  showGibs();
   measure.load(measureState);
   updateGraticule();
   renderMenu();

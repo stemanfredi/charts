@@ -73,6 +73,13 @@ try {
   check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
   await pv.close();
 
+  // NASA SST is published about two days late: the date steps back to the newest one GIBS has
+  const sst = await open('#v=5/40/10/0&menu=1&g=imagery&on=chart,coastline,gibs&var=gibs:sst');
+  await sst.waitForFunction(() => document.querySelector('.latest')?.textContent, null, { timeout: 20000 }).catch(() => {});
+  const [shown, note] = await sst.evaluate(() => [document.querySelector('.datestep input').value, document.querySelector('.latest').textContent]);
+  check(/^Newest published: \d{4}-\d{2}-\d{2}$/.test(note) && note.endsWith(shown), `SST date is the newest published one (${shown}; ${note})`);
+  await sst.close();
+
   // search: coordinates are read on the page (no request); a place comes from Photon
   const sp = await open('#v=6/41/12/0&menu=0');
   const near = (lat, lon, tol) => sp.evaluate(({ lat, lon, tol }) => { const c = map.getCenter(); return Math.abs(c.lat - lat) < tol && Math.abs(c.lng - lon) < tol; }, { lat, lon, tol });
