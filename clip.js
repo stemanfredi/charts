@@ -387,13 +387,43 @@ export function clampCoastalSpikes(e, sea, w, h) {
   return e;
 }
 
-// sea DEM tile z/x/y with small depressions filled and seams smoothed, looked at with a margin
-// from its neighbours
+// Terrarium has blocks of sea filled with exactly 0 m at some zooms, while the zooms around them
+// have real depths (Gulf of Taranto: 70 % of a zoom-9 tile; off Bari: 89 % at zoom 9, 63 % at 10;
+// elsewhere at most a thin strip along the shore). A sea depth of exactly 0 is such a hole: it
+// takes the parent tile's value there (bilinear), where the parent has water. quadrant: [x & 1,
+// y & 1] of the tile within its parent. Returns e itself when it has no holes.
+export function fillZeroHoles(e, parent, [qx, qy]) {
+  if (!e.includes(0)) return e;
+  const out = e.slice(), half = SIZE / 2;
+  const at = (i, j) => parent[Math.min(SIZE - 1, Math.max(0, j)) * SIZE + Math.min(SIZE - 1, Math.max(0, i))];
+  for (let j = 0; j < SIZE; j++) {
+    const v = qy * half + (j + 0.5) / 2 - 0.5, j0 = Math.floor(v), fj = v - j0;
+    for (let i = 0; i < SIZE; i++) {
+      if (out[j * SIZE + i] !== 0) continue;
+      const u = qx * half + (i + 0.5) / 2 - 0.5, i0 = Math.floor(u), fi = u - i0;
+      const h = (at(i0, j0) * (1 - fi) + at(i0 + 1, j0) * fi) * (1 - fj) + (at(i0, j0 + 1) * (1 - fi) + at(i0 + 1, j0 + 1) * fi) * fj;
+      if (h < 0) out[j * SIZE + i] = h;
+    }
+  }
+  return out;
+}
+// Terrarium tile in metres for the sea: zero holes filled from the parent, itself filled first
+const seaRawCache = lru(64);
+function seaMetres(template, z, x, y) {
+  return seaRawCache(`${z}/${x}/${y}`, async () => {
+    const e = await demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+    if (!z || !e.includes(0)) return e;
+    return fillZeroHoles(e, await seaMetres(template, z - 1, x >> 1, y >> 1), [x & 1, y & 1]);
+  });
+}
+
+// sea DEM tile z/x/y with zero holes, small depressions and seams corrected, looked at with a
+// margin from its neighbours
 const seaDemCache = lru(64);
 function seaDem(template, z, x, y) {
   return seaDemCache(`${z}/${x}/${y}`, async () => {
-    const n = 2 ** z, url = (tx, ty) => template.replace('{z}', z).replace('{x}', ((tx % n) + n) % n).replace('{y}', Math.min(n - 1, Math.max(0, ty)));
-    const tiles = await Promise.all([-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => demMetres(url(x + dx, y + dy)))));
+    const n = 2 ** z;
+    const tiles = await Promise.all([-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => seaMetres(template, z, (((x + dx) % n) + n) % n, Math.min(n - 1, Math.max(0, y + dy))))));
     const W = SIZE + 2 * MARGIN, area = new Float32Array(W * W);
     for (let j = 0; j < W; j++) {
       for (let i = 0; i < W; i++) {

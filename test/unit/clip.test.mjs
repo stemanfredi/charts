@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { datumAt, DATUMS, fillSmallDepressions, smoothSea, clampCoastalSpikes } from '../../clip.js';
+import { datumAt, DATUMS, fillSmallDepressions, smoothSea, clampCoastalSpikes, fillZeroHoles } from '../../clip.js';
 import { levelsFor, DEPTH_LEVELS } from '../../catalog.js';
 
 test('Caspian surface applies inside its box only (per point, not per tile)', () => {
@@ -89,4 +89,18 @@ test('levelsFor: only the depths drawn at that DEM zoom', () => {
   assert.deepEqual(levelsFor(5).slice(0, 3), [1000, 2000, 3000]);
   const range = (a, b, s) => Array.from({ length: (b - a) / s + 1 }, (_, k) => a + k * s);
   assert.deepEqual(DEPTH_LEVELS, [5, 10, 20, 30, 40, 50, 100, 150, 200, ...range(300, 3000, 100), ...range(3500, 11000, 500)]);
+});
+
+test('fillZeroHoles: exact 0 m sea takes the parent depth; real values and land stay', () => {
+  const S = 256, parent = new Float32Array(S * S).fill(-800);
+  for (let j = 0; j < S; j++) for (let i = 0; i < 20; i++) parent[j * S + i] = 50; // land on the parent's west edge
+  const e = new Float32Array(S * S).fill(0); // the Taranto tile: sea read as 0 m
+  e[100 * S + 100] = -30; // a real depth stays
+  const out = fillZeroHoles(e, parent, [0, 0]);
+  assert.equal(out[100 * S + 100], -30);
+  assert.ok(Math.abs(out[200 * S + 200] + 800) < 1e-3, 'hole takes the parent depth');
+  assert.equal(out[100 * S + 2], 0, 'where the parent is land, 0 stays (shown as the shallowest class)');
+  assert.equal(e[200 * S + 200], 0, 'input untouched (it is a cached tile)');
+  const real = new Float32Array(S * S).fill(-5);
+  assert.equal(fillZeroHoles(real, parent, [1, 1]), real, 'no holes: same array');
 });
