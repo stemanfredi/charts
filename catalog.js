@@ -116,10 +116,25 @@ const GLO_2D = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_0.083
 const MED_TEM = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-tem_anfc_4.2km_P1D-m_202511';
 const MED_SAL = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-sal_anfc_4.2km_P1D-m_202511';
 const MED_MLD = 'MEDSEA_ANALYSISFORECAST_PHY_006_013/cmems_mod_med_phy-mld_anfc_4.2km_P1D-m_202511';
+// satellite observations, daily
+const GLO_SST = 'SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001/METOFFICE-GLO-SST-L4-NRT-OBS-SST-V2';
+const MED_SST = 'SST_MED_SST_L4_NRT_OBSERVATIONS_010_004/SST_MED_SST_L4_NRT_OBSERVATIONS_010_004_a_V2_202311';
+const MED_SSTA = 'SST_MED_SST_L4_NRT_OBSERVATIONS_010_004/SST_MED_SSTA_L4_NRT_OBSERVATIONS_010_004_b_202607';
+const GLO_CHL = 'OCEANCOLOUR_GLO_BGC_L4_NRT_009_102/cmems_obs-oc_glo_bgc-plankton_nrt_l4-gapfree-multi-4km_P1D_202311';
+const MED_CHL = 'OCEANCOLOUR_MED_BGC_L4_NRT_009_142/cmems_obs-oc_med_bgc-plankton_nrt_l4-gapfree-multi-1km_P1D_202207';
+const SLA = 'SEALEVEL_GLO_PHY_L4_NRT_008_046/cmems_obs-sl_glo_phy-ssh_nrt_allsat-l4-duacs-0.125deg_P1D_202506';
+// water quality: biogeochemistry models, daily, at depth
+const GLO_BIO = 'GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m_202311';
+const GLO_CAR = 'GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-car_anfc_0.25deg_P1D-m_202311';
+const GLO_NUT = 'GLOBAL_ANALYSISFORECAST_BGC_001_028/cmems_mod_glo_bgc-nut_anfc_0.25deg_P1D-m_202311';
+const MED_BIO = 'MEDSEA_ANALYSISFORECAST_BGC_006_014/cmems_mod_med_bgc-bio_anfc_4.2km_P1D-m_202511';
+const MED_CAR = 'MEDSEA_ANALYSISFORECAST_BGC_006_014/cmems_mod_med_bgc-car_anfc_4.2km_P1D-m_202511';
+const MED_NUT = 'MEDSEA_ANALYSISFORECAST_BGC_006_014/cmems_mod_med_bgc-nut_anfc_4.2km_P1D-m_202511';
 // item → variant → { label, unit, range, cmap, vector (arrows drawn by the service: 'solidAndVector' over the colours,
 //   'vector' alone, coloured by speed), parts: [dataset/variable],
 //   observed (an observation, published late: after its last step it shows that step, said so),
-//   daily (daily means), depth (drawn at the depth chosen, each dataset at its nearest level) }
+//   daily (daily means), depth (drawn at the depth chosen, each dataset at its nearest level),
+//   log (logarithmic colours), offset (added to the data's values for the legend: Kelvin → °C) }
 // Ranges serve the global and the regional model alike, so a colour means the same everywhere.
 // No sea level: the models' sea surface height (zos) carries each model's own mean offset (the
 // Mediterranean model reads −0.4 m in the Mediterranean and +0.8 m in its Atlantic box beside it),
@@ -130,6 +145,18 @@ export const CMEMS = {
     period: { label: 'Peak wave period', unit: 's', range: [0, 16], cmap: 'tempo', parts: [`${GLO_WAV}/VTPK`, `${MED_WAV}/VTPK`] },
   },
   currents: { surface: { label: 'Surface current', unit: 'm/s', range: [0, 1.5], cmap: 'speed', vector: 'solidAndVector', parts: [`${GLO_CUR}/sea_water_velocity`, `${MED_CUR}/sea_water_velocity`] } },
+  sst: {
+    measured: { label: 'Sea surface temperature', unit: '°C', range: [273.15, 303.15], offset: -273.15, cmap: 'thermal', daily: true, observed: true, parts: [`${GLO_SST}/analysed_sst`, `${MED_SST}/analysed_sst`] },
+    anomaly: { label: 'Sea surface temperature anomaly', unit: '°C', range: [-3, 3], cmap: 'balance', daily: true, observed: true, parts: [`${MED_SSTA}/sst_anomaly`] },
+  },
+  chl: { observed: { label: 'Chlorophyll', unit: 'mg/m³', range: [0.01, 10], log: true, cmap: 'algae', daily: true, observed: true, parts: [`${GLO_CHL}/CHL`, `${MED_CHL}/CHL`] } },
+  sla: { observed: { label: 'Sea level anomaly', unit: 'm', range: [-0.3, 0.3], cmap: 'balance', daily: true, observed: true, parts: [`${SLA}/sla`] } },
+  bgc: {
+    o2: { label: 'Dissolved oxygen', unit: 'mmol/m³', range: [0, 350], cmap: 'matter', daily: true, depth: true, parts: [`${GLO_BIO}/o2`, `${MED_BIO}/o2`] },
+    ph: { label: 'pH', unit: '', range: [7.6, 8.2], cmap: 'viridis', daily: true, depth: true, parts: [`${GLO_CAR}/ph`, `${MED_CAR}/ph`] },
+    no3: { label: 'Nitrate', unit: 'mmol/m³', range: [0.01, 30], log: true, cmap: 'matter', daily: true, depth: true, parts: [`${GLO_NUT}/no3`, `${MED_NUT}/no3`] },
+    nppv: { label: 'Primary production', unit: 'mg C/m³/day', range: [0, 10], cmap: 'algae', daily: true, depth: true, parts: [`${GLO_BIO}/nppv`, `${MED_BIO}/nppv`] },
+  },
   // wind as arrows alone, over the chart and the waves: thermal starts dark, so light winds stay visible
   temperature: {
     depth: { label: 'Temperature', unit: '°C', range: [0, 30], cmap: 'thermal', daily: true, depth: true, parts: [`${GLO_TEM}/thetao`, `${MED_TEM}/thetao`] },
@@ -139,7 +166,7 @@ export const CMEMS = {
   mld: { depth: { label: 'Mixed layer depth', unit: 'm', range: [0, 200], cmap: 'plasma', daily: true, parts: [`${GLO_2D}/mlotst`, `${MED_MLD}/mlotst`] } },
   wind: { observed: { label: 'Wind (satellite)', unit: 'm/s', range: [0, 25], cmap: 'thermal', vector: 'vector', observed: true, parts: [`${WIND}/wind`] } },
 };
-export const cmemsStyle = (v) => `cmap:${v.cmap},range:${v.range.join('/')}${v.vector ? `,vectorStyle:${v.vector}` : ''}`;
+export const cmemsStyle = (v) => `cmap:${v.cmap},range:${v.range.join('/')}${v.log ? ',logScale' : ''}${v.vector ? `,vectorStyle:${v.vector}` : ''}`;
 // 512 px tiles (the @2x matrix set): arrows at a readable spacing, and sharp on high-density screens
 export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
   return `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}`
@@ -204,6 +231,8 @@ export const GROUPS = [
   { id: 'land', label: 'Land' },
   { id: 'seastate', label: 'Sea state' },
   { id: 'water', label: 'Water properties' },
+  { id: 'observed', label: 'Satellite observations' },
+  { id: 'quality', label: 'Water quality' },
   { id: 'imagery', label: 'Daily imagery' },
   { id: 'labels', label: 'Labels & grid' },
 ];
@@ -256,6 +285,17 @@ export const ITEMS = [
     info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Practical salinity (PSU), daily means, at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 1/12° (~9 km). Model analysis and forecast', url: 'https://marine.copernicus.eu' } },
   { id: 'mld', group: 'water', label: 'Mixed layer depth', opacity: 0.85, cmems: true,
     info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Depth of the well-mixed surface layer (density criterion), daily means. Shallow in summer, deep in winter. Mediterranean 4.2 km; elsewhere 1/12°. Model analysis and forecast', url: 'https://marine.copernicus.eu' } },
+
+  { id: 'sst', group: 'observed', label: 'Sea surface temperature', opacity: 0.85, cmems: true,
+    variants: { measured: 'Measured', anomaly: 'Anomaly (Mediterranean)' },
+    info: { src: 'Copernicus Marine Service: satellite sea surface temperature, Mediterranean (SST_MED_SST_L4_NRT_OBSERVATIONS_010_004) over the global OSTIA analysis (SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Daily, gap-filled from several satellites. Mediterranean 1/16° (~4 km); elsewhere 0.05° (~5 km). Anomaly: against the 1991–2020 climatology of the day, Mediterranean only (marine heatwaves show in red). Shows the latest day after its last one', url: 'https://marine.copernicus.eu' } },
+  { id: 'chl', group: 'observed', label: 'Chlorophyll', opacity: 0.85, cmems: true,
+    info: { src: 'Copernicus Marine Service: ocean colour, gap-free, Mediterranean (OCEANCOLOUR_MED_BGC_L4_NRT_009_142) over the global one (OCEANCOLOUR_GLO_BGC_L4_NRT_009_102)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Chlorophyll-a, daily, cloud gaps filled. Mediterranean 1 km; elsewhere 4 km. Logarithmic colours. Only the last two weeks or so are kept. Shows the latest day after its last one', url: 'https://marine.copernicus.eu' } },
+  { id: 'sla', group: 'observed', label: 'Sea level anomaly', opacity: 0.85, cmems: true,
+    info: { src: 'Copernicus Marine Service: satellite altimetry, all missions merged (SEALEVEL_GLO_PHY_L4_NRT_008_046)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Sea surface height above its 1993–2012 mean, daily, 0.125° (~14 km). Eddies and large-scale highs and lows; tides and storm surge removed. Shows the latest day after its last one', url: 'https://marine.copernicus.eu' } },
+  { id: 'bgc', group: 'quality', label: 'Biogeochemistry', opacity: 0.85, cmems: true,
+    variants: Object.fromEntries(Object.entries(CMEMS.bgc).map(([k, v]) => [k, v.label])),
+    info: { src: 'Copernicus Marine Service: Mediterranean biogeochemistry forecast (MEDSEA_ANALYSISFORECAST_BGC_006_014) over the global one (GLOBAL_ANALYSISFORECAST_BGC_001_028)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Daily means at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 0.25° (~28 km). Nitrate in logarithmic colours. Model analysis and forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
 
   { id: 'gibs', group: 'imagery', label: 'NASA daily', opacity: 0.9, date: true,
     variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),

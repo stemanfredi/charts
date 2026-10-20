@@ -1,7 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, domainEndMs } from './catalog.js';
-import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
+import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend, regionOf } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, loadColormap, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon, exportName } from './format.js';
@@ -354,15 +354,16 @@ async function cmemsNotes() {
     const t = state.time, times = await partTimes(it.id, variantOf(it.id), t), levels = await partLevels(it.id, variantOf(it.id), state.depth);
     if (t !== state.time) return; // the hour changed meanwhile: a newer call writes the notes
     const ends = await Promise.all(v.parts.map((p) => domainOf(p).then((d) => domainEndMs(d.time), () => null)));
-    const names = v.parts.map((p) => (p.startsWith('MEDSEA') ? 'Mediterranean' : v.parts.length > 1 ? 'global' : ''));
+    const names = v.parts.map((p) => regionOf(p)?.name || (v.parts.length > 1 ? 'global' : ''));
     const parts = times.map((pt, i) => {
       const who = names[i] ? `${names[i]}: ` : '';
       if (pt === undefined) return `${who}time range unknown`;
       if (pt === null) return `${who}no data at this hour (${ends[i] ? `data until ${fmtHour(ends[i])}` : 'outside its range'})`;
       const at = levels[i] !== null ? ` at ${fmtLevel(levels[i])}` : '';
-      if (v.daily) return `${who}${fmtDrawn(v, pt)}${at}`;
+      const latest = v.observed && pt === ends[i] && t > ends[i] ? ' (latest observation)' : '';
+      if (v.daily) return `${who}${v.observed ? fmtDay(pt) : fmtDrawn(v, pt)}${latest}${at}`;
       if (pt === t) return `${who}to ${fmtHour(ends[i])}${at}`;
-      return `${who}shown at ${fmtHour(pt)}${v.observed && pt === ends[i] ? ' (latest observation)' : ''}${at}`;
+      return `${who}shown at ${fmtHour(pt)}${latest}${at}`;
     });
     note.textContent = parts.join(' · ');
     const empty = times.every((pt) => pt === null);
@@ -649,8 +650,10 @@ function renderLegends() {
             // the regional part, drawn on top: its time, its level
             const k = times.length - 1 - [...times].reverse().findIndex((pt) => pt != null), drawn = times[k] ?? state.time;
             const at = levels[k] != null ? ` · ${fmtLevel(levels[k])}` : '';
-            drawColormap(el, v.label, `${v.unit} · ${v.daily ? fmtDay(drawn) : fmtHour(drawn)}${at}`, cm, [v.range[0] < 0, true]); // nothing below 0 m, 0 m/s
-            el.setAttribute('aria-label', `${v.label} legend, ${v.unit}`);
+            const sub = [v.unit, v.daily ? fmtDay(drawn) : fmtHour(drawn)].filter(Boolean).join(' · ') + at;
+            // '<' below the scale only where values go on below it (not under 0 m, 0 m/s)
+            drawColormap(el, v.label, sub, cm, [v.log || v.range[0] + (v.offset || 0) < 0, true], v.log);
+            el.setAttribute('aria-label', `${v.label} legend${v.unit ? `, ${v.unit}` : ''}`);
             renderLegends(); // drawn after the stack was laid out: lay it out again with its size
           })
           .catch((err) => { el.dataset.key = ''; console.warn('legend colour map:', err.message); });

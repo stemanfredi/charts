@@ -145,6 +145,12 @@ try {
     [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
   check(wpDepth === '100' && /daily mean/.test(wpNote) && /at \d+ m/.test(wpNote) && !wpBroken.length && !wp.errors.length, `temperature at 100 m: ${wpNote} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
   await wp.close();
+  // a satellite observation at the current hour: its latest day, said so
+  const ob = await open('#v=5/40/10/0&on=chart,coastline,sst,legend&menu=1&g=observed');
+  await ob.waitForFunction(() => /latest observation/.test(document.querySelector('.item:has(#i-sst) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
+  const [obNote, obBroken] = await ob.evaluate(() => [document.querySelector('.item:has(#i-sst) .cmems-note').textContent, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
+  check(/Mediterranean: .*latest observation/.test(obNote) && !obBroken.length && !ob.errors.length, `sea surface temperature shows its latest day: ${obNote} ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);
+  await ob.close();
 
   // PNG export
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
