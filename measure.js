@@ -81,7 +81,7 @@ export function summary(mm, units) {
   return `Ruler ${fmtDist(st.len, units)}`;
 }
 
-function features(mm, units, draft) {
+function features(mm, units, bearings, draft) {
   const f = [];
   const tag = { id: mm.id, draft: draft ? 1 : 0 };
   const label = (coord, text, anchor = 'center') => f.push({ type: 'Feature', properties: { ...tag, label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
@@ -113,7 +113,7 @@ function features(mm, units, draft) {
   } else {
     st.segs.forEach((s, i) => {
       const mid = G.InverseLine(mm.pts[i][1], mm.pts[i][0], mm.pts[i + 1][1], mm.pts[i + 1][0], MASK).Position(s.s / 2, MASK);
-      label([mid.lon2, mid.lat2], `${fmtDist(s.s, units)} · ${fmtBrg(s.azi)}`);
+      label([mid.lon2, mid.lat2], bearings ? `${fmtDist(s.s, units)} · ${fmtBrg(s.azi)}` : fmtDist(s.s, units));
     });
     if (st.segs.length > 1) label(mm.pts[mm.pts.length - 1], `Σ ${fmtDist(st.len, units)}`, 'top');
   }
@@ -150,6 +150,7 @@ export class Measure {
     this.onChange = onChange;
     this.list = [];
     this.units = 'km';
+    this.bearings = false; // each leg's bearing beside its length
     this.tool = null;
     this.draft = null;
     this.hover = null;
@@ -221,11 +222,12 @@ export class Measure {
   remove(id) { this.list = this.list.filter((x) => x.id !== id); this.render(); this.onChange('list'); }
   setRadius(id, r) { const x = this.list.find((y) => y.id === id); if (x && r > 0) { x.r = r; this.render(); this.onChange('list'); } }
   setUnits(u) { this.units = u; this.render(); this.onChange('list'); }
+  setBearings(b) { this.bearings = b; this.render(); this.onChange('list'); }
 
   render() {
     const f = [];
-    for (const x of this.list) if (!x.hidden) f.push(...features(x, this.units, false));
-    if (this.draft) f.push(...features(this.preview(), this.units, true));
+    for (const x of this.list) if (!x.hidden) f.push(...features(x, this.units, this.bearings, false));
+    if (this.draft) f.push(...features(this.preview(), this.units, this.bearings, true));
     this.map.getSource('measure')?.setData({ type: 'FeatureCollection', features: f });
     if (this.draft) this.onChange('draft'); // the live total in the measuring bar
   }

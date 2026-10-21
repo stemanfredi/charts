@@ -127,6 +127,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .info b { color: var(--ink); font-weight: 600; }
 .info a { color: var(--accent); }
 
+.view > .item { padding: 0 0 0 4px; } /* Measure: a switch line, as in Layers */
 .view h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 4px 4px 0; }
 .action { border: 0; background: none; border-radius: 6px; min-height: 44px; padding: 0 10px; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; }
 .action:hover { background: var(--line2); }

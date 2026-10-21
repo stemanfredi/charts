@@ -51,3 +51,15 @@ test('preview: the cursor adds a leg, but not where a tap just put a point', () 
   m.hover = [10.5, 43.2]; // a mouse elsewhere: the next leg
   assert.equal(m.preview().pts.length, 2);
 });
+
+test('bearings: off by default, beside each leg once switched on', () => {
+  let data = null;
+  const fake = { on() {}, getSource: () => ({ setData: (d) => { data = d; } }), getCanvas: () => ({ style: {} }), doubleClickZoom: { enable() {}, disable() {} } };
+  globalThis.window ??= { addEventListener() {} };
+  const m = new Measure(fake, () => {});
+  m.load('r:9.5,43.6;10.1,43.2');
+  const labels = () => data.features.map((f) => f.properties.label).filter(Boolean);
+  assert.ok(labels().length && labels().every((t) => !t.includes('°T')), labels().join(' | '));
+  m.setBearings(true);
+  assert.ok(labels().some((t) => /km · \d{3}\.\d°T$/.test(t)), labels().join(' | '));
+});
