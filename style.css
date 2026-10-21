@@ -167,7 +167,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .legends .stack { display: contents; }
 .shown { pointer-events: auto; min-height: var(--row); padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); font-weight: 600; } /* the time shown: opens Layers */
-.legends canvas { display: block; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
+.legends canvas { display: block; box-sizing: content-box; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* the border outside its size: not squeezed (blurred) */
 
 /* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */
