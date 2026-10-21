@@ -26,8 +26,8 @@ draws, at their resolution, over the view's bounding box), the values of each
 Copernicus layer drawn as GeoTIFF (`raster/<layer>-global.tif`,
 `-mediterranean.tif`: read from Copernicus Marine's public Zarr stores at the
 time and depth drawn, in each dataset's own latitude/longitude grid over the
-view's bounding box, arrows as eastward and northward bands; imagery and density
-layers are in the pictures only), and a [STAC](https://stacspec.org) Item (`item.json`) with the
+view's bounding box, arrows as eastward and northward bands; imagery, density
+and the EMODnet layers are in the pictures only), and a [STAC](https://stacspec.org) Item (`item.json`) with the
 view's footprint, the time of the data shown (its `datetime`; the export's own is `created`), the layers drawn (what each draws: colours or arrows, its time and depth), their sources, licences and files. QGIS
 opens every file straight from the zip.
 
@@ -48,6 +48,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Satellite | Esri World Imagery, or EOX Sentinel-2 cloudless | Esri terms of use; EOX: CC BY 4.0 (2016) or CC BY-NC-SA 4.0 (2024, non-commercial) |
 | Depth shading, isobaths, relief shading, land contours | AWS Terrain Tiles (Terrarium) | Open data, with attribution per source |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
+| Wrecks, cables, pipelines, offshore installations, wind farms, military and protected areas | EMODnet Human Activities (wrecks: UKHO) | CC BY 4.0 |
 | Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
 | Route density | EMSA, via EMODnet Human Activities | CC BY 4.0 |
 | Sea state, water properties, satellite observations, water quality | Copernicus Marine Service | Copernicus Marine licence: free, attribution required |

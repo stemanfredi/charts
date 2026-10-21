@@ -71,6 +71,26 @@ export function densityTiles(id, type, period) {
     + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true&time=${d.time(period)}T00:00:00.000Z`];
 }
 
+// EMODnet layers drawn by EMODnet's own services (tiles, WMS), as they come: item → variant → tiles.
+// Depth (EMODnet Bathymetry's model, about 115 m in European waters: the styles that leave land to
+// the chart), seabed substrate (EMODnet Geology, 1:250k, Folk classes: its legend from the
+// service, CLASS_LEGENDS), and what is built, sunk or set aside at sea (EMODnet Human Activities).
+const wms = (base, layers, style = '') => [`${base}?service=WMS&version=1.3.0&request=GetMap&layers=${layers}&styles=${style}`
+  + '&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true'];
+const HA_WMS = 'https://ows.emodnet-humanactivities.eu/wms';
+export const OVERLAYS = {
+  wrecks: { all: wms(HA_WMS, 'wwshipwrecks') },
+  cables: { telecom: wms(HA_WMS, 'telecablesactual'), power: wms(HA_WMS, 'powercables') },
+  pipelines: { all: wms(HA_WMS, 'pipelines') },
+  platforms: { all: wms(HA_WMS, 'platforms') },
+  windfarms: { all: wms(HA_WMS, 'windfarmspoly,windfarms') },
+  military: { all: wms(HA_WMS, 'militaryareaspoly,militaryareas') },
+  protected: { natura: wms(HA_WMS, 'natura2000areas'), mpa: wms(HA_WMS, 'marineprotectedareas') },
+};
+const OVERLAY_CREDIT = {
+  wrecks: '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a> (wrecks: UKHO)',
+};
+
 export const ESRI_META = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=json';
 const escapeHtml = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 export const esriAttribution = (copyrightText) => `Powered by <a href="https://www.esri.com">Esri</a> · ${escapeHtml(copyrightText)}`;
@@ -247,6 +267,7 @@ export const GROUPS = [
   { id: 'data', label: 'Ocean data', sections: ['Sea state', 'Water column', 'Satellite'] },
   { id: 'sea', label: 'Sea' },
   { id: 'shipping', label: 'Shipping' },
+  { id: 'uses', label: 'Uses & areas' }, // EMODnet Human Activities
   { id: 'land', label: 'Land' },
   { id: 'labels', label: 'Labels & grid' },
 ];
@@ -269,6 +290,20 @@ export const ITEMS = [
   { id: 'routes', group: 'shipping', label: 'Route density', opacity: 0.85, kind: 'density',
     variants: DENSITY.routes.types,
     info: { src: 'EMSA route density, via EMODnet Human Activities: ship tracks rebuilt from terrestrial and satellite AIS, counting the routes that cross each cell', lic: 'CC BY 4.0 · European Maritime Safety Agency (EMSA)', res: '1 km grid, monthly totals since January 2019, about 3 months behind. EU and neighbouring seas only. Counts passages, not time spent (see Vessel density for hours)', url: 'https://www.emsa.europa.eu/related-operational-projects/traffic-density-maps.html' } },
+  { id: 'wrecks', group: 'uses', label: 'Wrecks', opacity: 1, minzoom: 9,
+    info: { src: 'UK Hydrographic Office worldwide wreck locations, via EMODnet Human Activities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Wrecks as charted by the UKHO, worldwide; positions of varying accuracy. From zoom 9: they crowd the map below', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'cables', group: 'uses', label: 'Cables', opacity: 1, variants: { telecom: 'Telecommunication', power: 'Power' },
+    info: { src: 'EMODnet Human Activities, from national authorities and operators', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Submarine cables in service, European seas; routes as reported, not surveyed positions', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'pipelines', group: 'uses', label: 'Pipelines', opacity: 1,
+    info: { src: 'EMODnet Human Activities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Oil, gas and other pipelines, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'platforms', group: 'uses', label: 'Offshore installations', opacity: 1,
+    info: { src: 'EMODnet Human Activities, from OSPAR and national authorities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Oil and gas platforms and other installations, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'windfarms', group: 'uses', label: 'Wind farms', opacity: 1,
+    info: { src: 'EMODnet Human Activities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Offshore wind farms (areas and points), planned to in production, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'military', group: 'uses', label: 'Military areas', opacity: 1,
+    info: { src: 'EMODnet Human Activities, from national authorities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Firing, exercise and other military areas, European seas; consult the official notices before entering', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'protected', group: 'uses', label: 'Protected areas', opacity: 1, variants: { natura: 'Natura 2000', mpa: 'Regional sea conventions MPAs' },
+    info: { src: 'EMODnet Human Activities: Natura 2000 (EEA), MPAs of the regional sea conventions', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Marine protected areas, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -354,6 +389,8 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
       attribution: '<a href="https://www.emsa.europa.eu/">EMSA</a> (CC BY 4.0) via <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>' },
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '<a href="https://openseamap.org">OpenSeaMap</a>',
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
+    ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
+      { type: 'raster', tileSize: 256, maxzoom: 18, tiles, attribution: OVERLAY_CREDIT[item] || OVERLAY_CREDIT.wrecks.replace(' (wrecks: UKHO)', '') }]))),
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   };
@@ -370,6 +407,11 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
 
 // ---- layers, bottom to top --------------------------------------------------
 const m = (item, variant) => ({ metadata: variant ? { item, variant } : { item } });
+// an overlay's layers, one per variant (OVERLAYS), from its item's minzoom
+const overlayLayers = (items) => items.flatMap((item) => {
+  const vs = Object.keys(OVERLAYS[item]), minzoom = ITEMS.find((it) => it.id === item).minzoom;
+  return vs.map((v) => ({ ...raster(`ov-${item}-${v}`, item, vs.length > 1 ? v : undefined), ...(minzoom && { minzoom }) }));
+});
 const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(item, variant), paint: { 'raster-fade-duration': 150 } });
 
 // Depth colour schemes ([depth m, colour] stops, shared by the depth shading and its legend). atlas: darker = deeper, as on atlases and ocean maps (default);
@@ -503,6 +545,7 @@ function layers() {
         'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
 
     raster('traffic', 'traffic'), raster('routes', 'routes'),
+    ...overlayLayers(['protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
     { ...raster('seamarks', 'seamarks'), minzoom: 9 },
 
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],

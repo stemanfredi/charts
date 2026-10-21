@@ -1061,7 +1061,8 @@ function creditParts() {
   const srcs = [];
   for (const l of map.getStyle().layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none' && !srcs.includes(l.source)) srcs.push(l.source);
   srcs.sort((a, b) => baseSources.has(b) - baseSources.has(a));
-  return [...new Set(srcs.map((s) => map.getSource(s)?.attribution).filter(Boolean))];
+  const parts = [...new Set(srcs.map((s) => map.getSource(s)?.attribution).filter(Boolean))];
+  return parts.filter((p) => !parts.some((q) => q !== p && q.includes(p))); // a credit another holds: once
 }
 // as text, for the exports: parsed in an inert document (no image loads, no handlers run)
 const attributionText = () => creditParts().map((p) => new DOMParser().parseFromString(p, 'text/html').body.textContent).join(' · ');
