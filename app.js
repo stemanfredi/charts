@@ -336,38 +336,62 @@ function setTime(t) {
   writeHash();
   renderMenu();
 }
-// ---- the map's time: a button in the rail, for every layer that changes with time ----------
-// It shows the time drawn, in local time, and opens the time box beside it (a popover: a tap
-// outside or Esc closes it): a day and an hour, a step back or on (an hour, or a day when only
-// daily layers are on), and now.
+// ---- the map's settings: the time and the depth, for every layer that uses them -------------
+// Set on one line at the foot of the Layers panel, read above the legends (a tap there opens
+// Layers). The time is a datetime-local field in local time, on the hour (step 3600 s), within
+// the dates the layers on have (min, max: the browser's calendar greys out the rest); ‹ › step
+// an hour, or a day when only daily layers are on, and stop at those dates; Now goes back to now.
 const timeOn = () => ITEMS.filter((it) => (it.cmems || it.date) && state.on.has(it.id));
-const timeBtn = $('#b-time'), timeBox = $('#time-box'), dayIn = $('input', timeBox), hourSel = $('select', timeBox), stepBtns = timeBox.querySelectorAll('[data-step]');
-const pad = (n) => String(n).padStart(2, '0');
 const hourly = () => timeOn().some((it) => it.cmems && !CMEMS[it.id][variantOf(it.id)].daily);
-for (let i = 0; i < 24; i++) hourSel.append(h('option', { value: i }, new Date(2000, 0, 1, i).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
-timeBox.addEventListener('beforetoggle', (e) => {
-  if (e.newState === 'open') timeBox.style.setProperty('--time-top', `${timeBtn.getBoundingClientRect().top}px`);
+const when = $('#when'), whenIn = $('input', when), stepBtns = when.querySelectorAll('[data-step]'), depthSel = $('.depthsel', when), shown = $('#shown');
+const pad = (n) => String(n).padStart(2, '0');
+const local = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const RANGE = [Date.UTC(2000, 0, 1), Date.UTC(2099, 11, 31, 23)]; // until the layers' own dates are known
+let range = RANGE, rangeKey = '';
+// the dates the layers on have: the earliest start to the latest end of their datasets (NASA:
+// to its newest day), on UTC hours, so the field's steps (counted from min) stay on the hour
+async function updateRange() {
+  const key = timeOn().map((it) => `${it.id}:${state.variant[it.id] || ''}`).join(',');
+  if (key === rangeKey) return;
+  rangeKey = key;
+  const spans = (await Promise.all(timeOn().map((it) => (it.cmems
+    ? Promise.all(CMEMS[it.id][variantOf(it.id)].parts.map((p) => domainOf(p).then(({ time }) => [Math.min(...time.map((r) => r.start)), domainEndMs(time)], () => null)))
+    : latestGibs(state.variant.gibs).then((end) => [[null, end && Date.parse(`${end}T23:00:00Z`)]]))))).flat().filter(Boolean);
+  if (key !== rangeKey) return; // the layers changed meanwhile
+  const hour = (t) => Math.floor(t / 36e5) * 36e5, starts = spans.map((s) => s[0]).filter(Number.isFinite), ends = spans.map((s) => s[1]).filter(Number.isFinite);
+  range = [starts.length ? hour(Math.min(...starts)) : RANGE[0], ends.length ? hour(Math.max(...ends)) : RANGE[1]];
+  renderWhen();
+}
+// a time typed in the field changes with each key (year 0002, 0020, 0202, 2026): only a whole
+// time within the field's range is taken
+whenIn.addEventListener('change', () => {
+  const v = whenIn.validity;
+  if (!(v.valueMissing || v.badInput || v.rangeUnderflow || v.rangeOverflow)) setTime(new Date(whenIn.value).getTime());
 });
-// the day and hour fields are local time. A day typed in the field changes with each key (year
-// 0002, 0020, 0202, 2026): only a whole day within the field's range is taken
-const pickTime = () => { if (dayIn.checkValidity()) setTime(new Date(`${dayIn.value}T${pad(hourSel.value)}:00`).getTime()); };
-dayIn.addEventListener('change', pickTime);
-hourSel.addEventListener('change', pickTime);
-for (const b of stepBtns) b.addEventListener('click', () => setTime(state.time + b.dataset.step * (hourly() ? 36e5 : 864e5)));
-$('[data-now]', timeBox).addEventListener('click', () => setTime(Date.now()));
-function renderTime() {
-  const items = timeOn();
-  timeBtn.hidden = !items.length;
-  if (!items.length) { if (timeBox.matches(':popover-open')) timeBox.hidePopover(); return; }
+// by the clock, not the field's wall time: an hour is an hour across a change to summer time
+for (const b of stepBtns) b.addEventListener('click', () => setTime(Math.min(range[1], Math.max(range[0], state.time + b.dataset.step * (hourly() ? 36e5 : 864e5)))));
+$('[data-now]', when).addEventListener('click', () => setTime(Date.now()));
+$('select', depthSel).append(...CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface')));
+$('select', depthSel).addEventListener('change', (e) => setDepth(+e.target.value));
+shown.addEventListener('click', () => setPanel('layers'));
+function renderWhen() {
+  const on = timeOn().length > 0, deep = depthOn().length > 0;
+  when.hidden = !on;
+  shown.hidden = !on;
+  if (!on) return;
+  updateRange();
   const d = new Date(state.time), hr = hourly();
-  const today = new Date().toDateString() === d.toDateString();
-  timeBtn.querySelector('.day').textContent = today ? 'Today' : `${d.toLocaleDateString([], { weekday: 'short' })} ${d.getDate()}`; // "Wed 21" in every locale
-  timeBtn.querySelector('.hour').textContent = hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  timeBtn.title = d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full' });
-  if (document.activeElement !== dayIn) dayIn.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; // not while a day is typed in it
-  hourSel.value = d.getHours();
-  hourSel.hidden = !hr;
+  whenIn.min = local(range[0]);
+  whenIn.max = local(range[1]);
+  if (document.activeElement !== whenIn) whenIn.value = local(state.time); // not while a time is typed in it
   for (const b of stepBtns) b.title = `${b.dataset.step < 0 ? 'Earlier' : 'Later'}: one ${hr ? 'hour' : 'day'}`;
+  depthSel.hidden = !deep;
+  $('select', depthSel).value = state.depth;
+  // on the map: "Today 18:00 · 100 m", "Wed 21" (the day only when only daily layers are on)
+  const day = new Date().toDateString() === d.toDateString() ? 'Today' : `${d.toLocaleDateString([], { weekday: 'short' })} ${d.getDate()}`;
+  shown.textContent = [[day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' '),
+    deep ? (state.depth ? `${state.depth} m` : 'surface') : ''].filter(Boolean).join(' · ');
+  shown.title = `${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full' })}: set in Layers`;
 }
 const variantOf = (id) => state.variant[id] || Object.keys(CMEMS[id])[0];
 // times in local time; a daily product's day is its own calendar day (UTC)
@@ -539,14 +563,10 @@ function controlsOf(it) {
   }
   const period = it.density ? h('select', { class: 'period', 'aria-label': `${it.label} period`, onchange: (e) => { state.period[it.id] = e.target.value; setDensity(it.id); } },
     DENSITY[it.id].periods.map((p) => h('option', { value: p }, DENSITY[it.id].periodLabel(p)))) : null;
-  // NASA daily: the day it shows (the time is set on the time bar)
+  // NASA daily: the day it shows, when not the time's (the time and depth are set at the panel's foot)
   const latest = it.date ? h('p', { class: 'note latest' }) : null;
-  // Water column: the depth (under the first item on that is drawn at a depth, the same for all)
-  const depth = it.cmems && Object.values(CMEMS[it.id]).some((v) => v.depth) ? h('label', { class: 'depthsel' }, h('span', {}, 'Depth'),
-    h('select', { 'aria-label': 'Depth', onchange: (e) => setDepth(+e.target.value) },
-      CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface')))) : null;
   const cnote = it.cmems ? h('p', { class: 'note cmems-note' }) : null;
-  return h('div', { class: 'controls' }, variant, period, latest, depth, cnote);
+  return h('div', { class: 'controls' }, variant, period, latest, cnote);
 }
 function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
@@ -609,11 +629,6 @@ function renderMenu() {
     if (per) per.value = state.period[it.id];
     const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
     if (rng) rng.value = state.opacity[it.id];
-    const ds = r.controls.querySelector('.depthsel');
-    if (ds) {
-      ds.hidden = depthOn()[0] !== it;
-      ds.querySelector('select').value = state.depth;
-    }
     const lt = r.controls.querySelector('.latest'); // NASA: only when it shows its newest day, not the hour's
     if (lt) {
       lt.hidden = !(gibsLast && state.date === gibsLast && new Date(state.time).toISOString().slice(0, 10) > gibsLast);
@@ -622,7 +637,7 @@ function renderMenu() {
   }
   for (const s of segs) s.render();
   cmemsNotes();
-  renderTime();
+  renderWhen();
   for (const g of groupEls) {
     const n = g._items.filter((it) => state.on.has(it.id)).length;
     g.querySelector('.count').textContent = g._exclusive || !n ? '' : String(n);
@@ -633,7 +648,7 @@ function renderMenu() {
 
 // ---- legends: stacked bottom left, one per drawn colour layer (the Legends switch shows them) ----
 // The canvases are drawn whenever their layer is (the PNG copies them, switch or not).
-const legends = $('#legends');
+const legends = $('#legends .stack');
 const legendEls = {};
 let legendWant = [];
 function legendEl(id) {

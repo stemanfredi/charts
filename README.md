@@ -51,13 +51,14 @@ them from each provider, and each layer stays under its provider's licence.
 | Place search | Photon (komoot), OpenStreetMap data | ODbL |
 
 Layers that change with time (Copernicus and NASA daily) share one time, now by
-default. While one is on, a button in the right-hand column shows it (in local
-time); tapping it opens a small box beside it to pick a day and an hour, step
-an hour (a day, for daily layers) either way, or go back to now. Forecasts reach about nine days ahead. Copernicus layers: waves, currents and wind;
+default. While one is on, the foot of the Layers panel holds one line to set
+it, in local time: the browser's own date and time field, limited to the dates
+those layers have, a step of an hour (a day, for daily layers) either way, and
+Now. The time shown is also written above the legends; tapping it opens Layers. Forecasts reach about nine days ahead. Copernicus layers: waves, currents and wind;
 temperature, salinity, mixed layer depth and water quality (dissolved oxygen, pH,
 nitrate, primary production); satellite sea surface temperature (and its anomaly),
 chlorophyll and sea level anomaly. Daily products show the day of that hour, and
-variables with depth are drawn at one depth, chosen in the Water column group. NASA daily
+variables with depth are drawn at one depth, chosen on the same line. NASA daily
 is true colour: the day as the satellite saw it. In the Mediterranean they come from
 the regional products, elsewhere from the global ones. Observations (wind and
 the satellite layers, NASA daily too) are published late: after their latest day
