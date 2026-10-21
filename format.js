@@ -33,17 +33,6 @@ export function niceLen(m) {
   return [5, 2, 1].map((k) => k * p).find((v) => v <= m) || p;
 }
 
-// Word wrap to lines of at most n characters (a longer single word stays whole).
-export function wrap(text, n) {
-  const out = [];
-  let line = '';
-  for (const w of text.split(' ')) {
-    if ((line + ' ' + w).length > n && line) { out.push(line); line = w; } else line = line ? `${line} ${w}` : w;
-  }
-  if (line) out.push(line);
-  return out;
-}
-
 // Coordinates typed into the search box → { lat, lon }, or null if the text is not coordinates.
 // Accepts decimal degrees ("35.898, 14.513", "-31.2 -51.3"), degrees and decimal minutes or
 // degrees, minutes and seconds, with hemisphere letters before or after ("35 53.9N 14 30.8E",

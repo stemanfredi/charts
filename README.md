@@ -16,7 +16,7 @@ Layers are grouped by task, each with an ⓘ for its source, licence and
 resolution. Depth shading and isobaths end at the OpenStreetMap coastline.
 Ruler, area and range ring are geodesic on WGS 84, in kilometres or nautical
 miles. Search takes place names or coordinates. The link reopens the exact
-view, and the PNG export carries the scale, legends and credits. The GIS export
+view, and the PNG export is the map as on screen, without the controls: legends and credits bottom left, its centre, zoom, projection and the data's time beside the scale bottom right; the same details, the credits and a not-for-navigation disclaimer are also in the PNG's text fields. The GIS export
 is a zip: the map as a georeferenced PNG (world file, Web
 Mercator), the PNG export, one GeoJSON file per vector layer drawn (`vector/`:
 clipped to the view, pieces from neighbouring tiles joined) plus the

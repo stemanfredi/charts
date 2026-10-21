@@ -4,9 +4,9 @@ import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBAT
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap } from './legend.js';
-import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon, exportName } from './format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
-import { affine, mercator, worldFile, pamXml, stacItem } from './export.js';
+import { affine, mercator, worldFile, pamXml, stacItem, pngText } from './export.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
 import { viewFeatures } from './vector.js';
@@ -941,7 +941,7 @@ function scaleNote() {
   scaleNoteEl.textContent = v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}% across the view` : '';
 }
 
-// ---- PNG export: the map canvas plus scale, north arrow and a credit strip ---
+// ---- PNG export: the map as on screen, without the controls; its details in the file's text fields
 function attributionText() {
   const srcs = new Set();
   for (const l of map.getStyle().layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none') srcs.add(l.source);
@@ -971,16 +971,21 @@ function download(blob, name) {
 }
 // the file names and the STAC id: time and the view's centre (format.js)
 const fileName = (when) => { const c = map.getCenter(); return exportName(when, c.lat, c.lng); };
-// the map canvas plus scale, north arrow, legends and a credit strip
+// The map as on screen without the controls, the same size: the credits bottom left (all of
+// them: a picture cannot be tapped), the legends above them; bottom right, where it is (centre,
+// zoom, projection, the data's time and depth) beside the scale; the north arrow top right. Where
+// that leaves the credits too little room (a phone), they take the width, the rest above them. Its details (where, what,
+// when, whose) go with it as the PNG's text fields, read now: the view as captured.
 function chartCanvas(src, when) {
-  const dpr = src.width / src.clientWidth;
-  const lines = wrap(attributionText(), Math.floor(src.clientWidth / 6.2));
-  const footer = (22 + lines.length * 14) * dpr;
-  const out = h('canvas', { width: src.width, height: src.height + footer });
+  const dpr = src.width / src.clientWidth, W = src.clientWidth, H = src.clientHeight;
+  const out = h('canvas', { width: src.width, height: src.height });
   const g = out.getContext('2d');
   g.drawImage(src, 0, 0);
   g.scale(dpr, dpr);
-  const W = src.clientWidth, H = src.clientHeight;
+  const INK = '#2b3a46', BACK = 'rgba(255,255,255,0.85)';
+  const box = (x, y, w, hh) => { g.fillStyle = BACK; g.beginPath(); g.roundRect(x, y, w, hh, 4); g.fill(); };
+  g.font = '11px system-ui, sans-serif';
+  g.textBaseline = 'alphabetic';
   // double scale bar at the centre latitude (Web Mercator scale varies with latitude), bottom
   // right as on screen: km above a shared line, nautical miles below it
   const lat = map.getCenter().lat;
@@ -990,26 +995,53 @@ function chartCanvas(src, when) {
   const v = scaleVariation();
   const kmText = `${km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > NOTE_AT ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
   const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
-  g.font = '11px system-ui, sans-serif';
-  const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20, line = H - 34;
-  g.fillStyle = 'rgba(255,255,255,0.85)';
-  g.fillRect(W - 10 - bw, H - 58, bw, 48);
-  g.strokeStyle = '#2b3a46';
+  const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20;
+  // where it is, and when the data is (as the reading beside the coordinates, with the date and time zone)
+  const c = map.getCenter();
+  const info = [`${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')}`, `zoom ${map.getZoom().toFixed(1)}`, 'Web Mercator',
+    timeOn().length ? (hourly() ? new Date(state.time).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
+      : new Date(state.time).toLocaleDateString([], { dateStyle: 'medium', timeZone: 'UTC' })) : '',
+    depthOn().length ? shown.textContent.split(' · ').pop() : ''].filter(Boolean).join(' · ');
+  // a block of text on its backing, wrapped to width w, its bottom at y, from x (or to x, right):
+  // its top
+  const block = (text, colour, x, y, w, right = false) => {
+    const lines = [];
+    for (const item of text.split(' · ')) { // as many items to a line as fit, measured; an item stays whole
+      const line = lines.length ? `${lines.at(-1)} · ${item}` : item;
+      if (lines.length && g.measureText(line).width <= w - 12) lines[lines.length - 1] = line; else lines.push(item);
+    }
+    const hh = lines.length * 14 + 6, bw2 = Math.min(w, Math.max(...lines.map((t) => g.measureText(t).width)) + 12), x0 = right ? x - bw2 : x;
+    box(x0, y - hh, bw2, hh);
+    g.fillStyle = colour;
+    lines.forEach((t, n) => g.fillText(t, x0 + 6, y - hh + 15 + n * 14, w - 12));
+    return y - hh;
+  };
+  const infoW = g.measureText(info).width + 12, beside = W - 20 - bw - 12 - infoW - 8;
+  let sb = H - 10, top; // the scale's bottom; the bottom of the legends' stack
+  if (beside >= 200) { // one row: the credits, where it is, the scale
+    top = block(attributionText(), '#5d6d79', 10, H - 10, beside);
+    block(info, INK, W - 10 - bw - 8, H - 10, infoW, true);
+  } else { // a phone: the credits across the bottom, where it is above them (right), the scale above that
+    sb = block(info, INK, W - 10, block(attributionText(), '#5d6d79', 10, H - 10, W - 20) - 6, W - 20, true) - 6;
+    top = sb - 48;
+  }
+  box(W - 10 - bw, sb - 48, bw, 48);
+  g.strokeStyle = INK;
   g.lineWidth = 2;
   for (const [b, tick] of [[km, -6], [nm, 6]]) {
     const bx = W - 20 - b.px;
-    g.beginPath(); g.moveTo(bx, line + tick); g.lineTo(bx, line); g.lineTo(bx + b.px, line); g.lineTo(bx + b.px, line + tick); g.stroke();
+    g.beginPath(); g.moveTo(bx, sb - 24 + tick); g.lineTo(bx, sb - 24); g.lineTo(bx + b.px, sb - 24); g.lineTo(bx + b.px, sb - 24 + tick); g.stroke();
   }
-  g.fillStyle = '#2b3a46';
+  g.fillStyle = INK;
   g.textAlign = 'right';
-  g.fillText(kmText, W - 20, H - 44);
-  g.fillText(nmText, W - 20, H - 16);
+  g.fillText(kmText, W - 20, sb - 34);
+  g.fillText(nmText, W - 20, sb - 6);
   g.textAlign = 'left';
-  // every legend of the drawn layers, stacked bottom left (as on screen, even with the switch off)
-  let ly = H - 10;
+  // every legend of the drawn layers, stacked above (as on screen, even with the switch off)
+  let ly = top - 6;
   for (const id of [...legendWant].reverse()) {
     const el = legendEls[id], lw = parseFloat(el.style.width), lh = parseFloat(el.style.height);
-    if (!lw || !lh) continue; // not drawn yet (the SST colour map still loading)
+    if (!lw || !lh) continue; // not drawn yet (a colour map still loading)
     ly -= lh;
     g.drawImage(el, 10, ly, lw, lh);
     ly -= 6;
@@ -1018,25 +1050,30 @@ function chartCanvas(src, when) {
   g.save();
   g.translate(W - 28, 34);
   g.rotate((-map.getBearing() * Math.PI) / 180);
-  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(0, 0, 18, 0, 2 * Math.PI); g.fill();
-  g.fillStyle = '#2b3a46'; g.beginPath(); g.moveTo(0, -14); g.lineTo(6, 6); g.lineTo(0, 2); g.lineTo(-6, 6); g.closePath(); g.fill();
+  g.fillStyle = BACK; g.beginPath(); g.arc(0, 0, 18, 0, 2 * Math.PI); g.fill();
+  g.fillStyle = INK; g.beginPath(); g.moveTo(0, -14); g.lineTo(6, 6); g.lineTo(0, 2); g.lineTo(-6, 6); g.closePath(); g.fill();
   g.font = 'bold 10px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('N', 0, 15);
   g.restore();
-  // credit strip
-  g.fillStyle = '#fff'; g.fillRect(0, H, W, footer / dpr);
-  g.fillStyle = '#2b3a46'; g.font = '11px system-ui, sans-serif'; g.textAlign = 'left';
-  const c = map.getCenter();
-  // the time and depth every layer that changes with them draws (the legends no longer say)
-  const data = timeOn().length ? ` · data ${hourly() ? `at ${new Date(state.time).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `of ${dayOf(state.time)}`}${depthOn().length ? `, ≈ ${state.depth} m` : ''}` : '';
-  g.fillText(`Centre ${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')} · zoom ${map.getZoom().toFixed(1)} · Web Mercator${data} · exported ${when.toISOString().slice(0, 16).replace('T', ' ')} UTC · NOT FOR NAVIGATION`, 8, H + 15);
-  g.fillStyle = '#5d6d79';
-  lines.forEach((t, i) => g.fillText(t, 8, H + 30 + i * 14));
+  const at = `${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')}`;
+  const data = timeOn().length ? `data ${hourly() ? `at ${new Date(state.time).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `of ${dayOf(state.time)} (UTC)`}${depthOn().length ? `, ≈ ${state.depth} m` : ''}` : '';
+  out.fields = {
+    Title: `Charts · ${at}`,
+    Description: [`Centre ${at}`, `zoom ${map.getZoom().toFixed(2)}`, `bearing ${Math.round(map.getBearing())}°`, 'Web Mercator (EPSG:3857)', data, location.href].filter(Boolean).join(' · '),
+    Copyright: attributionText(),
+    'Creation Time': when.toUTCString(),
+    Software: 'Charts',
+    Disclaimer: 'Not for navigation: positions, coastlines and depths come from open datasets of varying accuracy; depths are a coarse elevation model, not soundings.',
+  };
   return out;
+}
+// the picture as a PNG, with the text fields chartCanvas wrote when it drew it
+async function chartPng(chart) {
+  return new Blob([pngText(new Uint8Array(await (await pngOf(chart)).arrayBuffer()), chart.fields)], { type: 'image/png' });
 }
 function exportPng() {
   onFrame(async (src) => {
     const when = new Date(), name = fileName(when);
-    download(await pngOf(chartCanvas(src, when)), `${name}.png`);
+    download(await chartPng(chartCanvas(src, when)), `${name}.png`);
   });
 }
 
@@ -1129,19 +1166,19 @@ async function exportZip() {
           'proj:code': 'EPSG:3857', 'proj:shape': [src.height, src.width], 'proj:transform': transform },
         worldfile: { href: './map.pgw', type: 'text/plain', title: 'World file of map.png', roles: ['metadata'] },
         crs: { href: './map.png.aux.xml', type: 'application/xml', title: 'CRS of map.png (GDAL sidecar)', roles: ['metadata'] },
-        chart: { href: './chart.png', type: 'image/png', title: 'The map with scale, legends and credits, as the PNG export', roles: ['overview'] },
+        chart: { href: './chart.png', type: 'image/png', title: 'The map with legends, credits and scale, its details in text fields: the PNG export', roles: ['overview'] },
         ...Object.fromEntries(rasters.map((r) => [r.asset, { href: `./${r.file}`, type: 'image/tiff; application=geotiff', title: `${r.title}: DEM tiles of zoom ${r.grid.z}${r.grid.z > r.native ? `, upsampled from zoom ${r.native}` : ''}, over the view's bounding box`, description: r.description, roles: ['data'],
           'proj:code': 'EPSG:3857', 'proj:shape': [r.grid.h, r.grid.w], 'proj:transform': r.transform, bands: [{ data_type: 'float32', nodata: 'nan', unit: 'm' }] }])),
         ...Object.fromEntries(vectors.map((v) => [v.key, { href: `./${v.file}`, type: 'application/geo+json', title: `${v.title}: ${v.n} feature${v.n === 1 ? '' : 's'}, ${v.how}`, roles: ['data'] }])),
       },
     });
-    const [mapPng, chartPng] = await Promise.all([pngOf(plain), pngOf(chart)]);
+    const [mapPng, chartFile] = await Promise.all([pngOf(plain), chartPng(chart)]);
     download(await zip([
       { name: 'item.json', data: `${JSON.stringify(item, null, 2)}\n` },
       { name: 'map.png', data: mapPng },
       { name: 'map.pgw', data: worldFile(transform) },
       { name: 'map.png.aux.xml', data: pamXml() },
-      { name: 'chart.png', data: chartPng },
+      { name: 'chart.png', data: chartFile },
       ...vectors.map((v) => ({ name: v.file, data: v.data })),
       ...rasters.map((r) => ({ name: r.file, data: r.data })),
     ], when), `${name}.zip`);

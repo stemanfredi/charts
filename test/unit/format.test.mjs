@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtAngle, dm, mercatorVariation, niceLen, wrap, parseLatLon, exportName } from '../../format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from '../../format.js';
 
 test('fmtAngle: degrees, minutes, hemispheres, carry', () => {
   assert.equal(fmtAngle(44, 'N', 'S', 1), '44°N');
@@ -28,11 +28,6 @@ test('niceLen: 1/2/5 steps not above the input', () => {
   assert.deepEqual([0.7, 1, 3, 19, 20, 49, 999, 1234].map(niceLen), [0.5, 1, 2, 10, 20, 20, 500, 1000]);
 });
 
-test('wrap: lines up to n chars, long words kept', () => {
-  assert.deepEqual(wrap('a bb ccc dddd', 6), ['a bb', 'ccc', 'dddd']);
-  assert.deepEqual(wrap('supercalifragilistic x', 5), ['supercalifragilistic', 'x']);
-  assert.deepEqual(wrap('', 5), []);
-});
 
 test('parseLatLon: decimal, DM, DMS, hemispheres before or after, either order', () => {
   const near = (r, lat, lon) => assert.ok(r && Math.abs(r.lat - lat) < 1e-9 && Math.abs(r.lon - lon) < 1e-9, JSON.stringify(r));

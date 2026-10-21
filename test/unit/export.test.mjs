@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mercator, affine, worldFile, footprint, stacItem } from '../../export.js';
+import { mercator, affine, worldFile, footprint, stacItem, pngText } from '../../export.js';
+import { crc32 } from '../../zip.js';
 
 const close = (a, b, eps, what) => assert.ok(Math.abs(a - b) < eps, `${what}: ${a} vs ${b}`);
 
@@ -58,4 +59,23 @@ test('stacItem: one provider per source, licence-less helpers left out', () => {
   assert.deepEqual(item.properties['chart:layers'][3], { id: 'gibs', title: 'NASA daily', variant: 'SST', date: '2026-10-18' });
   assert.equal(item.properties['chart:zoom'], 9.12);
   assert.equal(item.links[0].rel, 'via');
+});
+
+test('pngText: iTXt chunks after the header, UTF-8, with their CRC; empty fields left out', () => {
+  // a PNG's signature and header, then the rest (here two bytes standing for its other chunks)
+  const head = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, ...'IHDR'.split('').map((c) => c.charCodeAt(0)), ...Array(17).fill(0)];
+  const png = new Uint8Array([...head, 7, 7]);
+  const out = pngText(png, { Title: 'Charts', Copyright: '© OpenStreetMap · ≈ 100 m', Comment: '' });
+  assert.deepEqual([...out.subarray(0, 33)], head);
+  assert.deepEqual([...out.subarray(-2)], [7, 7]);
+  const chunks = [];
+  for (let at = 33, v = new DataView(out.buffer); at < out.length - 2;) {
+    const n = v.getUint32(at), body = out.subarray(at + 4, at + 8 + n);
+    assert.equal(new TextDecoder().decode(body.subarray(0, 4)), 'iTXt');
+    assert.equal(v.getUint32(at + 8 + n), crc32(body), 'CRC over type and data');
+    const [key, , , , , text] = new TextDecoder().decode(body.subarray(4)).split('\0');
+    chunks.push([key, text]);
+    at += n + 12;
+  }
+  assert.deepEqual(chunks, [['Title', 'Charts'], ['Copyright', '© OpenStreetMap · ≈ 100 m']]);
 });

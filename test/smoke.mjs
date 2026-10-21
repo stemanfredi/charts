@@ -205,6 +205,11 @@ try {
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());
   check(png.length > 50_000 && png.subarray(1, 4).toString() === 'PNG', `PNG export (${Math.round(png.length / 1024)} KB)`);
+  // the map's size (no strip under it), its details in text fields
+  const [cw, chh] = await again.evaluate(() => [map.getCanvas().width, map.getCanvas().height]);
+  const text = png.toString('latin1');
+  check(png.readUInt32BE(16) === cw && png.readUInt32BE(20) === chh && /iTXtCopyright\0[^]*OpenStreetMap/.test(text) && /iTXtDisclaimer\0\0\0\0\0Not for navigation/.test(text),
+    `PNG export: the map's size (${png.readUInt32BE(16)}×${png.readUInt32BE(20)}), credits and disclaimer in its text fields`);
   // GIS export: a zip whose STAC item lists the georeferenced map and the files beside it;
   // polygon-clipping loads on this first export, not with the page
   check(await again.evaluate(() => !('polygonClipping' in window) && !document.querySelector('script[src*=polygon-clipping]')), 'polygon-clipping not loaded with the page');

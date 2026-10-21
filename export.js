@@ -3,6 +3,8 @@
 //   map.png + map.pgw + map.png.aux.xml   the map as drawn, georeferenced in Web Mercator
 //   item.json                             a STAC Item describing the view and every file
 // (vector/*.geojson come from vector.js, the measurements from measure.js, raster/*.tif from geotiff.js)
+// and the text fields of the PNG export (pngText).
+import { crc32 } from './zip.js';
 
 const R = 6378137; // Web Mercator sphere (EPSG:3857)
 const D2R = Math.PI / 180;
@@ -80,4 +82,25 @@ export function stacItem({ id, when, corners, zoom, bearing, layers, attribution
     links: link ? [{ rel: 'via', href: link, type: 'text/html', title: 'This view in Charts' }] : [],
     assets,
   };
+}
+
+// a PNG with text fields: { Title, Description, Copyright, … } → iTXt chunks (UTF-8, uncompressed)
+// after its header, as image viewers, QGIS and exiftool read them. Empty fields are left out.
+export function pngText(png, fields) {
+  const utf8 = new TextEncoder(), end = 33; // signature (8) + IHDR chunk (4 + 4 + 13 + 4)
+  const chunks = Object.entries(fields).filter(([, text]) => text).map(([key, text]) => {
+    // keyword, NUL, not compressed (0, 0), no language tag, no translated keyword (NUL, NUL), text
+    const body = new Uint8Array([...utf8.encode('iTXt'), ...utf8.encode(key), 0, 0, 0, 0, 0, ...utf8.encode(text)]);
+    const chunk = new Uint8Array(body.length + 8), v = new DataView(chunk.buffer);
+    v.setUint32(0, body.length - 4);
+    chunk.set(body, 4);
+    v.setUint32(body.length + 4, crc32(body));
+    return chunk;
+  });
+  const out = new Uint8Array(png.length + chunks.reduce((n, c) => n + c.length, 0));
+  out.set(png.subarray(0, end));
+  let at = end;
+  for (const c of chunks) { out.set(c, at); at += c.length; }
+  out.set(png.subarray(end), at);
+  return out;
 }
