@@ -24,7 +24,7 @@ measurements, the depth and land elevation in metres as GeoTIFF (`raster/`, when
 depth shading or relief and contours are drawn: the elevation tiles the map
 draws, at their resolution, over the view's bounding box; imagery and density
 layers are in the pictures only), and a [STAC](https://stacspec.org) Item (`item.json`) with the
-view's footprint, the layers drawn, their sources, licences and files. QGIS
+view's footprint, the time of the data shown (its `datetime`; the export's own is `created`), the layers drawn (what each draws: colours or arrows, its time and depth), their sources, licences and files. QGIS
 opens every file straight from the zip.
 
 One limit of the GeoJSON: OpenMapTiles merges neighbouring buildings into one

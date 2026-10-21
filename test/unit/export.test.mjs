@@ -61,6 +61,17 @@ test('stacItem: one provider per source, licence-less helpers left out', () => {
   assert.equal(item.links[0].rel, 'via');
 });
 
+test('stacItem: datetime is the data\'s time (an hour, or a UTC day with its bounds), created the export\'s', () => {
+  const base = { id: 'chart-x', when: new Date('2026-10-20T12:34:00Z'), corners: [[10, 2], [12, 2], [12, 1], [10, 1]], zoom: 6, bearing: 0, attribution: '', assets: {} };
+  const hourly = stacItem({ ...base, data: { at: Date.UTC(2026, 9, 22, 9) }, layers: [{ id: 'currents', label: 'Currents', draws: 'arrows', time: '2026-10-22T09:00:00.000Z' }] });
+  assert.equal(hourly.properties.datetime, '2026-10-22T09:00:00.000Z');
+  assert.equal(hourly.properties.created, '2026-10-20T12:34:00.000Z');
+  assert.equal(hourly.properties['chart:layers'][0].draws, 'arrows');
+  const daily = stacItem({ ...base, data: { day: '2026-10-19' }, layers: [] });
+  assert.deepEqual([daily.properties.datetime, daily.properties.start_datetime, daily.properties.end_datetime], ['2026-10-19T00:00:00Z', '2026-10-19T00:00:00Z', '2026-10-19T23:59:59Z']);
+  assert.equal(stacItem({ ...base, layers: [] }).properties.datetime, '2026-10-20T12:34:00.000Z', 'no layer with a time: the export\'s');
+});
+
 test('pngText: iTXt chunks after the header, UTF-8, with their CRC; empty fields left out', () => {
   // a PNG's signature and header, then the rest (here two bytes standing for its other chunks)
   const head = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, ...'IHDR'.split('').map((c) => c.charCodeAt(0)), ...Array(17).fill(0)];

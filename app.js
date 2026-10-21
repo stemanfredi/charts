@@ -418,7 +418,7 @@ const KINDS = {
     // the time and level it drew (its regional part's: its own step and level)
     async record(it) {
       const { time, level } = await cmemsDrawn(it.id);
-      return { time: time == null ? undefined : new Date(time).toISOString(), depth: level == null ? undefined : +Math.abs(+level).toFixed(2) };
+      return { draws: looks[it.id], time: time == null ? undefined : new Date(time).toISOString(), depth: level == null ? undefined : +Math.abs(+level).toFixed(2) };
     },
   },
 };
@@ -1196,6 +1196,7 @@ async function exportZip() {
   try { clipping = await polygonClipping(); } catch (e) { console.error('GIS export:', e.message); return; }
   onFrame(async (src) => {
     const when = new Date(), name = fileName(when); // the view as captured, however long the rest takes
+    const data = timeOn().length ? (hourly() ? { at: state.time } : { day: dayOf(state.time) }) : null, c = map.getCenter();
     const plain = h('canvas', { width: src.width, height: src.height });
     plain.getContext('2d').drawImage(src, 0, 0);
     const chart = chartCanvas(src, when);
@@ -1223,7 +1224,7 @@ async function exportZip() {
     const measured = measureFeatures(measure.list);
     if (measured.length) vectors.push({ key: 'vector/measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
     const item = stacItem({
-      id: name, when, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers,
+      id: name, title: `Chart · ${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')}`, when, data, corners, zoom: map.getZoom(), bearing: map.getBearing(), layers,
       attribution: attributionText(), link: location.href,
       assets: {
         map: { href: './map.png', type: 'image/png', title: 'The map as drawn, georeferenced (world file map.pgw, CRS in map.png.aux.xml)', roles: ['visual'],
