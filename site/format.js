@@ -20,6 +20,8 @@ export function dm(v, p, n) {
 
 // Relative change of the Mercator scale (∝ 1/cos lat) between latitudes south and north:
 // from the lowest to the highest |lat|, the lowest being 0 when the span crosses the equator.
+// below this variation the scale bar is as good as exact for reading a chart; a note would be noise
+export const NOTE_AT = 0.03;
 export function mercatorVariation(south, north) {
   const n = Math.min(85, north), s = Math.max(-85, south);
   const hi = Math.max(Math.abs(n), Math.abs(s)), lo = s < 0 && n > 0 ? 0 : Math.min(Math.abs(n), Math.abs(s));

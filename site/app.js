@@ -1,31 +1,23 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables, CLASS_LEGENDS, EMODNET_DTM } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP } from './style.js';
-import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend, regionOf } from './cmems.js';
+import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses } from './legend.js';
-import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from './format.js';
+import { fmtAngle, dm, mercatorVariation, NOTE_AT, exportName } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
-import { affine, worldFile, pamXml, stacItem, pngText } from './export.js';
-import { mercator, CIRC } from './geo.js';
+import { affine, worldFile, pamXml, stacItem } from './export.js';
+import { mercator } from './geo.js';
 import { FETCH, memo } from './net.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
-import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
 import { viewFeatures } from './vector.js';
+import { $, h } from './dom.js';
+import { search } from './search.js';
+import { chartCanvas, chartPng, pngOf } from './png.js';
+import { cmemsValues, emodnetValues } from './values.js';
 
-const $ = (sel, el = document) => el.querySelector(sel);
-const h = (tag, attrs = {}, ...kids) => {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else if (v === true) el.setAttribute(k, '');
-    else if (v !== false && v != null) el.setAttribute(k, v);
-  }
-  el.append(...kids.flat().filter((k) => k != null));
-  return el;
-};
 const byId = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
 // Ocean data: the layers that change with time, chosen in two menus, colours and arrows. An entry
 // is an item at a variant ('waves:height'), in the menus of what it can draw (drawsOf: currents in
@@ -962,96 +954,7 @@ handle.addEventListener('pointerdown', (e) => {
   handle.addEventListener('pointerup', up, { once: true });
 });
 
-// ---- search: coordinates are read here; place names go to Photon (OpenStreetMap data) ---------
-const PHOTON = 'https://photon.komoot.io/api/';
-// what a sea chart is mostly searched for comes first: places, the coast and the sea (capes, bays,
-// straits, beaches, harbours), marinas, ferry terminals, lighthouses, piers; then the rest (streets,
-// hotels, cafés…), in Photon's order. Nothing is left out.
-const SEA_TAGS = ['place', 'natural', 'water', 'waterway', 'leisure:marina', 'leisure:slipway', 'amenity:ferry_terminal',
-  'man_made:lighthouse', 'man_made:pier', 'man_made:breakwater', 'landuse:harbour', 'landuse:port'];
-// what a result is, in a word: a road of any class is a street; "yes" (a building, an office) says its key
-const resultKind = (p) => (p.osm_key === 'highway' ? 'street' : (p.osm_value === 'yes' ? p.osm_key : p.osm_value || '').replace(/_/g, ' '));
-const seaFirst = ({ properties: p }) => (SEA_TAGS.some((t) => t === p.osm_key || t === `${p.osm_key}:${p.osm_value}`) ? 0 : 1);
-const q = $('#q'), qClear = $('#q-clear'), results = $('#results'), resultList = results.querySelector('ul');
-let hits = [], active = -1, searchCtl = null, searchTimer = 0, pin = null;
-const ZOOM_OF = { city: 11, town: 12, village: 13, hamlet: 14, island: 11, sea: 6, ocean: 4, bay: 10, strait: 9 };
-function showResults(list) {
-  hits = list;
-  active = list.length && list[0].go ? 0 : -1;
-  resultList.replaceChildren(...(list.length ? list.map((r, i) => h('li', { role: 'option', id: `r-${i}`, 'aria-selected': String(i === active),
-    onpointerdown: (e) => e.preventDefault(), // keep the focus in the box
-    onclick: () => choose(i) }, r.name, r.where ? h('small', {}, r.where) : null))
-    : [h('li', { class: 'none' }, 'No places found')]));
-  results.hidden = false;
-  q.setAttribute('aria-expanded', 'true');
-  q.setAttribute('aria-activedescendant', active >= 0 ? `r-${active}` : '');
-}
-function hideResults() {
-  results.hidden = true;
-  q.setAttribute('aria-expanded', 'false');
-  q.removeAttribute('aria-activedescendant');
-}
-function setActive(i) {
-  if (!hits.length) return;
-  active = (i + hits.length) % hits.length;
-  for (const [k, li] of [...resultList.children].entries()) li.setAttribute('aria-selected', String(k === active));
-  q.setAttribute('aria-activedescendant', `r-${active}`);
-  resultList.children[active]?.scrollIntoView({ block: 'nearest' });
-}
-function choose(i) {
-  const r = hits[i];
-  if (!r) return;
-  hideResults();
-  pin?.remove();
-  pin = new maplibregl.Marker({ element: h('div', { class: 'pin', title: r.name }) }).setLngLat(r.at).addTo(map);
-  if (r.bounds) map.fitBounds(r.bounds, { padding: 60, maxZoom: 15, bearing: map.getBearing() });
-  else map.flyTo({ center: r.at, zoom: Math.max(map.getZoom(), r.zoom) });
-  q.blur();
-}
-async function searchPlaces(text) {
-  searchCtl?.abort();
-  searchCtl = new AbortController();
-  const c = map.getCenter(); // results near the view come first; rounded, the view is not sent exactly
-  const url = `${PHOTON}?${new URLSearchParams({ q: text, limit: 12, lang: 'en', lat: c.lat.toFixed(1), lon: c.lng.toFixed(1) })}`;
-  try {
-    const r = await fetch(url, { signal: searchCtl.signal, ...FETCH });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    // the same name, kind and town once (a port's ferry terminals); the sea's first, seven shown
-    const seen = new Set();
-    const features = (await r.json()).features
-      .filter(({ properties: p }) => { const k = `${(p.name || '').toLowerCase()}|${resultKind(p)}|${p.city}`; return !seen.has(k) && seen.add(k); })
-      .sort((a, b) => seaFirst(a) - seaFirst(b)).slice(0, 7);
-    showResults(features.map((f) => {
-      const p = f.properties, e = p.extent; // [west, north, east, south]
-      return { go: true, name: p.name || p.street || text, at: f.geometry.coordinates,
-        where: [resultKind(p), p.city !== p.name ? p.city : null, p.state, p.country].filter(Boolean).join(' · '),
-        bounds: e ? [[e[0], e[3]], [e[2], e[1]]] : null, zoom: ZOOM_OF[p.osm_value] || 14 };
-    }));
-  } catch (err) {
-    if (err.name !== 'AbortError') showResults([{ name: 'Place search is not available right now', where: err.message }]);
-  }
-}
-q.addEventListener('input', () => {
-  const text = q.value.trim();
-  qClear.hidden = !text;
-  clearTimeout(searchTimer);
-  if (!text) { searchCtl?.abort(); hideResults(); return; }
-  const ll = parseLatLon(text);
-  if (ll) { // coordinates: nothing leaves the page
-    searchCtl?.abort();
-    showResults([{ go: true, name: `${dm(ll.lat, 'N', 'S')}  ${dm(ll.lon, 'E', 'W')}`, where: 'coordinates', at: [ll.lon, ll.lat], zoom: 11 }]);
-  } else if (text.length >= 3) searchTimer = setTimeout(() => searchPlaces(text), 300);
-  else hideResults();
-});
-q.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowDown') { e.preventDefault(); setActive(active + 1); }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(active - 1); }
-  else if (e.key === 'Enter') { e.preventDefault(); if (hits[active]?.go) choose(active); }
-  else if (e.key === 'Escape') { if (!results.hidden) hideResults(); else { q.value = ''; qClear.hidden = true; pin?.remove(); pin = null; q.blur(); } }
-});
-q.addEventListener('focus', () => { if (q.value.trim() && hits.length) showResults(hits); });
-q.addEventListener('blur', () => setTimeout(hideResults, 150));
-qClear.addEventListener('click', () => { q.value = ''; qClear.hidden = true; hideResults(); pin?.remove(); pin = null; q.focus(); });
+const q = search(map, maplibregl.Marker); // the search box: / goes to it
 
 // cursor position readout
 map.on('mousemove', (e) => { posEl.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
@@ -1063,13 +966,12 @@ function scaleVariation() {
   const b = map.getBounds();
   return mercatorVariation(b.getSouth(), b.getNorth());
 }
-const NOTE_AT = 0.03; // below this the bar is as good as exact for reading a chart; a note would be noise
 function scaleNote() {
   const v = scaleVariation();
   scaleNoteEl.textContent = v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}%${small() ? '' : ' across the view'}` : ''; // short on a phone: one line
 }
 
-// ---- PNG export: the map as on screen, without the controls; its details in the file's text fields
+// ---- credits, and the exports (PNG: png.js; GIS: below) ----------------------------------------
 // the credits of what is drawn: each shown source's own (catalog.js), once, the base map's first
 // (OpenStreetMap and Esri ask for theirs to be seen, and a line that does not fit is cut at its end)
 const baseSources = new Set(ITEMS.filter((it) => it.group === 'base').flatMap((it) => (layersOf[it.id] || []).map((l) => l.source)));
@@ -1107,7 +1009,6 @@ function onFrame(fn) {
   };
   if (map.loaded() && map.areTilesLoaded()) go(); else map.once('idle', go);
 }
-const pngOf = (canvas) => new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('the browser returned no image'))), 'image/png'));
 function download(blob, name) {
   const a = h('a', { href: URL.createObjectURL(blob), download: name });
   a.click();
@@ -1124,7 +1025,8 @@ function snapshot(src) {
   const layers = drawnItems().map((it) => ({ ...it, at: { variant: state.variant[it.id] ?? (CMEMS[it.id] ? variantOf(it.id) : undefined), t, depth: state.depth, period: state.period[it.id], date: state.date, draws: looks[it.id] } }));
   return {
     when, name: exportName(when, c.lat, c.lng), at: `${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')}`, lat: c.lat,
-    zoom: map.getZoom(), bearing: map.getBearing(), link: location.href, credits: attributionText(), layers, legends: [...legendWant],
+    zoom: map.getZoom(), bearing: map.getBearing(), link: location.href, credits: attributionText(), layers, legends: legendWant.map((id) => legendEls[id]),
+    scaleVariation: scaleVariation(),
     corners: [[0, 0], [W, 0], [W, H], [0, H]].map((p) => { const ll = map.unproject(p); return [ll.lng, ll.lat]; }),
     time: timed ? (hr ? { at: t } : { day: dayOf(t) }) : null, depth,
     // in words: as the reading gives them, with the date and time zone (a daily product's day in UTC)
@@ -1134,99 +1036,6 @@ function snapshot(src) {
     // for files read elsewhere: in UTC
     dataText: !timed ? '' : `data ${hr ? `at ${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `of ${dayOf(t)} (UTC)`}${depth == null ? '' : `, ${depthWords(depth)}`}`,
   };
-}
-// The map as on screen without the controls, the same size: the credits bottom left (all of
-// them: a picture cannot be tapped), the legends above them; bottom right, where it is (centre,
-// zoom, projection, the data's time and depth) beside the scale; the north arrow top right. Where
-// that leaves the credits too little room (a phone), they take the width, the rest above them.
-// What it says comes from the snapshot s, and goes with it as the PNG's text fields.
-function chartCanvas(src, s) {
-  const dpr = src.width / src.clientWidth, W = src.clientWidth, H = src.clientHeight;
-  const out = h('canvas', { width: src.width, height: src.height });
-  const g = out.getContext('2d');
-  g.drawImage(src, 0, 0);
-  g.scale(dpr, dpr);
-  const INK = '#2b3a46', BACK = 'rgba(255,255,255,0.85)';
-  const box = (x, y, w, hh) => { g.fillStyle = BACK; g.beginPath(); g.roundRect(x, y, w, hh, 4); g.fill(); };
-  g.font = '11px system-ui, sans-serif';
-  g.textBaseline = 'alphabetic';
-  // double scale bar at the centre latitude (Web Mercator scale varies with latitude), bottom
-  // right as on screen: km above a shared line, nautical miles below it
-  const lat = s.lat;
-  const mpp = (CIRC * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** s.zoom);
-  const bar = (unitM) => { const len = niceLen((120 * mpp) / unitM) * unitM; return { len, px: len / mpp }; };
-  const km = bar(1), nm = bar(1852);
-  const v = scaleVariation();
-  const kmText = `${km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > NOTE_AT ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
-  const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
-  const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20;
-  // where it is, and when the data is
-  const info = [s.at, `zoom ${s.zoom.toFixed(1)}`, 'Web Mercator', s.timeText, s.depthText].filter(Boolean).join(' · ');
-  // a block of text on its backing, wrapped to width w, its bottom at y, from x (or to x, right):
-  // its top
-  const block = (text, colour, x, y, w, right = false) => {
-    const lines = [];
-    for (const item of text.split(' · ')) { // as many items to a line as fit, measured; an item stays whole
-      const line = lines.length ? `${lines.at(-1)} · ${item}` : item;
-      if (lines.length && g.measureText(line).width <= w - 12) lines[lines.length - 1] = line; else lines.push(item);
-    }
-    const hh = lines.length * 14 + 6, bw2 = Math.min(w, Math.max(...lines.map((t) => g.measureText(t).width)) + 12), x0 = right ? x - bw2 : x;
-    box(x0, y - hh, bw2, hh);
-    g.fillStyle = colour;
-    lines.forEach((t, n) => g.fillText(t, x0 + 6, y - hh + 15 + n * 14, w - 12));
-    return y - hh;
-  };
-  const infoW = g.measureText(info).width + 12, beside = W - 20 - bw - 12 - infoW - 8;
-  let sb = H - 10, top; // the scale's bottom; the bottom of the legends' stack
-  if (beside >= 200) { // one row: the credits, where it is, the scale
-    top = block(s.credits, '#5d6d79', 10, H - 10, beside);
-    block(info, INK, W - 10 - bw - 8, H - 10, infoW, true);
-  } else { // a phone: the credits across the bottom, where it is above them (right), the scale above that
-    sb = block(info, INK, W - 10, block(s.credits, '#5d6d79', 10, H - 10, W - 20) - 6, W - 20, true) - 6;
-    top = sb - 48;
-  }
-  box(W - 10 - bw, sb - 48, bw, 48);
-  g.strokeStyle = INK;
-  g.lineWidth = 2;
-  for (const [b, tick] of [[km, -6], [nm, 6]]) {
-    const bx = W - 20 - b.px;
-    g.beginPath(); g.moveTo(bx, sb - 24 + tick); g.lineTo(bx, sb - 24); g.lineTo(bx + b.px, sb - 24); g.lineTo(bx + b.px, sb - 24 + tick); g.stroke();
-  }
-  g.fillStyle = INK;
-  g.textAlign = 'right';
-  g.fillText(kmText, W - 20, sb - 34);
-  g.fillText(nmText, W - 20, sb - 6);
-  g.textAlign = 'left';
-  // every legend of the drawn layers, stacked above (as on screen, even with the switch off)
-  let ly = top - 6;
-  for (const id of [...s.legends].reverse()) {
-    const el = legendEls[id], lw = parseFloat(el.style.width), lh = parseFloat(el.style.height);
-    if (!lw || !lh) continue; // not drawn yet (a colour map still loading)
-    ly -= lh;
-    g.drawImage(el, 10, ly, lw, lh);
-    ly -= 6;
-  }
-  // north arrow
-  g.save();
-  g.translate(W - 28, 34);
-  g.rotate((-s.bearing * Math.PI) / 180);
-  g.fillStyle = BACK; g.beginPath(); g.arc(0, 0, 18, 0, 2 * Math.PI); g.fill();
-  g.fillStyle = INK; g.beginPath(); g.moveTo(0, -14); g.lineTo(6, 6); g.lineTo(0, 2); g.lineTo(-6, 6); g.closePath(); g.fill();
-  g.font = 'bold 10px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('N', 0, 15);
-  g.restore();
-  out.fields = {
-    Title: `Charts · ${s.at}`,
-    Description: [`Centre ${s.at}`, `zoom ${s.zoom.toFixed(2)}`, `bearing ${Math.round(s.bearing)}°`, 'Web Mercator (EPSG:3857)', s.dataText, s.link].filter(Boolean).join(' · '),
-    Copyright: s.credits,
-    'Creation Time': s.when.toUTCString(),
-    Software: 'Charts',
-    Disclaimer: 'Not for navigation: positions, coastlines and depths come from open datasets of varying accuracy; depths are a coarse elevation model, not soundings.',
-  };
-  return out;
-}
-// the picture as a PNG, with the text fields chartCanvas wrote when it drew it
-async function chartPng(chart) {
-  return new Blob([pngText(new Uint8Array(await (await pngOf(chart)).arrayBuffer()), chart.fields)], { type: 'image/png' });
 }
 function exportPng() {
   onFrame(async (src) => {
@@ -1268,67 +1077,6 @@ function vectorPieces(id) {
 }
 // raster/<key>.tif: the clipped DEM an item draws, in metres, at the zoom of the tiles on screen
 // (256 px DEM tiles at z show at map zoom z − 1, clip.js)
-// raster/<item>[-<region>].tif: the values a Copernicus layer draws, read from each of its datasets'
-// Zarr stores (zarr.js), at the time and level it draws, in the dataset's own latitude/longitude
-// grid over the view's bounding box; arrows as two bands, eastward and northward
-async function fetchBytes(url) {
-  const r = await fetch(url, FETCH);
-  if (r.status === 403 || r.status === 404) return null; // a chunk not stored: all land, or a time no longer kept
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return new Uint8Array(await r.arrayBuffer());
-}
-const stores = {}; // part → promise of its store and coordinates
-function storeOf(part) {
-  return memo(stores, part, async () => {
-    const r = await fetch(cmemsStacUrl(part), FETCH);
-    if (!r.ok) throw new Error(`catalogue: HTTP ${r.status}`);
-    const store = await openStore((await r.json()).assets.timeChunked.href, fetchBytes);
-    const [time, lat, lon, elevation] = await Promise.all(['time', 'latitude', 'longitude', 'elevation'].map((c) => (store.meta(c) ? store.coord(c) : null)));
-    return { store, times: Array.from(time, timeScale(store.meta('time').attrs.units)), lat, lon, elevation };
-  });
-}
-// at: { variant, t, depth } as captured; box: [west, south, east, north]
-async function cmemsValues(id, at, box) {
-  const v = CMEMS[id][at.variant];
-  const [times, levels] = await Promise.all([partTimes(id, at.variant, at.t), partLevels(id, at.variant, at.depth)]);
-  return (await Promise.all(v.parts.map(async (part, i) => {
-    if (times[i] == null) return null;
-    const { store, times: ts, lat, lon, elevation } = await storeOf(part);
-    const ti = nearest(ts, times[i], 6e4), zi = elevation && levels[i] != null ? nearest(elevation, +levels[i]) : 0;
-    const cells = cellsOf(lat, lon, box);
-    if (ti < 0 || !cells.rows.length) return null; // not in the store (yet), or not in view
-    const names = storedVariables(part), units = names.map((n) => store.meta(n).attrs.units || '');
-    const planes = await Promise.all(names.map((n) => readCells(store, n, ti, zi, cells)));
-    const region = regionOf(part)?.name || (v.parts.length > 1 ? 'Global' : ''), key = `raster/${id}${region ? `-${region.toLowerCase()}` : ''}`;
-    const w = cells.cols.length, h = cells.rows.length;
-    const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
-    const when = new Date(ts[ti]).toISOString(), level = elevation ? +Math.abs(elevation[zi]).toFixed(2) : null;
-    const description = `${part.split('/').slice(0, 2).join(' / ')}: ${names.join(', ')} (${[...new Set(units)].join(', ')}) at ${when}${level != null ? `, ${level} m deep` : ''}; its own grid, EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN`;
-    return { key, file: `${key}.tif`, w, h, transform, names, units, title: `${v.label}${region ? `, ${region}` : ''}: values`, description,
-      data: geotiff(planes, w, h, transform, { crs: 4326, bands: names.map((n, k) => ({ description: `${n}, ${when}${level != null ? `, ${level} m` : ''}`, unit: units[k] })) }) };
-  }))).filter(Boolean);
-}
-
-// raster/emodnet-depth.tif: EMODnet Bathymetry's elevation over the view's bounding box, in its own
-// grid; a view needing more than 16 of its ~2 MB chunks (wider than about 4° × 4°) is left out:
-// zoom in to export it
-const dtmStore = () => memo(stores, EMODNET_DTM, async () => {
-  const store = await openStore(EMODNET_DTM, fetchBytes);
-  const [lat, lon] = await Promise.all([store.coord('latitude'), store.coord('longitude')]);
-  return { store, lat, lon };
-});
-async function emodnetValues(box) {
-  const { store, lat, lon } = await dtmStore(), m = store.meta('elevation'), cells = cellsOf(lat, lon, box);
-  if (!cells.rows.length) return [];
-  const blocks = new Set(cells.rows.map((r) => Math.floor(r / m.chunks[0]))).size * new Set(cells.cols.map((c) => Math.floor(c / m.chunks[1]))).size;
-  if (blocks > 16) { console.warn(`EMODnet depth values: ${blocks} chunks of about 2 MB for this view; zoom in to export them`); return []; }
-  const w = cells.cols.length, h = cells.rows.length, key = 'raster/emodnet-depth';
-  const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
-  const description = `EMODnet Bathymetry DTM 2024: elevation (m, negative below the sea surface; vertical reference lowest astronomical tide), its own grid (1/16 arc-minute), EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN. Not for navigation`;
-  return [{ key, file: `${key}.tif`, w, h, transform, names: ['elevation'], units: ['m'], title: 'EMODnet depth: values', description,
-    data: geotiff([await readCells(store, 'elevation', 0, 0, cells)], w, h, transform, { crs: 4326, bands: [{ description: 'elevation, EMODnet DTM 2024', unit: 'm' }] }) }];
-}
-
 const RASTERS = [
   { key: 'depth', items: ['depth'], clip: seaClip, native: DEM_SEA.native, max: DEM_SEA.max, title: 'Depth',
     description: 'Seabed elevation in metres, negative below sea level, as the depth shading draws it: Terrarium DEM cut to the OSM coastline, pits and tile seams corrected; sea the DEM calls dry is -1. No data on land, lakes and inland water at sea level' },

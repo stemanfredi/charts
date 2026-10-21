@@ -83,7 +83,9 @@ export function timeScale(units) {
 // A store: its consolidated metadata, and chunks as they are asked for. fetchBytes(url) → bytes, or
 // null for a chunk that is not stored (the store says 403 or 404: all land, or a time no longer kept).
 export async function openStore(url, fetchBytes) {
-  const md = JSON.parse(new TextDecoder().decode(await fetchBytes(`${url}/.zmetadata`))).metadata;
+  const head = await fetchBytes(`${url}/.zmetadata`);
+  if (!head) throw new Error(`Zarr: no consolidated metadata at ${url} (moved, or not public)`);
+  const md = JSON.parse(new TextDecoder().decode(head)).metadata;
   const meta = (name) => md[`${name}/.zarray`] && { ...md[`${name}/.zarray`], attrs: md[`${name}/.zattrs`] || {} };
   const chunk = (name, idx) => fetchBytes(`${url}/${name}/${idx.join('.')}`).then((b) => decode(meta(name), b));
   // a whole one-dimensional array (a coordinate), its chunks end to end
