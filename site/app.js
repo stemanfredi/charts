@@ -111,8 +111,10 @@ const urlUnits = readHash();
 // ---- map --------------------------------------------------------------------
 // Elevation goes through clip.js (cut to the OSM coastline). worker: false keeps
 // maplibre-contour's tile manager on this thread, where its getTile/decodeImage can be
-// replaced; the shaded rasters (clip-* protocols) and the contours share one tile cache.
-const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: false, cacheSize: 200 };
+// replaced; the shaded rasters (clip-* protocols) and the contours share the worker's tile cache.
+// Its own caches hold copies of those tiles (256 KB each): enough for a screen's contours and
+// their neighbours (a contour tile reads 3 × 3 DEM tiles), not hundreds (200 per source: 100 MB)
+const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: false, cacheSize: 64 };
 const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA.max });
 const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND.max });
 // a water body classified after some of its tiles were drawn: redraw the depth shading

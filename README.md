@@ -106,7 +106,7 @@ Esri imagery is not open data: it is used under Esri's terms of use. The EOX
 seas only.
 
 The app is the reference for coverage, resolution and available periods. It
-shows them behind each layer's ⓘ, and they are defined in `catalog.js`. The
+shows them behind each layer's ⓘ, and they are defined in `site/catalog.js`. The
 on-screen credits and the PNG list only the sources that are drawn.
 
 ## Privacy
@@ -144,28 +144,37 @@ on-screen credits and the PNG list only the sources that are drawn.
   so the scale bar is exact only at the centre latitude. A note appears when
   the scale varies noticeably across the view.
 - **Visible failures.** A source that fails is marked in the Layers panel
-  instead of leaving blank tiles that could be read as data.
+  instead of leaving blank tiles that could be read as data. An export that
+  fails, or leaves out values it could not read, says so on its button.
 
 The reasons behind each rule are documented next to the code that applies it.
 
 ## Code layout
 
+`site/` holds the page and is published as it is; everything else is for
+development.
+
 | Path | Responsibility |
 |---|---|
-| `index.html` | Page shell. The CDN block is generated; see *Dependencies*. |
-| `style.css` | All styling. |
-| `catalog.js` | Sources, style layers in draw order, menu items and their provenance. |
-| `app.js` | Map setup, panels, URL state, search, legends, graticule, PNG and GIS export. |
-| `export.js` | GIS export contents: georeferencing and the STAC Item. |
-| `vector.js` | Vector layers of the view as GeoJSON: tile pieces joined, clipped to the view. |
-| `geotiff.js` | GeoTIFF writer: elevation grids of the view, Copernicus values. |
-| `zarr.js` | Copernicus Marine's datasets as data: their Zarr stores, Blosc/LZ4 decoded. |
-| `cmems.js` | Copernicus Marine tiles (regional over global), time ranges, legends. |
-| `zip.js` | Zip writer (the browser's own deflate). |
-| `clip.js`, `clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
-| `measure.js` | Geodesic ruler, area and range ring. |
-| `legend.js` | Legend drawing. |
-| `format.js` | Pure formatting and parsing helpers. |
+| `site/index.html` | Page shell. The CDN block is generated; see *Dependencies*. |
+| `site/style.css` | All styling. |
+| `site/catalog.js` | Menu items and their provenance, data sources, datasets. |
+| `site/style.js` | The map style built from the catalogue: sources, layers in draw order. |
+| `site/app.js` | Map setup, state and URL, panels, legends, graticule, credits; assembles the exports. |
+| `site/search.js` | Place search (Photon) and coordinates. |
+| `site/png.js` | The PNG export's picture and text fields. |
+| `site/values.js` | Layers as data for the GIS export: Copernicus and EMODnet values from their Zarr stores. |
+| `site/export.js` | GIS export contents: georeferencing, the STAC Item, PNG text fields. |
+| `site/vector.js` | Vector layers of the view as GeoJSON: tile pieces joined, clipped to the view. |
+| `site/geotiff.js` | GeoTIFF writer: elevation grids of the view, data values. |
+| `site/zarr.js` | Zarr stores: metadata, chunks, Blosc/LZ4 decoded. |
+| `site/cmems.js` | Copernicus Marine tiles (regional over global), time steps and depth levels, legends. |
+| `site/zip.js` | Zip writer (the browser's own deflate). |
+| `site/clip.js`, `site/clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
+| `site/measure.js` | Geodesic ruler, area and range ring. |
+| `site/legend.js` | Legend drawing. |
+| `site/format.js` | Pure formatting and parsing helpers. |
+| `site/geo.js`, `site/net.js`, `site/dom.js` | Web Mercator maths; how requests are made and shared; DOM helpers. |
 | `tools/deps.mjs` | Pins, hashes and checks the CDN dependencies. |
 | `test/` | Unit tests, browser tests, and the development server. |
 
@@ -176,8 +185,9 @@ local Chrome or Chromium.
 
 ```sh
 npm ci              # development dependencies (test tooling only)
-npm run serve       # http://localhost:8000, browser caching off (--port, --host)
+npm run serve       # http://127.0.0.1:8000, site/ only, caching off (--host 0.0.0.0 for a phone)
 npm test            # unit tests, offline
+npm run lint        # ESLint's recommended rules
 npm run check       # index.html CDN block matches the pins, SRI hashes and CSP
 npm run smoke       # end-to-end in headless Chrome, against the live providers
 npm run ui          # layout at phone, tablet and desktop widths
@@ -185,7 +195,7 @@ npm run deps        # newer library versions and newer density data periods
 ```
 
 The page itself needs no installation. Any static web server can host the
-repository root. The browser tests use `/usr/bin/google-chrome` by default; set
+`site/` folder. The browser tests use `/usr/bin/google-chrome` by default; set
 `CHROME=/path/to/chrome` to use another binary.
 
 The smoke test depends on the network by design, because the page depends on
@@ -195,9 +205,9 @@ down, not only that the code broke.
 ### Exports
 
 The PNG and GIS exports say what the map shows, and only from one place:
-`snapshot()` in `app.js`, read at the moment of capture (the view, the time and
+`snapshot()` in `site/app.js`, read at the moment of capture (the view, the time and
 depth as stated beside the coordinates, the credits, each layer drawn with its
-state). Each kind of data layer (`KINDS` in `app.js`) says how it is exported,
+state). Each kind of data layer (`KINDS` in `site/app.js`) says how it is exported,
 with `record()` and `values()` (`null`: in the pictures only); the page checks
 on load that every kind has them and every catalogue item's kind exists, and
 the smoke test fails on the console error. The smoke test also exports one view
@@ -206,9 +216,9 @@ arrows, the PNG's size, text fields and credits, the Copernicus values.
 
 ### Continuous integration
 
-`.github/workflows/ci.yml` runs the unit, check, smoke and layout tests on
+`.github/workflows/ci.yml` runs the unit, lint, check, smoke and layout tests on
 pushes to `main` and on pull requests. When they pass, it deploys `main` to
-GitHub Pages; only the site files are published. A scheduled run repeats the
+GitHub Pages; only `site/` is published. A scheduled run repeats the
 tests against the live providers and reports dependency and data updates as
 notices. Pages must be enabled once in the repository settings, with
 *Source: GitHub Actions*.
@@ -219,15 +229,17 @@ MapLibre GL JS, maplibre-contour, GeographicLib and polygon-clipping load from j
 versions with Subresource Integrity. MapLibre's worker script is pinned and
 verified too: the page checks its hash and gives MapLibre the verified copy.
 polygon-clipping loads only on the first GIS export, from its pinned URL with
-its hash. The pins are listed in `PINS` in `tools/deps.mjs`.
+its hash. The pins are listed in `PINS` in `tools/deps.mjs`. The unit tests take
+GeographicLib and polygon-clipping from npm; a test fails if those versions
+differ from the pins.
 
 To upgrade, change a version in `PINS`, run `node tools/deps.mjs --write`, and
 test. The script refetches the files and rewrites the generated block in
-`index.html`, including the import map's hash in the CSP. Do not edit that
+`site/index.html`, including the import map's hash in the CSP. Do not edit that
 block by hand: `npm run check` fails if it differs from what the script would
 produce.
 
-The density periods offered in the menu are listed in `catalog.js`. When
+The density periods offered in the menu are listed in `site/catalog.js`. When
 `npm run deps` reports newer data, extend the list there.
 
 ## Roadmap
