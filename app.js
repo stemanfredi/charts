@@ -1017,7 +1017,7 @@ function scaleVariation() {
 const NOTE_AT = 0.03; // below this the bar is as good as exact for reading a chart; a note would be noise
 function scaleNote() {
   const v = scaleVariation();
-  scaleNoteEl.textContent = v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}% across the view` : '';
+  scaleNoteEl.textContent = v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}%${small() ? '' : ' across the view'}` : ''; // short on a phone: one line
 }
 
 // ---- PNG export: the map as on screen, without the controls; its details in the file's text fields

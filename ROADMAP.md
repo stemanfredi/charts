@@ -5,8 +5,6 @@ lists only what it does not do, or not well enough.
 
 ## Open
 
-- **Phones: the bottom row takes up to three lines** (credits; not for navigation and
-  the scale note; the time and the scale).
 - **Legends slightly soft at 125% display scale.** They are drawn one canvas pixel per
   screen pixel, but start on a fraction of a screen pixel at that scale.
 - **The panel's redraw redraws everything.** `renderMenu` (app.js) also redraws the
