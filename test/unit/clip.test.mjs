@@ -87,6 +87,7 @@ test('levelsFor: only the depths drawn at that DEM zoom', () => {
   assert.ok(levelsFor(8).includes(10) && levelsFor(8).includes(30) && levelsFor(8).includes(1500) && !levelsFor(8).includes(5));
   assert.ok(levelsFor(7).includes(20) && levelsFor(7).includes(100) && levelsFor(7).includes(500) && !levelsFor(7).includes(30));
   assert.deepEqual(levelsFor(5).slice(0, 3), [200, 1000, 2000]);
+  assert.deepEqual(levelsFor(3), [3000, 5000]);
   assert.deepEqual(DEPTH_LEVELS.slice(0, 13), [5, 10, 20, 30, 50, 100, 200, 300, 500, 1000, 1500, 2000, 2500]);
   assert.ok(!DEPTH_LEVELS.includes(75) && !DEPTH_LEVELS.includes(150), 'none where the model cannot place them');
 });

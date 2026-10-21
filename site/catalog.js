@@ -272,8 +272,8 @@ export const ITEMS = [
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12,
     variants: { atlas: 'Darker = deeper (atlas)', nautical: 'Darker = shallower (nautical chart)' },
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
-  { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
-    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'At the depths nautical charts use, more of them as you zoom in: 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: the seabed data is ~1–2 km in open sea. As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
+  { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 2,
+    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'At the depths nautical charts use, more of them as you zoom in: 3000 and 5000 m from zoom 2 (ridges, trenches, abyssal plains); 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: the seabed data is ~1–2 km in open sea. As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'emodnetdepth', group: 'sea', label: 'EMODnet depth (Europe)', opacity: 1, kind: 'emodnet',
     variants: { multicolour: 'Multicolour', rainbow: 'Rainbow' },
     info: { src: 'EMODnet Bathymetry digital terrain model, drawn by EMODnet (tiles); its values go in the GIS export', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'About 115 m (1/16 arc-minute) in European seas, from surveys where there are, a coarser model elsewhere; no data outside Europe. Mean depth, in EMODnet\'s own colours (its legend: not linear in depth). Referenced to lowest astronomical tide. Not for navigation', url: 'https://emodnet.ec.europa.eu/en/bathymetry' } },
@@ -369,14 +369,15 @@ export const DEPTH_SCHEMES = {
 // Isobaths, in one table: the depths nautical charts draw contours at (INT 1), each from the map
 // zoom it first shows at. Zooming in adds lines and never takes one away; shallow water first, where
 // draught and anchoring matter (5–50 m), then the shelf (100) and its edge (200); deep water stays
-// sparse, where lines on steep slopes would merge into bands. None at 75 or 150 m: no decision
+// sparse, where lines on steep slopes would merge into bands. At world scale (zoom 2–3) only 3000 and
+// 5000 m: they outline ridges, trenches and abyssal plains, and none of them hugs a coast. None at 75 or 150 m: no decision
 // changes there, and on wide gentle shelves, where those lines would fall, the coarse model cannot
 // place them (an error of 10 m in depth on a 0.1% slope moves a line 10 km).
 // From it: what each zoom traces (isobathSteps, maplibre-contour in app.js), draws (style.js) and
 // cleans up in the DEM (levelsFor, clip.js). [depth m, from zoom]
 export const ISOBATHS = [
   [5, 10], [10, 8], [20, 6], [30, 8], [50, 6], [100, 6], [200, 4], [300, 8], [500, 6],
-  [1000, 4], [1500, 8], [2000, 4], [2500, 8], ...[3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000].map((d) => [d, 4]),
+  [1000, 4], [1500, 8], [2000, 4], [2500, 8], [3000, 2], [5000, 2], ...[4000, 6000, 7000, 8000, 9000, 10000, 11000].map((d) => [d, 4]),
 ];
 // thicker lines: the shelf (100 m) and every 1000 m
 export const isMajorIsobath = (d) => d === 100 || d % 1000 === 0;
