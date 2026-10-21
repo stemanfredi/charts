@@ -199,13 +199,16 @@ try {
   check(l1 === 'waves:colour currents:arrows' && l2 === 'waves:colour wind:arrows' && l3 === 'currents:both' && /col=currents:surface&arr=currents:surface/.test(l3hash) && !l4 && whenHidden,
     `Ocean data menus: ${l1} → arrows wind: ${l2} → currents in both: ${l3} → none: ${l4 || 'nothing drawn, no time line'}`);
   await sl.close();
-  // water properties at a depth from the link: "≈ 100 m" beside the time, each model at its own
+  // water properties at a depth from the link: "100 m deep" beside the time, each model at its own
   // level (the export records it), no note under the row
   const wp = await open('#v=5/40/10/0&col=temperature:depth&on=chart,coastline,legend&menu=1&g=data&dz=100');
   await wp.waitForFunction(() => !!document.querySelector('#legends canvas[data-legend=temperature]')?.style.width, null, { timeout: 30000 }).catch(() => {});
   const [wpDepth, wpNotes, wpBroken] = await wp.evaluate(() => [document.querySelector('#when .depthsel select').value + ' ' + document.querySelector('#shown').textContent,
     document.querySelectorAll('.item .note:not([hidden])').length, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(/^100 .* · ≈ 100 m$/.test(wpDepth) && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set on the time line and shown as "≈ 100 m": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
+  check(/^100 .* · 100 m deep$/.test(wpDepth) && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set on the time line and shown as "100 m deep": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
+  // the depth on a row of its own, under the time line, which keeps its width
+  const [inW, below] = await wp.evaluate(() => { const i = document.querySelector('#when input').getBoundingClientRect(), d = document.querySelector('#when .depthsel').getBoundingClientRect(); return [i.width, d.top >= i.bottom]; });
+  check(below && inW >= 150, `the depth sits under the time line, which keeps its width (${Math.round(inW)} px)`);
   await wp.close();
   // a satellite observation opened at now: the time goes no later than its latest day, and the
   // day shown is the day drawn
@@ -215,7 +218,7 @@ try {
   const [obT, obWithin, obShown, obDay, obBroken] = await ob.evaluate(() => {
     const t = /t=([\d-]+T\d\d)/.exec(location.hash)?.[1] || '', ms = Date.parse(`${t}:00:00Z`);
     return [t, ms <= new Date(document.querySelector('#when input').max).getTime(), document.querySelector('#shown').textContent,
-      `${new Date(ms).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${new Date(ms).getUTCDate()}`, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)];
+      `${new Date(ms).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${new Date(ms).getUTCDate()} ${new Date(ms).toLocaleDateString([], { month: 'short', timeZone: 'UTC' })}`, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)];
   });
   check(obT && obWithin && (obShown === 'Today' || obShown === obDay) && !obBroken.length && !ob.errors.length,
     `sea surface temperature: the time within its days, its day shown (t=${obT}, ${obShown}) ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);

@@ -511,7 +511,7 @@ function setTime(t) {
 // own time resolution: that hour, the 3-hour step holding it, that day.
 const when = $('#when'), whenIn = $('input', when), stepBtns = when.querySelectorAll('[data-step]'), depthSel = $('.depthsel', when), shown = shownEl;
 const pad = (n) => String(n).padStart(2, '0');
-const depthWords = (d) => (d ? `≈ ${d} m` : 'surface'); // each model at its level nearest the depth chosen
+const depthWords = (d) => (d ? `${d} m deep` : 'surface'); // each model at its level nearest the depth chosen
 const fmtDate = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 const local = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const RANGE = [Date.UTC(2000, 0, 1), Date.UTC(2099, 11, 31, 23)]; // until the layers' own dates are known
@@ -557,14 +557,16 @@ function renderWhen() {
   for (const b of stepBtns) b.title = `${b.dataset.step < 0 ? 'Earlier' : 'Later'}: one ${hr ? 'hour' : 'day'}`;
   depthSel.hidden = !deep;
   $('select', depthSel).value = state.depth;
-  // beside the coordinates: "Today 18:00 · ≈ 100 m" (each model at its level nearest the depth
-  // chosen), or "Wed 21" when only daily layers are on: their day, in UTC as the products have it
+  // beside the coordinates: "Today 18:00 · 100 m deep" (each model at its level nearest the depth
+  // chosen), or "Wed 21 Oct" when only daily layers are on: their day, in UTC as the products have it
   const tz = hr ? undefined : 'UTC', same = (a) => a.toLocaleDateString('en', { timeZone: tz }) === d.toLocaleDateString('en', { timeZone: tz });
-  const day = same(new Date()) ? 'Today' // "Wed 21" in every locale
-    : `${d.toLocaleDateString([], { weekday: 'short', timeZone: tz })} ${d.toLocaleDateString('en', { day: 'numeric', timeZone: tz })}`;
+  const part = (o) => d.toLocaleDateString([], { ...o, timeZone: tz });
+  const day = same(new Date()) ? 'Today' // "Wed 21 Oct", in this order in every locale
+    : `${part({ weekday: 'short' })} ${d.toLocaleDateString('en', { day: 'numeric', timeZone: tz })} ${part({ month: 'short' })}`;
   shown.textContent = [[day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' '),
     deep ? depthWords(state.depth) : ''].filter(Boolean).join(' · ');
-  shown.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}, set in Layers`;
+  shown.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}`
+    + `${deep ? `; depth: ${state.depth ? `${state.depth} m below the surface, each model at its level nearest it` : 'the surface'}` : ''}. Set in Layers`;
 }
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
 const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
