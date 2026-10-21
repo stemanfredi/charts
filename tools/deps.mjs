@@ -37,7 +37,12 @@ export const TILE_HOSTS = [
   'https://wmts.marine.copernicus.eu',
 ];
 // Hosts the page calls for data but never draws from (connect-src only).
-export const API_HOSTS = ['https://photon.komoot.io']; // place search (app.js)
+export const API_HOSTS = [
+  'https://photon.komoot.io', // place search (app.js)
+  // Copernicus Marine's datasets as data, read on a GIS export (zarr.js): the STAC catalogue that
+  // says where each dataset's Zarr store is, and the stores
+  'https://stac.marine.copernicus.eu', 'https://s3.waw3-1.cloudferro.com',
+];
 const CDN = 'https://cdn.jsdelivr.net';
 
 const url = (p) => `${CDN}/npm/${p.name}@${p.version}/${p.file}`;

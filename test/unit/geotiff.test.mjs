@@ -55,3 +55,21 @@ test('geotiff: a baseline TIFF with GeoKeys, Float32 data and NaN no data', () =
   const data = new Float32Array(b.buffer.slice(tags[273][0], tags[273][0] + tags[279][0]));
   assert.deepEqual([...data].map(String), [...vals].map(String));
 });
+
+test('geotiff: EPSG:4326 in degrees, two bands pixel by pixel, each with its unit', () => {
+  const u = Float32Array.from([1, 2, 3, 4]), v = Float32Array.from([-1, -2, NaN, -4]);
+  const b = geotiff([u, v], 2, 2, [0.5, 0, 10, 0, -0.25, 45], { crs: 4326, bands: [{ description: 'eastward', unit: 'm/s' }, { description: 'northward', unit: 'm/s' }] });
+  const dv = new DataView(b.buffer), ifd = dv.getUint32(4, true), tags = {}, size = { 2: 1, 3: 2, 4: 4, 12: 8 };
+  for (let k = 0; k < dv.getUint16(ifd, true); k++) {
+    const e = ifd + 2 + k * 12, type = dv.getUint16(e + 2, true), cnt = dv.getUint32(e + 4, true);
+    const at = cnt * size[type] > 4 ? dv.getUint32(e + 8, true) : e + 8;
+    tags[dv.getUint16(e, true)] = Array.from({ length: cnt }, (_, i) => (type === 2 ? b[at + i] : type === 3 ? dv.getUint16(at + i * 2, true) : type === 4 ? dv.getUint32(at + i * 4, true) : dv.getFloat64(at + i * 8, true)));
+  }
+  assert.deepEqual([tags[277][0], tags[258], tags[339], tags[338]], [2, [32, 32], [3, 3], [0]]);
+  assert.ok(tags[34735].join().includes('2048,0,1,4326') && tags[34735].join().includes('1024,0,1,2'), 'geographic EPSG:4326');
+  assert.deepEqual([tags[33550], tags[33922]], [[0.5, 0.25, 0], [0, 0, 0, 10, 45, 0]]);
+  const meta = String.fromCharCode(...tags[42112]);
+  assert.ok(meta.includes('sample="1" role="description">northward<') && meta.includes('sample="1" role="unittype">m/s<'));
+  const data = new Float32Array(b.buffer.slice(tags[273][0], tags[273][0] + tags[279][0]));
+  assert.deepEqual([...data].map(String), ['1', '-1', '2', '-2', '3', 'NaN', '4', '-4']);
+});

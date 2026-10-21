@@ -177,6 +177,15 @@ export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
     + `&TILEMATRIXSET=EPSG:3857@2x&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=image/png&TIME=${time}${level === null ? '' : `&ELEVATION=${level}`}`;
 }
 export const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
+// a dataset's entry in Copernicus Marine's STAC catalogue: where its values are, as Zarr stores (zarr.js)
+export const cmemsStacUrl = (part) => `https://stac.marine.copernicus.eu/metadata/${part.split('/').slice(0, 2).join('/')}/dataset.stac.json`;
+// the stored variables a part draws: itself, or for arrows their eastward and northward components
+// (the global currents: the total, with tides and wave drift, as the tiles draw it)
+export function storedVariables(part) {
+  const [, dataset, variable] = part.split('/');
+  if (variable === 'sea_water_velocity') return dataset.includes('merged-uv') ? ['utotal', 'vtotal'] : ['uo', 'vo'];
+  return variable === 'wind' ? ['eastward_wind', 'northward_wind'] : [variable];
+}
 // one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
 export const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
 

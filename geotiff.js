@@ -1,8 +1,9 @@
 // Elevation grids of the view as GeoTIFF (the ZIP export): the clipped DEM tiles the map draws,
 // assembled north-up over the view's bounding box, at the tiles' own resolution.
-// The file is the plain baseline GeoTIFF every GIS reads: one Float32 band, uncompressed (the zip
-// compresses it), EPSG:3857 by GeoKeys, NaN as no data (GDAL_NODATA), unit and description in
-// GDAL's metadata tag.
+// The file is the plain baseline GeoTIFF every GIS reads: Float32 bands (one, or several pixel by
+// pixel), uncompressed (the zip compresses it), EPSG:3857 or EPSG:4326 by GeoKeys, NaN as no data
+// (GDAL_NODATA), each band's unit and description in GDAL's metadata tag. The Copernicus values
+// (zarr.js) use it too, in their latitude/longitude grids.
 
 const R = 6378137, CIRC = 2 * Math.PI * R, HALF = CIRC / 2;
 const SIZE = 256; // DEM tile edge, pixels
@@ -42,17 +43,23 @@ export function mosaic(grid, data) {
 // [a, b, c, d, e, f] (export.js affine order) of the grid in EPSG:3857
 export const gridTransform = ({ x0, y0, pix }) => [pix, 0, x0 * pix - HALF, 0, -pix, HALF - y0 * pix];
 
-// GeoTIFF bytes for a Float32 grid w × h with transform t (north-up), in metres of `unit`
-export function geotiff(values, w, h, t, { description = '', unit = 'metre' } = {}) {
+// GeoTIFF bytes for a grid w × h with transform t (north-up; in metres for EPSG:3857, degrees for
+// EPSG:4326): values a Float32Array, or one per band with `bands` [{ description, unit }]
+export function geotiff(values, w, h, t, { description = '', unit = 'metre', crs = 3857, bands = [{ description, unit }] } = {}) {
+  const planes = values instanceof Float32Array ? [values] : values, n = planes.length;
   const ascii = (s) => new TextEncoder().encode(`${s}\0`);
-  const meta = ascii(`<GDALMetadata><Item name="DESCRIPTION" sample="0" role="description">${description}</Item><Item name="UNITTYPE" sample="0" role="unittype">${unit}</Item></GDALMetadata>`);
-  // GeoKeys: projected, pixel is area, EPSG:3857, metres
-  const keys = [1, 1, 0, 4, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857, 3076, 0, 1, 9001];
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const meta = ascii(`<GDALMetadata>${bands.map((b, i) => `<Item name="DESCRIPTION" sample="${i}" role="description">${esc(b.description)}</Item><Item name="UNITTYPE" sample="${i}" role="unittype">${esc(b.unit)}</Item>`).join('')}</GDALMetadata>`);
+  // GeoKeys, pixel is area: projected EPSG:3857 in metres, or geographic EPSG:4326 in degrees
+  const keys = crs === 4326 ? [1, 1, 0, 4, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326, 2054, 0, 1, 9102]
+    : [1, 1, 0, 4, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857, 3076, 0, 1, 9001];
   // [tag, type, values]; types: 2 ASCII, 3 SHORT, 4 LONG, 12 DOUBLE. Image data goes after the tags.
   const tags = [
-    [256, 4, [w]], [257, 4, [h]], [258, 3, [32]], [259, 3, [1]], [262, 3, [1]],
+    [256, 4, [w]], [257, 4, [h]], [258, 3, Array(n).fill(32)], [259, 3, [1]], [262, 3, [1]],
     [273, 4, [0]], // strip offset, set below
-    [277, 3, [1]], [278, 4, [h]], [279, 4, [w * h * 4]], [284, 3, [1]], [339, 3, [3]],
+    [277, 3, [n]], [278, 4, [h]], [279, 4, [w * h * n * 4]], [284, 3, [1]],
+    ...(n > 1 ? [[338, 3, Array(n - 1).fill(0)]] : []), // the other bands: data, not alpha
+    [339, 3, Array(n).fill(3)],
     [33550, 12, [t[0], -t[4], 0]], [33922, 12, [0, 0, 0, t[2], t[5], 0]],
     [34735, 3, keys], [42112, 2, meta], [42113, 2, ascii('nan')],
   ];
@@ -67,7 +74,7 @@ export function geotiff(values, w, h, t, { description = '', unit = 'metre' } = 
   });
   const dataAt = at + (at & 3 ? 4 - (at & 3) : 0);
   placed.find((p) => p.tag === 273).v = [dataAt];
-  const buf = new ArrayBuffer(dataAt + w * h * 4), dv = new DataView(buf), u8 = new Uint8Array(buf);
+  const buf = new ArrayBuffer(dataAt + w * h * n * 4), dv = new DataView(buf), u8 = new Uint8Array(buf);
   u8.set([0x49, 0x49, 42, 0]); // "II", 42: little-endian TIFF
   dv.setUint32(4, ifd, true);
   dv.setUint16(ifd, tags.length, true);
@@ -87,6 +94,7 @@ export function geotiff(values, w, h, t, { description = '', unit = 'metre' } = 
     if (off === null) put(type, v, e + 8); else { dv.setUint32(e + 8, off, true); put(type, v, off); }
   });
   dv.setUint32(ifd + 2 + tags.length * 12, 0, true); // no further images
-  new Float32Array(buf, dataAt, w * h).set(values); // little-endian on every platform the page runs on
+  const px = new Float32Array(buf, dataAt, w * h * n); // little-endian on every platform the page runs on
+  if (n === 1) px.set(planes[0]); else for (let i = 0; i < w * h; i++) for (let b = 0; b < n; b++) px[i * n + b] = planes[b][i];
   return u8;
 }

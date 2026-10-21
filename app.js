@@ -1,7 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf } from './catalog.js';
-import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables } from './catalog.js';
+import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend, regionOf } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from './format.js';
@@ -9,6 +9,7 @@ import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js'
 import { affine, mercator, worldFile, pamXml, stacItem, pngText } from './export.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
+import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
 import { viewFeatures } from './vector.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -1174,6 +1175,48 @@ function vectorPieces(id) {
 }
 // raster/<key>.tif: the clipped DEM an item draws, in metres, at the zoom of the tiles on screen
 // (256 px DEM tiles at z show at map zoom z − 1, clip.js)
+// raster/<item>[-<region>].tif: the values a Copernicus layer draws, read from each of its datasets'
+// Zarr stores (zarr.js), at the time and level it draws, in the dataset's own latitude/longitude
+// grid over the view's bounding box; arrows as two bands, eastward and northward
+const FETCH_DATA = { credentials: 'omit', referrerPolicy: 'no-referrer' };
+async function fetchBytes(url) {
+  const r = await fetch(url, FETCH_DATA);
+  if (r.status === 403 || r.status === 404) return null; // a chunk not stored: all land, or a time no longer kept
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+const stores = {}; // part → promise of its store and coordinates
+function storeOf(part) {
+  return (stores[part] ||= (async () => {
+    const r = await fetch(cmemsStacUrl(part), FETCH_DATA);
+    if (!r.ok) throw new Error(`catalogue: HTTP ${r.status}`);
+    const store = await openStore((await r.json()).assets.timeChunked.href, fetchBytes);
+    const [time, lat, lon, elevation] = await Promise.all(['time', 'latitude', 'longitude', 'elevation'].map((c) => (store.meta(c) ? store.coord(c) : null)));
+    return { store, times: Array.from(time, timeScale(store.meta('time').attrs.units)), lat, lon, elevation };
+  })().catch((e) => { delete stores[part]; throw e; }));
+}
+// at: { variant, t, depth } as captured; box: [west, south, east, north]
+async function cmemsValues(id, at, box) {
+  const v = CMEMS[id][at.variant];
+  const [times, levels] = await Promise.all([partTimes(id, at.variant, at.t), partLevels(id, at.variant, at.depth)]);
+  return (await Promise.all(v.parts.map(async (part, i) => {
+    if (times[i] == null) return null;
+    const { store, times: ts, lat, lon, elevation } = await storeOf(part);
+    const ti = nearest(ts, times[i], 6e4), zi = elevation && levels[i] != null ? nearest(elevation, +levels[i]) : 0;
+    const cells = cellsOf(lat, lon, box);
+    if (ti < 0 || !cells.rows.length) return null; // not in the store (yet), or not in view
+    const names = storedVariables(part), units = names.map((n) => store.meta(n).attrs.units || '');
+    const planes = await Promise.all(names.map((n) => readCells(store, n, ti, zi, cells)));
+    const region = regionOf(part)?.name || (v.parts.length > 1 ? 'Global' : ''), key = `raster/${id}${region ? `-${region.toLowerCase()}` : ''}`;
+    const w = cells.cols.length, h = cells.rows.length;
+    const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
+    const when = new Date(ts[ti]).toISOString(), level = elevation ? +Math.abs(elevation[zi]).toFixed(2) : null;
+    const description = `${part.split('/').slice(0, 2).join(' / ')}: ${names.join(', ')} (${[...new Set(units)].join(', ')}) at ${when}${level != null ? `, ${level} m deep` : ''}; its own grid, EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN`;
+    return { key, file: `${key}.tif`, w, h, transform, names, units, title: `${v.label}${region ? `, ${region}` : ''}: values`, description,
+      data: geotiff(planes, w, h, transform, { crs: 4326, bands: names.map((n, k) => ({ description: `${n}, ${when}${level != null ? `, ${level} m` : ''}`, unit: units[k] })) }) };
+  }))).filter(Boolean);
+}
+
 const RASTERS = [
   { key: 'depth', items: ['depth'], clip: seaClip, native: DEM_SEA.native, max: DEM_SEA.max, title: 'Depth',
     description: 'Seabed elevation in metres, negative below sea level, as the depth shading draws it: Terrarium DEM cut to the OSM coastline, pits and tile seams corrected; sea the DEM calls dry is -1. No data on land, lakes and inland water at sea level' },
@@ -1206,6 +1249,7 @@ async function exportZip() {
     // vector/<item>.geojson for each item drawn with features in view, and the measurements
     const layers = drawnItems(), vectors = [];
     for (const it of layers) {
+      if (it.kind === 'cmems') it.at = { variant: variantOf(it.id), t: state.time, depth: state.depth }; // read now, used after the awaits
       const fs = viewFeatures(vectorPieces(it.id), corners, clipping);
       if (fs.length) vectors.push({ key: `vector/${it.id}`, title: it.label, file: `vector/${it.id}.geojson`, data: featureCollection(it.label, fs), n: fs.length, how: 'clipped to the view' });
       it.assets = fs.length ? [`vector/${it.id}`] : []; // in item.json: the assets that hold this layer as data (keyed by path: a layer may be called chart, as the overview is)
@@ -1220,6 +1264,10 @@ async function exportZip() {
       rasters.push({ ...r, file: `raster/${r.key}.tif`, asset: `raster/${r.key}`, data: geotiff(mosaic(grid, tiles), grid.w, grid.h, transform, { description: r.description }), grid, transform });
       for (const l of layers) if (r.items.includes(l.id)) l.assets.push(`raster/${r.key}`);
     }
+    // raster/<item>[-<region>].tif: the values of each Copernicus layer drawn, as the view was captured
+    const xs = corners.map((p) => p[0]), ys = corners.map((p) => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    const values = (await Promise.all(layers.filter((l) => l.kind === 'cmems').map((l) => cmemsValues(l.id, l.at, box)
+      .then((rs) => { l.assets.push(...rs.map((r) => r.key)); return rs; }, (e) => { console.warn(`${l.label} values:`, e.message); return []; })))).flat();
     for (const l of layers) Object.assign(l, await kindOf(l.id)?.record(l)); // what each drew: period, day, time, depth
     const measured = measureFeatures(measure.list);
     if (measured.length) vectors.push({ key: 'vector/measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
@@ -1235,6 +1283,8 @@ async function exportZip() {
         ...Object.fromEntries(rasters.map((r) => [r.asset, { href: `./${r.file}`, type: 'image/tiff; application=geotiff', title: `${r.title}: DEM tiles of zoom ${r.grid.z}${r.grid.z > r.native ? `, upsampled from zoom ${r.native}` : ''}, over the view's bounding box`, description: r.description, roles: ['data'],
           'proj:code': 'EPSG:3857', 'proj:shape': [r.grid.h, r.grid.w], 'proj:transform': r.transform, bands: [{ data_type: 'float32', nodata: 'nan', unit: 'm' }] }])),
         ...Object.fromEntries(vectors.map((v) => [v.key, { href: `./${v.file}`, type: 'application/geo+json', title: `${v.title}: ${v.n} feature${v.n === 1 ? '' : 's'}, ${v.how}`, roles: ['data'] }])),
+        ...Object.fromEntries(values.map((r) => [r.key, { href: `./${r.file}`, type: 'image/tiff; application=geotiff', title: r.title, description: r.description, roles: ['data'],
+          'proj:code': 'EPSG:4326', 'proj:shape': [r.h, r.w], 'proj:transform': r.transform, bands: r.names.map((n, k) => ({ name: n, data_type: 'float32', nodata: 'nan', unit: r.units[k] })) }])),
       },
     });
     const [mapPng, chartFile] = await Promise.all([pngOf(plain), chartPng(chart)]);
@@ -1246,6 +1296,7 @@ async function exportZip() {
       { name: 'chart.png', data: chartFile },
       ...vectors.map((v) => ({ name: v.file, data: v.data })),
       ...rasters.map((r) => ({ name: r.file, data: r.data })),
+      ...values.map((r) => ({ name: r.file, data: r.data })),
     ], when), `${name}.zip`);
   });
 }
