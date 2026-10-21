@@ -188,15 +188,14 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .scalenote { color: var(--warn); }
 .nfn { font-weight: 600; white-space: nowrap; }
 .scalenote:empty { display: none; }
-/* credits: always on screen (no (i) toggle) */
-.status .maplibregl-ctrl-attrib { margin: 0; background: none; text-align: left; }
 .readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; flex: none; }
-/* one line of credits (MapLibre's <details>), ending in "…" where they do not fit; a tap shows them all */
+/* credits: always on screen, on one line ending in "…" where they do not fit; a tap shows them all */
 .credits { display: flex; flex: 0 1 auto; min-width: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); }
 .credits.foldable { cursor: pointer; }
-.credits .maplibregl-ctrl-attrib { min-width: 0; padding: 0; }
-.credits .maplibregl-ctrl-attrib-inner { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.credits.open .maplibregl-ctrl-attrib-inner { white-space: normal; }
+.credits-text { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.credits.open .credits-text { white-space: normal; }
+.credits a { color: var(--ink); text-decoration: none; }
+.credits a:hover { text-decoration: underline; }
 .maplibregl-ctrl-scale { border-color: var(--ink); color: var(--ink); background: rgba(255, 255, 255, .85); font: 11px var(--font); }
 /* double scale (as on OpenSeaMap): km bar open at the top, NM bar hanging below the same line */
 .scales { display: flex; flex-direction: column; align-items: flex-start; }

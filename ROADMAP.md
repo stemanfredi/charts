@@ -5,10 +5,6 @@ lists only what it does not do, or not well enough.
 
 ## Open
 
-- **OpenStreetMap credit cut first.** The credits line ends in "…" where it does not
-  fit, and MapLibre puts the base map's credit last, so it is the first cut (a tap
-  shows it). OpenStreetMap and Esri ask for their credit to be visible: order the
-  base map's first, or wrap the line instead of cutting it.
 - **Phones: the bottom row takes up to three lines** (credits; not for navigation and
   the scale note; the time and the scale).
 - **Legends slightly soft at 125% display scale.** They are drawn one canvas pixel per

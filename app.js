@@ -198,10 +198,10 @@ const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s
 const scaleUnits = () => { for (const el of scalesEl.children) el.textContent = el.textContent.replace(/\snm$/, '\u00a0NM'); };
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const nfnEl = h('div', { class: 'scalenote nfn' }, 'Not for navigation'); // on every screen (About says why)
-const attribution = new maplibregl.AttributionControl({ compact: false });
-const credits = h('div', { class: 'credits' }, attribution.onAdd(map));
+const creditsText = h('span', { class: 'credits-text' });
+const credits = h('div', { class: 'credits' }, creditsText);
 // a tap unfolds them only when they are cut ("…"), and folds them again; the hint says which
-const cut = () => { const t = $('.maplibregl-ctrl-attrib-inner', credits); return !!t && t.scrollWidth > t.clientWidth; };
+const cut = () => creditsText.scrollWidth > creditsText.clientWidth;
 function creditsHint() {
   const open = credits.classList.contains('open');
   credits.classList.toggle('foldable', open || cut());
@@ -321,7 +321,7 @@ async function creditEsri() {
     if (!text) return;
     const src = map.getSource('esri');
     src.attribution = esriAttribution(text);
-    src.setTiles(src.tiles); // a source event makes the attribution control redraw
+    renderCredits();
   } catch { esriCredited = false; } // keep the built-in text; retry on the next switch
 }
 // ---- layers from a data service, by kind (catalog.js item.kind) ------------------------------
@@ -1021,13 +1021,28 @@ function scaleNote() {
 }
 
 // ---- PNG export: the map as on screen, without the controls; its details in the file's text fields
-function attributionText() {
-  const srcs = new Set();
-  for (const l of map.getStyle().layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none') srcs.add(l.source);
-  const parts = [...srcs].map((s) => map.getSource(s)?.attribution).filter(Boolean);
-  // parsed in an inert document: no image loads, no handlers run, whatever the text holds
-  return [...new Set(parts)].map((p) => new DOMParser().parseFromString(p, 'text/html').body.textContent).join(' · ');
+// the credits of what is drawn: each shown source's own (catalog.js), once, the base map's first
+// (OpenStreetMap and Esri ask for theirs to be seen, and a line that does not fit is cut at its end)
+const baseSources = new Set(ITEMS.filter((it) => it.group === 'base').flatMap((it) => (layersOf[it.id] || []).map((l) => l.source)));
+function creditParts() {
+  const srcs = [];
+  for (const l of map.getStyle().layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none' && !srcs.includes(l.source)) srcs.push(l.source);
+  srcs.sort((a, b) => baseSources.has(b) - baseSources.has(a));
+  return [...new Set(srcs.map((s) => map.getSource(s)?.attribution).filter(Boolean))];
 }
+// as text, for the exports: parsed in an inert document (no image loads, no handlers run)
+const attributionText = () => creditParts().map((p) => new DOMParser().parseFromString(p, 'text/html').body.textContent).join(' · ');
+// on screen, once a frame at most, as the layers and sources change
+let creditsRaf = 0, creditsHtml = null;
+function renderCredits() {
+  cancelAnimationFrame(creditsRaf);
+  creditsRaf = requestAnimationFrame(() => {
+    const html = creditParts().join(' | ');
+    if (html !== creditsHtml) { creditsHtml = html; creditsText.innerHTML = html; } // the catalogue's own markup; Esri's text escaped (catalog.js)
+  });
+}
+map.on('styledata', renderCredits);
+map.on('sourcedata', (e) => { if (!e.tile) renderCredits(); });
 // The map's next frame, after pending tiles (so a layer switched on a moment ago is in the
 // picture): fn(canvas) runs while the canvas still holds it, and must read it before awaiting.
 let exporting = false; // one export at a time, however often the buttons are clicked
