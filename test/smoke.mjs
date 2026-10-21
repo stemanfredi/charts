@@ -248,6 +248,68 @@ try {
     && vi.assets['raster/waves-mediterranean']['proj:code'] === 'EPSG:4326' && cv.errors.length === 0,
     `GIS export: the waves' values as GeoTIFF, global and Mediterranean (${ve.filter((e) => e.name.startsWith('raster/')).map((e) => e.name).join(', ')}) ${cv.errors.join(' | ')}`);
   await cv.close();
+
+  // ---- the export says what the map shows (parity) ----
+  // one view per kind of layer; each exported, and the zip compared with the map as it was
+  const files = (zz) => { // name → bytes, every entry of a zip
+    const out = {};
+    for (let p = zz.readUInt32LE(zz.length - 6); zz.readUInt32LE(p) === 0x02014b50; p += 46 + zz.readUInt16LE(p + 28)) {
+      const name = zz.toString('utf8', p + 46, p + 46 + zz.readUInt16LE(p + 28)), at = zz.readUInt32LE(p + 42), size = zz.readUInt32LE(p + 20);
+      const body = zz.subarray(at + 30 + zz.readUInt16LE(at + 26), at + 30 + zz.readUInt16LE(at + 26) + size);
+      out[name] = zz.readUInt16LE(p + 10) ? inflateRawSync(body) : body;
+    }
+    return out;
+  };
+  const pngFields = (b) => { // a PNG's size and iTXt text fields
+    const f = { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
+    for (let p = 8; p < b.length;) {
+      const n = b.readUInt32BE(p), type = b.toString('latin1', p + 4, p + 8);
+      if (type === 'iTXt') { const parts = b.subarray(p + 8, p + 8 + n).toString('utf8').split('\0'); f[parts[0]] = parts.at(-1); }
+      if (type === 'IEND') break;
+      p += n + 12;
+    }
+    return f;
+  };
+  const PARITY = [
+    ['density and depth, no time', '#v=7/37.5/14/0&on=chart,coastline,depth,traffic,legend'],
+    ['NASA daily', '#v=5/40/10/0&col=gibs:terra&on=chart,coastline'],
+    ['Copernicus colours and arrows', '#v=6/39/14/0&col=waves:height&arr=currents:surface&on=chart,coastline,legend'],
+    ['Copernicus at a depth', '#v=6/39/14/0&col=temperature:depth&dz=100&on=chart,coastline,legend'],
+    ['daily only, an observation', '#v=6/39/14/0&col=sst:measured&on=chart,coastline,legend'],
+  ];
+  for (const [what, hash] of PARITY) {
+    const pp = await open(`${hash}&menu=0`);
+    await pp.waitForTimeout(3000);
+    const seen = await pp.evaluate(() => { // the map, read from MapLibre itself
+      const z = map.getZoom(), on = new Set(), draws = {};
+      for (const l of map.getStyle().layers) {
+        if (!l.metadata?.item || map.getLayoutProperty(l.id, 'visibility') !== 'visible' || z < (l.minzoom ?? 0) || z >= (l.maxzoom ?? 24)) continue;
+        on.add(l.metadata.item);
+        const look = /^cmems:\/\/\w+\/\w+\/(\w+)/.exec(map.getSource(l.source)?.tiles?.[0] || '')?.[1];
+        if (look) draws[l.metadata.item] = look;
+      }
+      return { on: [...on].sort(), draws, t: /t=([\d-]+T\d\d)/.exec(location.hash)?.[1] || '', dz: +(/dz=(\d+)/.exec(location.hash)?.[1] || 0),
+        hourly: /\d:\d\d/.test(document.querySelector('#shown').textContent), canvas: [map.getCanvas().width, map.getCanvas().height] };
+    });
+    const [dl] = await Promise.all([pp.waitForEvent('download', { timeout: 120000 }), pp.click('#zip')]);
+    const zf = files(await readFile(await dl.path())), item = JSON.parse(zf['item.json']), pr = item.properties, layers = pr['chart:layers'];
+    const chart = pngFields(zf['chart.png']), timed = !!seen.t;
+    const expect = !timed ? pr.created : seen.hourly ? `${seen.t}:00:00.000Z` : `${seen.t.slice(0, 10)}T00:00:00Z`;
+    const dataText = !timed ? null : seen.hourly ? `data at ${seen.t.replace('T', ' ')}:00 UTC` : `data of ${seen.t.slice(0, 10)}`;
+    const wrong = [];
+    if (layers.map((l) => l.id).sort().join() !== seen.on.join()) wrong.push(`layers ${layers.map((l) => l.id).sort()} ≠ map ${seen.on}`);
+    if (pr.datetime !== expect) wrong.push(`datetime ${pr.datetime} ≠ ${expect}`);
+    for (const l of layers) {
+      if (seen.draws[l.id] && l.draws !== seen.draws[l.id]) wrong.push(`${l.id} draws ${l.draws} ≠ map ${seen.draws[l.id]}`);
+      if (seen.dz && l.depth_m != null && Math.abs(l.depth_m - seen.dz) > seen.dz * 0.15) wrong.push(`${l.id} at ${l.depth_m} m ≠ ${seen.dz} m`);
+      if (seen.draws[l.id] && !(l.assets || []).some((a) => a.startsWith(`raster/${l.id}`))) wrong.push(`${l.id}: no values`);
+    }
+    if (chart.width !== seen.canvas[0] || chart.height !== seen.canvas[1]) wrong.push(`chart.png ${chart.width}×${chart.height} ≠ map ${seen.canvas.join('×')}`);
+    if (dataText && !chart.Description?.includes(dataText)) wrong.push(`chart.png says "${chart.Description}", not "${dataText}"`);
+    if (chart.Copyright !== pr['chart:attribution']) wrong.push('chart.png and item.json credit differently');
+    check(!wrong.length && !pp.errors.length, `export parity, ${what}: ${wrong.join('; ') || `${layers.length} layers, ${pr.datetime}`} ${pp.errors.join(' | ')}`);
+    await pp.close();
+  }
 } catch (err) {
   check(false, `smoke run crashed: ${err.message}`);
 } finally {
