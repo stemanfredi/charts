@@ -169,8 +169,19 @@ const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const nfnEl = h('div', { class: 'scalenote nfn' }, 'Not for navigation'); // on every screen (About says why)
 const attribution = new maplibregl.AttributionControl({ compact: false });
-const credits = h('div', { class: 'credits', title: 'Tap for all the credits' }, attribution.onAdd(map));
-credits.addEventListener('click', (e) => { if (!e.target.closest('a')) credits.classList.toggle('open'); });
+const credits = h('div', { class: 'credits' }, attribution.onAdd(map));
+// a tap unfolds them only when they are cut ("…"), and folds them again; the hint says which
+const cut = () => { const t = $('.maplibregl-ctrl-attrib-inner', credits); return !!t && t.scrollWidth > t.clientWidth; };
+function creditsHint() {
+  const open = credits.classList.contains('open');
+  credits.classList.toggle('foldable', open || cut());
+  credits.title = open ? 'Tap to fold the credits' : cut() ? 'Tap for all the credits' : '';
+}
+credits.addEventListener('pointerenter', creditsHint);
+credits.addEventListener('click', (e) => {
+  if (!e.target.closest('a') && (credits.classList.contains('open') || cut())) credits.classList.toggle('open');
+  creditsHint();
+});
 // credits on the left; not for navigation, the scale note, time shown, cursor position and scale on the right
 statusEl.append(credits, h('div', { class: 'readout' }, nfnEl, scaleNoteEl, shownEl, posEl, scalesEl));
 // the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits

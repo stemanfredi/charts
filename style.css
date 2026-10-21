@@ -184,7 +184,8 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .status .maplibregl-ctrl-attrib { margin: 0; background: none; text-align: left; }
 .readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; flex: none; }
 /* one line of credits (MapLibre's <details>), ending in "…" where they do not fit; a tap shows them all */
-.credits { display: flex; flex: 0 1 auto; min-width: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); cursor: pointer; }
+.credits { display: flex; flex: 0 1 auto; min-width: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); }
+.credits.foldable { cursor: pointer; }
 .credits .maplibregl-ctrl-attrib { min-width: 0; padding: 0; }
 .credits .maplibregl-ctrl-attrib-inner { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .credits.open .maplibregl-ctrl-attrib-inner { white-space: normal; }
