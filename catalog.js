@@ -129,7 +129,8 @@ const MED_BIO = 'MEDSEA_ANALYSISFORECAST_BGC_006_014/cmems_mod_med_bgc-bio_anfc_
 const MED_CAR = 'MEDSEA_ANALYSISFORECAST_BGC_006_014/cmems_mod_med_bgc-car_anfc_4.2km_P1D-m_202511';
 const MED_NUT = 'MEDSEA_ANALYSISFORECAST_BGC_006_014/cmems_mod_med_bgc-nut_anfc_4.2km_P1D-m_202511';
 // item → variant → { label, unit, range, cmap, vector (arrows drawn by the service: 'solidAndVector' over the colours,
-//   'vector' alone, coloured by speed), parts: [dataset/variable],
+//   'vector' alone, coloured by speed; what the variant can draw: colours, arrows or both, see drawsOf),
+//   parts: [dataset/variable],
 //   daily (daily means), depth (drawn at the depth chosen, each dataset at its nearest level),
 //   log (logarithmic colours), offset (added to the data's values for the legend: Kelvin → °C) }
 // Ranges serve the global and the regional model alike, so a colour means the same everywhere.
@@ -163,7 +164,13 @@ export const CMEMS = {
   mld: { depth: { label: 'Mixed layer depth', unit: 'm', range: [0, 200], cmap: 'plasma', daily: true, parts: [`${GLO_2D}/mlotst`, `${MED_MLD}/mlotst`] } },
   wind: { observed: { label: 'Wind (satellite)', unit: 'm/s', range: [0, 25], cmap: 'thermal', vector: 'vector', parts: [`${WIND}/wind`] } },
 };
-export const cmemsStyle = (v) => `cmap:${v.cmap},range:${v.range.join('/')}${v.log ? ',logScale' : ''}${v.vector ? `,vectorStyle:${v.vector}` : ''}`;
+// what a variant can draw: ['colour'], ['arrows'] or both (its colours, its arrows coloured by speed)
+export const drawsOf = (v) => ({ solidAndVector: ['colour', 'arrows'], vector: ['arrows'] })[v.vector] || ['colour'];
+// the service's style for a variant drawing `look` ('colour', 'arrows', or 'both': all it can)
+export function cmemsStyle(v, look = 'both') {
+  const vector = look === 'colour' ? null : look === 'arrows' ? 'vector' : v.vector;
+  return `cmap:${v.cmap},range:${v.range.join('/')}${v.log ? ',logScale' : ''}${vector ? `,vectorStyle:${vector}` : ''}`;
+}
 // 512 px tiles (the @2x matrix set): arrows at a readable spacing, and sharp on high-density screens
 export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
   return `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}`
@@ -172,6 +179,8 @@ export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
 export const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
 // one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
 export const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
+
+const ARROWS_LAST = (id) => ({ solidAndVector: 1, vector: 2 })[Object.values(CMEMS[id])[0].vector] || 0;
 
 // ISO 8601 duration (P1D, PT1H, PT900S, PT10800S, PT15M) → milliseconds
 export function durationMs(d) {
@@ -444,7 +453,8 @@ function layers() {
     // colour fills are chart-only: over satellite the image shows the water; isobaths still draw
     { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
     ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
-    ...Object.keys(CMEMS).map((id) => raster(`cmems-${id}`, id)),
+    // colours, then the layers that can draw arrows (currents, then wind), whose arrows go over them
+    ...Object.keys(CMEMS).sort((a, b) => ARROWS_LAST(a) - ARROWS_LAST(b)).map((id) => raster(`cmems-${id}`, id)),
 
     // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined
     ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobaths-${k}` : 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours',

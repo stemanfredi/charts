@@ -50,11 +50,12 @@ function inArea(part, z, x, y) {
   return !area || area.some((a) => lon(x + 1, z) > a[0] && lon(x, z) < a[2] && lat(y + 1, z) < a[3] && lat(y, z) > a[1]);
 }
 
-// MapLibre protocol handler for cmems://item/variant/t/depth/z/x/y (t: the hour, ms since the
-// epoch; depth: m below the surface, used by variables with depth)
+// MapLibre protocol handler for cmems://item/variant/look/t/depth/z/x/y (look: what it draws,
+// 'colour', 'arrows' or 'both'; t: the hour, ms since the epoch; depth: m below the surface, used
+// by variables with depth)
 export async function cmemsTile({ url }, abortController) {
-  const [, item, variant, t, depth, z, x, y] = /^cmems:\/\/(\w+)\/(\w+)\/(\d+)\/(\d+)\/(\d+)\/(\d+)\/(\d+)$/.exec(url).map((v, i) => (i > 2 ? +v : v));
-  const v = CMEMS[item][variant], style = cmemsStyle(v);
+  const [, item, variant, look, t, depth, z, x, y] = /^cmems:\/\/(\w+)\/(\w+)\/(\w+)\/(\d+)\/(\d+)\/(\d+)\/(\d+)\/(\d+)$/.exec(url).map((v, i) => (i > 3 ? +v : v));
+  const v = CMEMS[item][variant], style = cmemsStyle(v, look);
   const [times, levels] = await Promise.all([partTimes(item, variant, t), partLevels(item, variant, depth)]);
   const images = await Promise.all(v.parts.map(async (part, i) => {
     if (times[i] === null || !inArea(part, z, x, y)) return null; // no data at this hour, or not here

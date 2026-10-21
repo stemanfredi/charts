@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf } from './catalog.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap } from './legend.js';
@@ -213,6 +213,7 @@ function setOn(id, on) {
     for (const other of ITEMS) if (other.group === it.group && other.id !== id && state.on.delete(other.id)) applyItem(other.id);
   }
   on ? state.on.add(id) : state.on.delete(id);
+  if (kindOf(id)?.time) settleSlots(id); // the one colour layer and one arrow layer
   refresh(id);
   if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); creditEsri(); }
   if (id === 'graticule') updateGraticule();
@@ -353,7 +354,7 @@ const KINDS = {
     depth: cmemsDepth,
     show(id) {
       const depth = cmemsDepth(id) ? state.depth : 0; // no new tiles for a depth change it ignores
-      map.getSource(`cmems-${id}`).setTiles([`cmems://${id}/${variantOf(id)}/${state.time}/${depth}/{z}/{x}/{y}`]);
+      map.getSource(`cmems-${id}`).setTiles([`cmems://${id}/${variantOf(id)}/${looks[id] || 'both'}/${state.time}/${depth}/{z}/{x}/{y}`]);
       applyItem(id);
     },
     // each dataset from its first step to the end of its last (a daily mean covers its day, a
@@ -387,6 +388,33 @@ const refresh = (id) => (state.on.has(id) && kindOf(id) ? kindOf(id).show(id) : 
 const timeOn = () => ITEMS.filter((it) => state.on.has(it.id) && kindOf(it.id)?.time);
 const depthOn = () => ITEMS.filter((it) => state.on.has(it.id) && kindOf(it.id)?.depth?.(it.id));
 const hourly = () => timeOn().some((it) => kindOf(it.id).time(it.id) === 'hour');
+
+// ---- one colour layer and one arrow layer ----------------------------------------------------
+// Layers that change with time draw colours, arrows or both (currents: speed and direction). Two
+// colour layers cannot be read together, nor two sets of arrows: the map holds one of each. In the
+// order switched on (state.on, kept in the link), each takes the slots it can fill that are free,
+// or else all it can fill, from the layers there; a layer left with none goes off. So: currents
+// alone draw both; waves switched on take the colours, currents keep their arrows; wind switched
+// on then takes the arrows, and currents go off; another colour layer replaces the colour one.
+const looks = {}; // item → what it draws now: 'colour', 'arrows' or 'both'
+const drawsOfItem = (id) => (byId[id].kind === 'cmems' ? drawsOf(CMEMS[id][variantOf(id)]) : ['colour']);
+function settleSlots(except) {
+  const holder = {}, holds = {}; // slot → item; item → its slots
+  for (const it of timeOn()) {
+    const can = drawsOfItem(it.id), free = can.filter((s) => !holder[s]);
+    holds[it.id] = new Set();
+    for (const s of free.length ? free : can) {
+      if (holder[s]) holds[holder[s]].delete(s);
+      holder[s] = it.id;
+      holds[it.id].add(s);
+    }
+  }
+  for (const [id, slots] of Object.entries(holds)) {
+    if (!slots.size) { state.on.delete(id); delete looks[id]; applyItem(id); continue; }
+    const look = slots.size > 1 ? 'both' : [...slots][0];
+    if (looks[id] !== look) { looks[id] = look; if (id !== except) refresh(id); }
+  }
+}
 
 function setDepth(d) {
   state.depth = d;
@@ -564,6 +592,7 @@ const rows = {};
 const segs = [];
 function setVariant(id, v) {
   state.variant[id] = v;
+  if (kindOf(id)?.time) settleSlots(id); // a variant may draw otherwise
   refresh(id);
   if (id === 'depth') depthColours();
   if (id === 'sat') creditEsri();
@@ -1119,6 +1148,7 @@ map.on('load', () => {
     if (typeof src.roundZoom !== 'boolean') console.error(`MapLibre: ${id}.roundZoom missing; elevation tiles may not match the coastline`);
     src.roundZoom = false;
   }
+  settleSlots(); // a link holds them in the order switched on
   for (const it of ITEMS) refresh(it.id);
   depthColours();
   labelPaint();

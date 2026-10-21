@@ -162,6 +162,23 @@ try {
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
   await cm.close(); await cmAgain.close();
+  // one colour layer and one arrow layer: currents under waves draw arrows only; wind takes the
+  // arrows and currents go off; currents alone draw both
+  const sl = await open('#v=6/40/14/0&on=chart,coastline,waves,currents&menu=1&g=seastate');
+  const looks = () => sl.evaluate(() => ['waves', 'currents', 'wind'].map((id) => (map.getLayoutProperty(`cmems-${id}`, 'visibility') === 'visible' ? `${id}:${/cmems:\/\/\w+\/\w+\/(\w+)/.exec(map.getSource(`cmems-${id}`).tiles[0] || '')?.[1]}` : '')).filter(Boolean).join(' '));
+  await sl.waitForTimeout(1000);
+  const l1 = await looks();
+  await sl.click('label[for=i-wind]');
+  await sl.waitForTimeout(500);
+  const [l2, l2hash] = [await looks(), await sl.evaluate(() => location.hash)];
+  await sl.click('label[for=i-waves]');
+  await sl.click('label[for=i-wind]');
+  await sl.click('label[for=i-currents]');
+  await sl.waitForTimeout(500);
+  const l3 = await looks();
+  check(l1 === 'waves:colour currents:arrows' && l2 === 'waves:colour wind:arrows' && !/currents/.test(/on=[^&]*/.exec(l2hash)[0]) && l3 === 'currents:both',
+    `one colour layer, one arrow layer: ${l1} → with wind ${l2} → currents alone ${l3}`);
+  await sl.close();
   // water properties at a depth from the link: "≈ 100 m" beside the time, each model at its own
   // level (the export records it), no note under the row
   const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');
