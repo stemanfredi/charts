@@ -31,7 +31,7 @@ export const PINS = [
 
 // Every host the page may talk to (Content-Security-Policy).
 export const TILE_HOSTS = [
-  'https://tiles.openfreemap.org', 'https://s3.amazonaws.com', 'https://tiles.maps.eox.at',
+  'https://tiles.openfreemap.org', 'https://s3.amazonaws.com/elevation-tiles-prod/', 'https://tiles.maps.eox.at',
   'https://server.arcgisonline.com',
   'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org', 'https://ows.emodnet-humanactivities.eu',
   'https://wmts.marine.copernicus.eu',
@@ -85,8 +85,8 @@ async function regenerate() {
   const csp = [
     "default-src 'none'",
     `script-src 'self' ${PACKAGES} '${sri(Buffer.from(importmap), 'sha256')}'`,
-    `style-src 'self' ${PACKAGES} 'unsafe-inline'`,
-    `img-src 'self' data: blob: ${TILE_HOSTS.join(' ')}`,
+    `style-src 'self' ${PACKAGES}`, // the page sets styles through the DOM only, never as markup
+    "img-src 'self' data: blob:", // tiles come by fetch (connect-src), drawn from blobs
     `connect-src 'self' ${PACKAGES} ${TILE_HOSTS.join(' ')} ${API_HOSTS.join(' ')}`,
     "worker-src 'self' blob:", 'child-src blob:', // 'self': clip-worker.js; blob: MapLibre's verified worker
     "base-uri 'none'", "form-action 'none'", "object-src 'none'",
@@ -96,7 +96,8 @@ async function regenerate() {
     ...PINS.filter((p) => p.kind === 'style').map((p) => `<link rel="stylesheet" href="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
     ...PINS.filter((p) => p.kind === 'worker').map((p) => `<link rel="preload" as="fetch" id="${p.name}-worker" href="${url(p)}" data-integrity="${hashes[url(p)]}" crossorigin="anonymous">`),
     `<script type="importmap">${importmap}</script>`,
-    ...PINS.filter((p) => p.kind === 'script').map((p) => `<script src="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous"></script>`),
+    // deferred: it runs after parsing, before the page's modules (which come after it, and are deferred too)
+    ...PINS.filter((p) => p.kind === 'script').map((p) => `<script defer src="${url(p)}" integrity="${hashes[url(p)]}" crossorigin="anonymous"></script>`),
     ...PINS.filter((p) => p.kind === 'lazy').map((p) => `<meta name="lazy-script" id="${p.name}" content="${url(p)}" data-integrity="${hashes[url(p)]}">`),
   ];
   const html = await readFile(INDEX, 'utf8');

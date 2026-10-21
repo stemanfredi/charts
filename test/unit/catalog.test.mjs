@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
 import { buildStyle } from '../../site/style.js';
 import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
 import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
@@ -41,13 +41,13 @@ test('variants: each choice has a layer, except colour schemes', () => {
 });
 
 test('every remote source host is allowed by the CSP', () => {
-  const allowed = new Set([...TILE_HOSTS, 'https://cdn.jsdelivr.net']);
+  // a host, or a host and path (CSP: a source ending in / allows what is under it)
+  const ok = (u) => TILE_HOSTS.some((h) => (h.endsWith('/') ? u.startsWith(h) : new URL(u).origin === h));
   for (const [id, src] of Object.entries(style.sources)) {
-    for (const u of [src.url, ...(src.tiles || [])].filter((x) => x && /^https?:/.test(x))) {
-      assert.ok(allowed.has(new URL(u).origin), `${id}: ${new URL(u).origin} not in TILE_HOSTS`);
-    }
+    for (const u of [src.url, ...(src.tiles || [])].filter((x) => x && /^https?:/.test(x))) assert.ok(ok(u), `${id}: ${u} not in TILE_HOSTS`);
   }
-  assert.ok(allowed.has(new URL(style.glyphs).origin), 'glyph host not allowed');
+  assert.ok(ok(DEM_TILES), 'the DEM (clip.js) not allowed');
+  assert.ok(ok(style.glyphs), 'glyph host not allowed');
 });
 
 const luminance = (hex) => {

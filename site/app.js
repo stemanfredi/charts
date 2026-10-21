@@ -981,20 +981,30 @@ function scaleNote() {
 const baseSources = new Set(ITEMS.filter((it) => it.group === 'base').flatMap((it) => (layersOf[it.id] || []).map((l) => l.source)));
 function creditParts() {
   const srcs = [];
-  for (const l of map.getStyle().layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none' && !srcs.includes(l.source)) srcs.push(l.source);
+  for (const l of style.layers) if (l.source && map.getLayoutProperty(l.id, 'visibility') !== 'none' && !srcs.includes(l.source)) srcs.push(l.source);
   srcs.sort((a, b) => baseSources.has(b) - baseSources.has(a));
   const parts = [...new Set(srcs.map((s) => map.getSource(s)?.attribution).filter(Boolean))];
   return parts.filter((p) => !parts.some((q) => q !== p && q.includes(p))); // a credit another holds: once
 }
-// as text, for the exports: parsed in an inert document (no image loads, no handlers run)
-const attributionText = () => creditParts().map((p) => new DOMParser().parseFromString(p, 'text/html').body.textContent).join(' · ');
-// on screen, once a frame at most, as the layers and sources change
-let creditsRaf = 0, creditsHtml = null;
+// a credit's markup, parsed in an inert document (no image loads, no handlers run)
+const parsed = (html) => new DOMParser().parseFromString(html, 'text/html').body;
+// as text, for the exports
+const attributionText = () => creditParts().map((p) => parsed(p).textContent).join(' · ');
+// on screen: their text, and their links (https only) as new links; no other markup is kept, so
+// a credit never adds anything to the page but text and links, whoever wrote it
+function creditNodes(html) {
+  return [...parsed(html).childNodes].map((n) => (n.nodeName === 'A' && /^https:\/\//.test(n.getAttribute('href'))
+    ? h('a', { href: n.getAttribute('href'), target: '_blank', rel: 'noopener noreferrer' }, n.textContent) : n.textContent));
+}
+// once a frame at most, as the layers and sources change
+let creditsRaf = 0, creditsKey = null;
 function renderCredits() {
   cancelAnimationFrame(creditsRaf);
   creditsRaf = requestAnimationFrame(() => {
-    const html = creditParts().join(' | ');
-    if (html !== creditsHtml) { creditsHtml = html; creditsText.innerHTML = html; } // the catalogue's own markup; Esri's text escaped (catalog.js)
+    const parts = creditParts(), key = parts.join(' | ');
+    if (key === creditsKey) return;
+    creditsKey = key;
+    creditsText.replaceChildren(...parts.flatMap((p, i) => [...(i ? [' | '] : []), ...creditNodes(p)]));
   });
 }
 map.on('styledata', renderCredits);
