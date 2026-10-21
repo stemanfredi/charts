@@ -278,10 +278,13 @@ function demMetres(url, signal) {
 // a pit drops out level by level. Only depressions are changed, which only ever makes water
 // shallower: shoals and banks (the hazards) are never removed. Each tile is filtered with a
 // MARGIN from its neighbours, and a patch reaching the edge of that area counts as large, so
-// neighbouring tiles agree.
+// neighbouring tiles agree. So does a patch longer than the margin, however few its pixels: a
+// thin one 60 px long could fit in one tile's area and reach past its neighbour's, which would
+// keep it, and the isobath would break at the tile edge; one no longer than the margin minus one
+// pixel, if it crosses into a tile, lies whole within both tiles' areas.
 const MIN_PX = 64; // about 0.8 km² at zoom 10, where the seabed data is ~1 km or coarser
 const MARGIN = 32;
-export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN_PX) {
+export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN_PX, maxSpan = MARGIN - 1) {
   let deepest = 0;
   for (const v of e) if (v < deepest) deepest = v;
   const seen = new Int32Array(w * h), stack = new Int32Array(w * h), patch = new Int32Array(minPx);
@@ -293,13 +296,14 @@ export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN
     for (let p = 0; p < w * h; p++) {
       if (e[p] >= t || seen[p] === stamp) continue;
       // the patch deeper than t that p belongs to (8-connected: diagonal neighbours join it)
-      let n = 0, top = 0, open = false;
+      let n = 0, top = 0, open = false, x0 = w, x1 = -1, y0 = h, y1 = -1;
       stack[top++] = p;
       seen[p] = stamp;
       while (top) {
         const q = stack[--top], x = q % w, y = (q - x) / w;
         if (n < minPx) patch[n] = q;
         n++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
         if (x === 0 || y === 0 || x === w - 1 || y === h - 1) open = true;
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
@@ -308,7 +312,7 @@ export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN
           }
         }
       }
-      if (!open && n < minPx) for (let k = 0; k < n; k++) e[patch[k]] = t + 0.01;
+      if (!open && n < minPx && x1 - x0 < maxSpan && y1 - y0 < maxSpan) for (let k = 0; k < n; k++) e[patch[k]] = t + 0.01;
     }
   }
   return e;
@@ -319,8 +323,11 @@ export function fillSmallDepressions(e, w, h, levels = DEPTH_LEVELS, minPx = MIN
 // (9.84375°E, Canale di Corsica). Two passes of a 3 × 3 [1 2 1] blur straighten it, applied only
 // within `band` pixels of the edges (`seams`: the first pixel after each edge, along both axes):
 // everywhere else, shoals included, the data stays exactly as it is. A blur that never deepens
-// would fix only the bends where the slope flattens, not where it steepens. Only sea pixels
-// change, averaged only with sea neighbours, so land never pulls coastal depths up.
+// would fix only the bends where the slope flattens, not where it steepens; but in shallow water
+// (above SHALLOW_M) a pixel keeps the shallower of its depth and the blurred one: a chart never
+// shows water deeper than its data (IHO S-4), and the bends that matter are on deep slopes. Only
+// sea pixels change, averaged only with sea neighbours, so land never pulls coastal depths up.
+const SHALLOW_M = 30;
 export function smoothSea(e, w, h, seams, passes = 2, band = 4) {
   const K = [1, 2, 1];
   const near = (v) => seams.some((s) => v >= s - band && v < s + band);
@@ -338,7 +345,7 @@ export function smoothSea(e, w, h, seams, passes = 2, band = 4) {
             if (v < 0) { const k = K[dx + 1] * K[dy + 1]; sum += k * v; wt += k; }
           }
         }
-        e[p] = sum / wt;
+        e[p] = src[p] > -SHALLOW_M ? Math.max(src[p], sum / wt) : sum / wt;
       }
     }
   }
@@ -378,19 +385,23 @@ export function clampCoastalSpikes(e, sea, w, h) {
   return e;
 }
 
-// Terrarium has blocks of sea filled with exactly 0 m at some zooms, while the zooms around them
-// have real depths (Gulf of Taranto: 70 % of a zoom-9 tile; off Bari: 89 % at zoom 9, 63 % at 10;
-// elsewhere at most a thin strip along the shore). A sea depth of exactly 0 is such a hole: it
-// takes the parent tile's value there (bilinear), where the parent has water. quadrant: [x & 1,
-// y & 1] of the tile within its parent. Returns e itself when it has no holes.
+// Terrarium has blocks of sea filled with 0 m at some zooms, a few cells of +1 m among them, while
+// the zooms around them have real depths (Gulf of Taranto: 70 % of a zoom-9 tile; off Bari: 89 % at
+// zoom 9, 63 % at 10; elsewhere at most a thin strip along the shore). A value of 0 or +1 m (the
+// data is in whole metres there) is such a hole: it takes the parent tile's value there (bilinear),
+// where the parent has water; the +1 m cells left alone showed as dry sea inside the block (the
+// tiles check found them). quadrant: [x & 1, y & 1] of the tile within its parent. Returns e
+// itself when it has no holes.
+const isHole = (v) => v >= 0 && v < 2;
+const hasHoles = (e) => e.some(isHole);
 export function fillZeroHoles(e, parent, [qx, qy]) {
-  if (!e.includes(0)) return e;
+  if (!hasHoles(e)) return e;
   const out = e.slice(), half = SIZE / 2;
   const at = (i, j) => parent[Math.min(SIZE - 1, Math.max(0, j)) * SIZE + Math.min(SIZE - 1, Math.max(0, i))];
   for (let j = 0; j < SIZE; j++) {
     const v = qy * half + (j + 0.5) / 2 - 0.5, j0 = Math.floor(v), fj = v - j0;
     for (let i = 0; i < SIZE; i++) {
-      if (out[j * SIZE + i] !== 0) continue;
+      if (!isHole(out[j * SIZE + i])) continue;
       const u = qx * half + (i + 0.5) / 2 - 0.5, i0 = Math.floor(u), fi = u - i0;
       const h = (at(i0, j0) * (1 - fi) + at(i0 + 1, j0) * fi) * (1 - fj) + (at(i0, j0 + 1) * (1 - fi) + at(i0 + 1, j0 + 1) * fi) * fj;
       if (h < 0) out[j * SIZE + i] = h;
@@ -403,7 +414,7 @@ const seaRawCache = lru(64);
 function seaMetres(template, z, x, y) {
   return seaRawCache(`${z}/${x}/${y}`, async () => {
     const e = await demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y));
-    if (!z || !e.includes(0)) return e;
+    if (!z || !hasHoles(e)) return e;
     return fillZeroHoles(e, await seaMetres(template, z - 1, x >> 1, y >> 1), [x & 1, y & 1]);
   });
 }

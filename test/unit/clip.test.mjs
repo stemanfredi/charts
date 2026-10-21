@@ -44,6 +44,36 @@ test('fillSmallDepressions: pits and pockets go, level by level; canyons, basins
   assert.ok([...e].every((v) => v === 120));
 });
 
+test('fillSmallDepressions: two neighbouring tiles treat a pit across their edge alike', () => {
+  // tiles of T px with margins of M, side by side along x; each is filtered in its own area
+  const T = 40, M = 8, H = 56, G = 4 * T, global = new Float32Array(G * H).fill(-20);
+  const seam = 2 * T, y = 28;
+  for (let x = seam - 12; x <= seam + 5; x++) global[y * G + x] = -300; // thin: 18 px long, 18 px in all
+  for (let yy = y + 10; yy <= y + 12; yy++) for (let x = seam - 1; x <= seam + 1; x++) global[yy * G + x] = -300; // compact: 3 × 3
+  const area = (k) => { // tile k's area, filtered: columns k·T − M to (k + 1)·T + M
+    const w = T + 2 * M, e = new Float32Array(w * H);
+    for (let j = 0; j < H; j++) for (let i = 0; i < w; i++) e[j * w + i] = global[j * G + k * T - M + i];
+    fillSmallDepressions(e, w, H, [5, 10, 50, 100, 200], 64, M - 1);
+    return (x, yy) => e[yy * w + x - (k * T - M)];
+  };
+  const left = area(1), right = area(2);
+  // each tile's own pixels of the thin pit: both keep it (longer than the margin), or the left
+  // tile would fill it while the right one, seeing it cut by its area's edge, kept it
+  assert.equal(left(seam - 3, y), -300);
+  assert.equal(right(seam + 3, y), -300);
+  // the compact pit lies whole in both areas: both raise it alike (to just above 50 m, the last
+  // drawn depth inside the 20 m water around it)
+  assert.ok(left(seam - 1, y + 11) > -51 && left(seam - 1, y + 11) === right(seam + 1, y + 11));
+});
+
+test('smoothSea: shallow water near a tile edge never gets deeper', () => {
+  const w = 30, e = new Float32Array(w * w).fill(-25);
+  e[15 * w + 10] = -4; // a shoal on the seam
+  smoothSea(e, w, w, [10]);
+  assert.equal(e[15 * w + 10], -4);
+  assert.ok([...e].every((v) => v >= -25), 'nothing deeper than the data');
+});
+
 test('smoothSea: a kink at a tile edge is smoothed either way; away from edges nothing changes', () => {
   const w = 30, row = 15;
   const bend = (a) => Math.abs((a[row * w + 11] - a[row * w + 10]) - (a[row * w + 10] - a[row * w + 9]));
@@ -97,9 +127,13 @@ test('fillZeroHoles: exact 0 m sea takes the parent depth; real values and land 
   for (let j = 0; j < S; j++) for (let i = 0; i < 20; i++) parent[j * S + i] = 50; // land on the parent's west edge
   const e = new Float32Array(S * S).fill(0); // the Taranto tile: sea read as 0 m
   e[100 * S + 100] = -30; // a real depth stays
+  e[150 * S + 150] = 1; // +1 m among the zeros: a hole too
+  e[160 * S + 160] = 3; // higher: the DEM's own land, left alone
   const out = fillZeroHoles(e, parent, [0, 0]);
   assert.equal(out[100 * S + 100], -30);
   assert.ok(Math.abs(out[200 * S + 200] + 800) < 1e-3, 'hole takes the parent depth');
+  assert.ok(Math.abs(out[150 * S + 150] + 800) < 1e-3, 'a +1 m cell in the block too');
+  assert.equal(out[160 * S + 160], 3);
   assert.equal(out[100 * S + 2], 0, 'where the parent is land, 0 stays (shown as the shallowest class)');
   assert.equal(e[200 * S + 200], 0, 'input untouched (it is a cached tile)');
   const real = new Float32Array(S * S).fill(-5);
