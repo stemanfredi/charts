@@ -370,7 +370,9 @@ const KINDS = {
       DENSITY[it.id].periods.map((p) => h('option', { value: p }, DENSITY[it.id].periodLabel(p))))],
     render(it, el) { $('select.period', el).value = state.period[it.id]; },
     legend(id, el) {
-      const d = DENSITY[id];
+      const d = DENSITY[id], key = `${state.variant[id]}|${state.period[id]}`;
+      if (el.dataset.key === key) return; // drawn as it is
+      el.dataset.key = key;
       drawRamp(el, d.title, `${d.unit} · ${d.types[state.variant[id]]} · ${d.periodLabel(state.period[id])}`, d.stops);
       el.setAttribute('aria-label', `${d.title} legend: ${d.stops.map(([v]) => v).join(', ')} ${d.unit}`);
     },
@@ -466,13 +468,13 @@ function setDepth(d) {
   state.depth = d;
   for (const it of depthOn()) kindOf(it.id).show(it.id);
   writeHash();
-  renderMenu();
+  renderWhen(); // nothing else says the depth
 }
 function setTime(t) {
   state.time = within(t); // on the hour, at a time every layer on has
   for (const it of timeOn()) kindOf(it.id).show(it.id);
   writeHash();
-  renderMenu();
+  renderWhen(); // nothing else says the time
 }
 // ---- the map's settings: the time and the depth, for every layer that uses them -------------
 // Set on one line at the head of the Layers panel, read beside the coordinates. The time is a
@@ -736,8 +738,10 @@ function groupBlock(g) {
 const groupEls = GROUPS.map(groupBlock);
 menu.append(...groupEls);
 
+// the panel and what follows the state (the time line, status marks, legends), after a change of
+// what is on or how it is drawn; a step of the time or the depth renders the time line alone, a
+// zoom the rows' zoom hints and the legends (renderZoom)
 function renderMenu() {
-  const z = map.getZoom();
   for (const it of ITEMS) {
     const r = rows[it.id];
     if (!r) continue; // Ocean data: below
@@ -747,10 +751,6 @@ function renderMenu() {
     r.controls.hidden = !on || !(it.variants || kindOf(it.id)?.controls);
     if (on) kindOf(it.id)?.render?.(it, r.controls);
     if (r.infos && r.more.getAttribute('aria-expanded') === 'true') r.infos[it.id].hidden = !on;
-    const low = it.minzoom && z < it.minzoom, high = it.maxzoom && z >= it.maxzoom + 1;
-    r.row.classList.toggle('dim', !!(on && (low || high)));
-    const hint = r.row.querySelector('.hint');
-    if (hint) hint.textContent = !on ? '' : low ? `zoom ${it.minzoom}+` : high ? `zoom ≤ ${it.maxzoom}` : '';
     const sel = r.controls.querySelector('select.variant');
     if (sel) sel.value = state.variant[it.id];
     const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
@@ -769,6 +769,19 @@ function renderMenu() {
     g.querySelector('.count').textContent = g._exclusive || !n ? '' : String(n);
   }
   renderStatus();
+  renderZoom();
+}
+// a layer on, out of its zoom range: greyed out, "zoom 9+"; the legends (depth shading's goes above zoom 12)
+function renderZoom() {
+  const z = map.getZoom();
+  for (const it of ITEMS) {
+    const r = rows[it.id];
+    if (!r) continue;
+    const on = state.on.has(it.id), low = it.minzoom && z < it.minzoom, high = it.maxzoom && z >= it.maxzoom + 1;
+    r.row.classList.toggle('dim', !!(on && (low || high)));
+    const hint = r.row.querySelector('.hint');
+    if (hint) hint.textContent = !on ? '' : low ? `zoom ${it.minzoom}+` : high ? `zoom ≤ ${it.maxzoom}` : '';
+  }
   renderLegends();
 }
 
@@ -786,8 +799,9 @@ function renderLegends() {
   if (on('depth') && on('chart') && map.getZoom() < 13) want.push('depth');
   for (const it of ITEMS) if (on(it.id) && kindOf(it.id)?.legend) { kindOf(it.id).legend(it.id, legendEl(it.id)); want.push(it.id); }
   legendWant = want;
-  if (want.includes('depth')) {
+  if (want.includes('depth') && legendEl('depth').dataset.key !== state.variant.depth) {
     const el = legendEl('depth');
+    el.dataset.key = state.variant.depth;
     drawRamp(el, 'Depth shading', 'm · approximate (DEM)', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
     el.setAttribute('aria-label', `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`);
   }
@@ -1387,7 +1401,7 @@ map.on('load', () => {
 map.on('moveend', writeHash);
 let moveRaf = 0; // once per frame while moving: the graticule's edge labels follow the frame, the scale note and units the view
 map.on('move', () => { cancelAnimationFrame(moveRaf); moveRaf = requestAnimationFrame(() => { updateGraticule(); scaleNote(); scaleUnits(); }); });
-map.on('zoomend', renderMenu);
+map.on('zoomend', renderZoom);
 map.on('dataloading', () => document.body.classList.add('loading'));
 map.on('idle', () => document.body.classList.remove('loading'));
 window.addEventListener('hashchange', () => location.reload());

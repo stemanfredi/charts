@@ -3,12 +3,6 @@
 What is known and not done yet. The app is the reference for what it does; this file
 lists only what it does not do, or not well enough.
 
-## Open
-
-- **The panel's redraw redraws everything.** `renderMenu` (app.js) also redraws the
-  time line, the status marks and the legends, on every change and every zoom: split
-  it by what each change touches.
-
 ## Parked
 
 - **Measure: editing a drawn measurement** (dragging its points); today it is deleted

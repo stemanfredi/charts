@@ -88,6 +88,17 @@ try {
   check(rowsOn === 'shown' && tcDay && tcT.startsWith(tcDay) && tcDay <= new Date().toISOString().slice(0, 10) && !tcNotes, `NASA true colour: the tiles are of the day shown, no later than today, no note (${tcDay}, t=${tcT})`);
   await tc.close();
 
+  // a zoom alone updates what depends on it: a layer out of its range greyed out with its hint,
+  // the depth shading's legend gone above zoom 12
+  const zm = await open('#v=8/43.6/13.6/0&on=chart,coastline,depth,seamarks,legend&menu=1&g=sea');
+  const zoomed = () => zm.evaluate(() => [document.querySelector('.item:has(#i-seamarks) .hint').textContent, document.querySelector('.item:has(#i-seamarks)').classList.contains('dim'), !!document.querySelector('#legends canvas[data-legend=depth]')]);
+  const z8 = await zoomed();
+  await zm.evaluate(() => map.jumpTo({ zoom: 13.5 }));
+  await zm.waitForTimeout(500);
+  const z13 = await zoomed();
+  check(z8.join() === 'zoom 9+,true,true' && z13.join() === ',false,false', `a zoom updates the hints and legends (zoom 8: ${z8}; 13.5: ${z13})`);
+  await zm.close();
+
   // search: coordinates are read on the page (no request); a place comes from Photon
   const sp = await open('#v=6/41/12/0&menu=0');
   const near = (lat, lon, tol) => sp.evaluate(({ lat, lon, tol }) => { const c = map.getCenter(); return Math.abs(c.lat - lat) < tol && Math.abs(c.lng - lon) < tol; }, { lat, lon, tol });
