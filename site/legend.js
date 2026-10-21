@@ -143,7 +143,8 @@ export function drawClasses(el, text, sub, classes) {
 
 // A WMS's legend as JSON (GeoServer's GetLegendGraphic, format=application/json) → classes for
 // drawClasses, without images: each rule's title (without a numbering, "2. Sand", "A: SPA") and how
-// it is drawn: a fill at its opacity and its outline (a hatch: its outline's colour, faint), a line
+// it is drawn: a fill at its opacity and its outline (a hatch: its outline's colour, faint; a hatch
+// without an outline is left out, its colour unknown), a line
 // on its casing (two strokes), or a point's symbol, by URL (icon). Rules filled white (no data,
 // as a fill) are left out.
 export function wmsClasses(json) {
@@ -154,7 +155,7 @@ export function wmsClasses(json) {
     if (lines.length) return { label, line: true, colour: lines.at(-1), ...(lines.length > 1 && { casing: lines[0] }) };
     if (of('Point')?.url) return { label, icon: of('Point').url };
     const p = of('Polygon') || of('Raster') || {};
-    if (!p.fill && !p['graphic-fill']) return { label };
+    if (!p.fill && !(p['graphic-fill'] && p.stroke)) return { label }; // a hatch's colour is its outline's: none, nothing to draw
     if (p.fill?.toUpperCase() === '#FFFFFF' && !p.stroke) return { label }; // no data
     return { label, colour: p.fill ? rgba(p.fill, +(p['fill-opacity'] ?? 1)) : rgba(p.stroke, 0.35), ...(p.stroke && { stroke: p.stroke }) };
   }).filter((c) => c.label && (c.colour || c.icon));
