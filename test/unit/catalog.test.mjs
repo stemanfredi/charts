@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
 import { buildStyle } from '../../site/style.js';
 import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
 import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
@@ -149,4 +149,15 @@ test('Copernicus depth: levels from capabilities, the nearest one to the depth c
   assert.equal(nearestLevel(levels, 1000), '-110.0', 'below the deepest: the deepest');
   assert.equal(nearestLevel([], 100), null, 'a variable without depth');
   assert.deepEqual(depthLevels(xml.replace('elevation', 'x'), 'thetao'), []);
+});
+
+test('every overlay drawn in colours or symbols has a legend, and Europe-only layers say so', () => {
+  for (const id of Object.keys(OVERLAYS)) {
+    const it = ITEMS.find((i) => i.id === id);
+    const legend = it.kind === 'classes' ? CLASS_LEGENDS[id] : it.kind === 'emodnet' ? EMODNET_DEPTH_STOPS : null;
+    assert.ok(legend, `${id}: no legend`);
+    if (it.kind === 'classes') for (const v of Object.keys(it.variants || { all: 1 })) assert.ok(CLASS_LEGENDS[id](v), `${id} ${v}: no legend`);
+  }
+  // EMODnet's and EMSA's data cover European seas, but for the UKHO's wrecks (worldwide)
+  for (const it of ITEMS) if (it.group !== 'labels' && /EMODnet|EMSA/.test(it.info.src) && !/worldwide/.test(it.info.res)) assert.match(it.label, /\(Europe\)$/, `${it.id}: Europe only, not in its name`);
 });

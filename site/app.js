@@ -1,10 +1,10 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
-import { drawRamp, drawColormap, drawClasses } from './legend.js';
+import { drawRamp, drawColormap, drawClasses, wmsClasses } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, NOTE_AT, exportName } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
 import { affine, worldFile, pamXml, stacItem } from './export.js';
@@ -336,20 +336,34 @@ async function cmemsDrawn(id, at = { variant: variantOf(id), t: state.time, dept
   return { time: times[k], level: levels[k] };
 }
 
-// a classed layer's classes, from its service's JSON legend: the rules with a fill, their titles
-// without the service's numbering ("2. Sand" → "Sand")
-const classLegends = {};
-function classesOf(url) {
-  return memo(classLegends, url, () => fetch(url, FETCH)
-    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then((j) => j.Legend.flatMap((l) => l.rules).map((r) => ({ label: (r.title || r.name || '').replace(/^\d+\.\s*/, ''), colour: (r.symbolizers[0].Polygon || r.symbolizers[0].Raster || {}).fill }))
-      .filter((c) => c.colour && c.colour.toUpperCase() !== '#FFFFFF' && c.label)));
+// a classed layer's classes, from its services' JSON legends (legend.js wmsClasses): a class drawn
+// by several (an area, and a point where it is too small) once, with its fill and its symbol; the
+// symbols loaded as pictures (one that does not load is left out, its class kept)
+const classLegends = {}, icons = {};
+const iconOf = (url) => memo(icons, url, () => fetch(url, FETCH).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); }).then(createImageBitmap));
+function classesOf(urls) {
+  return memo(classLegends, urls.join(' '), async () => {
+    const all = (await Promise.all(urls.map((url) => fetch(url, FETCH).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(wmsClasses)))).flat();
+    const byLabel = new Map();
+    for (const c of all) {
+      const label = CLASS_LABELS[c.label] || c.label, had = byLabel.get(label);
+      if (!had) byLabel.set(label, { ...c, label }); else if (c.icon && !had.icon) had.icon = c.icon;
+    }
+    return Promise.all([...byLabel.values()].map(async ({ icon, ...c }) => ({ ...c, ...(icon && { image: await iconOf(icon).catch(() => undefined) }) })));
+  });
 }
 
 const KINDS = {
   // EMODnet's depth, drawn by EMODnet (tiles); its values from its Zarr store
   emodnet: {
     show: (id) => applyItem(id),
+    legend(id, el) {
+      const v = state.variant[id], stops = EMODNET_DEPTH_STOPS[v];
+      if (el.dataset.key === v) return;
+      el.dataset.key = v;
+      drawRamp(el, byId[id].label, 'm · not linear', stops);
+      el.setAttribute('aria-label', `${byId[id].label} legend: ${stops.map(([d]) => d).join(', ')} metres`);
+    },
     record: async () => ({}),
     values: (it, box) => emodnetValues(box),
   },
@@ -357,11 +371,13 @@ const KINDS = {
   classes: {
     show: (id) => applyItem(id),
     legend(id, el) {
-      const src = CLASS_LEGENDS[id](state.variant[id]), url = typeof src === 'string' ? src : `${id}:${state.variant[id]}`; // a URL, or the classes themselves
-      if (el.dataset.key === url) return;
-      el.dataset.key = url;
-      (typeof src === 'string' ? classesOf(src) : Promise.resolve(src)).then((cls) => {
-        if (el.dataset.key !== url) return; // switched meanwhile
+      // the URL of its service's legend, the URLs of several, or the classes themselves
+      const src = CLASS_LEGENDS[id](state.variant[id]), urls = typeof src === 'string' ? [src] : typeof src[0] === 'string' ? src : null;
+      const key = urls ? urls.join(' ') : `${id}:${state.variant[id]}`;
+      if (el.dataset.key === key) return;
+      el.dataset.key = key;
+      (urls ? classesOf(urls) : Promise.resolve(src)).then((cls) => {
+        if (el.dataset.key !== key) return; // switched meanwhile
         drawClasses(el, byId[id].label, [byId[id].variants?.[state.variant[id]], byId[id].legendSub].filter(Boolean).join(' · '), cls);
         el.setAttribute('aria-label', `${byId[id].label} legend: ${cls.map((c) => c.label).join(', ')}`);
         renderLegends(); // drawn after the stack was laid out: lay it out again with its size

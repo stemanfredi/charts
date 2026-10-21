@@ -5,7 +5,7 @@
 const W = 236, H = 44, KEY = 16, BAR = { x: 8, y: 20, w: 220, h: 9 };
 const INK = '#2b3a46', SOFT = '#5d6d79';
 
-// noData: optional { colour, label } key drawn on an extra row below the bar; height: another height
+// height: the canvas's, H by default (and a row more for a noData key, see head)
 function canvas(el, noData, height) {
   // one canvas pixel per screen pixel, in whole screen pixels (at a display scale of 125% too: its
   // CSS size follows), or the browser resamples it and the text blurs
@@ -18,26 +18,36 @@ function canvas(el, noData, height) {
   g.scale(el.width / W, el.height / h);
   g.fillStyle = 'rgba(255,255,255,0.92)';
   g.fillRect(0, 0, W, h);
-  if (noData) {
+  g.font = '600 11px system-ui, sans-serif';
+  g.textBaseline = 'alphabetic';
+  return g;
+}
+// the canvas with its title and, beside it, its subtitle; on a line of its own below when it would
+// not fit beside it (the rest is then drawn that much lower: the context is moved down)
+const SUB_LINE = 13;
+function head(el, text, sub, noData, height) {
+  const m = el.getContext('2d');
+  m.font = '600 11px system-ui, sans-serif';
+  const w = m.measureText(text).width;
+  m.font = '11px system-ui, sans-serif';
+  const below = !!sub && BAR.x + w + 6 + m.measureText(sub).width > W - 4;
+  const g = canvas(el, noData, (height || H + (noData ? KEY : 0)) + (below ? SUB_LINE : 0));
+  g.fillStyle = INK;
+  g.fillText(text, BAR.x, 14);
+  if (sub) {
+    g.font = '11px system-ui, sans-serif';
+    g.fillStyle = SOFT;
+    if (below) g.fillText(sub, BAR.x, 14 + SUB_LINE, W - BAR.x - 4); else g.fillText(sub, BAR.x + w + 6, 14);
+  }
+  if (below) g.translate(0, SUB_LINE);
+  if (noData) { // noData: { colour, label }, a key on a row of its own below the bar
     g.fillStyle = noData.colour;
     g.fillRect(BAR.x, H + 1, 14, 9);
     g.strokeStyle = INK; g.lineWidth = 1; g.strokeRect(BAR.x + 0.5, H + 1.5, 13, 8);
     g.fillStyle = SOFT; g.font = '10px system-ui, sans-serif';
     g.fillText(noData.label, BAR.x + 20, H + 9.5);
   }
-  g.font = '600 11px system-ui, sans-serif';
-  g.textBaseline = 'alphabetic';
   return g;
-}
-function title(g, text, sub) {
-  g.fillStyle = INK;
-  g.fillText(text, BAR.x, 14);
-  if (sub) {
-    const w = g.measureText(text).width;
-    g.font = '11px system-ui, sans-serif';
-    g.fillStyle = SOFT;
-    g.fillText(sub, BAR.x + w + 6, 14, W - BAR.x - w - 10);
-  }
 }
 function ticks(g, marks) {
   g.font = '10px system-ui, sans-serif';
@@ -65,8 +75,7 @@ function ticks(g, marks) {
 
 // Continuous depth ramp; stops sit at equal widths (the depth axis is not linear).
 export function drawRamp(el, text, sub, stops, noData) {
-  const g = canvas(el, noData);
-  title(g, text, sub);
+  const g = head(el, text, sub, noData);
   const n = stops.length - 1, seg = BAR.w / n;
   for (let i = 0; i < n; i++) {
     const gr = g.createLinearGradient(BAR.x + i * seg, 0, BAR.x + (i + 1) * seg, 0);
@@ -81,8 +90,7 @@ export function drawRamp(el, text, sub, stops, noData) {
 // open: whether values run on beyond the first and last colour ('<' and '≥' on the end labels);
 // log: entries are log10 of the values, ticked at whole decades (0.01, 0.1, 1, 10)
 export function drawColormap(el, text, sub, entries, open = [true, true], log = false) {
-  const g = canvas(el);
-  title(g, text, sub);
+  const g = head(el, text, sub);
   const finite = entries.flatMap((e) => [e.lo, e.hi]).filter(Number.isFinite);
   const lo = Math.min(...finite), hi = Math.max(...finite);
   const x = (v) => BAR.x + ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * BAR.w;
@@ -104,23 +112,50 @@ export function drawColormap(el, text, sub, entries, open = [true, true], log = 
   ticks(g, marks);
 }
 
-// Classes of a categorical layer ([{ label, colour, line, casing }]): a swatch (a line, for line:
-// true, on its casing colour if any) and its name, two to a row
+// Classes of a categorical layer ([{ label, colour, stroke, line, casing, image }]): how each is
+// drawn and its name, two to a row, or one where a name is too long for half the width. A fill
+// (colour) with its outline (stroke, or ink); a line (line: true) on its casing colour if any; a
+// point's symbol (image, a loaded picture), beside the fill when there are both
 export function drawClasses(el, text, sub, classes) {
-  const rows = Math.ceil(classes.length / 2);
-  const g = canvas(el, null, 24 + rows * 14);
-  title(g, text, sub);
+  const g0 = el.getContext('2d');
+  g0.font = '10px system-ui, sans-serif';
+  const room = (c) => 17 + (c.image && (c.colour || c.line) ? 14 : 0);
+  const cols = classes.every((c) => g0.measureText(c.label).width <= 108 - room(c)) ? 2 : 1;
+  const g = head(el, text, sub, null, 24 + Math.ceil(classes.length / cols) * 14);
   g.font = '10px system-ui, sans-serif';
-  classes.forEach(({ label, colour, line, casing }, i) => {
-    const x = BAR.x + (i % 2) * 112, y = 20 + Math.floor(i / 2) * 14;
+  classes.forEach((c, i) => {
+    const { label, colour, stroke, line, casing, image } = c;
+    const x = BAR.x + (i % cols) * 112, y = 20 + Math.floor(i / cols) * 14;
     if (line) { // a line, on its casing if it has one
-      for (const [c, w] of [[casing, 5], [colour, casing ? 2 : 3]]) if (c) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(x, y + 4.5); g.lineTo(x + 12, y + 4.5); g.stroke(); }
-    } else {
+      for (const [col, w] of [[casing, 5], [colour, casing ? 2 : 3]]) if (col) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(x, y + 4.5); g.lineTo(x + 12, y + 4.5); g.stroke(); }
+    } else if (colour) {
+      g.fillStyle = '#ffffff'; // a translucent fill as on the white sea
+      g.fillRect(x, y, 12, 9);
       g.fillStyle = colour;
       g.fillRect(x, y, 12, 9);
-      g.strokeStyle = INK; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, 11, 8);
+      g.strokeStyle = stroke || INK; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, 11, 8);
     }
+    if (image) g.drawImage(image, x + room(c) - 17, y - 1.5, 12, 12);
     g.fillStyle = INK;
-    g.fillText(label, x + 17, y + 8.5, 92);
+    g.fillText(label, x + room(c), y + 8.5, (cols === 2 ? 108 : 220) - room(c));
   });
+}
+
+// A WMS's legend as JSON (GeoServer's GetLegendGraphic, format=application/json) → classes for
+// drawClasses, without images: each rule's title (without a numbering, "2. Sand", "A: SPA") and how
+// it is drawn: a fill at its opacity and its outline (a hatch: its outline's colour, faint), a line
+// on its casing (two strokes), or a point's symbol, by URL (icon). Rules filled white (no data,
+// as a fill) are left out.
+export function wmsClasses(json) {
+  const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  return json.Legend.flatMap((l) => l.rules).map((r) => {
+    const label = (r.title || r.name || '').replace(/^(\d+\.|[A-Z]:)\s*/, ''), of = (k) => r.symbolizers.find((s) => s[k])?.[k];
+    const lines = r.symbolizers.filter((s) => s.Line).map((s) => s.Line.stroke);
+    if (lines.length) return { label, line: true, colour: lines.at(-1), ...(lines.length > 1 && { casing: lines[0] }) };
+    if (of('Point')?.url) return { label, icon: of('Point').url };
+    const p = of('Polygon') || of('Raster') || {};
+    if (!p.fill && !p['graphic-fill']) return { label };
+    if (p.fill?.toUpperCase() === '#FFFFFF' && !p.stroke) return { label }; // no data
+    return { label, colour: p.fill ? rgba(p.fill, +(p['fill-opacity'] ?? 1)) : rgba(p.stroke, 0.35), ...(p.stroke && { stroke: p.stroke }) };
+  }).filter((c) => c.label && (c.colour || c.icon));
 }
