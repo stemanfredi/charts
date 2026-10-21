@@ -74,15 +74,15 @@ try {
   check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
   await pv.close();
 
-  // NASA true colour at the current hour: today's tiles if NASA has today, else its newest day,
-  // said so under its row
+  // NASA true colour opened at now: the time goes no later than NASA's newest day, and the tiles
+  // are of the day shown (no older day passed off as it)
   const tc = await open('#v=5/40/10/0&menu=1&g=observed&on=chart,coastline,gibs');
-  await tc.waitForFunction(() => map.getLayoutProperty('gibs-terra', 'visibility') === 'visible', null, { timeout: 20000 }).catch(() => {});
-  const [tcNote, tcHidden, tcTiles, rowsOn] = await tc.evaluate(() => [document.querySelector('.item:has(#i-gibs) .latest').textContent, document.querySelector('.item:has(#i-gibs) .latest').hidden,
-    map.getSource('gibs-terra').tiles[0], document.querySelector('#when').hidden ? 'hidden' : 'shown']);
-  const tcDay = /\/(\d{4}-\d{2}-\d{2})\//.exec(tcTiles)?.[1] || '', todayUtc = new Date().toISOString().slice(0, 10);
-  const said = `latest: ${new Date(`${tcDay}T00:00:00Z`).toUTCString().slice(0, 11)}`;
-  check(rowsOn === 'shown' && (tcDay === todayUtc ? tcHidden : !tcHidden && tcNote === said), `NASA true colour: today or its newest day, said so; the time line shown (${tcDay}; ${tcHidden ? 'no note' : tcNote})`);
+  await tc.waitForFunction(() => map.getLayoutProperty('gibs-terra', 'visibility') === 'visible' && /t=/.test(location.hash), null, { timeout: 20000 }).catch(() => {});
+  await tc.waitForTimeout(500);
+  const [tcTiles, tcHash, rowsOn, tcNotes] = await tc.evaluate(() => [map.getSource('gibs-terra').tiles[0], location.hash, document.querySelector('#when').hidden ? 'hidden' : 'shown',
+    document.querySelectorAll('.item .note:not([hidden])').length]);
+  const tcDay = /\/(\d{4}-\d{2}-\d{2})\//.exec(tcTiles)?.[1] || '', tcT = /t=([\d-]+T\d\d)/.exec(tcHash)?.[1] || '';
+  check(rowsOn === 'shown' && tcDay && tcT.startsWith(tcDay) && tcDay <= new Date().toISOString().slice(0, 10) && !tcNotes, `NASA true colour: the tiles are of the day shown, no later than today, no note (${tcDay}, t=${tcT})`);
   await tc.close();
 
   // search: coordinates are read on the page (no request); a place comes from Photon
@@ -162,18 +162,26 @@ try {
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
   await cm.close(); await cmAgain.close();
-  // water properties at a depth from the link: each model at its nearest level, said so
+  // water properties at a depth from the link: "≈ 100 m" beside the time, each model at its own
+  // level (the export records it), no note under the row
   const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');
-  await wp.waitForFunction(() => /at \d+ m/.test(document.querySelector('.item:has(#i-temperature) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
-  const [wpNote, wpDepth, wpBroken] = await wp.evaluate(() => [document.querySelector('.item:has(#i-temperature) .cmems-note').textContent, document.querySelector('#when .depthsel select').value + ' ' + document.querySelector('#shown').textContent,
-    [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(/^100 .* · 100 m$/.test(wpDepth) && /global: at \d+ m · Mediterranean: at \d+ m/.test(wpNote) && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set and shown on the time line: ${wpDepth}; ${wpNote} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
+  await wp.waitForFunction(() => !!document.querySelector('#legends canvas[data-legend=temperature]')?.style.width, null, { timeout: 30000 }).catch(() => {});
+  const [wpDepth, wpNotes, wpBroken] = await wp.evaluate(() => [document.querySelector('#when .depthsel select').value + ' ' + document.querySelector('#shown').textContent,
+    document.querySelectorAll('.item .note:not([hidden])').length, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
+  check(/^100 .* · ≈ 100 m$/.test(wpDepth) && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set on the time line and shown as "≈ 100 m": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
   await wp.close();
-  // a satellite observation at the current hour: its latest day, said so
+  // a satellite observation opened at now: the time goes no later than its latest day, and the
+  // day shown is the day drawn
   const ob = await open('#v=5/40/10/0&on=chart,coastline,sst,legend&menu=1&g=observed');
-  await ob.waitForFunction(() => /latest:/.test(document.querySelector('.item:has(#i-sst) .cmems-note')?.textContent || ''), null, { timeout: 30000 }).catch(() => {});
-  const [obNote, obBroken] = await ob.evaluate(() => [document.querySelector('.item:has(#i-sst) .cmems-note').textContent, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(/Mediterranean: latest: /.test(obNote) && !obBroken.length && !ob.errors.length, `sea surface temperature shows its latest day: ${obNote} ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);
+  await ob.waitForFunction(() => /t=/.test(location.hash) && !!document.querySelector('#legends canvas[data-legend=sst]')?.style.width, null, { timeout: 30000 }).catch(() => {});
+  await ob.waitForTimeout(1500);
+  const [obT, obWithin, obShown, obDay, obBroken] = await ob.evaluate(() => {
+    const t = /t=([\d-]+T\d\d)/.exec(location.hash)?.[1] || '', ms = Date.parse(`${t}:00:00Z`);
+    return [t, ms <= new Date(document.querySelector('#when input').max).getTime(), document.querySelector('#shown').textContent,
+      `${new Date(ms).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${new Date(ms).getUTCDate()}`, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)];
+  });
+  check(obT && obWithin && (obShown === 'Today' || obShown === obDay) && !obBroken.length && !ob.errors.length,
+    `sea surface temperature: the time within its days, its day shown (t=${obT}, ${obShown}) ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);
   await ob.close();
 
   // PNG export

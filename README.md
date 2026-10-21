@@ -60,9 +60,11 @@ nitrate, primary production); satellite sea surface temperature (and its anomaly
 chlorophyll and sea level anomaly. Daily products show the day of that hour, and
 variables with depth are drawn at one depth, chosen on the same line. NASA daily
 is true colour: the day as the satellite saw it. In the Mediterranean they come from
-the regional products, elsewhere from the global ones. Observations (wind and
-the satellite layers, NASA daily too) are published late: after their latest day
-or hour they show it, and say so.
+the regional products, elsewhere from the global ones. Everything is drawn at
+the time shown, each dataset at its own time resolution (an hour, the global
+waves' three hours, a day), and the time can only be one every layer that is on
+has: observations (wind and the satellite layers, NASA daily too) are published
+late, so while one is on the time goes no later than its latest day or hour.
 
 Esri imagery is not open data: it is used under Esri's terms of use. The EOX
 2024 mosaic does not allow commercial use. Vessel and route density cover European and neighbouring

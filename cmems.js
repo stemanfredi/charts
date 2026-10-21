@@ -1,7 +1,7 @@
 // Copernicus Marine layers on the map (catalog.js CMEMS): a tile handler that draws an item's
 // datasets into one tile, each at its own time step for the hour asked, the global first and the
 // regional one over it; the datasets' time ranges, read from their own capabilities; legends.
-import { CMEMS, cmemsStyle, cmemsTileUrl, cmemsLegendUrl, cmemsCapsUrl, timeDomain, snapTime, domainEndMs, depthLevels, nearestLevel } from './catalog.js';
+import { CMEMS, cmemsStyle, cmemsTileUrl, cmemsLegendUrl, cmemsCapsUrl, timeDomain, snapTime, depthLevels, nearestLevel } from './catalog.js';
 
 const FETCH = { credentials: 'omit', referrerPolicy: 'no-referrer' };
 // regional datasets (by product name: MEDSEA_…, SST_MED_…, OCEANCOLOUR_MED_…): drawn only within
@@ -31,14 +31,10 @@ export function domainOf(part) {
     .catch((e) => { delete domains[part]; throw e; }));
 }
 
-// for each part of item/variant: the time it draws for t (ms), null outside its range (an
-// observation: its latest step, for t after it), or undefined if its range is not known
+// for each part of item/variant: the time it draws for t (ms), its step holding t; null outside its
+// range, or undefined if its range is not known
 export function partTimes(item, variant, t) {
-  const v = CMEMS[item][variant];
-  return Promise.all(v.parts.map((p) => domainOf(p).then(({ time }) => {
-    const s = snapTime(time, t), end = domainEndMs(time);
-    return s === null && v.observed && t > end ? snapTime(time, end) : s;
-  }, () => undefined)));
+  return Promise.all(CMEMS[item][variant].parts.map((p) => domainOf(p).then(({ time }) => snapTime(time, t), () => undefined)));
 }
 // for each part: the depth level drawn for depth (m), as the service lists it; null for a variable
 // without depth (or if its levels are not known: the service then draws its default, the top)
