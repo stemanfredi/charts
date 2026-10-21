@@ -1,0 +1,12 @@
+// npm run lint: the recommended rules, with the globals each part runs among. The site's
+// modules run in the page and in workers; tests and tools in Node.
+import js from '@eslint/js';
+import globals from 'globals';
+
+export default [
+  js.configs.recommended,
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
+  { files: ['site/**/*.js'], languageOptions: { globals: { ...globals.browser, ...globals.worker, geodesic: 'readonly' } } },
+  { files: ['test/**/*.mjs', 'tools/**/*.mjs', '*.mjs'], languageOptions: { globals: { ...globals.node, ...globals.browser, map: 'readonly' } } }, // map: in page.evaluate
+  { rules: { 'no-unused-vars': ['error', { caughtErrors: 'none' }] } },
+];

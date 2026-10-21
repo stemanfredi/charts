@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { zip, crc32 } from '../../zip.js';
+import { zip, crc32 } from '../../site/zip.js';
 
 // a reader for what zip() writes: central directory → { name: bytes }
 async function unzip(blob) {

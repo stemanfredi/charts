@@ -1,13 +1,13 @@
-// Tiny static server (repo root as web root) with caching off, so the browser always runs the
-// current files. Used by the browser tests, and by `npm run serve` for development:
-//   npm run serve                 http://<this machine>:8000/ on all interfaces, like python3 -m http.server
-//   npm run serve -- --port 8080 --host 127.0.0.1
+// Tiny static server (site/ as web root: what is published, nothing else) with caching off, so
+// the browser always runs the current files. Used by the browser tests, and by `npm run serve`:
+//   npm run serve                 http://127.0.0.1:8000/, this machine only
+//   npm run serve -- --host 0.0.0.0 --port 8080   also from a phone on the LAN
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../site/', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
 export async function serve({ port = 0, host = '127.0.0.1' } = {}) {
@@ -24,7 +24,7 @@ export async function serve({ port = 0, host = '127.0.0.1' } = {}) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const arg = (name, fallback) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : fallback; };
-  const { url } = await serve({ port: +arg('port', 8000), host: arg('host', '0.0.0.0') });
+  const { url } = await serve({ port: +arg('port', 8000), host: arg('host', '127.0.0.1') });
   console.log(`serving ${ROOT} at ${url} (no caching; Ctrl+C stops)`);
 }
 

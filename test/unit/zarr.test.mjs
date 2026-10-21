@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { unblosc, decode, timeScale, nearest, cellsOf, openStore, readCells } from '../../zarr.js';
+import { unblosc, decode, timeScale, nearest, cellsOf, openStore, readCells } from '../../site/zarr.js';
 
 // Blosc buffers made by numcodecs (the reference): 1,000,000 bytes of int16 in four blocks, the last
 // short, byte-shuffled; 300 float32, shuffled; 40 int32 stored as is (clevel 0)

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { clipLine, joinLines, viewFeatures } from '../../vector.js';
+import { clipLine, joinLines, viewFeatures } from '../../site/vector.js';
 
 // on the page polygon-clipping is a classic script on window; here the same pinned package
 const polygonClipping = createRequire(import.meta.url)('polygon-clipping');

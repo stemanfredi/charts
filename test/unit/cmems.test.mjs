@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CMEMS } from '../../catalog.js';
-import { regionOf } from '../../cmems.js';
+import { CMEMS } from '../../site/catalog.js';
+import { regionOf } from '../../site/cmems.js';
 
 test('regionOf: Mediterranean products by name, whatever their family; global ones none', () => {
   for (const p of ['MEDSEA_ANALYSISFORECAST_WAV_006_017/x/VHM0', 'SST_MED_SST_L4_NRT_OBSERVATIONS_010_004/x/analysed_sst', 'OCEANCOLOUR_MED_BGC_L4_NRT_009_142/x/CHL']) {

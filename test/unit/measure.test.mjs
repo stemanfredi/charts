@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 
 // on the page GeographicLib is a classic script on window; here the same pinned package
 globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
-const { stats, summary, fmtDist, Measure } = await import('../../measure.js');
+const { stats, summary, fmtDist, Measure } = await import('../../site/measure.js');
 
 test('fmtDist: metres, km, NM', () => {
   assert.equal(fmtDist(512, 'km'), '512 m');

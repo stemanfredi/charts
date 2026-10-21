@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { datumAt, DATUMS, fillSmallDepressions, smoothSea, clampCoastalSpikes, fillZeroHoles } from '../../clip.js';
-import { levelsFor, DEPTH_LEVELS } from '../../catalog.js';
+import { datumAt, DATUMS, fillSmallDepressions, smoothSea, clampCoastalSpikes, fillZeroHoles } from '../../site/clip.js';
+import { levelsFor, DEPTH_LEVELS } from '../../site/catalog.js';
 
 test('Caspian surface applies inside its box only (per point, not per tile)', () => {
   assert.equal(DATUMS[0][0], 'Caspian Sea');

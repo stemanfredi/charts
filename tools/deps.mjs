@@ -70,7 +70,7 @@ async function report() {
   }
 }
 
-const INDEX = new URL('../index.html', import.meta.url);
+const INDEX = new URL('../site/index.html', import.meta.url);
 const BLOCK = /(<!-- deps:start[^>]*-->)[\s\S]*?(<!-- deps:end -->)/;
 
 // index.html with the deps block regenerated from PINS (fetches the pinned files)
@@ -106,7 +106,7 @@ async function regenerate() {
 
 // newest period the WMS offers for each density dataset vs the newest one catalog.js lists
 async function dataReport() {
-  const { DENSITY, DENSITY_WMS } = await import('../catalog.js');
+  const { DENSITY, DENSITY_WMS } = await import('../site/catalog.js');
   const r = await fetch(`${DENSITY_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`);
   if (!r.ok) throw new Error(`EMODnet capabilities ${r.status}`);
   const xml = await r.text();

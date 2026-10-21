@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from '../../format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from '../../site/format.js';
 
 test('fmtAngle: degrees, minutes, hemispheres, carry', () => {
   assert.equal(fmtAngle(44, 'N', 'S', 1), '44°N');

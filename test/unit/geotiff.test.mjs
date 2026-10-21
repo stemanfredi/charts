@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gridFor, mosaic, gridTransform, geotiff } from '../../geotiff.js';
+import { gridFor, mosaic, gridTransform, geotiff } from '../../site/geotiff.js';
 
 const HALF = Math.PI * 6378137;
 

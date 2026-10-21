@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mercator, affine, worldFile, footprint, stacItem, pngText } from '../../export.js';
-import { crc32 } from '../../zip.js';
+import { mercator, affine, worldFile, footprint, stacItem, pngText } from '../../site/export.js';
+import { crc32 } from '../../site/zip.js';
 
 const close = (a, b, eps, what) => assert.ok(Math.abs(a - b) < eps, `${what}: ${a} vs ${b}`);
 
