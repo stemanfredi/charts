@@ -170,9 +170,9 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .mbar button.done { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
 /* ---- legends, stacked bottom left above the credits ---- */
-.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
 .legends:empty { display: none; }
-.legends canvas { display: block; box-sizing: content-box; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* the border outside its size: not squeezed (blurred) */
+.legends canvas { display: block; outline: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* an outline, not a border: it moves no pixel of the canvas */
 
 /* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */

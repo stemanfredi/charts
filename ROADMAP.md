@@ -5,8 +5,6 @@ lists only what it does not do, or not well enough.
 
 ## Open
 
-- **Legends slightly soft at 125% display scale.** They are drawn one canvas pixel per
-  screen pixel, but start on a fraction of a screen pixel at that scale.
 - **The panel's redraw redraws everything.** `renderMenu` (app.js) also redraws the
   time line, the status marks and the legends, on every change and every zoom: split
   it by what each change touches.

@@ -7,13 +7,13 @@ const INK = '#2b3a46', SOFT = '#5d6d79';
 
 // noData: optional { colour, label } key drawn on an extra row below the bar
 function canvas(el, noData) {
-  // one canvas pixel per screen pixel (whole pixels, at a display scale of 125% too), or the
-  // browser resamples it and the text blurs
+  // one canvas pixel per screen pixel, in whole screen pixels (at a display scale of 125% too: its
+  // CSS size follows), or the browser resamples it and the text blurs
   const dpr = window.devicePixelRatio || 1, h = H + (noData ? KEY : 0);
   el.width = Math.round(W * dpr);
   el.height = Math.round(h * dpr);
-  el.style.width = `${W}px`;
-  el.style.height = `${h}px`;
+  el.style.width = `${el.width / dpr}px`;
+  el.style.height = `${el.height / dpr}px`;
   const g = el.getContext('2d');
   g.scale(el.width / W, el.height / h);
   g.fillStyle = 'rgba(255,255,255,0.92)';

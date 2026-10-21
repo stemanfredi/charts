@@ -215,7 +215,7 @@ credits.addEventListener('click', (e) => {
 // credits on the left; not for navigation, the scale note, time shown, cursor position and scale on the right
 statusEl.append(credits, h('div', { class: 'readout' }, nfnEl, scaleNoteEl, shownEl, posEl, scalesEl));
 // the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits
-new ResizeObserver(() => document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`)).observe(statusEl);
+new ResizeObserver(() => { document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`); snapLegends(); }).observe(statusEl);
 
 // ---- zoom and compass (the compass only appears when the map is rotated) -------------------
 $('#zoom-in').addEventListener('click', () => map.zoomIn());
@@ -792,7 +792,26 @@ function renderLegends() {
     el.setAttribute('aria-label', `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`);
   }
   legends.replaceChildren(...(on('legend') ? want.map((id) => legendEls[id]) : []));
+  snapLegends();
 }
+// the stack on whole screen pixels: gaps of whole pixels, and moved by the fraction its place
+// falls on (at a display scale of 125% the canvases would otherwise start between two pixels)
+function snapLegends() {
+  const d = window.devicePixelRatio || 1;
+  legends.style.setProperty('--legend-gap', `${Math.round(6 * d) / d}px`);
+  legends.style.translate = '';
+  const r = legends.getBoundingClientRect();
+  legends.style.translate = `${(Math.round(r.left * d) - r.left * d) / d}px ${(Math.round(r.top * d) - r.top * d) / d}px`;
+}
+window.addEventListener('resize', snapLegends);
+// a new display scale (the browser zoomed, a screen of another density): the canvases drawn again for it
+(function onScale() {
+  matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener('change', () => {
+    for (const el of Object.values(legendEls)) el.dataset.key = '';
+    renderLegends();
+    onScale();
+  }, { once: true });
+})();
 function renderStatus() {
   const mark = (row, st) => {
     row.classList.toggle('error', st?.cls === 'error');
