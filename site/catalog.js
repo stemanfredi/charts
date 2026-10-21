@@ -273,7 +273,7 @@ export const ITEMS = [
     variants: { atlas: 'Darker = deeper (atlas)', nautical: 'Darker = shallower (nautical chart)' },
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
-    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Spacing widens with depth and tightens with zoom: 5 m, every 10 m to 50 m, 50 m to 200 m, then 500/200/100 m to 3000 m and 1000/500 m below ( indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
+    info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'At the depths nautical charts use, more of them as you zoom in: 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: the seabed data is ~1–2 km in open sea. As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'emodnetdepth', group: 'sea', label: 'EMODnet depth (Europe)', opacity: 1, kind: 'emodnet',
     variants: { multicolour: 'Multicolour', rainbow: 'Rainbow' },
     info: { src: 'EMODnet Bathymetry digital terrain model, drawn by EMODnet (tiles); its values go in the GIS export', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'About 115 m (1/16 arc-minute) in European seas, from surveys where there are, a coarser model elsewhere; no data outside Europe. Mean depth, in EMODnet\'s own colours (its legend: not linear in depth). Referenced to lowest astronomical tide. Not for navigation', url: 'https://emodnet.ec.europa.eu/en/bathymetry' } },
@@ -366,30 +366,33 @@ export const DEPTH_SCHEMES = {
   atlas: [[0, '#dceefa'], [5, '#cfe6f7'], [20, '#bcdbf2'], [50, '#a5cdec'], [200, '#86b9e2'], [2000, '#5189c4'], [6000, '#335f97']],
   nautical: [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50, '#c9e0f1'], [200, '#dbeaf5'], [2000, '#ecf4fa']],
 };
-// Isobaths, in one table: what each zoom traces (maplibre-contour thresholds, app.js), draws (the
-// style filters below) and cleans up in the DEM (levelsFor, used by clip.js). Nautical spacing
-// that widens with depth and tightens with zoom, so steep deep slopes don't fill with lines and
-// zoomed-in slopes aren't empty: 5 m, every 10 m to 50 m, every 50 m to 200 m, then every `mid`
-// to 3000 m and every `deep` below. Traced finer than drawn: a line is drawn if it is both.
-// [from zoom, traced every m, thicker line every m, mid, deep]
-export const ISOBATH_ZOOMS = [
-  [4, 1000, 2000, 500, 1000],
-  [6, 200, 1000, 500, 1000],
-  [8, 100, 500, 500, 1000],
-  [10, 10, 50, 200, 500],
-  [11, 5, 50, 200, 500],
-  [12, 5, 50, 100, 500],
+// Isobaths, in one table: the depths nautical charts draw contours at (INT 1), each from the map
+// zoom it first shows at. Zooming in adds lines and never takes one away; shallow water first, where
+// draught and anchoring matter (5–50 m), then the shelf (100) and its edge (200); deep water stays
+// sparse, where lines on steep slopes would merge into bands. None at 75 or 150 m: no decision
+// changes there, and on wide gentle shelves, where those lines would fall, the coarse model cannot
+// place them (an error of 10 m in depth on a 0.1% slope moves a line 10 km).
+// From it: what each zoom traces (isobathSteps, maplibre-contour in app.js), draws (style.js) and
+// cleans up in the DEM (levelsFor, clip.js). [depth m, from zoom]
+export const ISOBATHS = [
+  [5, 10], [10, 8], [20, 6], [30, 8], [50, 6], [100, 6], [200, 4], [300, 8], [500, 6],
+  [1000, 4], [1500, 8], [2000, 4], [2500, 8], ...[3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000].map((d) => [d, 4]),
 ];
-const drawnAt = (d, [, step, , mid, deep]) => d % step === 0
-  && (d === 5 || (d <= 50 && d % 10 === 0) || (d <= 200 && d % 50 === 0) || (d <= 3000 && d % mid === 0) || d % deep === 0);
-const range = (a, b, step) => Array.from({ length: Math.floor((b - a) / step) + 1 }, (_, k) => a + k * step);
+// thicker lines: the shelf (100 m) and every 1000 m
+export const isMajorIsobath = (d) => d === 100 || d % 1000 === 0;
+// the zooms where lines are added, and the depths drawn from each: [[zoom, depths]]
+export const ISOBATH_ZOOMS = [...new Set(ISOBATHS.map(([, z]) => z))].sort((a, b) => a - b)
+  .map((z) => [z, ISOBATHS.filter(([, z0]) => z0 <= z).map(([d]) => d)]);
+// what maplibre-contour traces from each of those zooms: every `step` m, the largest step that holds
+// all the depths drawn (the style draws only those): { zoom: [step] }
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+export const isobathSteps = () => Object.fromEntries(ISOBATH_ZOOMS.map(([z, ds]) => [z, [ds.reduce(gcd)]]));
 // every depth an isobath is drawn at, at some zoom
-export const DEPTH_LEVELS = range(5, 11000, 5).filter((d) => ISOBATH_ZOOMS.some((row) => drawnAt(d, row)));
+export const DEPTH_LEVELS = ISOBATHS.map(([d]) => d);
 // the depths drawn from DEM tiles of zoom z: the native zoom serves every map zoom above it
 export function levelsFor(z) {
   if (z >= DEM_SEA.native) return DEPTH_LEVELS;
-  const row = ISOBATH_ZOOMS.findLast(([z0]) => z0 <= z) || ISOBATH_ZOOMS[0];
-  return DEPTH_LEVELS.filter((d) => drawnAt(d, row));
+  return (ISOBATH_ZOOMS.findLast(([z0]) => z0 <= z) || ISOBATH_ZOOMS[0])[1];
 }
 
 // water without depth data (lakes above sea level): never white, which reads as deep

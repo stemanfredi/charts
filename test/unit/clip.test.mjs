@@ -84,11 +84,11 @@ test('clampCoastalSpikes: false peaks beside the sea go; inland summits and isle
 
 test('levelsFor: only the depths drawn at that DEM zoom', () => {
   assert.equal(levelsFor(10), DEPTH_LEVELS);
-  assert.ok(levelsFor(8).includes(100) && levelsFor(8).includes(500));
-  assert.ok(!levelsFor(7).includes(100) && levelsFor(7).includes(200) && levelsFor(7).includes(1000) && !levelsFor(7).includes(500));
-  assert.deepEqual(levelsFor(5).slice(0, 3), [1000, 2000, 3000]);
-  const range = (a, b, s) => Array.from({ length: (b - a) / s + 1 }, (_, k) => a + k * s);
-  assert.deepEqual(DEPTH_LEVELS, [5, 10, 20, 30, 40, 50, 100, 150, 200, ...range(300, 3000, 100), ...range(3500, 11000, 500)]);
+  assert.ok(levelsFor(8).includes(10) && levelsFor(8).includes(30) && levelsFor(8).includes(1500) && !levelsFor(8).includes(5));
+  assert.ok(levelsFor(7).includes(20) && levelsFor(7).includes(100) && levelsFor(7).includes(500) && !levelsFor(7).includes(30));
+  assert.deepEqual(levelsFor(5).slice(0, 3), [200, 1000, 2000]);
+  assert.deepEqual(DEPTH_LEVELS.slice(0, 13), [5, 10, 20, 30, 50, 100, 200, 300, 500, 1000, 1500, 2000, 2500]);
+  assert.ok(!DEPTH_LEVELS.includes(75) && !DEPTH_LEVELS.includes(150), 'none where the model cannot place them');
 });
 
 test('fillZeroHoles: exact 0 m sea takes the parent depth; real values and land stay', () => {

@@ -1,7 +1,7 @@
 // The map's style, from the catalogue: every source, and every layer in draw order. A layer belongs
 // to a menu item through metadata.item; layers of a hidden item are set to visibility:none, and
 // MapLibre requests no tiles for a source whose layers are all hidden.
-import { DEM_SEA, DEM_LAND, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, NO_DEPTH, NO_DEPTH_M } from './catalog.js';
+import { DEM_SEA, DEM_LAND, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M } from './catalog.js';
 
 const C = {
   land: '#f1ebdc', sea: '#ffffff', ink: '#2b3a46', inkSoft: '#5d6d79',
@@ -76,17 +76,12 @@ export function depthRamp(stops) {
     NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
 }
 
-// the same rule as catalog.js drawnAt as a style filter; one layer per run of zooms with the same spacing
-// (filters can't use zoom): [minzoom, maxzoom, mid, deep]
-const ISOBATH_RANGES = ISOBATH_ZOOMS.filter((r, k, a) => !k || r[3] !== a[k - 1][3] || r[4] !== a[k - 1][4])
-  .map((r, k, a) => [r[0], a[k + 1]?.[0] ?? 24, r[3], r[4]]);
+// the isobaths drawn from each zoom where lines are added (catalog.js ISOBATHS), one layer each
+// (filters can't use zoom): [minzoom, maxzoom, depths]
+const ISOBATH_RANGES = ISOBATH_ZOOMS.map(([z, ds], k, a) => [z, a[k + 1]?.[0] ?? 24, ds]);
 const DEPTH = ['abs', ['get', 'ele']];
-const isobathFilter = (mid, deep) => ['all', ['<', ['get', 'ele'], 0], ['any',
-  ['==', DEPTH, 5],
-  ['all', ['<=', DEPTH, 50], ['==', ['%', DEPTH, 10], 0]],
-  ['all', ['<=', DEPTH, 200], ['==', ['%', DEPTH, 50], 0]],
-  ['all', ['<=', DEPTH, 3000], ['==', ['%', DEPTH, mid], 0]],
-  ['==', ['%', DEPTH, deep], 0]]];
+const isobathFilter = (depths) => ['all', ['<', ['get', 'ele'], 0], ['in', DEPTH, ['literal', depths]]];
+const MAJOR = ['in', DEPTH, ['literal', DEPTH_LEVELS.filter(isMajorIsobath)]];
 
 function layers() {
   const L = [
@@ -129,9 +124,9 @@ function layers() {
     ...Object.keys(CMEMS).sort((a, b) => ARROWS_LAST(a) - ARROWS_LAST(b)).map((id) => raster(`cmems-${id}`, id)),
 
     // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined
-    ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobaths-${k}` : 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours',
-      minzoom: z0, maxzoom: z1, ...m('isobaths'), filter: isobathFilter(mid, deep),
-      paint: { 'line-color': C.isobath, 'line-width': ['match', ['get', 'level'], 1, 0.9, 0.45] } })),
+    ...ISOBATH_RANGES.map(([z0, z1, depths], k) => ({ id: k ? `isobaths-${k}` : 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours',
+      minzoom: z0, maxzoom: z1, ...m('isobaths'), filter: isobathFilter(depths),
+      paint: { 'line-color': C.isobath, 'line-width': ['case', MAJOR, 0.9, 0.45] } })),
 
     // Piers and breakwaters as land at about their true width (the shore line under the water
     // fill would otherwise half-hide anything narrower than itself), above every water layer
@@ -171,8 +166,8 @@ function layers() {
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
       paint: { 'line-color': C.grid, 'line-width': 0.5, 'line-opacity': 0.55 } },
 
-    ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobath-labels-${k}` : 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours',
-      minzoom: Math.max(6, z0), maxzoom: z1, ...m('isobaths'), filter: isobathFilter(mid, deep),
+    ...ISOBATH_RANGES.map(([z0, z1, depths], k) => ({ id: k ? `isobath-labels-${k}` : 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours',
+      minzoom: Math.max(6, z0), maxzoom: z1, ...m('isobaths'), filter: isobathFilter(depths),
       layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', DEPTH], ' m'],
         // coarse contours wiggle: allow more bend and place often, or long stretches go unlabelled
         'text-font': FONT, 'text-size': 10, 'symbol-spacing': 220, 'text-max-angle': 55 },
