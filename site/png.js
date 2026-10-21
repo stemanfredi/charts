@@ -9,8 +9,8 @@ export const pngOf = (canvas) => new Promise((resolve, reject) => canvas.toBlob(
 
 // The map as on screen without the controls, the same size: the credits bottom left (all of
 // them: a picture cannot be tapped), the legends above them; bottom right, where it is (centre,
-// zoom, projection, the data's time and depth) beside the scale; the north arrow top right. Where
-// that leaves the credits too little room (a phone), they take the width, the rest above them.
+// zoom, projection, how much the scale varies, the data's time and depth) beside the scale, which
+// says only its lengths, as on screen; the north arrow top right. Where that leaves the credits too little room (a phone), they take the width, the rest above them.
 // What it says comes from the snapshot s, and goes with it as the PNG's text fields.
 export function chartCanvas(src, s) {
   const dpr = src.width / src.clientWidth, W = src.clientWidth, H = src.clientHeight;
@@ -29,11 +29,12 @@ export function chartCanvas(src, s) {
   const bar = (unitM) => { const len = niceLen((120 * mpp) / unitM) * unitM; return { len, px: len / mpp }; };
   const km = bar(1), nm = bar(1852);
   const v = s.scaleVariation;
-  const kmText = `${km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`} at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}${v > NOTE_AT ? ` · scale varies ${(v * 100).toFixed(0)}% across the view` : ''}`;
+  // as on screen: the bars say their lengths only; that the scale varies is said beside them
+  const kmText = km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`;
   const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
   const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20;
   // where it is, and when the data is
-  const info = [s.at, `zoom ${s.zoom.toFixed(1)}`, 'Web Mercator', s.timeText, s.depthText].filter(Boolean).join(' · ');
+  const info = [s.at, `zoom ${s.zoom.toFixed(1)}`, 'Web Mercator', v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}% across the view` : '', s.timeText, s.depthText].filter(Boolean).join(' · ');
   // a block of text on its backing, wrapped to width w, its bottom at y, from x (or to x, right):
   // its top
   const block = (text, colour, x, y, w, right = false) => {

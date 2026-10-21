@@ -5,10 +5,6 @@ lists only what it does not do, or not well enough.
 
 ## Open
 
-- **Legends for the Uses & areas overlays.** Wrecks, pipelines, installations, wind
-  farms, military and protected areas are drawn with EMODnet's symbols, not explained
-  on the map (cables have theirs). Their WMS gives legends (GetLegendGraphic): draw
-  them as the substrate's and the cables' are, where they are classes.
 - **Seabed habitats (EUSeaMap).** EMODnet Seabed Habitats' classification, listed in
   EDITO's catalogue (emodnet-euseamap_classification: WMS, Zarr, GeoParquet); its WMS
   (ows.emodnet-seabedhabitats.eu) did not answer when tried (2026-10-21). Retry; if it
