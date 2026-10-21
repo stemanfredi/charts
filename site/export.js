@@ -25,7 +25,7 @@ export function worldFile([a, b, c, d, e, f]) {
 }
 
 // A world file carries no CRS: GDAL (and so QGIS) reads it from this sidecar
-export const MERCATOR_WKT = 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],EXTENSION["PROJ4","+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs"],AUTHORITY["EPSG","3857"]]';
+const MERCATOR_WKT = 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],EXTENSION["PROJ4","+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs"],AUTHORITY["EPSG","3857"]]';
 export const pamXml = () => `<PAMDataset>\n  <SRS dataAxisToSRSAxisMapping="1,2">${MERCATOR_WKT}</SRS>\n</PAMDataset>\n`;
 
 // GeoJSON footprint and bbox of the view, from corners as for affine (RFC 7946: counter-clockwise,
@@ -44,7 +44,7 @@ export function footprint(corners) {
 
 // STAC Item (1.1) for the export. layers: the items drawn ({ id, label, info, … } from
 // catalog.js, plus what was chosen: variant, date, period); attribution: the credit line.
-export const STAC_VERSION = '1.1.0';
+const STAC_VERSION = '1.1.0';
 const PROJECTION_EXT = 'https://stac-extensions.github.io/projection/v2.0.0/schema.json';
 // data: the time the layers that change with time draw, { at } (ms, an hour) or { day } ('YYYY-MM-DD',
 // UTC, daily products), absent if none is on: the item's datetime, as STAC means it (the export's

@@ -7,7 +7,7 @@
 // ---- Blosc ----------------------------------------------------------------------------------
 
 // LZ4 block format: src → dst (its decompressed size known); the bytes written
-export function lz4(src, dst) {
+function lz4(src, dst) {
   let i = 0, o = 0;
   while (i < src.length) {
     const token = src[i++];

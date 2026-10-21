@@ -106,8 +106,8 @@ async function regenerate() {
 
 // newest period the WMS offers for each density dataset vs the newest one catalog.js lists
 async function dataReport() {
-  const { DENSITY, DENSITY_WMS } = await import('../site/catalog.js');
-  const r = await fetch(`${DENSITY_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`);
+  const { DENSITY, HA_WMS } = await import('../site/catalog.js');
+  const r = await fetch(`${HA_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`);
   if (!r.ok) throw new Error(`EMODnet capabilities ${r.status}`);
   const xml = await r.text();
   for (const [id, d] of Object.entries(DENSITY)) {

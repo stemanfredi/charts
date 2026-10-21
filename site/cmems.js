@@ -1,7 +1,7 @@
 // Copernicus Marine layers on the map (catalog.js CMEMS): a tile handler that draws an item's
 // datasets into one tile, each at its own time step for the hour asked, the global first and the
 // regional one over it; the datasets' time ranges, read from their own capabilities; legends.
-import { CMEMS, cmemsStyle, cmemsTileUrl, cmemsLegendUrl, cmemsCapsUrl, timeDomain, snapTime, depthLevels, nearestLevel } from './catalog.js';
+import { CMEMS, cmemsStyle, cmemsTileUrl, cmemsLegendUrl, cmemsCapsUrl } from './catalog.js';
 import { mercator, tileBounds, CIRC } from './geo.js';
 import { FETCH, memo } from './net.js';
 // regional datasets (by product name: MEDSEA_…, SST_MED_…, OCEANCOLOUR_MED_…): drawn only within
@@ -18,8 +18,49 @@ async function ok(r) {
   return r;
 }
 
+// ---- what a dataset's own capabilities say: its time steps, its depth levels ------------------
+// ISO 8601 duration (P1D, PT1H, PT900S, PT10800S, PT15M) → milliseconds
+export function durationMs(d) {
+  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(d);
+  if (!m) return NaN;
+  return (((+(m[1] || 0) * 24 + +(m[2] || 0)) * 60 + +(m[3] || 0)) * 60 + +(m[4] || 0)) * 1000;
+}
+// The time dimension of `variable` in a WMTS capabilities document: its <Value>s, each
+// start/end/step or one instant → [{ start, end, step }] in ms (step 0 for an instant)
+export function timeDomain(xml, variable) {
+  const id = xml.indexOf(`/${variable}</ows:Identifier>`);
+  if (id < 0) return [];
+  const layer = xml.slice(id, xml.indexOf('</Layer>', id));
+  const dim = /<ows:Identifier>time<\/ows:Identifier>([\s\S]*?)<\/Dimension>/.exec(layer)?.[1] || '';
+  return [...dim.matchAll(/<Value>([^<]*)<\/Value>/g)].flatMap(([, v]) => v.split(',')).map((v) => {
+    const [a, b, step] = v.trim().split('/');
+    return b ? { start: Date.parse(a), end: Date.parse(b), step: durationMs(step) } : { start: Date.parse(a), end: Date.parse(a), step: 0 };
+  }).filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end));
+}
+// the dataset's time to draw for the time t (ms): the last step at or before t, or null if t is
+// outside every range
+export function snapTime(domain, t) {
+  let best = null;
+  for (const r of domain) {
+    if (t < r.start || t > r.end + (r.step || 0)) continue;
+    const s = r.step ? Math.min(r.end, r.start + Math.floor((t - r.start) / r.step) * r.step) : r.start;
+    if (s <= t && (best === null || s > best)) best = s;
+  }
+  return best;
+}
+// the depth levels of `variable` in a WMTS capabilities document, as listed (elevation, m, ≤ 0)
+export function depthLevels(xml, variable) {
+  const id = xml.indexOf(`/${variable}</ows:Identifier>`);
+  if (id < 0) return [];
+  const layer = xml.slice(id, xml.indexOf('</Layer>', id));
+  const dim = /<ows:Identifier>elevation<\/ows:Identifier>([\s\S]*?)<\/Dimension>/.exec(layer)?.[1] || '';
+  return [...dim.matchAll(/<Value>([^<]*)<\/Value>/g)].map((m) => m[1]).filter((v) => Number.isFinite(+v));
+}
+// the level nearest to depth (m below the surface): one of levels, or null if there are none
+export const nearestLevel = (levels, depth) => (levels.length ? levels.reduce((a, b) => (Math.abs(-b - depth) < Math.abs(-a - depth) ? b : a)) : null);
+
 // part (product/dataset/variable) → promise of { time: its time domain, levels: its depth levels }
-// (catalog.js timeDomain, depthLevels)
+// (timeDomain, depthLevels)
 const domains = {};
 export function domainOf(part) {
   return memo(domains, part, () => fetch(cmemsCapsUrl(part), FETCH).then(ok).then((r) => r.text())

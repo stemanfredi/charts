@@ -1,6 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables, CLASS_LEGENDS, EMODNET_DTM } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables, CLASS_LEGENDS, EMODNET_DTM } from './catalog.js';
+import { buildStyle, depthRamp, OPACITY_PROP } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend, regionOf } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses } from './legend.js';
@@ -43,7 +44,7 @@ const state = {
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
   time: Math.floor(Date.now() / 36e5) * 36e5, // the map's time: the hour shown (ms), now by default
-  date: defaultDate(), // NASA daily: the day drawn, that of the hour shown or the newest published before it
+  date: '', // NASA daily: the day drawn, that of the hour shown (readHash sets it)
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
@@ -67,32 +68,19 @@ function readHash() {
     if (k in state.opacity && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
   }
   for (const [slot, key] of [['colour', 'col'], ['arrows', 'arr']]) if (ENTRIES[slot].some((e) => e.key === q.get(key))) state[slot] = q.get(key);
-  if (!q.has('col') && !q.has('arr')) fromLayers();
   for (const it of DATA) state.on.delete(it.id); // the menus switch them (applyData)
   if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(q.get('t') || '')) state.time = Date.parse(`${q.get('t')}:00:00Z`);
-  else if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.time = Date.parse(`${q.get('d')}T12:00:00Z`); // NASA date, links from before t=
   state.date = new Date(state.time).toISOString().slice(0, 10);
   if (CMEMS_DEPTHS.includes(+q.get('dz'))) state.depth = +q.get('dz');
-  if (DENSITY.traffic.periods.includes(q.get('y'))) state.period.traffic = q.get('y'); // links from before per=
   for (const kv of (q.get('per') || '').split(',')) {
     const [k, val] = kv.split(':');
     if (DENSITY[k]?.periods.includes(val)) state.period[k] = val;
   }
   if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => g === 'measure' || GROUPS.some((x) => x.id === g)));
-  if (q.has('menu')) state.panel = { 1: 'layers', measure: 'measure' }[q.get('menu')] || null; // menu=1 from older links: Layers
+  if (q.has('menu')) state.panel = { 1: 'layers', measure: 'measure' }[q.get('menu')] || null; // menu=1: Layers
   measureState = q.get('m') || '';
   measureBearings = q.get('brg') === '1';
   return q.get('u');
-}
-
-// links from before the menus switched the layers on (on=waves,currents): the last that draws only
-// colours takes the colours, else currents; wind takes the arrows, else currents
-function fromLayers() {
-  const on = [...state.on].map((id) => byId[id]).filter((it) => it.group === 'data').map((it) => ({ it, v: state.variant[it.id] || variantsOf(it)[0] }));
-  const draws = (e) => drawsOfEntry(e.it, e.v).join();
-  const pick = (e) => (e ? `${e.it.id}:${e.v}` : '');
-  state.colour = pick(on.filter((e) => draws(e) === 'colour').at(-1) || on.find((e) => draws(e) === 'colour,arrows'));
-  state.arrows = pick(on.find((e) => draws(e) === 'arrows') || on.find((e) => draws(e) === 'colour,arrows'));
 }
 
 let hashTimer = 0;
@@ -295,20 +283,14 @@ const SAT_LABELS = {
 const chartLabelPaint = {};
 for (const l of style.layers) if (SAT_LABELS[l.id]) chartLabelPaint[l.id] = { ...l.paint };
 function labelPaint() {
-  const sat = state.on.has('sat');
+  const sat = state.on.has('sat'), ink = state.on.has('depth') && state.on.has('chart') ? ISOBATH_INK[state.variant.depth] : null;
   for (const [id, colour] of Object.entries(SAT_LABELS)) {
-    const p = chartLabelPaint[id];
-    map.setPaintProperty(id, 'text-color', sat ? colour : p['text-color']);
-    map.setPaintProperty(id, 'text-halo-color', sat ? 'rgba(8,16,24,0.85)' : p['text-halo-color']);
+    const p = chartLabelPaint[id], inked = !sat && ink && id.startsWith('isobath-labels');
+    map.setPaintProperty(id, 'text-color', sat ? colour : inked ? ink.text : p['text-color']);
+    map.setPaintProperty(id, 'text-halo-color', sat ? 'rgba(8,16,24,0.85)' : inked ? ink.halo : p['text-halo-color']);
     map.setPaintProperty(id, 'text-halo-width', sat ? 1.4 : p['text-halo-width']);
   }
-  const ink = state.on.has('depth') && state.on.has('chart') ? ISOBATH_INK[state.variant.depth] : null;
   for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : ink ? ink.line : chartLineColour[id]);
-  for (const id of Object.keys(SAT_LABELS).filter((k) => /^isobath-labels/.test(k))) {
-    if (sat || !ink) continue;
-    map.setPaintProperty(id, 'text-color', ink.text);
-    map.setPaintProperty(id, 'text-halo-color', ink.halo);
-  }
 }
 const LINE_IDS = style.layers.filter((l) => /^isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
 const chartLineColour = Object.fromEntries(LINE_IDS.map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
@@ -381,12 +363,12 @@ const KINDS = {
   classes: {
     show: (id) => applyItem(id),
     legend(id, el) {
-      const src = CLASS_LEGENDS[id](state.variant[id]), url = typeof src === 'string' ? src : id; // a URL, or the classes themselves
+      const src = CLASS_LEGENDS[id](state.variant[id]), url = typeof src === 'string' ? src : `${id}:${state.variant[id]}`; // a URL, or the classes themselves
       if (el.dataset.key === url) return;
       el.dataset.key = url;
       (typeof src === 'string' ? classesOf(src) : Promise.resolve(src)).then((cls) => {
         if (el.dataset.key !== url) return; // switched meanwhile
-        drawClasses(el, byId[id].label, byId[id].variants?.[state.variant[id]] ?? byId[id].legendSub, cls);
+        drawClasses(el, byId[id].label, [byId[id].variants?.[state.variant[id]], byId[id].legendSub].filter(Boolean).join(' · '), cls);
         el.setAttribute('aria-label', `${byId[id].label} legend: ${cls.map((c) => c.label).join(', ')}`);
         renderLegends(); // drawn after the stack was laid out: lay it out again with its size
       }, (e) => { el.dataset.key = ''; console.warn('legend classes:', e.message); });

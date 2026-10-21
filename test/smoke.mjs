@@ -142,15 +142,14 @@ try {
   await rt.close();
 
 
-  // Copernicus sea state from a link of before the Ocean data menus (on=waves,currents): read as
-  // waves in colour, currents in arrows; tiles load, the legends show
-  const cm = await open('#v=6/40/14/0&on=chart,coastline,waves,currents,legend&menu=1&g=data');
+  // Copernicus sea state, waves in colour and currents in arrows: tiles load, the legends show
+  const cm = await open('#v=6/40/14/0&col=waves:height&arr=currents:surface&on=chart,coastline,legend&menu=1&g=data');
   await cm.waitForFunction(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2, null, { timeout: 30000 }).catch(() => {});
   const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('.name').textContent} (${r.title})`));
   check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`);
   const [cmPicks, cmLink] = await cm.evaluate(() => [[...document.querySelectorAll('.pick select')].map((s) => s.value).join(' '), location.hash]);
   check(cmPicks === 'waves:height currents:surface' && /col=waves:height/.test(cmLink) && /arr=currents:surface/.test(cmLink) && !/on=[^&]*waves/.test(cmLink),
-    `an old link's layers go to the menus: colours, arrows ${cmPicks}`);
+    `the link's entries are in the menus and stay in the link: colours, arrows ${cmPicks}`);
   check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown');
   // the time line at the panel's foot: a time picked there (local time) is drawn, read above the
   // legends and kept in the link; › steps an hour; Now goes back to now

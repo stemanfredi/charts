@@ -1,7 +1,5 @@
-// Layer catalog: every source, every style layer (in draw order), and the menu
-// items that switch them. A style layer belongs to a menu item through
-// metadata.item; layers of a hidden item are set to visibility:none, and
-// MapLibre requests no tiles for a source whose layers are all hidden.
+// The catalogue: every data source, what each menu item shows and where it comes from (ITEMS,
+// GROUPS), and the datasets behind them. style.js builds the map's style from it.
 
 export const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 // Terrarium carries bathymetry only up to zoom 10: above that most seas read 0 m
@@ -13,23 +11,6 @@ export const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrariu
 export const DEM_SEA = { native: 10, max: 13 };
 export const DEM_LAND = { native: 12, max: 12 }; // no upsampling: slopes of an upsampled DEM shade in facets
 export const OMT_TILEJSON = 'https://tiles.openfreemap.org/planet';
-
-const C = {
-  land: '#f1ebdc', sea: '#ffffff', ink: '#2b3a46', inkSoft: '#5d6d79',
-  // water without depth data (lakes above sea level): never white, which reads as deep
-  noDepth: '#dde3e7',
-  water: '#a9cbe3', waterText: '#2f6690', building: '#d9d1c1', buildingEdge: '#b7ac98',
-  road: '#c9bea9', roadMajor: '#b3a68e', boundary: '#8a6f8f', grid: '#6b8193',
-  isobath: '#5b8db5', contour: '#a88a62',
-};
-const FONT = ['Noto Sans Regular'], FONT_I = ['Noto Sans Italic'], FONT_B = ['Noto Sans Bold'];
-const NAME = ['coalesce', ['get', 'name:en'], ['get', 'name']];
-const HALO = { 'text-halo-color': 'rgba(255,255,255,0.9)', 'text-halo-width': 1.2 };
-
-// Day to show for NASA GIBS: yesterday (UTC), the most recent complete day.
-export function defaultDate() {
-  return new Date(Date.now() - 864e5).toISOString().slice(0, 10);
-}
 
 // Shipping density from EMODnet Human Activities (WMS, keyless, CORS), on a 1 km grid over
 // EU and neighbouring seas. Two datasets, each with ship types (keys prefixed 't', because
@@ -64,24 +45,23 @@ export const DENSITY = {
     layer: (type) => `routedensity_${type.replace(/^t/, '')}`, time: (p) => `${p}-01`, stops: STOPS,
   },
 };
-export const DENSITY_WMS = 'https://ows.emodnet-humanactivities.eu/wms';
-export function densityTiles(id, type, period) {
-  const d = DENSITY[id];
-  return [`${DENSITY_WMS}?service=WMS&version=1.3.0&request=GetMap&layers=${d.layer(type)}&styles=`
-    + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true&time=${d.time(period)}T00:00:00.000Z`];
-}
+// a WMS layer as 256 px Web Mercator tiles; more: further parameters (&time=…)
+const wms = (base, layers, style = '', more = '') => [`${base}?service=WMS&version=1.3.0&request=GetMap&layers=${layers}&styles=${style}`
+  + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true${more}`];
+export const HA_WMS = 'https://ows.emodnet-humanactivities.eu/wms';
+export const HA_CREDIT = '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>';
+export const densityTiles = (id, type, period) => wms(HA_WMS, DENSITY[id].layer(type), '', `&time=${DENSITY[id].time(period)}T00:00:00.000Z`);
 
 // EMODnet layers drawn by EMODnet's own services (tiles, WMS), as they come: item → variant → tiles.
 // Depth (EMODnet Bathymetry's model, about 115 m in European waters: the styles that leave land to
 // the chart), seabed substrate (EMODnet Geology, 1:250k, Folk classes: its legend from the
 // service, CLASS_LEGENDS), and what is built, sunk or set aside at sea (EMODnet Human Activities).
-const wms = (base, layers, style = '') => [`${base}?service=WMS&version=1.3.0&request=GetMap&layers=${layers}&styles=${style}`
-  + '&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true'];
-const HA_WMS = 'https://ows.emodnet-humanactivities.eu/wms', GEOLOGY_WMS = 'https://drive.emodnet-geology.eu/geoserver/gtk/wms';
+const GEOLOGY_WMS = 'https://drive.emodnet-geology.eu/geoserver/gtk/wms';
+const FOLK = { folk5: 'folk_5_substrate_class', folk7: 'folk_7_substrate_class' }; // the substrate's styles by variant
 const bathy = (style) => [`https://tiles.emodnet-bathymetry.eu/latest/${style}/web_mercator/{z}/{x}/{y}.png`];
 export const OVERLAYS = {
   emodnetdepth: { multicolour: bathy('mean_multicolour'), rainbow: bathy('mean_rainbowcolour') },
-  substrate: { folk5: wms(GEOLOGY_WMS, 'seabed_substrate_250k', 'folk_5_substrate_class'), folk7: wms(GEOLOGY_WMS, 'seabed_substrate_250k', 'folk_7_substrate_class') },
+  substrate: Object.fromEntries(Object.entries(FOLK).map(([v, style]) => [v, wms(GEOLOGY_WMS, 'seabed_substrate_250k', style)])),
   // the World Bank's tiles of its global shipping density (with the IMF): world, all vessels, coarse
   worlddensity: { all: ['https://tiles.arcgis.com/tiles/iQ1dY19aHwbSDYIF/arcgis/rest/services/Shipping_density_all_vessels_2015_to_2020/MapServer/tile/{z}/{y}/{x}'] },
   wrecks: { all: wms(HA_WMS, 'wwshipwrecks') },
@@ -92,12 +72,13 @@ export const OVERLAYS = {
   military: { all: wms(HA_WMS, 'militaryareaspoly,militaryareas') },
   protected: { natura: wms(HA_WMS, 'natura2000areas'), mpa: wms(HA_WMS, 'marineprotectedareas') },
 };
-const OVERLAY_MAXZOOM = { emodnetdepth: 12, worlddensity: 10 }; // the zoom their tiles stop at (18: as WMS, any)
-const OVERLAY_CREDIT = {
+export const OVERLAY_MAXZOOM = { emodnetdepth: 12, worlddensity: 10 }; // the zoom their tiles stop at (18: as WMS, any)
+// each overlay's credit; EMODnet Human Activities' where not given
+export const OVERLAY_CREDIT = {
   worlddensity: '<a href="https://datacatalog.worldbank.org/search/dataset/0037580">World Bank Group, IMF</a> (CC BY 4.0)',
   emodnetdepth: '<a href="https://emodnet.ec.europa.eu/en/bathymetry">EMODnet Bathymetry</a>',
   substrate: '<a href="https://emodnet.ec.europa.eu/en/geology">EMODnet Geology</a>',
-  wrecks: '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a> (wrecks: UKHO)',
+  wrecks: `${HA_CREDIT} (wrecks: UKHO)`,
 };
 // EMODnet Bathymetry's model as data (GIS export): its Zarr store, as EDITO's catalogue lists it
 // (collection emodnet-elevation, DTM 2024): elevation in metres, 1/16 arc-minute, chunks of ~1°
@@ -108,7 +89,13 @@ export const CLASS_LEGENDS = {
   // AIS positions per cell, as the World Bank's tile service colours them (its legend's swatches)
   worlddensity: () => [['< 100 k', '#1b0c42'], ['100–250 k', '#4c0c6b'], ['250–500 k', '#791c6e'], ['0.5–1 M', '#a62d61'], ['1–5 M', '#cf4447'],
     ['5–10 M', '#ee6925'], ['10–15 M', '#fc9b06'], ['15–25 M', '#f8d13c'], ['25–60 M', '#fdffa5']].map(([label, colour]) => ({ label, colour })),
-  substrate: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${{ folk5: 'folk_5_substrate_class', folk7: 'folk_7_substrate_class' }[variant]}`,
+  substrate: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${FOLK[variant]}`,
+  // EMODnet draws each cable in the colour of who reported it (its WMS legend: telecom cables red,
+  // with a centre line of that colour; power cables in greys)
+  cables: (variant) => (variant === 'power'
+    ? [['Norway (NVE)', '#1e1e1e'], ['Netherlands', '#666666'], ['France (SHOM)', '#999999'], ['Germany (BSH)', '#000000']].map(([label, colour]) => ({ label, colour, line: true }))
+    : [['Germany (BSH)', '#00dc00'], ['Spain (CICA)', '#e6e600'], ['Malta', '#ff78ff'], ['Netherlands', '#fafafa'], ['France (SHOM)', '#00e6e6'],
+      ['France (SIGCables)', '#ff8c00'], ['UK (OGA)', '#3737ff']].map(([label, colour]) => ({ label, colour, line: true, casing: '#ff0000' }))),
 };
 
 export const ESRI_META = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=json';
@@ -141,7 +128,7 @@ export function domainEnd(xml) {
 // the global model, then the regional one over it where it has data (Mediterranean 4.2 km), so
 // the detail is regional and the coverage global, in one layer with one opacity. Colour ranges
 // are fixed, so a colour means the same at every hour; legends come from the service.
-export const CMEMS_WMTS = 'https://wmts.marine.copernicus.eu/teroWmts';
+const CMEMS_WMTS = 'https://wmts.marine.copernicus.eu/teroWmts';
 const GLO_WAV = 'GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411';
 const MED_WAV = 'MEDSEA_ANALYSISFORECAST_WAV_006_017/cmems_mod_med_wav_anfc_4.2km_PT1H-i_202311';
 const GLO_CUR = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_merged-uv_PT1H-i_202211';
@@ -229,51 +216,8 @@ export function storedVariables(part) {
 // one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
 export const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
 
-const ARROWS_LAST = (id) => ({ solidAndVector: 1, vector: 2 })[Object.values(CMEMS[id])[0].vector] || 0;
-
-// ISO 8601 duration (P1D, PT1H, PT900S, PT10800S, PT15M) → milliseconds
-export function durationMs(d) {
-  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(d);
-  if (!m) return NaN;
-  return (((+(m[1] || 0) * 24 + +(m[2] || 0)) * 60 + +(m[3] || 0)) * 60 + +(m[4] || 0)) * 1000;
-}
-// The time dimension of `variable` in a WMTS capabilities document: its <Value>s, each
-// start/end/step or one instant → [{ start, end, step }] in ms (step 0 for an instant)
-export function timeDomain(xml, variable) {
-  const id = xml.indexOf(`/${variable}</ows:Identifier>`);
-  if (id < 0) return [];
-  const layer = xml.slice(id, xml.indexOf('</Layer>', id));
-  const dim = /<ows:Identifier>time<\/ows:Identifier>([\s\S]*?)<\/Dimension>/.exec(layer)?.[1] || '';
-  return [...dim.matchAll(/<Value>([^<]*)<\/Value>/g)].flatMap(([, v]) => v.split(',')).map((v) => {
-    const [a, b, step] = v.trim().split('/');
-    return b ? { start: Date.parse(a), end: Date.parse(b), step: durationMs(step) } : { start: Date.parse(a), end: Date.parse(a), step: 0 };
-  }).filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end));
-}
-// the dataset's time to draw for the time t (ms): the last step at or before t, or null if t is
-// outside every range
-export function snapTime(domain, t) {
-  let best = null;
-  for (const r of domain) {
-    if (t < r.start || t > r.end + (r.step || 0)) continue;
-    const s = r.step ? Math.min(r.end, r.start + Math.floor((t - r.start) / r.step) * r.step) : r.start;
-    if (s <= t && (best === null || s > best)) best = s;
-  }
-  return best;
-}
-export const domainEndMs = (domain) => Math.max(...domain.map((r) => r.end));
 // depths offered for the 3D variables, metres below the surface (0: the model's top level)
 export const CMEMS_DEPTHS = [0, 10, 20, 50, 100, 200, 500, 1000];
-// the depth levels of `variable` in a WMTS capabilities document, as listed (elevation, m, ≤ 0)
-export function depthLevels(xml, variable) {
-  const id = xml.indexOf(`/${variable}</ows:Identifier>`);
-  if (id < 0) return [];
-  const layer = xml.slice(id, xml.indexOf('</Layer>', id));
-  const dim = /<ows:Identifier>elevation<\/ows:Identifier>([\s\S]*?)<\/Dimension>/.exec(layer)?.[1] || '';
-  return [...dim.matchAll(/<Value>([^<]*)<\/Value>/g)].map((m) => m[1]).filter((v) => Number.isFinite(+v));
-}
-// the level nearest to depth (m below the surface): one of levels, or null if there are none
-export const nearestLevel = (levels, depth) => (levels.length ? levels.reduce((a, b) => (Math.abs(-b - depth) < Math.abs(-a - depth) ? b : a)) : null);
-
 // ---- menu -------------------------------------------------------------------
 // exclusive: items in the group behave as radio buttons.
 // minzoom / maxzoom: outside them the item is greyed out with a hint and draws nothing.
@@ -292,9 +236,14 @@ export const GROUPS = [
   { id: 'labels', label: 'Labels & grid' },
 ];
 
+// what most of one provider's layers share: their licence and where to read more
+const COPERNICUS = { lic: 'Copernicus Marine Service licence: free, attribution required', url: 'https://marine.copernicus.eu' };
+const HUMAN_ACTIVITIES = { lic: 'EMODnet open data, CC BY 4.0: attribution required', url: 'https://emodnet.ec.europa.eu/en/human-activities' };
+const OSM = { lic: 'ODbL · © OpenStreetMap contributors', url: 'https://openfreemap.org' };
+
 export const ITEMS = [
   { id: 'chart', group: 'base', label: 'Chart', on: true,
-    info: { src: 'OpenStreetMap via OpenFreeMap (OpenMapTiles schema)', lic: 'ODbL · © OpenStreetMap contributors', res: 'Coastline from OSM water polygons; generalised below zoom 7', url: 'https://openfreemap.org' } },
+    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap (OpenMapTiles schema)', res: 'Coastline from OSM water polygons; generalised below zoom 7' } },
   { id: 'sat', group: 'base', label: 'Satellite', opacity: 1,
     variants: { esri: 'Esri World Imagery (Esri terms)', eox16: 'Sentinel-2 2016 · EOX (CC BY)', eox24: 'Sentinel-2 2024 · EOX (non-commercial)' }, // first = default
     info: { src: 'Esri World Imagery (default), or EOX Sentinel-2 cloudless', lic: 'EOX 2016: CC BY 4.0 · EOX 2024: CC BY-NC-SA 4.0 · Esri: Esri terms of use', res: 'Sentinel-2: 10 m · Esri: up to ~0.5 m, varies', url: 'https://s2maps.eu' } },
@@ -319,19 +268,19 @@ export const ITEMS = [
     variants: DENSITY.routes.types,
     info: { src: 'EMSA route density, via EMODnet Human Activities: ship tracks rebuilt from terrestrial and satellite AIS, counting the routes that cross each cell', lic: 'CC BY 4.0 · European Maritime Safety Agency (EMSA)', res: '1 km grid, monthly totals since January 2019, about 3 months behind. EU and neighbouring seas only. Counts passages, not time spent (see Vessel density for hours)', url: 'https://www.emsa.europa.eu/related-operational-projects/traffic-density-maps.html' } },
   { id: 'wrecks', group: 'uses', label: 'Wrecks', opacity: 1, minzoom: 9,
-    info: { src: 'UK Hydrographic Office worldwide wreck locations, via EMODnet Human Activities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Wrecks as charted by the UKHO, worldwide; positions of varying accuracy. From zoom 9: they crowd the map below', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
-  { id: 'cables', group: 'uses', label: 'Cables', opacity: 1, variants: { telecom: 'Telecommunication', power: 'Power' },
-    info: { src: 'EMODnet Human Activities, from national authorities and operators', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Submarine cables in service, European seas; routes as reported, not surveyed positions', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+    info: { ...HUMAN_ACTIVITIES, src: 'UK Hydrographic Office worldwide wreck locations, via EMODnet Human Activities', res: 'Wrecks as charted by the UKHO, worldwide; positions of varying accuracy. From zoom 9: they crowd the map below' } },
+  { id: 'cables', group: 'uses', label: 'Cables', opacity: 1, kind: 'classes', legendSub: 'colour: who reported it', variants: { telecom: 'Telecommunication', power: 'Power' },
+    info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities, from national authorities and operators', res: 'Submarine cables in service, as each country reports them: routes, not surveyed positions. Telecommunication: red, with a centre line in the colour of who reported it (Germany, Spain, Malta, Netherlands, France, UK). Power: only where reported, Norwegian, Dutch, French and German waters; none elsewhere (the Mediterranean\'s, the Baltic\'s) yet' } },
   { id: 'pipelines', group: 'uses', label: 'Pipelines', opacity: 1,
-    info: { src: 'EMODnet Human Activities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Oil, gas and other pipelines, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+    info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities', res: 'Oil, gas and other pipelines, European seas' } },
   { id: 'platforms', group: 'uses', label: 'Offshore installations', opacity: 1,
-    info: { src: 'EMODnet Human Activities, from OSPAR and national authorities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Oil and gas platforms and other installations, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+    info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities, from OSPAR and national authorities', res: 'Oil and gas platforms and other installations, European seas' } },
   { id: 'windfarms', group: 'uses', label: 'Wind farms', opacity: 1,
-    info: { src: 'EMODnet Human Activities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Offshore wind farms (areas and points), planned to in production, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+    info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities', res: 'Offshore wind farms (areas and points), planned to in production, European seas' } },
   { id: 'military', group: 'uses', label: 'Military areas', opacity: 1,
-    info: { src: 'EMODnet Human Activities, from national authorities', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Firing, exercise and other military areas, European seas; consult the official notices before entering', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+    info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities, from national authorities', res: 'Firing, exercise and other military areas, European seas; consult the official notices before entering' } },
   { id: 'protected', group: 'uses', label: 'Protected areas', opacity: 1, variants: { natura: 'Natura 2000', mpa: 'Regional sea conventions MPAs' },
-    info: { src: 'EMODnet Human Activities: Natura 2000 (EEA), MPAs of the regional sea conventions', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'Marine protected areas, European seas', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+    info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities: Natura 2000 (EEA), MPAs of the regional sea conventions', res: 'Marine protected areas, European seas' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -342,37 +291,37 @@ export const ITEMS = [
   { id: 'contours', group: 'land', label: 'Land contours', minzoom: 9, opacity: 1,
     info: { src: 'Contoured in your browser from the Terrarium DEM', lic: 'As DEM', res: 'SRTM 30 m; interval by zoom', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'roads', group: 'land', label: 'Roads', on: true, minzoom: 6, opacity: 1,
-    info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Minor roads appear from zoom 12', url: 'https://openfreemap.org' } },
+    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'Minor roads appear from zoom 12' } },
   { id: 'buildings', group: 'land', label: 'Buildings', on: true, minzoom: 13, opacity: 1,
-    info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Footprints as mapped in OSM; coverage varies by country', url: 'https://openfreemap.org' } },
+    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'Footprints as mapped in OSM; coverage varies by country' } },
 
   // Copernicus Marine: one hour for all, forecasts about 9 days ahead (cmems.js)
   { id: 'waves', group: 'data', section: 'Sea state', label: 'Waves', opacity: 0.85, kind: 'cmems',
     variants: Object.fromEntries(Object.entries(CMEMS.waves).map(([k, v]) => [k, v.label])),
-    info: { src: 'Copernicus Marine Service: Mediterranean wave forecast (MEDSEA_ANALYSISFORECAST_WAV_006_017) over the global one (GLOBAL_ANALYSISFORECAST_WAV_001_027)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Mediterranean 4.2 km, hourly; elsewhere 1/12° (~9 km), every 3 hours. Model analysis and forecast, about 9 days ahead. Not for navigation', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: Mediterranean wave forecast (MEDSEA_ANALYSISFORECAST_WAV_006_017) over the global one (GLOBAL_ANALYSISFORECAST_WAV_001_027)', res: 'Mediterranean 4.2 km, hourly; elsewhere 1/12° (~9 km), every 3 hours. Model analysis and forecast, about 9 days ahead. Not for navigation' } },
   { id: 'currents', group: 'data', section: 'Sea state', label: 'Currents', opacity: 0.85, kind: 'cmems',
-    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global surface currents (GLOBAL_ANALYSISFORECAST_PHY_001_024, with tides and wave drift)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Surface, hourly. Mediterranean 4.2 km (with tides); elsewhere 1/12° (~9 km). Arrows show the direction the water flows. Model forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global surface currents (GLOBAL_ANALYSISFORECAST_PHY_001_024, with tides and wave drift)', res: 'Surface, hourly. Mediterranean 4.2 km (with tides); elsewhere 1/12° (~9 km). Arrows show the direction the water flows. Model forecast, about 9 days ahead' } },
   { id: 'wind', group: 'data', section: 'Sea state', label: 'Wind', opacity: 0.85, kind: 'cmems',
-    info: { src: 'Copernicus Marine Service: global ocean wind from satellite scatterometers, blended with a weather model (WIND_GLO_PHY_L4_NRT_012_004)', lic: 'Copernicus Marine Service licence: free, attribution required', res: '0.125° (~14 km), hourly, 10 m above the sea. An observation, not a forecast: published about a day late. The time shown goes no later than its latest observation. Arrows show where the wind blows to', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: global ocean wind from satellite scatterometers, blended with a weather model (WIND_GLO_PHY_L4_NRT_012_004)', res: '0.125° (~14 km), hourly, 10 m above the sea. An observation, not a forecast: published about a day late. The time shown goes no later than its latest observation. Arrows show where the wind blows to' } },
 
   { id: 'temperature', group: 'data', section: 'Water column', label: 'Temperature', opacity: 0.85, kind: 'cmems',
     variants: Object.fromEntries(Object.entries(CMEMS.temperature).map(([k, v]) => [k, v.label === 'Temperature' ? 'At the depth chosen' : 'At the seabed'])),
-    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Potential temperature, daily means. Mediterranean 4.2 km, 141 levels; elsewhere 1/12° (~9 km), 50 levels: each at its level nearest the depth chosen. Model analysis and forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Potential temperature, daily means. Mediterranean 4.2 km, 141 levels; elsewhere 1/12° (~9 km), 50 levels: each at its level nearest the depth chosen. Model analysis and forecast, about 9 days ahead' } },
   { id: 'salinity', group: 'data', section: 'Water column', label: 'Salinity', opacity: 0.85, kind: 'cmems',
-    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Practical salinity (PSU), daily means, at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 1/12° (~9 km). Model analysis and forecast', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Practical salinity (PSU), daily means, at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 1/12° (~9 km). Model analysis and forecast' } },
   { id: 'mld', group: 'data', section: 'Water column', label: 'Mixed layer depth', opacity: 0.85, kind: 'cmems',
-    info: { src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Depth of the well-mixed surface layer (density criterion), daily means. Shallow in summer, deep in winter. Mediterranean 4.2 km; elsewhere 1/12°. Model analysis and forecast', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Depth of the well-mixed surface layer (density criterion), daily means. Shallow in summer, deep in winter. Mediterranean 4.2 km; elsewhere 1/12°. Model analysis and forecast' } },
 
   { id: 'sst', group: 'data', section: 'Satellite', label: 'Sea surface temperature', opacity: 0.85, kind: 'cmems',
     variants: { measured: 'Measured', anomaly: 'Anomaly (Mediterranean)' },
-    info: { src: 'Copernicus Marine Service: satellite sea surface temperature, Mediterranean (SST_MED_SST_L4_NRT_OBSERVATIONS_010_004) over the global OSTIA analysis (SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Daily, gap-filled from several satellites. Mediterranean 1/16° (~4 km); elsewhere 0.05° (~5 km). Anomaly: against the 1991–2020 climatology of the day, Mediterranean only (marine heatwaves show in red). The time shown goes no later than its latest day', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: satellite sea surface temperature, Mediterranean (SST_MED_SST_L4_NRT_OBSERVATIONS_010_004) over the global OSTIA analysis (SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001)', res: 'Daily, gap-filled from several satellites. Mediterranean 1/16° (~4 km); elsewhere 0.05° (~5 km). Anomaly: against the 1991–2020 climatology of the day, Mediterranean only (marine heatwaves show in red). The time shown goes no later than its latest day' } },
   { id: 'chl', group: 'data', section: 'Satellite', label: 'Chlorophyll', opacity: 0.85, kind: 'cmems',
-    info: { src: 'Copernicus Marine Service: ocean colour, gap-free, Mediterranean (OCEANCOLOUR_MED_BGC_L4_NRT_009_142) over the global one (OCEANCOLOUR_GLO_BGC_L4_NRT_009_102)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Chlorophyll-a, daily, cloud gaps filled. Mediterranean 1 km; elsewhere 4 km. Logarithmic colours. Only the last two weeks or so are kept. The time shown goes no later than its latest day', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: ocean colour, gap-free, Mediterranean (OCEANCOLOUR_MED_BGC_L4_NRT_009_142) over the global one (OCEANCOLOUR_GLO_BGC_L4_NRT_009_102)', res: 'Chlorophyll-a, daily, cloud gaps filled. Mediterranean 1 km; elsewhere 4 km. Logarithmic colours. Only the last two weeks or so are kept. The time shown goes no later than its latest day' } },
   { id: 'sla', group: 'data', section: 'Satellite', label: 'Sea level anomaly', opacity: 0.85, kind: 'cmems',
-    info: { src: 'Copernicus Marine Service: satellite altimetry, all missions merged (SEALEVEL_GLO_PHY_L4_NRT_008_046)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Sea surface height above its 1993–2012 mean, daily, 0.125° (~14 km). Eddies and large-scale highs and lows; tides and storm surge removed. The time shown goes no later than its latest day', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: satellite altimetry, all missions merged (SEALEVEL_GLO_PHY_L4_NRT_008_046)', res: 'Sea surface height above its 1993–2012 mean, daily, 0.125° (~14 km). Eddies and large-scale highs and lows; tides and storm surge removed. The time shown goes no later than its latest day' } },
   { id: 'bgc', group: 'data', section: 'Water column', label: 'Water quality', opacity: 0.85, kind: 'cmems',
     variants: Object.fromEntries(Object.entries(CMEMS.bgc).map(([k, v]) => [k, v.label])),
-    info: { src: 'Copernicus Marine Service: Mediterranean biogeochemistry forecast (MEDSEA_ANALYSISFORECAST_BGC_006_014) over the global one (GLOBAL_ANALYSISFORECAST_BGC_001_028)', lic: 'Copernicus Marine Service licence: free, attribution required', res: 'Daily means at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 0.25° (~28 km). Nitrate in logarithmic colours. Model analysis and forecast, about 9 days ahead', url: 'https://marine.copernicus.eu' } },
+    info: { ...COPERNICUS, src: 'Copernicus Marine Service: Mediterranean biogeochemistry forecast (MEDSEA_ANALYSISFORECAST_BGC_006_014) over the global one (GLOBAL_ANALYSISFORECAST_BGC_001_028)', res: 'Daily means at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 0.25° (~28 km). Nitrate in logarithmic colours. Model analysis and forecast, about 9 days ahead' } },
 
   { id: 'gibs', group: 'data', section: 'Satellite', label: 'NASA daily', opacity: 0.9, kind: 'gibs',
     variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),
@@ -381,66 +330,14 @@ export const ITEMS = [
   { id: 'legend', group: 'labels', label: 'Legends', on: true,
     info: { src: 'Drawn from the same colour stops as the map; Copernicus from the colour maps its service publishes; vessel and route density from the stops their WMS publishes', lic: '—', res: 'Shown bottom left for every colour layer that is drawn; the PNG always includes them', url: '' } },
   { id: 'places', group: 'labels', label: 'Place names', on: true,
-    info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'English name where tagged, else local name', url: 'https://openfreemap.org' } },
+    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'English name where tagged, else local name' } },
   { id: 'seanames', group: 'labels', label: 'Sea names', on: true,
-    info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Oceans, seas, bays, straits as tagged in OSM', url: 'https://openfreemap.org' } },
+    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'Oceans, seas, bays, straits as tagged in OSM' } },
   { id: 'boundaries', group: 'labels', label: 'Boundaries', on: true,
-    info: { src: 'OpenStreetMap via OpenFreeMap', lic: 'ODbL · © OpenStreetMap contributors', res: 'Administrative boundaries, national to provincial. Lines OpenStreetMap tags as maritime (territorial seas, economic zones) are not drawn; where a country draws its provinces out to sea (Indonesia, to 12 NM), those limits are, as mapped', url: 'https://openfreemap.org' } },
+    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'Administrative boundaries, national to provincial. Lines OpenStreetMap tags as maritime (territorial seas, economic zones) are not drawn; where a country draws its provinces out to sea (Indonesia, to 12 NM), those limits are, as mapped' } },
   { id: 'graticule', group: 'labels', label: 'Graticule', on: true,
     info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. With the map north-up, longitudes are labelled along the top edge and latitudes along the left', url: '' } },
 ];
-
-// ---- sources ----------------------------------------------------------------
-function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density = {} }) {
-  // credits: the names each provider asks for, short enough for one line; what each layer is
-  // made from is behind its ⓘ
-  const ATTR_OSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · <a href="https://openfreemap.org">OpenFreeMap</a>';
-  const ATTR_DEM = '<a href="https://registry.opendata.aws/terrain-tiles/">Mapzen Terrain Tiles</a>';
-  const s = {
-    omt: { type: 'vector', url: OMT_TILEJSON, attribution: ATTR_OSM },
-    'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: ATTR_DEM },
-    dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
-    isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: 12, attribution: ATTR_DEM }, // 512 px tiles: z12 is cut with the z12 coastline
-    contours: { type: 'vector', tiles: [contourUrl], maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
-    eox16: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2016 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2016), CC BY 4.0',
-      tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'] },
-    eox24: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2024 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0',
-      tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg'] },
-    // Esri asks for "Powered by Esri" plus the service's own copyrightText (app.js refreshes it from
-    // ESRI_META; this is the text it had on 2026-10-20)
-    esri: { type: 'raster', tileSize: 256, maxzoom: 18, attribution: esriAttribution('Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community'),
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
-    // the grid is 1 km: beyond zoom 10 the map overzooms instead of asking for more tiles
-    traffic: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('traffic', ...(density.traffic || ['all', DENSITY.traffic.defaultPeriod])),
-      attribution: '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>' },
-    routes: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('routes', ...(density.routes || ['all', DENSITY.routes.defaultPeriod])),
-      attribution: '<a href="https://www.emsa.europa.eu/">EMSA</a> (CC BY 4.0) via <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>' },
-    seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '<a href="https://openseamap.org">OpenSeaMap</a>',
-      tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
-    ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
-      { type: 'raster', tileSize: 256, maxzoom: OVERLAY_MAXZOOM[item] ?? 18, tiles, attribution: OVERLAY_CREDIT[item] || OVERLAY_CREDIT.wrecks.replace(' (wrecks: UKHO)', '') }]))),
-    graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-    measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-  };
-  // tiles set by app.js once the hour is known (cmems:// is cmems.js's tile handler)
-  for (const id of Object.keys(CMEMS)) {
-    s[`cmems-${id}`] = { type: 'raster', tileSize: 512, maxzoom: 10, tiles: [], attribution: '<a href="https://marine.copernicus.eu">Copernicus Marine Service</a>' };
-  }
-  for (const [k, g] of Object.entries(GIBS)) {
-    s[`gibs-${k}`] = { type: 'raster', tileSize: 256, maxzoom: g.level, tiles: gibsTiles(k, date),
-      attribution: '<a href="https://earthdata.nasa.gov/gibs">NASA GIBS</a>' };
-  }
-  return s;
-}
-
-// ---- layers, bottom to top --------------------------------------------------
-const m = (item, variant) => ({ metadata: variant ? { item, variant } : { item } });
-// an overlay's layers, one per variant (OVERLAYS), from its item's minzoom
-const overlayLayers = (items) => items.flatMap((item) => {
-  const vs = Object.keys(OVERLAYS[item]), minzoom = ITEMS.find((it) => it.id === item).minzoom;
-  return vs.map((v) => ({ ...raster(`ov-${item}-${v}`, item, vs.length > 1 ? v : undefined), ...(minzoom && { minzoom }) }));
-});
-const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(item, variant), paint: { 'raster-fade-duration': 150 } });
 
 // Depth colour schemes ([depth m, colour] stops, shared by the depth shading and its legend). atlas: darker = deeper, as on atlases and ocean maps (default);
 // nautical: darker = shallower, as on nautical charts (IHO S-52), where shallow water is the hazard.
@@ -448,14 +345,6 @@ export const DEPTH_SCHEMES = {
   atlas: [[0, '#dceefa'], [5, '#cfe6f7'], [20, '#bcdbf2'], [50, '#a5cdec'], [200, '#86b9e2'], [2000, '#5189c4'], [6000, '#335f97']],
   nautical: [[0, '#97c1e2'], [5, '#a3c9e6'], [20, '#b6d5ec'], [50, '#c9e0f1'], [200, '#dbeaf5'], [2000, '#ecf4fa']],
 };
-// Positive elevations stay transparent so land is never tinted from the DEM: clip.js sends land
-// as +1 m and water without a depth source (lakes above sea level) as NO_DEPTH_M (grey).
-export function depthRamp(stops) {
-  return ['interpolate', ['linear'], ['elevation'], -11000, stops[stops.length - 1][1],
-    ...[...stops].reverse().flatMap(([d, c]) => [-Math.max(d, 0.1), c]), 0, 'rgba(255,255,255,0)',
-    NO_DEPTH_M - 1, 'rgba(221,227,231,0)', NO_DEPTH_M, C.noDepth];
-}
-
 // Isobaths, in one table: what each zoom traces (maplibre-contour thresholds, app.js), draws (the
 // style filters below) and cleans up in the DEM (levelsFor, used by clip.js). Nautical spacing
 // that widens with depth and tightens with zoom, so steep deep slopes don't fill with lines and
@@ -481,166 +370,8 @@ export function levelsFor(z) {
   const row = ISOBATH_ZOOMS.findLast(([z0]) => z0 <= z) || ISOBATH_ZOOMS[0];
   return DEPTH_LEVELS.filter((d) => drawnAt(d, row));
 }
-// the same rule as drawnAt as a style filter; one layer per run of zooms with the same spacing
-// (filters can't use zoom): [minzoom, maxzoom, mid, deep]
-const ISOBATH_RANGES = ISOBATH_ZOOMS.filter((r, k, a) => !k || r[3] !== a[k - 1][3] || r[4] !== a[k - 1][4])
-  .map((r, k, a) => [r[0], a[k + 1]?.[0] ?? 24, r[3], r[4]]);
-const DEPTH = ['abs', ['get', 'ele']];
-const isobathFilter = (mid, deep) => ['all', ['<', ['get', 'ele'], 0], ['any',
-  ['==', DEPTH, 5],
-  ['all', ['<=', DEPTH, 50], ['==', ['%', DEPTH, 10], 0]],
-  ['all', ['<=', DEPTH, 200], ['==', ['%', DEPTH, 50], 0]],
-  ['all', ['<=', DEPTH, 3000], ['==', ['%', DEPTH, mid], 0]],
-  ['==', ['%', DEPTH, deep], 0]]];
 
-export const NO_DEPTH = C.noDepth;
+// water without depth data (lakes above sea level): never white, which reads as deep
+export const NO_DEPTH = '#dde3e7';
 // value the sea tiles carry for water without a depth source (clip.js); depthRamp paints it grey
 export const NO_DEPTH_M = 9000;
-
-function layers() {
-  const L = [
-    { id: 'bg', type: 'background', paint: { 'background-color': C.land } },
-
-    raster('eox16', 'sat', 'eox16'), raster('eox24', 'sat', 'eox24'), raster('esri', 'sat', 'esri'),
-
-    // land relief and contours sit under the sea fill: the vector coastline cuts them sharply
-    { id: 'relief', type: 'hillshade', source: 'dem', ...m('relief'),
-      paint: { 'hillshade-exaggeration': 0.3, 'hillshade-shadow-color': '#3d4b55', 'hillshade-highlight-color': '#ffffff', 'hillshade-accent-color': '#5d6d79' } },
-
-    { id: 'contours', type: 'line', source: 'contours', 'source-layer': 'contours', minzoom: 9, ...m('contours'),
-      filter: ['>', ['get', 'ele'], 0],
-      paint: { 'line-color': C.contour, 'line-width': ['match', ['get', 'level'], 1, 0.8, 0.4] } },
-    // Shore line drawn UNDER the water fill at twice its width: where two water polygons meet
-    // (sea and a harbour basin, a lagoon and its canals; OSM draws a straight line between pier
-    // heads) both fills cover it; where water meets land, the land-side half stays as the shore.
-    // Ponds (irrigation tanks, cisterns, small reservoirs) get no shore line: a 20 m pond inside a
-    // 2 px ring reads as a dark dot on land; they show as water fill alone, as on most maps.
-    { id: 'coastline', type: 'line', source: 'omt', 'source-layer': 'water', ...m('coastline'),
-      filter: ['in', ['get', 'class'], ['literal', ['ocean', 'dock', 'lake', 'river']]],
-      layout: { 'line-join': 'round' },
-      paint: {
-        'line-color': C.ink,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 3, ['match', ['get', 'class'], 'ocean', 0.8, 0.5], 12, ['match', ['get', 'class'], ['ocean', 'dock'], 2.2, 1.4]],
-      } },
-    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', ...m('chart'),
-      filter: ['!=', ['get', 'class'], 'swimming_pool'],
-      // depth shading covers the open sea only (clip.js); inland water has no depth source
-      paint: { 'fill-color': C.sea } }, // one water surface; depth shading marks what has no depth
-    { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway', minzoom: 8, ...m('chart'),
-      filter: ['in', ['get', 'class'], ['literal', ['river', 'canal', 'stream']]],
-      paint: { 'line-color': C.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 14, 2] } },
-
-    // colour fills are chart-only: over satellite the image shows the water; isobaths still draw
-    { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
-    ...overlayLayers(['emodnetdepth', 'substrate']),
-    ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
-    // colours, then the layers that can draw arrows (currents, then wind), whose arrows go over them
-    ...Object.keys(CMEMS).sort((a, b) => ARROWS_LAST(a) - ARROWS_LAST(b)).map((id) => raster(`cmems-${id}`, id)),
-
-    // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined
-    ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobaths-${k}` : 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours',
-      minzoom: z0, maxzoom: z1, ...m('isobaths'), filter: isobathFilter(mid, deep),
-      paint: { 'line-color': C.isobath, 'line-width': ['match', ['get', 'level'], 1, 0.9, 0.45] } })),
-
-    // Piers and breakwaters as land at about their true width (the shore line under the water
-    // fill would otherwise half-hide anything narrower than itself), above every water layer
-    { id: 'piers', type: 'fill', source: 'omt', 'source-layer': 'transportation', minzoom: 12, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
-      filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'Polygon']],
-      paint: { 'fill-color': C.land, 'fill-outline-color': C.ink } },
-    { id: 'pier-lines-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 12, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
-      filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'LineString']],
-      layout: { 'line-cap': 'butt', 'line-join': 'round' },
-      paint: { 'line-color': C.ink, 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 12, 1.5, 18, 36] } },
-    { id: 'pier-lines', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 12, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
-      filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'LineString']],
-      layout: { 'line-cap': 'butt', 'line-join': 'round' },
-      paint: { 'line-color': C.land, 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 12, 0.5, 18, 32] } },
-
-    { id: 'roads', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6, ...m('roads'),
-      filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service']]],
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: {
-        'line-color': ['match', ['get', 'class'], ['motorway', 'trunk', 'primary'], C.roadMajor, C.road],
-        'line-width': ['interpolate', ['exponential', 1.6], ['zoom'],
-          6, ['match', ['get', 'class'], ['motorway', 'trunk'], 0.7, 'primary', 0.4, 0.2],
-          16, ['match', ['get', 'class'], ['motorway', 'trunk'], 6, ['primary', 'secondary'], 4.5, 2]],
-      } },
-    { id: 'buildings', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 13, ...m('buildings'),
-      paint: { 'fill-color': C.building, 'fill-outline-color': C.buildingEdge } },
-
-    { id: 'boundaries', type: 'line', source: 'omt', 'source-layer': 'boundary', ...m('boundaries'),
-      filter: ['all', ['<=', ['get', 'admin_level'], 4], ['!=', ['get', 'maritime'], 1]],
-      paint: { 'line-color': C.boundary, 'line-dasharray': [3, 2],
-        'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
-
-    raster('traffic', 'traffic'), raster('routes', 'routes'),
-    ...overlayLayers(['worlddensity', 'protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
-    { ...raster('seamarks', 'seamarks'), minzoom: 9 },
-
-    { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
-      paint: { 'line-color': C.grid, 'line-width': 0.5, 'line-opacity': 0.55 } },
-
-    ...ISOBATH_RANGES.map(([z0, z1, mid, deep], k) => ({ id: k ? `isobath-labels-${k}` : 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours',
-      minzoom: Math.max(6, z0), maxzoom: z1, ...m('isobaths'), filter: isobathFilter(mid, deep),
-      layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', DEPTH], ' m'],
-        // coarse contours wiggle: allow more bend and place often, or long stretches go unlabelled
-        'text-font': FONT, 'text-size': 10, 'symbol-spacing': 220, 'text-max-angle': 55 },
-      paint: { 'text-color': C.isobath, ...HALO } })),
-    { id: 'contour-labels', type: 'symbol', source: 'contours', 'source-layer': 'contours', minzoom: 11, ...m('contours'),
-      filter: ['all', ['>', ['get', 'ele'], 0], ['==', ['get', 'level'], 1]],
-      layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', ['get', 'ele']], ' m'],
-        'text-font': FONT, 'text-size': 10, 'symbol-spacing': 320 },
-      paint: { 'text-color': C.contour, ...HALO } },
-
-    // a sea's name runs along a line across it: repeat it rarely, and not at harbour zooms,
-    // where the line spans many screens and the name would appear every few hundred pixels
-    { id: 'sea-names-line', type: 'symbol', source: 'omt', 'source-layer': 'water_name', maxzoom: 12, ...m('seanames'),
-      filter: ['==', ['geometry-type'], 'LineString'],
-      layout: { 'symbol-placement': 'line', 'text-field': NAME, 'text-font': FONT_I, 'text-size': 13, 'text-letter-spacing': 0.15,
-        'symbol-spacing': 1200 },
-      paint: { 'text-color': C.waterText, ...HALO } },
-    { id: 'sea-names', type: 'symbol', source: 'omt', 'source-layer': 'water_name', ...m('seanames'),
-      filter: ['==', ['geometry-type'], 'Point'],
-      layout: { 'text-field': NAME, 'text-font': FONT_I, 'text-max-width': 8, 'text-letter-spacing': 0.15,
-        'text-size': ['match', ['get', 'class'], 'ocean', 16, 'sea', 14, 12] },
-      paint: { 'text-color': C.waterText, ...HALO } },
-
-    { id: 'islands', type: 'symbol', source: 'omt', 'source-layer': 'place', ...m('places'),
-      filter: ['in', ['get', 'class'], ['literal', ['island', 'islet']]],
-      layout: { 'text-field': NAME, 'text-font': FONT_I, 'text-size': 11, 'text-max-width': 8 },
-      paint: { 'text-color': C.ink, ...HALO } },
-    { id: 'places', type: 'symbol', source: 'omt', 'source-layer': 'place', ...m('places'),
-      filter: ['!', ['in', ['get', 'class'], ['literal', ['island', 'islet', 'continent', 'state', 'province']]]],
-      layout: { 'text-field': NAME, 'text-max-width': 8, 'symbol-sort-key': ['get', 'rank'],
-        'text-font': ['match', ['get', 'class'], ['country', 'city'], ['literal', FONT_B], ['literal', FONT]],
-        'text-size': ['match', ['get', 'class'], 'country', 13, 'state', 11, 'city', 14, 'town', 12, 'village', 11, 10],
-        'text-transform': ['match', ['get', 'class'], ['country', 'state'], 'uppercase', 'none'],
-        'text-letter-spacing': ['match', ['get', 'class'], ['country', 'state'], 0.12, 0] },
-      paint: { 'text-color': ['match', ['get', 'class'], ['country', 'state'], C.inkSoft, C.ink], ...HALO } },
-
-    // one label per line, at the frame edge (points placed by app.js updateGraticule)
-    { id: 'graticule-labels', type: 'symbol', source: 'graticule', ...m('graticule'),
-      filter: ['==', ['geometry-type'], 'Point'],
-      layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': 10,
-        'text-anchor': ['get', 'anchor'], 'text-allow-overlap': true, 'text-ignore-placement': true },
-      paint: { 'text-color': C.grid, ...HALO } },
-  ];
-  // Every layer starts hidden; the app shows what the URL / defaults ask for.
-  for (const l of L) if (l.metadata) l.layout = { ...l.layout, visibility: 'none' };
-  return L;
-}
-
-export function buildStyle(opts) {
-  return {
-    version: 8,
-    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
-    sources: sources(opts),
-    layers: layers(),
-  };
-}
-
-// Paint property that an item's opacity slider drives, per layer type.
-export const OPACITY_PROP = {
-  raster: 'raster-opacity', fill: 'fill-opacity', line: 'line-opacity', symbol: 'text-opacity',
-  'color-relief': 'color-relief-opacity', hillshade: 'hillshade-exaggeration',
-};

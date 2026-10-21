@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, buildStyle, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf, durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
+import { buildStyle } from '../../site/style.js';
+import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
 import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });

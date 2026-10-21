@@ -104,17 +104,22 @@ export function drawColormap(el, text, sub, entries, open = [true, true], log = 
   ticks(g, marks);
 }
 
-// Classes of a categorical layer ([{ label, colour }]): a swatch and its name, two to a row
+// Classes of a categorical layer ([{ label, colour, line, casing }]): a swatch (a line, for line:
+// true, on its casing colour if any) and its name, two to a row
 export function drawClasses(el, text, sub, classes) {
   const rows = Math.ceil(classes.length / 2);
   const g = canvas(el, null, 24 + rows * 14);
   title(g, text, sub);
   g.font = '10px system-ui, sans-serif';
-  classes.forEach(({ label, colour }, i) => {
+  classes.forEach(({ label, colour, line, casing }, i) => {
     const x = BAR.x + (i % 2) * 112, y = 20 + Math.floor(i / 2) * 14;
-    g.fillStyle = colour;
-    g.fillRect(x, y, 12, 9);
-    g.strokeStyle = INK; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, 11, 8);
+    if (line) { // a line, on its casing if it has one
+      for (const [c, w] of [[casing, 5], [colour, casing ? 2 : 3]]) if (c) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(x, y + 4.5); g.lineTo(x + 12, y + 4.5); g.stroke(); }
+    } else {
+      g.fillStyle = colour;
+      g.fillRect(x, y, 12, 9);
+      g.strokeStyle = INK; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, 11, 8);
+    }
     g.fillStyle = INK;
     g.fillText(label, x + 17, y + 8.5, 92);
   });
