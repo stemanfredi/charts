@@ -202,6 +202,10 @@ produce.
 The density periods offered in the menu are listed in `catalog.js`. When
 `npm run deps` reports newer data, extend the list there.
 
+## Roadmap
+
+Known gaps and parked ideas: [ROADMAP.md](ROADMAP.md).
+
 ## Archived work
 
 Support for survey-grade depths in selected areas ("area packs") was built and
