@@ -68,3 +68,12 @@ test('readCells: the chunks that hold the cells, scale and offset, fill as NaN, 
   const surface = await readCells(store, 'v', 0, 0, { rows: [0], cols: [0, 1] });
   assert.ok(Number.isNaN(surface[0]) && surface[1] === 0.5 + 1);
 });
+
+test('readCells: a 2-D variable (latitude × longitude), NaN as its fill', async () => {
+  const meta = { shape: [2, 4], chunks: [2, 2], dtype: '<f4', fill_value: 'NaN', compressor: null };
+  const files = { '.zmetadata': new TextEncoder().encode(JSON.stringify({ metadata: { 'e/.zarray': meta, 'e/.zattrs': {} } })),
+    'e/0.0': new Uint8Array(Float32Array.from([-10, -11, -20, NaN]).buffer) }; // 0.1 not stored
+  const store = await openStore('mem', async (url) => files[url.slice(4)] ?? null);
+  const out = await readCells(store, 'e', 0, 0, { rows: [1, 0], cols: [0, 1, 2] });
+  assert.deepEqual([...out].map(String), ['-20', 'NaN', 'NaN', '-10', '-11', 'NaN']);
+});

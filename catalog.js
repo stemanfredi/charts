@@ -78,7 +78,9 @@ export function densityTiles(id, type, period) {
 const wms = (base, layers, style = '') => [`${base}?service=WMS&version=1.3.0&request=GetMap&layers=${layers}&styles=${style}`
   + '&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true'];
 const HA_WMS = 'https://ows.emodnet-humanactivities.eu/wms', GEOLOGY_WMS = 'https://drive.emodnet-geology.eu/geoserver/gtk/wms';
+const bathy = (style) => [`https://tiles.emodnet-bathymetry.eu/latest/${style}/web_mercator/{z}/{x}/{y}.png`];
 export const OVERLAYS = {
+  emodnetdepth: { multicolour: bathy('mean_multicolour'), rainbow: bathy('mean_rainbowcolour') },
   substrate: { folk5: wms(GEOLOGY_WMS, 'seabed_substrate_250k', 'folk_5_substrate_class'), folk7: wms(GEOLOGY_WMS, 'seabed_substrate_250k', 'folk_7_substrate_class') },
   wrecks: { all: wms(HA_WMS, 'wwshipwrecks') },
   cables: { telecom: wms(HA_WMS, 'telecablesactual'), power: wms(HA_WMS, 'powercables') },
@@ -89,9 +91,13 @@ export const OVERLAYS = {
   protected: { natura: wms(HA_WMS, 'natura2000areas'), mpa: wms(HA_WMS, 'marineprotectedareas') },
 };
 const OVERLAY_CREDIT = {
+  emodnetdepth: '<a href="https://emodnet.ec.europa.eu/en/bathymetry">EMODnet Bathymetry</a>',
   substrate: '<a href="https://emodnet.ec.europa.eu/en/geology">EMODnet Geology</a>',
   wrecks: '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a> (wrecks: UKHO)',
 };
+// EMODnet Bathymetry's model as data (GIS export): its Zarr store, as EDITO's catalogue lists it
+// (collection emodnet-elevation, DTM 2024): elevation in metres, 1/16 arc-minute, chunks of ~1°
+export const EMODNET_DTM = 'https://s3.waw3-1.cloudferro.com/emodnet/emodnet_bathymetry/14157/bathymetry_dtm_2024.zarr';
 // a classed layer's legend, as its WMS gives it (JSON: rules with a title and a fill), for a variant
 export const CLASS_LEGENDS = {
   substrate: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${{ folk5: 'folk_5_substrate_class', folk7: 'folk_7_substrate_class' }[variant]}`,
@@ -290,6 +296,9 @@ export const ITEMS = [
     info: { src: 'AWS Terrain Tiles (Terrarium): ETOPO1 and GEBCO-class seabed, NOAA coastal DEMs', lic: 'Open data, attribution per source', res: 'Seabed ~1–2 km in open sea, finer in US and some European waters. Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://registry.opendata.aws/terrain-tiles/' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 4,
     info: { src: 'Contoured in your browser from the Terrarium DEM (maplibre-contour)', lic: 'As DEM', res: 'Spacing widens with depth and tightens with zoom: 5 m, every 10 m to 50 m, 50 m to 200 m, then 500/200/100 m to 3000 m and 1000/500 m below ( indicative only, the seabed data is ~1–2 km in open sea). As coarse as the DEM beneath: smoothed shapes, not surveyed soundings. Traced on the DEM cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
+  { id: 'emodnetdepth', group: 'sea', label: 'EMODnet depth (Europe)', opacity: 1, kind: 'emodnet',
+    variants: { multicolour: 'Multicolour', rainbow: 'Rainbow' },
+    info: { src: 'EMODnet Bathymetry digital terrain model, drawn by EMODnet (tiles); its values go in the GIS export', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'About 115 m (1/16 arc-minute) in European seas, from surveys where there are, a coarser model elsewhere; no data outside Europe. Mean depth, its own colours (no legend here: light in the shallows, dark in the deep). Referenced to lowest astronomical tide. Not for navigation', url: 'https://emodnet.ec.europa.eu/en/bathymetry' } },
   { id: 'substrate', group: 'sea', label: 'Seabed substrate', opacity: 0.8, kind: 'classes',
     variants: { folk5: 'Folk 5 classes', folk7: 'Folk 7 classes' },
     info: { src: 'EMODnet Geology seabed substrate (WMS)', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: '1:250 000, European seas; what the seabed is made of (mud, sand, coarse sediment, mixed, rock), in Folk classes. Compiled from national surveys: varies by country', url: 'https://emodnet.ec.europa.eu/en/geology' } },
@@ -399,7 +408,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '<a href="https://openseamap.org">OpenSeaMap</a>',
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
     ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
-      { type: 'raster', tileSize: 256, maxzoom: 18, tiles, attribution: OVERLAY_CREDIT[item] || OVERLAY_CREDIT.wrecks.replace(' (wrecks: UKHO)', '') }]))),
+      { type: 'raster', tileSize: 256, maxzoom: item === 'emodnetdepth' ? 12 : 18, tiles, attribution: OVERLAY_CREDIT[item] || OVERLAY_CREDIT.wrecks.replace(' (wrecks: UKHO)', '') }]))),
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   };
@@ -513,7 +522,7 @@ function layers() {
 
     // colour fills are chart-only: over satellite the image shows the water; isobaths still draw
     { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
-    ...overlayLayers(['substrate']),
+    ...overlayLayers(['emodnetdepth', 'substrate']),
     ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
     // colours, then the layers that can draw arrows (currents, then wind), whose arrows go over them
     ...Object.keys(CMEMS).sort((a, b) => ARROWS_LAST(a) - ARROWS_LAST(b)).map((id) => raster(`cmems-${id}`, id)),

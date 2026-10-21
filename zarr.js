@@ -125,12 +125,13 @@ export function cellsOf(lat, lon, [w, s, e, n], max = 4e6) {
   return { rows, cols, step, dlat: Math.abs(dlat) * step, dlon: dlon * step, west: lon[0] + c0 * dlon, north: lat[rows[0]] };
 }
 
-// The values of `name` at time index ti (and elevation index zi, for a 4-D variable) over the cells
+// The values of `name` at time index ti (and elevation index zi, for a 4-D variable; neither for a
+// 2-D one, latitude × longitude) over the cells
 // (cellsOf): Float32Array rows × cols, north-up, in the variable's units (scale and offset applied),
 // NaN where it has no value. Only the chunks that hold those cells are read.
 export async function readCells(store, name, ti, zi, { rows, cols }) {
-  const m = store.meta(name), four = m.shape.length === 4;
-  const [ct, cz, cy, cx] = four ? m.chunks : [m.chunks[0], 1, m.chunks[1], m.chunks[2]];
+  const m = store.meta(name), four = m.shape.length === 4, two = m.shape.length === 2;
+  const [ct, cz, cy, cx] = four ? m.chunks : two ? [1, 1, ...m.chunks] : [m.chunks[0], 1, m.chunks[1], m.chunks[2]];
   const scale = m.attrs.scale_factor ?? 1, offset = m.attrs.add_offset ?? 0;
   const fill = m.dtype === '<f4' ? Math.fround(m.fill_value) : m.fill_value;
   const out = new Float32Array(rows.length * cols.length).fill(NaN);
@@ -139,7 +140,7 @@ export async function readCells(store, name, ti, zi, { rows, cols }) {
   const byRow = group(rows, cy), byCol = group(cols, cx), W = cols.length;
   const tz = Math.floor(ti / ct), zz = Math.floor(zi / cz), base = ((ti % ct) * cz + (four ? zi % cz : 0)) * cy * cx;
   await Promise.all([...byRow].flatMap(([by, rs]) => [...byCol].map(async ([bx, cs]) => {
-    const data = await store.chunk(name, four ? [tz, zz, by, bx] : [tz, by, bx]);
+    const data = await store.chunk(name, four ? [tz, zz, by, bx] : two ? [by, bx] : [tz, by, bx]);
     for (const [i, y] of rs) {
       for (const [j, x] of cs) {
         const raw = data[base + y * cx + x];

@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables, CLASS_LEGENDS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables, CLASS_LEGENDS, EMODNET_DTM } from './catalog.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend, regionOf } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses } from './legend.js';
@@ -371,6 +371,12 @@ function classesOf(url) {
 }
 
 const KINDS = {
+  // EMODnet's depth, drawn by EMODnet (tiles); its values from its Zarr store
+  emodnet: {
+    show: (id) => applyItem(id),
+    record: async () => ({}),
+    values: (it, box) => emodnetValues(box),
+  },
   // a classed layer its service draws (seabed substrate): its legend, the service's classes and colours
   classes: {
     show: (id) => applyItem(id),
@@ -1320,6 +1326,27 @@ async function cmemsValues(id, at, box) {
     return { key, file: `${key}.tif`, w, h, transform, names, units, title: `${v.label}${region ? `, ${region}` : ''}: values`, description,
       data: geotiff(planes, w, h, transform, { crs: 4326, bands: names.map((n, k) => ({ description: `${n}, ${when}${level != null ? `, ${level} m` : ''}`, unit: units[k] })) }) };
   }))).filter(Boolean);
+}
+
+// raster/emodnet-depth.tif: EMODnet Bathymetry's elevation over the view's bounding box, in its own
+// grid; a view needing more than 16 of its ~2 MB chunks (wider than about 4° × 4°) is left out:
+// zoom in to export it
+let dtm = null;
+const dtmStore = () => (dtm ||= (async () => {
+  const store = await openStore(EMODNET_DTM, fetchBytes);
+  const [lat, lon] = await Promise.all([store.coord('latitude'), store.coord('longitude')]);
+  return { store, lat, lon };
+})().catch((e) => { dtm = null; throw e; }));
+async function emodnetValues(box) {
+  const { store, lat, lon } = await dtmStore(), m = store.meta('elevation'), cells = cellsOf(lat, lon, box);
+  if (!cells.rows.length) return [];
+  const blocks = new Set(cells.rows.map((r) => Math.floor(r / m.chunks[0]))).size * new Set(cells.cols.map((c) => Math.floor(c / m.chunks[1]))).size;
+  if (blocks > 16) { console.warn(`EMODnet depth values: ${blocks} chunks of about 2 MB for this view; zoom in to export them`); return []; }
+  const w = cells.cols.length, h = cells.rows.length, key = 'raster/emodnet-depth';
+  const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
+  const description = `EMODnet Bathymetry DTM 2024: elevation (m, negative below the sea surface; vertical reference lowest astronomical tide), its own grid (1/16 arc-minute), EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN. Not for navigation`;
+  return [{ key, file: `${key}.tif`, w, h, transform, names: ['elevation'], units: ['m'], title: 'EMODnet depth: values', description,
+    data: geotiff([await readCells(store, 'elevation', 0, 0, cells)], w, h, transform, { crs: 4326, bands: [{ description: 'elevation, EMODnet DTM 2024', unit: 'm' }] }) }];
 }
 
 const RASTERS = [

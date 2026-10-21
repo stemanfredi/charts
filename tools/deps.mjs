@@ -35,14 +35,14 @@ export const TILE_HOSTS = [
   'https://server.arcgisonline.com',
   'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org', 'https://ows.emodnet-humanactivities.eu',
   'https://wmts.marine.copernicus.eu',
-  'https://drive.emodnet-geology.eu', // EMODnet seabed substrate
+  'https://tiles.emodnet-bathymetry.eu', 'https://drive.emodnet-geology.eu', // EMODnet depth, seabed substrate
 ];
 // Hosts the page calls for data but never draws from (connect-src only).
 export const API_HOSTS = [
   'https://photon.komoot.io', // place search (app.js)
   // Copernicus Marine's datasets as data, read on a GIS export (zarr.js): the STAC catalogue that
   // says where each dataset's Zarr store is, and the stores
-  'https://stac.marine.copernicus.eu', 'https://s3.waw3-1.cloudferro.com',
+  'https://stac.marine.copernicus.eu', 'https://s3.waw3-1.cloudferro.com', // (EMODnet's depth model too, GIS export)
 ];
 const CDN = 'https://cdn.jsdelivr.net';
 
