@@ -76,7 +76,7 @@ try {
 
   // NASA true colour opened at now: the time goes no later than NASA's newest day, and the tiles
   // are of the day shown (no older day passed off as it)
-  const tc = await open('#v=5/40/10/0&menu=1&g=observed&on=chart,coastline,gibs');
+  const tc = await open('#v=5/40/10/0&menu=1&g=data&col=gibs:terra&on=chart,coastline');
   await tc.waitForFunction(() => map.getLayoutProperty('gibs-terra', 'visibility') === 'visible' && /t=/.test(location.hash), null, { timeout: 20000 }).catch(() => {});
   await tc.waitForTimeout(500);
   const [tcTiles, tcHash, rowsOn, tcNotes] = await tc.evaluate(() => [map.getSource('gibs-terra').tiles[0], location.hash, document.querySelector('#when').hidden ? 'hidden' : 'shown',
@@ -128,11 +128,15 @@ try {
   await rt.close();
 
 
-  // Copernicus sea state: tiles load, the hour steps and is kept in the link, the legend shows
-  const cm = await open('#v=6/40/14/0&on=chart,coastline,waves,currents,legend&menu=1&g=seastate');
+  // Copernicus sea state from a link of before the Ocean data menus (on=waves,currents): read as
+  // waves in colour, currents in arrows; tiles load, the legends show
+  const cm = await open('#v=6/40/14/0&on=chart,coastline,waves,currents,legend&menu=1&g=data');
   await cm.waitForFunction(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2, null, { timeout: 30000 }).catch(() => {});
-  const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('label').textContent} (${r.title})`));
+  const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('.name').textContent} (${r.title})`));
   check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`);
+  const [cmPicks, cmLink] = await cm.evaluate(() => [[...document.querySelectorAll('.pick select')].map((s) => s.value).join(' '), location.hash]);
+  check(cmPicks === 'waves:height currents:surface' && /col=waves:height/.test(cmLink) && /arr=currents:surface/.test(cmLink) && !/on=[^&]*waves/.test(cmLink),
+    `an old link's layers go to the menus: colours, arrows ${cmPicks}`);
   check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown');
   // the time line at the panel's foot: a time picked there (local time) is drawn, read above the
   // legends and kept in the link; › steps an hour; Now goes back to now
@@ -162,26 +166,29 @@ try {
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
   await cm.close(); await cmAgain.close();
-  // one colour layer and one arrow layer: currents under waves draw arrows only; wind takes the
-  // arrows and currents go off; currents alone draw both
-  const sl = await open('#v=6/40/14/0&on=chart,coastline,waves,currents&menu=1&g=seastate');
+  // the Ocean data menus: waves in colours, currents in arrows; wind in arrows; currents in both
+  // draw speed and direction; none
+  const sl = await open('#v=6/40/14/0&col=waves:height&arr=currents:surface&on=chart,coastline&menu=1&g=data');
   const looks = () => sl.evaluate(() => ['waves', 'currents', 'wind'].map((id) => (map.getLayoutProperty(`cmems-${id}`, 'visibility') === 'visible' ? `${id}:${/cmems:\/\/\w+\/\w+\/(\w+)/.exec(map.getSource(`cmems-${id}`).tiles[0] || '')?.[1]}` : '')).filter(Boolean).join(' '));
   await sl.waitForTimeout(1000);
   const l1 = await looks();
-  await sl.click('label[for=i-wind]');
+  await sl.selectOption('select[aria-label=Arrows]', 'wind:observed');
   await sl.waitForTimeout(500);
-  const [l2, l2hash] = [await looks(), await sl.evaluate(() => location.hash)];
-  await sl.click('label[for=i-waves]');
-  await sl.click('label[for=i-wind]');
-  await sl.click('label[for=i-currents]');
+  const l2 = await looks();
+  await sl.selectOption('select[aria-label=Colours]', 'currents:surface');
+  await sl.selectOption('select[aria-label=Arrows]', 'currents:surface');
   await sl.waitForTimeout(500);
-  const l3 = await looks();
-  check(l1 === 'waves:colour currents:arrows' && l2 === 'waves:colour wind:arrows' && !/currents/.test(/on=[^&]*/.exec(l2hash)[0]) && l3 === 'currents:both',
-    `one colour layer, one arrow layer: ${l1} → with wind ${l2} → currents alone ${l3}`);
+  const [l3, l3hash] = [await looks(), await sl.evaluate(() => location.hash)];
+  await sl.selectOption('select[aria-label=Colours]', '');
+  await sl.selectOption('select[aria-label=Arrows]', '');
+  await sl.waitForTimeout(500);
+  const [l4, whenHidden] = [await looks(), await sl.evaluate(() => document.querySelector('#when').hidden)];
+  check(l1 === 'waves:colour currents:arrows' && l2 === 'waves:colour wind:arrows' && l3 === 'currents:both' && /col=currents:surface&arr=currents:surface/.test(l3hash) && !l4 && whenHidden,
+    `Ocean data menus: ${l1} → arrows wind: ${l2} → currents in both: ${l3} → none: ${l4 || 'nothing drawn, no time line'}`);
   await sl.close();
   // water properties at a depth from the link: "≈ 100 m" beside the time, each model at its own
   // level (the export records it), no note under the row
-  const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');
+  const wp = await open('#v=5/40/10/0&col=temperature:depth&on=chart,coastline,legend&menu=1&g=data&dz=100');
   await wp.waitForFunction(() => !!document.querySelector('#legends canvas[data-legend=temperature]')?.style.width, null, { timeout: 30000 }).catch(() => {});
   const [wpDepth, wpNotes, wpBroken] = await wp.evaluate(() => [document.querySelector('#when .depthsel select').value + ' ' + document.querySelector('#shown').textContent,
     document.querySelectorAll('.item .note:not([hidden])').length, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
@@ -189,7 +196,7 @@ try {
   await wp.close();
   // a satellite observation opened at now: the time goes no later than its latest day, and the
   // day shown is the day drawn
-  const ob = await open('#v=5/40/10/0&on=chart,coastline,sst,legend&menu=1&g=observed');
+  const ob = await open('#v=5/40/10/0&col=sst:measured&on=chart,coastline,legend&menu=1&g=data');
   await ob.waitForFunction(() => /t=/.test(location.hash) && !!document.querySelector('#legends canvas[data-legend=sst]')?.style.width, null, { timeout: 30000 }).catch(() => {});
   await ob.waitForTimeout(1500);
   const [obT, obWithin, obShown, obDay, obBroken] = await ob.evaluate(() => {

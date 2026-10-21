@@ -64,11 +64,10 @@ the regional products, elsewhere from the global ones. Everything is drawn at
 the time shown, each dataset at its own time resolution (an hour, the global
 waves' three hours, a day), and the time can only be one every layer that is on
 has: observations (wind and the satellite layers, NASA daily too) are published
-late, so while one is on the time goes no later than its latest day or hour. The map
-holds one colour layer and one arrow layer: currents draw speed in colour and
-direction in arrows, and give up their colours to another colour layer (waves,
-temperature…) and their arrows to wind; a second colour layer replaces the
-first.
+late, so while one is on the time goes no later than its latest day or hour. They
+are chosen in the Ocean data group, in two menus, one for colours and one for
+arrows, since two colour layers cannot be read together, nor two sets of arrows:
+currents are in both (speed in colour, direction in arrows), wind is arrows.
 
 Esri imagery is not open data: it is used under Esri's terms of use. The EOX
 2024 mosaic does not allow commercial use. Vessel and route density cover European and neighbouring

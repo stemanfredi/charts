@@ -23,6 +23,16 @@ const h = (tag, attrs = {}, ...kids) => {
   return el;
 };
 const byId = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
+// Ocean data: the layers that change with time, chosen in two menus, colours and arrows. An entry
+// is an item at a variant ('waves:height'), in the menus of what it can draw (drawsOf: currents in
+// both, speed and direction)
+const DATA = ITEMS.filter((it) => it.group === 'data');
+const variantsOf = (it) => Object.keys(it.kind === 'gibs' ? GIBS : CMEMS[it.id]);
+const drawsOfEntry = (it, v) => (it.kind === 'gibs' ? ['colour'] : drawsOf(CMEMS[it.id][v]));
+const entryLabel = (it, v, slot) => (it.kind === 'gibs' ? `NASA ${GIBS[v].label.replace('True colour', 'true colour')}`
+  : it.id === 'currents' ? (slot === 'colour' ? 'Current speed' : 'Currents') : CMEMS[it.id][v].label);
+const ENTRIES = { colour: [], arrows: [] }; // slot → [{ key, it, label }]
+for (const it of DATA) for (const v of variantsOf(it)) for (const slot of drawsOfEntry(it, v)) ENTRIES[slot].push({ key: `${it.id}:${v}`, it, label: entryLabel(it, v, slot) });
 
 // ---- state (mirrored in the URL hash) ---------------------------------------
 const state = {
@@ -33,6 +43,7 @@ const state = {
   date: defaultDate(), // NASA daily: the day drawn, that of the hour shown or the newest published before it
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
+  colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
   open: new Set(['base', 'sea']),
   panel: window.innerWidth >= 1200 ? 'layers' : null, // the side panel's view; open beside the map where it leaves room
 };
@@ -52,6 +63,9 @@ function readHash() {
     const [k, val] = kv.split(':');
     if (k in state.opacity && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
   }
+  for (const [slot, key] of [['colour', 'col'], ['arrows', 'arr']]) if (ENTRIES[slot].some((e) => e.key === q.get(key))) state[slot] = q.get(key);
+  if (!q.has('col') && !q.has('arr')) fromLayers();
+  for (const it of DATA) state.on.delete(it.id); // the menus switch them (applyData)
   if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(q.get('t') || '')) state.time = Date.parse(`${q.get('t')}:00:00Z`);
   else if (/^\d{4}-\d{2}-\d{2}$/.test(q.get('d') || '')) state.time = Date.parse(`${q.get('d')}T12:00:00Z`); // NASA date, links from before t=
   state.date = new Date(state.time).toISOString().slice(0, 10);
@@ -67,6 +81,16 @@ function readHash() {
   return q.get('u');
 }
 
+// links from before the menus switched the layers on (on=waves,currents): the last that draws only
+// colours takes the colours, else currents; wind takes the arrows, else currents
+function fromLayers() {
+  const on = [...state.on].map((id) => byId[id]).filter((it) => it.group === 'data').map((it) => ({ it, v: state.variant[it.id] || variantsOf(it)[0] }));
+  const draws = (e) => drawsOfEntry(e.it, e.v).join();
+  const pick = (e) => (e ? `${e.it.id}:${e.v}` : '');
+  state.colour = pick(on.filter((e) => draws(e) === 'colour').at(-1) || on.find((e) => draws(e) === 'colour,arrows'));
+  state.arrows = pick(on.find((e) => draws(e) === 'arrows') || on.find((e) => draws(e) === 'colour,arrows'));
+}
+
 let hashTimer = 0;
 let ready = false; // until map load, the URL still holds state not yet applied (m=): leave it alone
 function writeHash() {
@@ -79,8 +103,9 @@ function writeHashNow() {
   const c = map.getCenter();
   const q = new URLSearchParams();
   q.set('v', [map.getZoom().toFixed(2), c.lat.toFixed(5), c.lng.toFixed(5), Math.round(map.getBearing())].join('/'));
-  q.set('on', [...state.on].join(','));
-  const variants = Object.entries(state.variant).filter(([k, v]) => v !== Object.keys(byId[k].variants)[0]);
+  q.set('on', [...state.on].filter((id) => byId[id].group !== 'data').join(','));
+  for (const [slot, key] of [['colour', 'col'], ['arrows', 'arr']]) if (state[slot]) q.set(key, state[slot]);
+  const variants = Object.entries(state.variant).filter(([k, v]) => byId[k].group !== 'data' && v !== Object.keys(byId[k].variants)[0]);
   if (variants.length) q.set('var', variants.map((kv) => kv.join(':')).join(','));
   const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
   if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
@@ -224,7 +249,6 @@ function setOn(id, on) {
     for (const other of ITEMS) if (other.group === it.group && other.id !== id && state.on.delete(other.id)) applyItem(other.id);
   }
   on ? state.on.add(id) : state.on.delete(id);
-  if (kindOf(id)?.time) settleSlots(id); // the one colour layer and one arrow layer
   refresh(id);
   if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); creditEsri(); }
   if (id === 'graticule') updateGraticule();
@@ -400,30 +424,22 @@ const timeOn = () => ITEMS.filter((it) => state.on.has(it.id) && kindOf(it.id)?.
 const depthOn = () => ITEMS.filter((it) => state.on.has(it.id) && kindOf(it.id)?.depth?.(it.id));
 const hourly = () => timeOn().some((it) => kindOf(it.id).time(it.id) === 'hour');
 
-// ---- one colour layer and one arrow layer ----------------------------------------------------
-// Layers that change with time draw colours, arrows or both (currents: speed and direction). Two
-// colour layers cannot be read together, nor two sets of arrows: the map holds one of each. In the
-// order switched on (state.on, kept in the link), each takes the slots it can fill that are free,
-// or else all it can fill, from the layers there; a layer left with none goes off. So: currents
-// alone draw both; waves switched on take the colours, currents keep their arrows; wind switched
-// on then takes the arrows, and currents go off; another colour layer replaces the colour one.
-const looks = {}; // item → what it draws now: 'colour', 'arrows' or 'both'
-const drawsOfItem = (id) => (byId[id].kind === 'cmems' ? drawsOf(CMEMS[id][variantOf(id)]) : ['colour']);
-function settleSlots(except) {
-  const holder = {}, holds = {}; // slot → item; item → its slots
-  for (const it of timeOn()) {
-    const can = drawsOfItem(it.id), free = can.filter((s) => !holder[s]);
-    holds[it.id] = new Set();
-    for (const s of free.length ? free : can) {
-      if (holder[s]) holds[holder[s]].delete(s);
-      holder[s] = it.id;
-      holds[it.id].add(s);
-    }
-  }
-  for (const [id, slots] of Object.entries(holds)) {
-    if (!slots.size) { state.on.delete(id); delete looks[id]; applyItem(id); continue; }
-    const look = slots.size > 1 ? 'both' : [...slots][0];
-    if (looks[id] !== look) { looks[id] = look; if (id !== except) refresh(id); }
+// ---- Ocean data: one entry drawing colours, one drawing arrows --------------------------------
+// The menus' entries switch their items on at their variants, drawing colours, arrows, or both
+// (currents chosen in both menus); the group's other items go off. Two colour layers cannot be
+// read together, nor two sets of arrows: the menus hold one of each.
+const looks = {}; // item → what it draws: 'colour', 'arrows' or 'both'
+function applyData() {
+  const [ci, cv] = state.colour.split(':'), [ai, av] = state.arrows.split(':');
+  for (const it of DATA) {
+    const was = state.on.has(it.id) ? `${looks[it.id]}:${variantOf(it.id)}` : '';
+    const look = it.id === ci ? (it.id === ai ? 'both' : 'colour') : it.id === ai ? 'arrows' : '';
+    if (look) {
+      state.on.add(it.id);
+      looks[it.id] = look;
+      if (it.variants) state.variant[it.id] = it.id === ci ? cv : av;
+    } else state.on.delete(it.id);
+    if ((look && `${look}:${variantOf(it.id)}`) !== was) refresh(it.id);
   }
 }
 
@@ -603,7 +619,6 @@ const rows = {};
 const segs = [];
 function setVariant(id, v) {
   state.variant[id] = v;
-  if (kindOf(id)?.time) settleSlots(id); // a variant may draw otherwise
   refresh(id);
   if (id === 'depth') depthColours();
   if (id === 'sat') creditEsri();
@@ -668,12 +683,32 @@ function baseBlock(items) {
     h('ul', {}, h('li', { class: 'item' }, ...items.map((it) => rows[it.id].controls),
       h('div', { class: 'line' }, h('span', { class: 'name' }, 'Source and licence'), more), ...Object.values(infos))));
 }
+// Ocean data: two menus, colours and arrows, their entries under the sections' headings; the
+// source, licence and opacity of what is chosen behind one ⓘ, as for the base
+const picks = {}; // slot → its menu
+let dataMore = null, dataInfos = {};
+function dataBlock(items, sections) {
+  dataInfos = Object.fromEntries(items.map((it) => [it.id, infoBlock(it)]));
+  dataMore = moreButton('the ocean data shown', h('div'));
+  dataMore.onclick = (e) => { e.currentTarget.setAttribute('aria-expanded', String(e.currentTarget.getAttribute('aria-expanded') !== 'true')); renderMenu(); };
+  const pick = (slot, label) => {
+    picks[slot] = h('select', { 'aria-label': label, onchange: (e) => { state[slot] = e.target.value; applyData(); writeHash(); renderMenu(); } },
+      h('option', { value: '' }, 'None'),
+      sections.map((sec) => {
+        const es = ENTRIES[slot].filter((e) => e.it.section === sec);
+        return es.length ? h('optgroup', { label: sec }, es.map((e) => h('option', { value: e.key }, e.label))) : null;
+      }));
+    return h('li', { class: 'item pick' }, h('label', { class: 'line' }, h('span', { class: 'name' }, label), picks[slot]));
+  };
+  return h('ul', {}, pick('colour', 'Colours'), pick('arrows', 'Arrows'),
+    h('li', { class: 'item' }, h('div', { class: 'line' }, h('span', { class: 'name' }, 'Source and licence'), dataMore), ...Object.values(dataInfos)));
+}
 function groupBlock(g) {
   const items = ITEMS.filter((it) => it.group === g.id);
   const det = h('details', { 'data-group': g.id, open: state.open.has(g.id),
     ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); writeHash(); } },
     h('summary', {}, h('span', { class: 'gname' }, g.label), h('span', { class: 'count', title: 'Layers on' })),
-    g.exclusive ? baseBlock(items) : h('ul', {}, items.map(itemRow)));
+    g.sections ? dataBlock(items, g.sections) : g.exclusive ? baseBlock(items) : h('ul', {}, items.map(itemRow)));
   det._items = items;
   det._exclusive = g.exclusive;
   return det;
@@ -685,6 +720,7 @@ function renderMenu() {
   const z = map.getZoom();
   for (const it of ITEMS) {
     const r = rows[it.id];
+    if (!r) continue; // Ocean data: below
     const on = state.on.has(it.id);
     if (it.group === 'base') r.input.setAttribute('aria-checked', String(on));
     else r.input.checked = on;
@@ -701,6 +737,12 @@ function renderMenu() {
     if (rng) rng.value = state.opacity[it.id];
   }
   for (const s of segs) s.render();
+  for (const slot in picks) picks[slot].value = state[slot];
+  for (const [id, el] of Object.entries(dataInfos)) {
+    el.hidden = !(dataMore.getAttribute('aria-expanded') === 'true' && state.on.has(id));
+    const rng = el.querySelector('input[type=range]');
+    if (rng) rng.value = state.opacity[id];
+  }
   renderWhen();
   for (const g of groupEls) {
     const n = g._items.filter((it) => state.on.has(it.id)).length;
@@ -732,13 +774,13 @@ function renderLegends() {
   legends.replaceChildren(...(on('legend') ? want.map((id) => legendEls[id]) : []));
 }
 function renderStatus() {
-  for (const it of ITEMS) {
-    const st = state.on.has(it.id) ? itemStatus(it.id) : null;
-    const r = rows[it.id].row;
-    r.classList.toggle('error', st?.cls === 'error');
-    r.classList.toggle('partial', st?.cls === 'partial');
-    r.title = st ? st.msg : '';
-  }
+  const mark = (row, st) => {
+    row.classList.toggle('error', st?.cls === 'error');
+    row.classList.toggle('partial', st?.cls === 'partial');
+    row.title = st ? st.msg : '';
+  };
+  for (const it of ITEMS) if (rows[it.id]) mark(rows[it.id].row, state.on.has(it.id) ? itemStatus(it.id) : null);
+  for (const slot in picks) mark(picks[slot].closest('li'), state[slot] ? itemStatus(state[slot].split(':')[0]) : null);
 }
 
 // ---- measure view (in the side panel): tools, units, saved measurements -----------------
@@ -1196,7 +1238,7 @@ map.on('load', () => {
     if (typeof src.roundZoom !== 'boolean') console.error(`MapLibre: ${id}.roundZoom missing; elevation tiles may not match the coastline`);
     src.roundZoom = false;
   }
-  settleSlots(); // a link holds them in the order switched on
+  applyData();
   for (const it of ITEMS) refresh(it.id);
   depthColours();
   labelPaint();

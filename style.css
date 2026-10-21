@@ -87,10 +87,16 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 /* a layer row: name (the whole row toggles), status hint, details button, switch on the right */
 .item { padding: 0 8px 0 16px; }
 .item .line { display: flex; align-items: center; gap: 6px; min-height: var(--row); }
+/* Ocean data: a menu for colours, one for arrows */
+.pick .line { gap: 8px; padding-right: 8px; }
+.pick .name { flex: none; width: 60px; }
+.pick select { flex: 1; min-width: 0; min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; background: #fff; }
+.pick.error .name::after, .pick.partial .name::after { content: " ⚠"; color: var(--err); }
+.pick.partial .name::after { color: var(--warn); }
 .item label.name { flex: 1; cursor: pointer; align-self: stretch; display: flex; align-items: center; gap: 8px; }
 .item .hint { font-size: 11px; color: var(--warn); font-family: var(--mono); }
 .item.dim label.name { color: var(--soft); }
-.item.error label.name { color: var(--err); }
+.item.error .name { color: var(--err); }
 .item.error .hint::after, .item.partial .hint::after { content: "⚠"; margin-left: 4px; color: var(--err); }
 .item.partial .hint::after { color: var(--warn); }
 .switch {
