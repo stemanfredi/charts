@@ -5,11 +5,7 @@
 // (vector/*.geojson come from vector.js, the measurements from measure.js, raster/*.tif from geotiff.js)
 // and the text fields of the PNG export (pngText).
 import { crc32 } from './zip.js';
-
-const R = 6378137; // Web Mercator sphere (EPSG:3857)
-const D2R = Math.PI / 180;
-// lon/lat → EPSG:3857 metres
-export const mercator = ([lng, lat]) => [R * lng * D2R, R * Math.log(Math.tan(Math.PI / 4 + (lat * D2R) / 2))];
+import { mercator } from './geo.js';
 
 // corners: lon/lat of the image's top-left, top-right, bottom-right, bottom-left corners, with
 // continuous longitudes (as MapLibre's unproject gives them: across the antimeridian some pass

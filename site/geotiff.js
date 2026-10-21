@@ -5,7 +5,9 @@
 // (GDAL_NODATA), each band's unit and description in GDAL's metadata tag. The Copernicus values
 // (zarr.js) use it too, in their latitude/longitude grids.
 
-const R = 6378137, CIRC = 2 * Math.PI * R, HALF = CIRC / 2;
+import { CIRC } from './geo.js';
+
+const HALF = CIRC / 2;
 const SIZE = 256; // DEM tile edge, pixels
 
 // The pixels of zoom-z DEM tiles that cover the view (corners in EPSG:3857 metres, as export.js

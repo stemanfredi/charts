@@ -14,6 +14,8 @@
 // the encoded bytes) and masked at the higher zoom, so the coast stays sharp.
 
 import { NO_DEPTH_M, DEPTH_LEVELS, levelsFor } from './catalog.js';
+import { latOf, tileBounds } from './geo.js';
+import { FETCH, memo } from './net.js';
 
 const OMT_MAXZOOM = 14;
 // Every tile is cut, at every zoom: each shortcut tried (deep ocean, low zooms) left a hole
@@ -30,12 +32,6 @@ export const DATUMS = [
   ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28, [5, 6]],
 ];
 const DATUM_DOWNSAMPLE_MINZOOM = 3;
-// Web Mercator y (0 at the top of the world, 1 at the bottom) → latitude
-const latOf = (t) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * t))) * 180) / Math.PI;
-const tileBounds = (z, x, y) => {
-  const n = 2 ** z;
-  return [(x / n) * 360 - 180, latOf((y + 1) / n), ((x + 1) / n) * 360 - 180, latOf(y / n)];
-};
 const SEA_CLASSES = new Set(['ocean', 'dock']);
 // Inland water (OSM lagoons, limans, harbour basins, lakes) is classified once per water
 // body, from the DEM along its shoreline (its polygon's vertices, relative to any DATUMS
@@ -142,11 +138,6 @@ function lru(max) {
   return get;
 }
 const omtCache = lru(48), demCache = lru(128); // the sea reads each DEM tile with its 8 neighbours
-
-// This code runs in a worker loaded from its own file, which does not inherit the page's
-// <meta name="referrer" content="no-referrer">: without this, every tile request would carry
-// the site's address.
-const FETCH = { credentials: 'omit', referrerPolicy: 'no-referrer' };
 
 async function fetchOk(url, signal) {
   const r = await fetch(url, { ...FETCH, signal });
@@ -446,11 +437,8 @@ function seaDem(template, z, x, y) {
 // because a water body they drew provisionally has now been classified.
 export function clipper({ template, native, mode, omtTileJson, onStale }) {
   // the OpenMapTiles tile URL, fetched once; a failure is retried on the next tile
-  let omtUrl = null;
-  const omtTemplate = () => (omtUrl ||= fetch(omtTileJson, FETCH)
-    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then((tj) => tj.tiles[0])
-    .catch((e) => { omtUrl = null; throw e; }));
+  const once = {};
+  const omtTemplate = () => memo(once, 'omt', () => fetchOk(omtTileJson).then((r) => r.json()).then((tj) => tj.tiles[0]));
   const cache = lru(128);
   const waiting = new Map(); // water body id → cache keys of tiles drawn before it was classified
   let staleTimer = 0;

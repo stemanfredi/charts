@@ -6,7 +6,9 @@ import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
-import { affine, mercator, worldFile, pamXml, stacItem, pngText } from './export.js';
+import { affine, worldFile, pamXml, stacItem, pngText } from './export.js';
+import { mercator, CIRC } from './geo.js';
+import { FETCH, memo } from './net.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
 import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
@@ -316,7 +318,7 @@ async function creditEsri() {
   if (esriCredited || !(state.on.has('sat') && state.variant.sat === 'esri')) return;
   esriCredited = true;
   try {
-    const r = await fetch(ESRI_META, { credentials: 'omit' });
+    const r = await fetch(ESRI_META, FETCH);
     const text = r.ok && (await r.json()).copyrightText;
     if (!text) return;
     const src = map.getSource('esri');
@@ -343,10 +345,9 @@ const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 // date of the layer shown, the last day the map's time can take while it is on
 const gibsEnd = {}; // GIBS key → promise of its newest date, or null if unknown
 function latestGibs(key) {
-  return (gibsEnd[key] ||= fetch(gibsDomainUrl(key, shiftDay(today(), -60), today()), { credentials: 'omit' })
-    .then((r) => (r.ok ? r.text() : null))
-    .then((t) => (t ? domainEnd(t) : null))
-    .catch(() => { delete gibsEnd[key]; return null; }));
+  return memo(gibsEnd, key, () => fetch(gibsDomainUrl(key, shiftDay(today(), -60), today()), FETCH)
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+    .then(domainEnd)).catch(() => null);
 }
 
 // Copernicus: each dataset at its own step for the hour shown, its time resolution (cmems.js draws
@@ -363,11 +364,10 @@ async function cmemsDrawn(id, at = { variant: variantOf(id), t: state.time, dept
 // without the service's numbering ("2. Sand" → "Sand")
 const classLegends = {};
 function classesOf(url) {
-  return (classLegends[url] ||= fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' })
+  return memo(classLegends, url, () => fetch(url, FETCH)
     .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then((j) => j.Legend.flatMap((l) => l.rules).map((r) => ({ label: (r.title || r.name || '').replace(/^\d+\.\s*/, ''), colour: (r.symbolizers[0].Polygon || r.symbolizers[0].Raster || {}).fill }))
-      .filter((c) => c.colour && c.colour.toUpperCase() !== '#FFFFFF' && c.label))
-    .catch((e) => { delete classLegends[url]; throw e; }));
+      .filter((c) => c.colour && c.colour.toUpperCase() !== '#FFFFFF' && c.label)));
 }
 
 const KINDS = {
@@ -1032,7 +1032,7 @@ async function searchPlaces(text) {
   const c = map.getCenter(); // results near the view come first; rounded, the view is not sent exactly
   const url = `${PHOTON}?${new URLSearchParams({ q: text, limit: 12, lang: 'en', lat: c.lat.toFixed(1), lon: c.lng.toFixed(1) })}`;
   try {
-    const r = await fetch(url, { signal: searchCtl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    const r = await fetch(url, { signal: searchCtl.signal, ...FETCH });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     // the same name, kind and town once (a port's ferry terminals); the sea's first, seven shown
     const seen = new Set();
@@ -1171,7 +1171,7 @@ function chartCanvas(src, s) {
   // double scale bar at the centre latitude (Web Mercator scale varies with latitude), bottom
   // right as on screen: km above a shared line, nautical miles below it
   const lat = s.lat;
-  const mpp = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** s.zoom);
+  const mpp = (CIRC * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** s.zoom);
   const bar = (unitM) => { const len = niceLen((120 * mpp) / unitM) * unitM; return { len, px: len / mpp }; };
   const km = bar(1), nm = bar(1852);
   const v = scaleVariation();
@@ -1289,22 +1289,21 @@ function vectorPieces(id) {
 // raster/<item>[-<region>].tif: the values a Copernicus layer draws, read from each of its datasets'
 // Zarr stores (zarr.js), at the time and level it draws, in the dataset's own latitude/longitude
 // grid over the view's bounding box; arrows as two bands, eastward and northward
-const FETCH_DATA = { credentials: 'omit', referrerPolicy: 'no-referrer' };
 async function fetchBytes(url) {
-  const r = await fetch(url, FETCH_DATA);
+  const r = await fetch(url, FETCH);
   if (r.status === 403 || r.status === 404) return null; // a chunk not stored: all land, or a time no longer kept
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());
 }
 const stores = {}; // part → promise of its store and coordinates
 function storeOf(part) {
-  return (stores[part] ||= (async () => {
-    const r = await fetch(cmemsStacUrl(part), FETCH_DATA);
+  return memo(stores, part, async () => {
+    const r = await fetch(cmemsStacUrl(part), FETCH);
     if (!r.ok) throw new Error(`catalogue: HTTP ${r.status}`);
     const store = await openStore((await r.json()).assets.timeChunked.href, fetchBytes);
     const [time, lat, lon, elevation] = await Promise.all(['time', 'latitude', 'longitude', 'elevation'].map((c) => (store.meta(c) ? store.coord(c) : null)));
     return { store, times: Array.from(time, timeScale(store.meta('time').attrs.units)), lat, lon, elevation };
-  })().catch((e) => { delete stores[part]; throw e; }));
+  });
 }
 // at: { variant, t, depth } as captured; box: [west, south, east, north]
 async function cmemsValues(id, at, box) {
@@ -1331,12 +1330,11 @@ async function cmemsValues(id, at, box) {
 // raster/emodnet-depth.tif: EMODnet Bathymetry's elevation over the view's bounding box, in its own
 // grid; a view needing more than 16 of its ~2 MB chunks (wider than about 4° × 4°) is left out:
 // zoom in to export it
-let dtm = null;
-const dtmStore = () => (dtm ||= (async () => {
+const dtmStore = () => memo(stores, EMODNET_DTM, async () => {
   const store = await openStore(EMODNET_DTM, fetchBytes);
   const [lat, lon] = await Promise.all([store.coord('latitude'), store.coord('longitude')]);
   return { store, lat, lon };
-})().catch((e) => { dtm = null; throw e; }));
+});
 async function emodnetValues(box) {
   const { store, lat, lon } = await dtmStore(), m = store.meta('elevation'), cells = cellsOf(lat, lon, box);
   if (!cells.rows.length) return [];
@@ -1359,11 +1357,11 @@ const featureCollection = (name, features) => `${JSON.stringify({ type: 'Feature
 
 // polygon-clipping (vector.js) loads on the first ZIP export, not with the page: a script from
 // the pinned URL in index.html, checked by the browser against its hash (tools/deps.mjs)
-let clipLib = null;
-const polygonClipping = () => (clipLib ||= new Promise((resolve, reject) => {
-  const { content: src, dataset: { integrity } } = $('#polygon-clipping');
+const libs = {};
+const polygonClipping = () => memo(libs, 'polygon-clipping', () => new Promise((resolve, reject) => {
+  const el = $('#polygon-clipping'), { content: src, dataset: { integrity } } = el;
   document.head.append(h('script', { src, integrity, crossorigin: 'anonymous', onload: () => resolve(globalThis.polygonClipping),
-    onerror: () => { clipLib = null; reject(new Error('polygon-clipping did not load')); } }));
+    onerror: (e) => { e.target.remove(); reject(new Error('polygon-clipping did not load')); } }));
 }));
 async function exportZip() {
   let clipping;
