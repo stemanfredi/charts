@@ -35,6 +35,7 @@ export const TILE_HOSTS = [
   'https://server.arcgisonline.com',
   'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org', 'https://ows.emodnet-humanactivities.eu',
   'https://wmts.marine.copernicus.eu',
+  'https://drive.emodnet-geology.eu', // EMODnet seabed substrate
 ];
 // Hosts the page calls for data but never draws from (connect-src only).
 export const API_HOSTS = [

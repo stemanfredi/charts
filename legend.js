@@ -5,11 +5,11 @@
 const W = 236, H = 44, KEY = 16, BAR = { x: 8, y: 20, w: 220, h: 9 };
 const INK = '#2b3a46', SOFT = '#5d6d79';
 
-// noData: optional { colour, label } key drawn on an extra row below the bar
-function canvas(el, noData) {
+// noData: optional { colour, label } key drawn on an extra row below the bar; height: another height
+function canvas(el, noData, height) {
   // one canvas pixel per screen pixel, in whole screen pixels (at a display scale of 125% too: its
   // CSS size follows), or the browser resamples it and the text blurs
-  const dpr = window.devicePixelRatio || 1, h = H + (noData ? KEY : 0);
+  const dpr = window.devicePixelRatio || 1, h = height || H + (noData ? KEY : 0);
   el.width = Math.round(W * dpr);
   el.height = Math.round(h * dpr);
   el.style.width = `${el.width / dpr}px`;
@@ -102,4 +102,20 @@ export function drawColormap(el, text, sub, entries, open = [true, true], log = 
   if (marks.length && BAR.x + BAR.w - marks[marks.length - 1][0] < 26) marks.pop(); // room for the end label
   marks.push([BAR.x + BAR.w, `${open[1] ? '≥' : ''}${label(+hi.toFixed(2))}`, 'right']);
   ticks(g, marks);
+}
+
+// Classes of a categorical layer ([{ label, colour }]): a swatch and its name, two to a row
+export function drawClasses(el, text, sub, classes) {
+  const rows = Math.ceil(classes.length / 2);
+  const g = canvas(el, null, 24 + rows * 14);
+  title(g, text, sub);
+  g.font = '10px system-ui, sans-serif';
+  classes.forEach(({ label, colour }, i) => {
+    const x = BAR.x + (i % 2) * 112, y = 20 + Math.floor(i / 2) * 14;
+    g.fillStyle = colour;
+    g.fillRect(x, y, 12, 9);
+    g.strokeStyle = INK; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, 11, 8);
+    g.fillStyle = INK;
+    g.fillText(label, x + 17, y + 8.5, 92);
+  });
 }

@@ -1,9 +1,9 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEM_LAND, OMT_TILEJSON, ISOBATH_ZOOMS, OPACITY_PROP, DEPTH_SCHEMES, depthRamp, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, buildStyle, defaultDate, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, cmemsStacUrl, storedVariables, CLASS_LEGENDS } from './catalog.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend, regionOf } from './cmems.js';
 import { workerClipper } from './clip.js';
-import { drawRamp, drawColormap } from './legend.js';
+import { drawRamp, drawColormap, drawClasses } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from './format.js';
 import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
 import { affine, mercator, worldFile, pamXml, stacItem, pngText } from './export.js';
@@ -359,7 +359,35 @@ async function cmemsDrawn(id, at = { variant: variantOf(id), t: state.time, dept
   return { time: times[k], level: levels[k] };
 }
 
+// a classed layer's classes, from its service's JSON legend: the rules with a fill, their titles
+// without the service's numbering ("2. Sand" → "Sand")
+const classLegends = {};
+function classesOf(url) {
+  return (classLegends[url] ||= fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' })
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then((j) => j.Legend.flatMap((l) => l.rules).map((r) => ({ label: (r.title || r.name || '').replace(/^\d+\.\s*/, ''), colour: (r.symbolizers[0].Polygon || r.symbolizers[0].Raster || {}).fill }))
+      .filter((c) => c.colour && c.colour.toUpperCase() !== '#FFFFFF' && c.label))
+    .catch((e) => { delete classLegends[url]; throw e; }));
+}
+
 const KINDS = {
+  // a classed layer its service draws (seabed substrate): its legend, the service's classes and colours
+  classes: {
+    show: (id) => applyItem(id),
+    legend(id, el) {
+      const url = CLASS_LEGENDS[id](state.variant[id]);
+      if (el.dataset.key === url) return;
+      el.dataset.key = url;
+      classesOf(url).then((cls) => {
+        if (el.dataset.key !== url) return; // switched meanwhile
+        drawClasses(el, byId[id].label, byId[id].variants[state.variant[id]], cls);
+        el.setAttribute('aria-label', `${byId[id].label} legend: ${cls.map((c) => c.label).join(', ')}`);
+        renderLegends(); // drawn after the stack was laid out: lay it out again with its size
+      }, (e) => { el.dataset.key = ''; console.warn('legend classes:', e.message); });
+    },
+    record: async () => ({}),
+    values: null, // the service draws it
+  },
   // EMODnet and EMSA density: a period of its own (a year or a month), not the map's time
   density: {
     show(id) {

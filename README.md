@@ -48,6 +48,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Satellite | Esri World Imagery, or EOX Sentinel-2 cloudless | Esri terms of use; EOX: CC BY 4.0 (2016) or CC BY-NC-SA 4.0 (2024, non-commercial) |
 | Depth shading, isobaths, relief shading, land contours | AWS Terrain Tiles (Terrarium) | Open data, with attribution per source |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
+| Seabed substrate | EMODnet Geology | CC BY 4.0 |
 | Wrecks, cables, pipelines, offshore installations, wind farms, military and protected areas | EMODnet Human Activities (wrecks: UKHO) | CC BY 4.0 |
 | Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
 | Route density | EMSA, via EMODnet Human Activities | CC BY 4.0 |
