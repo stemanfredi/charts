@@ -51,6 +51,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
 | EMODnet depth (Europe) | EMODnet Bathymetry (tiles; its values from its Zarr store, listed in EDITO's catalogue) | CC BY 4.0 |
 | Seabed substrate | EMODnet Geology | CC BY 4.0 |
+| Maritime zones | Marine Regions (Flanders Marine Institute, VLIZ): maritime boundaries and zones | CC BY 4.0; not for legal or navigational use |
 | Wrecks, cables, pipelines, offshore installations, wind farms, military and protected areas | EMODnet Human Activities (wrecks: UKHO) | CC BY 4.0 |
 | Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
 | Vessel density (world) | World Bank Group and IMF, Global Shipping Traffic Density (the World Bank's tiles) | CC BY 4.0 |

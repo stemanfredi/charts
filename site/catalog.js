@@ -57,6 +57,10 @@ export const densityTiles = (id, type, period) => wms(HA_WMS, DENSITY[id].layer(
 // the chart), seabed substrate (EMODnet Geology, 1:250k, Folk classes: its legend from the
 // service, CLASS_LEGENDS), and what is built, sunk or set aside at sea (EMODnet Human Activities).
 const GEOLOGY_WMS = 'https://drive.emodnet-geology.eu/geoserver/gtk/wms';
+const MR_WMS = 'https://geo.vliz.be/geoserver/MarineRegions/wms';
+// Marine Regions' zones, drawn landward first, with their fills (its legends name each "Single symbol")
+const MR_ZONES = [['eez_internal_waters', 'Internal waters', '#3D9EFF'], ['eez_archipelagic_waters', 'Archipelagic waters', '#7ABDFF'],
+  ['eez_12nm', 'Territorial sea (12 NM)', '#0B6A67'], ['eez_24nm', 'Contiguous zone (24 NM)', '#0D827E']];
 const FOLK = { folk5: 'folk_5_substrate_class', folk7: 'folk_7_substrate_class' }; // the substrate's styles by variant
 const bathy = (style) => [`https://tiles.emodnet-bathymetry.eu/latest/${style}/web_mercator/{z}/{x}/{y}.png`];
 export const OVERLAYS = {
@@ -71,11 +75,17 @@ export const OVERLAYS = {
   windfarms: { all: wms(HA_WMS, 'windfarmspoly,windfarms') },
   military: { all: wms(HA_WMS, 'militaryareaspoly,militaryareas') },
   protected: { natura: wms(HA_WMS, 'natura2000areas'), mpa: wms(HA_WMS, 'marineprotectedareas') },
+  // Marine Regions (VLIZ): the limits as lines, or the zones they bound as fills, in its own styles
+  maritime: { limits: wms(MR_WMS, 'MarineRegions:eez_boundaries'), zones: wms(MR_WMS, MR_ZONES.map(([l]) => `MarineRegions:${l}`).join(',')) },
 };
+// variants drawn lighter than their item's opacity: Marine Regions fills its zones at 80%, which
+// would hide the sea beneath them
+export const OVERLAY_FAINT = { 'maritime:zones': 0.5 };
 export const OVERLAY_MAXZOOM = { emodnetdepth: 12, worlddensity: 10 }; // the zoom their tiles stop at (18: as WMS, any)
 // each overlay's credit; EMODnet Human Activities' where not given
 export const OVERLAY_CREDIT = {
   worlddensity: '<a href="https://datacatalog.worldbank.org/search/dataset/0037580">World Bank Group, IMF</a> (CC BY 4.0)',
+  maritime: '<a href="https://www.marineregions.org">Marine Regions</a> (VLIZ, CC BY 4.0)',
   emodnetdepth: '<a href="https://emodnet.ec.europa.eu/en/bathymetry">EMODnet Bathymetry</a>',
   substrate: '<a href="https://emodnet.ec.europa.eu/en/geology">EMODnet Geology</a>',
   wrecks: `${HA_CREDIT} (wrecks: UKHO)`,
@@ -113,6 +123,9 @@ export const CLASS_LEGENDS = {
   windfarms: () => haLegend('windfarmspoly', 'windfarms'),
   military: () => haLegend('militaryareaspoly', 'militaryareas'),
   protected: (variant) => haLegend({ natura: 'natura2000areas', mpa: 'marineprotectedareas' }[variant]),
+  // Marine Regions: the limits from its legend (line types, dashed as drawn); the zones as its fills
+  maritime: (variant) => (variant === 'zones' ? MR_ZONES.map(([, label, fill]) => ({ label, colour: `${fill}55` })) // as drawn: its 80%, at half
+    : `${MR_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=eez_boundaries`),
   cables: (variant) => (variant === 'power'
     ? [['Norway (NVE)', '#1e1e1e'], ['Netherlands', '#666666'], ['France (SHOM)', '#999999'], ['Germany (BSH)', '#000000']].map(([label, colour]) => ({ label, colour, line: true }))
     : [['Germany (BSH)', '#00dc00'], ['Spain (CICA)', '#e6e600'], ['Malta', '#ff78ff'], ['Netherlands', '#fafafa'], ['France (SHOM)', '#00e6e6'],
@@ -302,6 +315,8 @@ export const ITEMS = [
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities, from national authorities', res: 'Firing, exercise and other military areas, European seas; consult the official notices before entering' } },
   { id: 'protected', group: 'uses', label: 'Protected areas (Europe)', opacity: 1, kind: 'classes', variants: { natura: 'Natura 2000', mpa: 'Regional sea conventions MPAs' },
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities: Natura 2000 (EEA), MPAs of the regional sea conventions', res: 'Marine protected areas, European seas' } },
+  { id: 'maritime', group: 'sea', label: 'Maritime zones', opacity: 0.8, kind: 'classes', variants: { limits: 'Limits between countries', zones: 'Zones (12 and 24 NM)' },
+    info: { src: 'Marine Regions (Flanders Marine Institute, VLIZ): Maritime Boundaries v12 and the zones from it, v4 (2023)', lic: 'CC BY 4.0 · VLIZ; not for legal or navigational use (its terms)', res: 'World. Limits between countries: the lines between neighbours\' waters, as treaties, court rulings and joint regimes set them; where none does, a median line VLIZ computed, or the claims and disputes as they stand; and the baselines the zones are measured from. Zones: internal and archipelagic waters, the territorial sea (to 12 NM) and the contiguous zone (to 24 NM), whose outer edges are those limits. Compiled from public sources: not legal boundaries. Not for navigation', url: 'https://www.marineregions.org' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
 
@@ -355,7 +370,7 @@ export const ITEMS = [
   { id: 'seanames', group: 'labels', label: 'Sea names', on: true,
     info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'Oceans, seas, bays, straits as tagged in OSM' } },
   { id: 'boundaries', group: 'labels', label: 'Boundaries', on: true,
-    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'Administrative boundaries, national to provincial. Lines OpenStreetMap tags as maritime (territorial seas, economic zones) are not drawn; where a country draws its provinces out to sea (Indonesia, to 12 NM), those limits are, as mapped' } },
+    info: { ...OSM, src: 'OpenStreetMap via OpenFreeMap', res: 'Administrative boundaries, national to provincial. Lines OpenStreetMap tags as maritime (territorial seas, economic zones) are not drawn (Maritime zones, under Sea, has them from Marine Regions); where a country draws its provinces out to sea (Indonesia, to 12 NM), those limits are, as mapped' } },
   { id: 'graticule', group: 'labels', label: 'Graticule', on: true,
     info: { src: 'Computed in your browser (WGS 84)', lic: '—', res: 'Spacing adapts to zoom, down to 1′. With the map north-up, longitudes are labelled along the top edge and latitudes along the left', url: '' } },
 ];

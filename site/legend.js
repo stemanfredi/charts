@@ -112,9 +112,9 @@ export function drawColormap(el, text, sub, entries, open = [true, true], log = 
   ticks(g, marks);
 }
 
-// Classes of a categorical layer ([{ label, colour, stroke, line, casing, image }]): how each is
+// Classes of a categorical layer ([{ label, colour, stroke, line, casing, dash, image }]): how each is
 // drawn and its name, two to a row, or one where a name is too long for half the width. A fill
-// (colour) with its outline (stroke, or ink); a line (line: true) on its casing colour if any; a
+// (colour) with its outline (stroke, or ink); a line (line: true, dashed as dash says) on its casing colour if any; a
 // point's symbol (image, a loaded picture), beside the fill when there are both
 export function drawClasses(el, text, sub, classes) {
   const g0 = el.getContext('2d');
@@ -124,10 +124,12 @@ export function drawClasses(el, text, sub, classes) {
   const g = head(el, text, sub, null, 24 + Math.ceil(classes.length / cols) * 14);
   g.font = '10px system-ui, sans-serif';
   classes.forEach((c, i) => {
-    const { label, colour, stroke, line, casing, image } = c;
+    const { label, colour, stroke, line, casing, image, dash } = c;
     const x = BAR.x + (i % cols) * 112, y = 20 + Math.floor(i / cols) * 14;
     if (line) { // a line, on its casing if it has one
+      g.setLineDash(dash ? dash.map((d) => d / 2) : []); // its dashes, at half size: a 12 px swatch shows the pattern
       for (const [col, w] of [[casing, 5], [colour, casing ? 2 : 3]]) if (col) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(x, y + 4.5); g.lineTo(x + 12, y + 4.5); g.stroke(); }
+      g.setLineDash([]);
     } else if (colour) {
       g.fillStyle = '#ffffff'; // a translucent fill as on the white sea
       g.fillRect(x, y, 12, 9);
@@ -152,7 +154,8 @@ export function wmsClasses(json) {
   return json.Legend.flatMap((l) => l.rules).map((r) => {
     const label = (r.title || r.name || '').replace(/^(\d+\.|[A-Z]:)\s*/, ''), of = (k) => r.symbolizers.find((s) => s[k])?.[k];
     const lines = r.symbolizers.filter((s) => s.Line).map((s) => s.Line.stroke);
-    if (lines.length) return { label, line: true, colour: lines.at(-1), ...(lines.length > 1 && { casing: lines[0] }) };
+    const dash = r.symbolizers.findLast((s) => s.Line)?.Line['stroke-dasharray']?.map(Number);
+    if (lines.length) return { label, line: true, colour: lines.at(-1), ...(lines.length > 1 && { casing: lines[0] }), ...(dash && { dash }) };
     if (of('Point')?.url) return { label, icon: of('Point').url };
     const p = of('Polygon') || of('Raster') || {};
     if (!p.fill && !(p['graphic-fill'] && p.stroke)) return { label }; // a hatch's colour is its outline's: none, nothing to draw

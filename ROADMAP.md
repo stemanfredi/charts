@@ -26,6 +26,14 @@ lists only what it does not do, or not well enough.
   gmtds.maplarge.com, keyless and readable from a page). Its terms conflict: CC BY 4.0
   for authorised downloads, services by request, site terms forbidding public display.
   Only with their written permission (gmtds@maplarge.com).
+- **NOAA charts (US waters).** NOAA's official chart service, as an overlay.
+- **Survey-grade depths in US waters (NOAA BlueTopo).** Depth files from surveys,
+  GeoTIFFs in local UTM projections: the page would need a reader and reprojection.
+- **The base map from OpenStreetMap's own vector tiles** (OSM Foundation, since 2025), instead
+  of OpenFreeMap: the same OSM data, another schema (no sea names), limited capacity.
+- **Place search from Nominatim** (OSM's own) instead of Photon: its usage policy rules out
+  search as you type.
+- **Tides.** No keyless worldwide source found; NOAA's (US only) refused an automated check.
 - **A wind forecast.** The wind layer is a satellite observation, a day late;
   Copernicus Marine has no wind forecast, so wind over forecast waves is for past
   hours only. Another keyless source would be needed.

@@ -230,7 +230,7 @@ function applyItem(id) {
       && (!l.metadata.base || state.on.has(l.metadata.base)); // e.g. depth shading only over the chart base
     map.setLayoutProperty(l.id, 'visibility', vis ? 'visible' : 'none');
     const prop = OPACITY_PROP[l.type];
-    if (it.opacity != null && prop) map.setPaintProperty(l.id, prop, state.opacity[id]);
+    if (it.opacity != null && prop) map.setPaintProperty(l.id, prop, state.opacity[id] * (l.metadata.opacity ?? 1)); // a layer drawn lighter than its item
   }
 }
 function setOn(id, on) {

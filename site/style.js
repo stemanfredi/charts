@@ -1,7 +1,7 @@
 // The map's style, from the catalogue: every source, and every layer in draw order. A layer belongs
 // to a menu item through metadata.item; layers of a hidden item are set to visibility:none, and
 // MapLibre requests no tiles for a source whose layers are all hidden.
-import { DEM_SEA, DEM_LAND, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M } from './catalog.js';
+import { DEM_SEA, DEM_LAND, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, OVERLAY_FAINT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M } from './catalog.js';
 
 const C = {
   land: '#f1ebdc', sea: '#ffffff', ink: '#2b3a46', inkSoft: '#5d6d79',
@@ -61,10 +61,15 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
 
 // ---- layers, bottom to top --------------------------------------------------
 const m = (item, variant) => ({ metadata: variant ? { item, variant } : { item } });
-// an overlay's layers, one per variant (OVERLAYS), from its item's minzoom
+// an overlay's layers, one per variant (OVERLAYS), from its item's minzoom; a variant drawn lighter
+// than the item's opacity says so (OVERLAY_FAINT: app.js multiplies the opacity by it)
 const overlayLayers = (items) => items.flatMap((item) => {
   const vs = Object.keys(OVERLAYS[item]), minzoom = ITEMS.find((it) => it.id === item).minzoom;
-  return vs.map((v) => ({ ...raster(`ov-${item}-${v}`, item, vs.length > 1 ? v : undefined), ...(minzoom && { minzoom }) }));
+  return vs.map((v) => {
+    const l = { ...raster(`ov-${item}-${v}`, item, vs.length > 1 ? v : undefined), ...(minzoom && { minzoom }) };
+    if (OVERLAY_FAINT[`${item}:${v}`]) l.metadata.opacity = OVERLAY_FAINT[`${item}:${v}`];
+    return l;
+  });
 });
 const raster = (id, item, variant) => ({ id, type: 'raster', source: id, ...m(item, variant), paint: { 'raster-fade-duration': 150 } });
 
@@ -160,7 +165,7 @@ function layers() {
         'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
 
     raster('traffic', 'traffic'), raster('routes', 'routes'),
-    ...overlayLayers(['worlddensity', 'protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
+    ...overlayLayers(['worlddensity', 'maritime', 'protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
     { ...raster('seamarks', 'seamarks'), minzoom: 9 },
 
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
