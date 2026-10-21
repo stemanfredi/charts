@@ -381,12 +381,12 @@ const KINDS = {
   classes: {
     show: (id) => applyItem(id),
     legend(id, el) {
-      const url = CLASS_LEGENDS[id](state.variant[id]);
+      const src = CLASS_LEGENDS[id](state.variant[id]), url = typeof src === 'string' ? src : id; // a URL, or the classes themselves
       if (el.dataset.key === url) return;
       el.dataset.key = url;
-      classesOf(url).then((cls) => {
+      (typeof src === 'string' ? classesOf(src) : Promise.resolve(src)).then((cls) => {
         if (el.dataset.key !== url) return; // switched meanwhile
-        drawClasses(el, byId[id].label, byId[id].variants[state.variant[id]], cls);
+        drawClasses(el, byId[id].label, byId[id].variants?.[state.variant[id]] ?? byId[id].legendSub, cls);
         el.setAttribute('aria-label', `${byId[id].label} legend: ${cls.map((c) => c.label).join(', ')}`);
         renderLegends(); // drawn after the stack was laid out: lay it out again with its size
       }, (e) => { el.dataset.key = ''; console.warn('legend classes:', e.message); });

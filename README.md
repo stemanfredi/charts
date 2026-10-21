@@ -53,6 +53,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Seabed substrate | EMODnet Geology | CC BY 4.0 |
 | Wrecks, cables, pipelines, offshore installations, wind farms, military and protected areas | EMODnet Human Activities (wrecks: UKHO) | CC BY 4.0 |
 | Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
+| Vessel density (world) | World Bank Group and IMF, Global Shipping Traffic Density (the World Bank's tiles) | CC BY 4.0 |
 | Route density | EMSA, via EMODnet Human Activities | CC BY 4.0 |
 | Sea state, water properties, satellite observations, water quality | Copernicus Marine Service | Copernicus Marine licence: free, attribution required |
 | NASA daily (true colour) | NASA EOSDIS GIBS | NASA open data |

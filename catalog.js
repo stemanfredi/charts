@@ -82,6 +82,8 @@ const bathy = (style) => [`https://tiles.emodnet-bathymetry.eu/latest/${style}/w
 export const OVERLAYS = {
   emodnetdepth: { multicolour: bathy('mean_multicolour'), rainbow: bathy('mean_rainbowcolour') },
   substrate: { folk5: wms(GEOLOGY_WMS, 'seabed_substrate_250k', 'folk_5_substrate_class'), folk7: wms(GEOLOGY_WMS, 'seabed_substrate_250k', 'folk_7_substrate_class') },
+  // the World Bank's tiles of its global shipping density (with the IMF): world, all vessels, coarse
+  worlddensity: { all: ['https://tiles.arcgis.com/tiles/iQ1dY19aHwbSDYIF/arcgis/rest/services/Shipping_density_all_vessels_2015_to_2020/MapServer/tile/{z}/{y}/{x}'] },
   wrecks: { all: wms(HA_WMS, 'wwshipwrecks') },
   cables: { telecom: wms(HA_WMS, 'telecablesactual'), power: wms(HA_WMS, 'powercables') },
   pipelines: { all: wms(HA_WMS, 'pipelines') },
@@ -90,7 +92,9 @@ export const OVERLAYS = {
   military: { all: wms(HA_WMS, 'militaryareaspoly,militaryareas') },
   protected: { natura: wms(HA_WMS, 'natura2000areas'), mpa: wms(HA_WMS, 'marineprotectedareas') },
 };
+const OVERLAY_MAXZOOM = { emodnetdepth: 12, worlddensity: 10 }; // the zoom their tiles stop at (18: as WMS, any)
 const OVERLAY_CREDIT = {
+  worlddensity: '<a href="https://datacatalog.worldbank.org/search/dataset/0037580">World Bank Group, IMF</a> (CC BY 4.0)',
   emodnetdepth: '<a href="https://emodnet.ec.europa.eu/en/bathymetry">EMODnet Bathymetry</a>',
   substrate: '<a href="https://emodnet.ec.europa.eu/en/geology">EMODnet Geology</a>',
   wrecks: '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a> (wrecks: UKHO)',
@@ -98,8 +102,12 @@ const OVERLAY_CREDIT = {
 // EMODnet Bathymetry's model as data (GIS export): its Zarr store, as EDITO's catalogue lists it
 // (collection emodnet-elevation, DTM 2024): elevation in metres, 1/16 arc-minute, chunks of ~1°
 export const EMODNET_DTM = 'https://s3.waw3-1.cloudferro.com/emodnet/emodnet_bathymetry/14157/bathymetry_dtm_2024.zarr';
-// a classed layer's legend, as its WMS gives it (JSON: rules with a title and a fill), for a variant
+// a classed layer's legend for a variant: the URL of its WMS's JSON legend (rules with a title and a
+// fill), or its classes [{ label, colour }] where the service gives them as pictures only
 export const CLASS_LEGENDS = {
+  // AIS positions per cell, as the World Bank's tile service colours them (its legend's swatches)
+  worlddensity: () => [['< 100 k', '#1b0c42'], ['100–250 k', '#4c0c6b'], ['250–500 k', '#791c6e'], ['0.5–1 M', '#a62d61'], ['1–5 M', '#cf4447'],
+    ['5–10 M', '#ee6925'], ['10–15 M', '#fc9b06'], ['15–25 M', '#f8d13c'], ['25–60 M', '#fdffa5']].map(([label, colour]) => ({ label, colour })),
   substrate: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${{ folk5: 'folk_5_substrate_class', folk7: 'folk_7_substrate_class' }[variant]}`,
 };
 
@@ -305,6 +313,8 @@ export const ITEMS = [
   { id: 'traffic', group: 'shipping', label: 'Vessel density', opacity: 0.85, kind: 'density',
     variants: DENSITY.traffic.types,
     info: { src: 'EMODnet Human Activities vessel density (Cogea), from AIS bought from CLS, ORBCOMM and vesseltracker.com', lic: 'EMODnet open data, no access constraints; attribution requested', res: '1 km grid, annual averages of hours per km² per month, 2017–2024. EU and neighbouring seas only. 2024 is incomplete (satellite AIS lost from June). Not real time', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
+  { id: 'worlddensity', group: 'shipping', label: 'Vessel density (world)', opacity: 0.85, kind: 'classes', legendSub: 'AIS positions per cell, 2015–2020',
+    info: { src: 'World Bank Group and IMF, Global Shipping Traffic Density (all vessels), from the World Bank\'s tile service', lic: 'CC BY 4.0', res: 'World, Jan 2015 to Feb 2021 (the tiles say 2015–2020), all vessels: AIS positions counted per cell, aggregated for drawing (the service says to 0.5°). Coarser than the data: for the oceans\' lanes; in European seas Vessel density is finer. Not real time', url: 'https://datacatalog.worldbank.org/search/dataset/0037580' } },
   { id: 'routes', group: 'shipping', label: 'Route density', opacity: 0.85, kind: 'density',
     variants: DENSITY.routes.types,
     info: { src: 'EMSA route density, via EMODnet Human Activities: ship tracks rebuilt from terrestrial and satellite AIS, counting the routes that cross each cell', lic: 'CC BY 4.0 · European Maritime Safety Agency (EMSA)', res: '1 km grid, monthly totals since January 2019, about 3 months behind. EU and neighbouring seas only. Counts passages, not time spent (see Vessel density for hours)', url: 'https://www.emsa.europa.eu/related-operational-projects/traffic-density-maps.html' } },
@@ -408,7 +418,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '<a href="https://openseamap.org">OpenSeaMap</a>',
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
     ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
-      { type: 'raster', tileSize: 256, maxzoom: item === 'emodnetdepth' ? 12 : 18, tiles, attribution: OVERLAY_CREDIT[item] || OVERLAY_CREDIT.wrecks.replace(' (wrecks: UKHO)', '') }]))),
+      { type: 'raster', tileSize: 256, maxzoom: OVERLAY_MAXZOOM[item] ?? 18, tiles, attribution: OVERLAY_CREDIT[item] || OVERLAY_CREDIT.wrecks.replace(' (wrecks: UKHO)', '') }]))),
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   };
@@ -564,7 +574,7 @@ function layers() {
         'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
 
     raster('traffic', 'traffic'), raster('routes', 'routes'),
-    ...overlayLayers(['protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
+    ...overlayLayers(['worlddensity', 'protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
     { ...raster('seamarks', 'seamarks'), minzoom: 9 },
 
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],

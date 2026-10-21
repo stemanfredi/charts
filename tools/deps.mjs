@@ -36,6 +36,7 @@ export const TILE_HOSTS = [
   'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org', 'https://ows.emodnet-humanactivities.eu',
   'https://wmts.marine.copernicus.eu',
   'https://tiles.emodnet-bathymetry.eu', 'https://drive.emodnet-geology.eu', // EMODnet depth, seabed substrate
+  'https://tiles.arcgis.com', // the World Bank's world vessel density
 ];
 // Hosts the page calls for data but never draws from (connect-src only).
 export const API_HOSTS = [
