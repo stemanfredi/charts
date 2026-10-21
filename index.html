@@ -41,8 +41,13 @@
     <button type="button" id="link" title="Copy a link to this exact view"><i data-icon="link"></i><span>Link</span></button>
     <button type="button" id="png" title="Download the view as a picture"><i data-icon="png"></i><span>PNG</span></button>
     <button type="button" id="zip" title="Download the view as GIS data"><i data-icon="zip"></i><span>GIS</span></button>
-    <button type="button" id="b-time" class="time" hidden><span class="day"></span><span class="hour"></span><input type="datetime-local" step="3600" tabindex="-1" aria-label="Date and time shown"></button>
+    <button type="button" id="b-time" class="time" popovertarget="time-box" hidden><span class="day"></span><span class="hour"></span></button>
   </nav>
+  <!-- the time shown, beside its button: a day and an hour, a step either way, back to now -->
+  <div id="time-box" class="timebox" popover role="dialog" aria-label="Time shown">
+    <div class="row"><input type="date" required min="2000-01-01" max="2099-12-31" aria-label="Day"><select aria-label="Hour"></select></div>
+    <div class="row"><button type="button" data-step="-1" aria-label="Earlier" title="Earlier">‹</button><button type="button" data-now>Now</button><button type="button" data-step="1" aria-label="Later" title="Later">›</button></div>
+  </div>
   <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
     <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><i data-icon="plus"></i></button>
     <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><i data-icon="minus"></i></button>

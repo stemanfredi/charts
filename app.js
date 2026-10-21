@@ -337,44 +337,54 @@ function setTime(t) {
   renderMenu();
 }
 // ---- the map's time: a button in the rail, for every layer that changes with time ----------
-// It shows the time drawn, in local time; a tap opens the browser's own date and time picker,
-// and clearing it there goes back to now.
+// It shows the time drawn, in local time, and opens the time box beside it (a popover: a tap
+// outside or Esc closes it): a day and an hour, a step back or on (an hour, or a day when only
+// daily layers are on), and now.
 const timeOn = () => ITEMS.filter((it) => (it.cmems || it.date) && state.on.has(it.id));
-const timeBtn = $('#b-time'), timeInput = timeBtn.querySelector('input');
+const timeBtn = $('#b-time'), timeBox = $('#time-box'), dayIn = $('input', timeBox), hourSel = $('select', timeBox), stepBtns = timeBox.querySelectorAll('[data-step]');
 const pad = (n) => String(n).padStart(2, '0');
-// the picker's value: local date and time (datetime-local has no time zone)
-const localValue = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-timeBtn.addEventListener('click', (e) => {
-  if (e.target === timeInput) return; // a browser without showPicker: the field itself was tapped
-  try { timeInput.showPicker(); } catch { timeInput.focus(); }
+const hourly = () => timeOn().some((it) => it.cmems && !CMEMS[it.id][variantOf(it.id)].daily);
+for (let i = 0; i < 24; i++) hourSel.append(h('option', { value: i }, new Date(2000, 0, 1, i).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
+timeBox.addEventListener('beforetoggle', (e) => {
+  if (e.newState === 'open') timeBox.style.setProperty('--time-top', `${timeBtn.getBoundingClientRect().top}px`);
 });
-timeInput.addEventListener('change', () => setTime(timeInput.value ? new Date(timeInput.value).getTime() : Date.now()));
+// the day and hour fields are local time. A day typed in the field changes with each key (year
+// 0002, 0020, 0202, 2026): only a whole day within the field's range is taken
+const pickTime = () => { if (dayIn.checkValidity()) setTime(new Date(`${dayIn.value}T${pad(hourSel.value)}:00`).getTime()); };
+dayIn.addEventListener('change', pickTime);
+hourSel.addEventListener('change', pickTime);
+for (const b of stepBtns) b.addEventListener('click', () => setTime(state.time + b.dataset.step * (hourly() ? 36e5 : 864e5)));
+$('[data-now]', timeBox).addEventListener('click', () => setTime(Date.now()));
 function renderTime() {
   const items = timeOn();
   timeBtn.hidden = !items.length;
-  if (!items.length) return;
-  const d = new Date(state.time), hourly = items.some((it) => it.cmems && !CMEMS[it.id][variantOf(it.id)].daily);
+  if (!items.length) { if (timeBox.matches(':popover-open')) timeBox.hidePopover(); return; }
+  const d = new Date(state.time), hr = hourly();
   const today = new Date().toDateString() === d.toDateString();
   timeBtn.querySelector('.day').textContent = today ? 'Today' : `${d.toLocaleDateString([], { weekday: 'short' })} ${d.getDate()}`; // "Wed 21" in every locale
-  timeBtn.querySelector('.hour').textContent = hourly ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  timeBtn.title = `${d.toLocaleString([], { dateStyle: 'full', timeStyle: 'short' })}: change (clear for now)`;
-  timeInput.value = localValue(state.time);
+  timeBtn.querySelector('.hour').textContent = hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  timeBtn.title = d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full' });
+  if (document.activeElement !== dayIn) dayIn.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; // not while a day is typed in it
+  hourSel.value = d.getHours();
+  hourSel.hidden = !hr;
+  for (const b of stepBtns) b.title = `${b.dataset.step < 0 ? 'Earlier' : 'Later'}: one ${hr ? 'hour' : 'day'}`;
 }
 const variantOf = (id) => state.variant[id] || Object.keys(CMEMS[id])[0];
 // times in local time; a daily product's day is its own calendar day (UTC)
 const fmtHour = (t) => new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const fmtTime = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const fmtDay = (t) => new Date(t).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const fmtLevel = (level) => `${Math.abs(+level) < 10 ? Math.abs(+level).toFixed(1) : Math.round(Math.abs(+level))} m`;
-// under each Copernicus item, what the time bar cannot show: the level drawn, the step drawn when it
-// is not the hour shown (3-hourly), an observation's latest day, or no data at all
+// under each Copernicus item, what the time cannot show: the level drawn, a dataset's steps when
+// they are longer than an hour (the global waves: every 3 h, the same note at every hour), an
+// observation's latest day, or no data at all
 const cmemsEmpty = new Set(); // sea-state items with no data at the hour shown: no legend
 async function cmemsNotes() {
   for (const it of cmemsOn()) {
     const v = CMEMS[it.id][variantOf(it.id)], note = rows[it.id].controls.querySelector('.cmems-note');
     const t = state.time, times = await partTimes(it.id, variantOf(it.id), t), levels = await partLevels(it.id, variantOf(it.id), state.depth);
     if (t !== state.time) return; // the hour changed meanwhile: a newer call writes the notes
-    const ends = await Promise.all(v.parts.map((p) => domainOf(p).then((d) => domainEndMs(d.time), () => null)));
+    const domains = await Promise.all(v.parts.map((p) => domainOf(p).then((d) => d.time, () => null)));
+    const ends = domains.map((d) => d && domainEndMs(d)), steps = domains.map((d) => (d ? Math.max(...d.map((r) => r.step)) : 0));
     const names = v.parts.map((p) => regionOf(p)?.name || (v.parts.length > 1 ? 'global' : ''));
     const parts = times.map((pt, i) => {
       let what;
@@ -382,7 +392,7 @@ async function cmemsNotes() {
       else if (pt === null) what = 'no data at this hour';
       else {
         const latest = v.observed && pt === ends[i] && t > ends[i];
-        const when = latest ? `latest: ${v.daily ? fmtDay(pt) : fmtHour(pt)}` : !v.daily && pt !== t ? `shown at ${fmtTime(pt)}` : '';
+        const when = latest ? `latest: ${v.daily ? fmtDay(pt) : fmtHour(pt)}` : !v.daily && steps[i] > 36e5 ? `every ${steps[i] / 36e5} h` : '';
         what = [when, levels[i] !== null ? `at ${fmtLevel(levels[i])}` : ''].filter(Boolean).join(', ');
       }
       return what && (names[i] ? `${names[i]}: ${what}` : what);

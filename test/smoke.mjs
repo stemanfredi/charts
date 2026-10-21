@@ -11,7 +11,7 @@ import { serve, chromeOptions } from './serve.mjs';
 const server = await serve();
 const base = server.url;
 const browser = await chromium.launch(chromeOptions());
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
+const ctx = await browser.newContext({ locale: 'en-US', viewport: { width: 1280, height: 800 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
 const failures = [];
 // cross-origin requests that carried a Referer (the page and the clip worker both promise none)
 const referred = new Set();
@@ -134,19 +134,32 @@ try {
   const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('label').textContent} (${r.title})`));
   check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`);
   check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown');
-  // the time button: shown with a time layer, a date and time picked in it (local time) draws that
-  // hour and goes in the link; clearing it goes back to now
+  // the time button opens the time box: a day and an hour picked there (local time) are drawn and
+  // go in the link; › steps an hour; Now goes back to now
   const ahead = await cm.evaluate(() => { const d = new Date(Date.now() + 864e5); d.setMinutes(0, 0, 0); return d.getTime(); });
-  const local = await cm.evaluate((t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }, ahead);
-  await cm.fill('#b-time input', local);
+  const [aDay, aHour] = await cm.evaluate((t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return [`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, String(d.getHours())]; }, ahead);
+  await cm.click('#b-time');
+  const boxOpen = await cm.evaluate(() => document.querySelector('#time-box').matches(':popover-open'));
+  await cm.fill('#time-box input', aDay);
+  await cm.selectOption('#time-box select', aHour);
   await cm.waitForTimeout(1500);
-  const [shownT, day, cmHash] = await cm.evaluate(() => [document.querySelector('#b-time input').value, document.querySelector('#b-time .day').textContent, location.hash]);
-  check(shownT === local && day !== 'Today' && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a time picked on the time button is drawn and kept in the link (${day} ${shownT})`);
+  const [day, cmHash] = await cm.evaluate(() => [document.querySelector('#b-time .day').textContent, location.hash]);
+  check(boxOpen && day !== 'Today' && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a day and hour picked in the time box are drawn and kept in the link (${day})`);
   const cmAgain = await open(cmHash);
-  check((await cmAgain.evaluate(() => document.querySelector('#b-time input').value)) === local, 'the link reopens at that time');
-  await cm.fill('#b-time input', '');
+  check((await cmAgain.evaluate(() => [document.querySelector('#time-box input').value, document.querySelector('#time-box select').value].join(' '))) === `${aDay} ${aHour}`, 'the link reopens at that time');
+  await cm.click('#time-box [data-step="1"]');
   await cm.waitForTimeout(500);
-  check((await cm.evaluate(() => document.querySelector('#b-time .day').textContent)) === 'Today', 'clearing the picker goes back to now');
+  check((await cm.evaluate(() => location.hash)).includes(`t=${new Date(ahead + 36e5).toISOString().slice(0, 13)}`), 'the later button steps one hour');
+  // a day typed key by key passes through years 0002, 0020, 0202: none of them is taken
+  await cm.focus('#time-box input');
+  await cm.keyboard.type(`${aDay.slice(5, 7)}${aDay.slice(8)}${aDay.slice(0, 4)}`); // en-US field: mm dd yyyy
+  await cm.waitForTimeout(500);
+  check(/t=20\d\d-/.test(await cm.evaluate(() => location.hash)), 'a day typed key by key never jumps to a year before 2000');
+  await cm.click('#time-box [data-now]');
+  await cm.waitForTimeout(500);
+  check((await cm.evaluate(() => document.querySelector('#b-time .day').textContent)) === 'Today', 'Now goes back to now');
+  await cm.keyboard.press('Escape');
+  check(!(await cm.evaluate(() => document.querySelector('#time-box').matches(':popover-open'))), 'Esc closes the time box');
   await cm.close(); await cmAgain.close();
   // water properties at a depth from the link: each model at its nearest level, said so
   const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');

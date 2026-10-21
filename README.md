@@ -52,8 +52,8 @@ them from each provider, and each layer stays under its provider's licence.
 
 Layers that change with time (Copernicus and NASA daily) share one time, now by
 default. While one is on, a button in the right-hand column shows it (in local
-time); tapping it opens the browser's date and time picker, and clearing the
-picker goes back to now. Forecasts reach about nine days ahead. Copernicus layers: waves, currents and wind;
+time); tapping it opens a small box beside it to pick a day and an hour, step
+an hour (a day, for daily layers) either way, or go back to now. Forecasts reach about nine days ahead. Copernicus layers: waves, currents and wind;
 temperature, salinity, mixed layer depth and water quality (dissolved oxygen, pH,
 nitrate, primary production); satellite sea surface temperature (and its anomaly),
 chlorophyll and sea level anomaly. Daily products show the day of that hour, and
