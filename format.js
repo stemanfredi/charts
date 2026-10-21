@@ -37,7 +37,15 @@ export function niceLen(m) {
 // Accepts decimal degrees ("35.898, 14.513", "-31.2 -51.3"), degrees and decimal minutes or
 // degrees, minutes and seconds, with hemisphere letters before or after ("35 53.9N 14 30.8E",
 // "35°53'54\"N 014°30'48\"E", "N35 53.9 E14 30.8", "14.513E 35.898N"). Without letters, latitude first.
+// A decimal comma ("35,898 14,513") is read as such when the text has no decimal point.
 export function parseLatLon(text) {
+  if (!text.includes('.') && /\d,\d/.test(text)) {
+    const r = latLon(text.replace(/(\d),(\d)/g, '$1.$2'));
+    if (r) return r;
+  }
+  return latLon(text);
+}
+function latLon(text) {
   const t = text.toUpperCase().replace(/[°º˚′'″",;]/g, ' ').replace(/([NSEW])/g, ' $1 ').trim();
   if (!t || /[^0-9NSEW.+\-\s]/.test(t)) return null;
   const tokens = t.split(/\s+/);

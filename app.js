@@ -900,6 +900,14 @@ handle.addEventListener('pointerdown', (e) => {
 
 // ---- search: coordinates are read here; place names go to Photon (OpenStreetMap data) ---------
 const PHOTON = 'https://photon.komoot.io/api/';
+// what a sea chart is mostly searched for comes first: places, the coast and the sea (capes, bays,
+// straits, beaches, harbours), marinas, ferry terminals, lighthouses, piers; then the rest (streets,
+// hotels, cafés…), in Photon's order. Nothing is left out.
+const SEA_TAGS = ['place', 'natural', 'water', 'waterway', 'leisure:marina', 'leisure:slipway', 'amenity:ferry_terminal',
+  'man_made:lighthouse', 'man_made:pier', 'man_made:breakwater', 'landuse:harbour', 'landuse:port'];
+// what a result is, in a word: a road of any class is a street; "yes" (a building, an office) says its key
+const resultKind = (p) => (p.osm_key === 'highway' ? 'street' : (p.osm_value === 'yes' ? p.osm_key : p.osm_value || '').replace(/_/g, ' '));
+const seaFirst = ({ properties: p }) => (SEA_TAGS.some((t) => t === p.osm_key || t === `${p.osm_key}:${p.osm_value}`) ? 0 : 1);
 const q = $('#q'), qClear = $('#q-clear'), results = $('#results'), resultList = results.querySelector('ul');
 let hits = [], active = -1, searchCtl = null, searchTimer = 0, pin = null;
 const ZOOM_OF = { city: 11, town: 12, village: 13, hamlet: 14, island: 11, sea: 6, ocean: 4, bay: 10, strait: 9 };
@@ -940,15 +948,19 @@ async function searchPlaces(text) {
   searchCtl?.abort();
   searchCtl = new AbortController();
   const c = map.getCenter(); // results near the view come first; rounded, the view is not sent exactly
-  const url = `${PHOTON}?${new URLSearchParams({ q: text, limit: 7, lang: 'en', lat: c.lat.toFixed(1), lon: c.lng.toFixed(1) })}`;
+  const url = `${PHOTON}?${new URLSearchParams({ q: text, limit: 12, lang: 'en', lat: c.lat.toFixed(1), lon: c.lng.toFixed(1) })}`;
   try {
     const r = await fetch(url, { signal: searchCtl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const { features } = await r.json();
+    // the same name, kind and town once (a port's ferry terminals); the sea's first, seven shown
+    const seen = new Set();
+    const features = (await r.json()).features
+      .filter(({ properties: p }) => { const k = `${(p.name || '').toLowerCase()}|${resultKind(p)}|${p.city}`; return !seen.has(k) && seen.add(k); })
+      .sort((a, b) => seaFirst(a) - seaFirst(b)).slice(0, 7);
     showResults(features.map((f) => {
       const p = f.properties, e = p.extent; // [west, north, east, south]
       return { go: true, name: p.name || p.street || text, at: f.geometry.coordinates,
-        where: [p.osm_value?.replace(/_/g, ' '), p.city !== p.name ? p.city : null, p.state, p.country].filter(Boolean).join(' · '),
+        where: [resultKind(p), p.city !== p.name ? p.city : null, p.state, p.country].filter(Boolean).join(' · '),
         bounds: e ? [[e[0], e[3]], [e[2], e[1]]] : null, zoom: ZOOM_OF[p.osm_value] || 14 };
     }));
   } catch (err) {

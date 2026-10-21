@@ -53,3 +53,11 @@ test('exportName: UTC time, then the centre to 0.01° with hemispheres', () => {
   assert.equal(exportName(t, -33.8688, -151.2093), 'chart-20261020-1636-33.87S-151.21W');
   assert.equal(exportName(t, -0.001, 190), 'chart-20261020-1636-0.00N-170.00W', 'no "-0.00S"; a world copy east of 180°');
 });
+
+test('parseLatLon: a decimal comma, where the text has no decimal point', () => {
+  assert.deepEqual(parseLatLon('35,898 14,513'), { lat: 35.898, lon: 14.513 });
+  assert.deepEqual(parseLatLon('35,898, 14,513'), { lat: 35.898, lon: 14.513 });
+  assert.deepEqual(parseLatLon('43,6N 13,5E'), { lat: 43.6, lon: 13.5 });
+  assert.deepEqual(parseLatLon('43,13'), { lat: 43, lon: 13 }); // a comma between two numbers stays a separator
+  assert.deepEqual(parseLatLon('43.6,13.5'), { lat: 43.6, lon: 13.5 });
+});
