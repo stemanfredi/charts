@@ -911,16 +911,20 @@ $('#close').addEventListener('click', () => setPanel(null));
 
 // Link, PNG and GIS act at once (no menu): the link button says "Copied" for a moment
 $('#link').addEventListener('click', (e) => copyLink(e.currentTarget));
-$('#png').addEventListener('click', () => exportPng());
-$('#zip').addEventListener('click', () => exportZip());
+$('#png').addEventListener('click', (e) => exportPng(e.currentTarget));
+$('#zip').addEventListener('click', (e) => exportZip(e.currentTarget));
 async function copyLink(b) {
   writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
 }
-function flash(b, text) { // the button's own text says it, for a moment
-  const label = b.querySelector('span'), was = label.textContent;
-  label.textContent = text;
-  setTimeout(() => { label.textContent = was; }, 1200);
+// a button's own label and tooltip, kept while it says something else
+const labelOf = (b) => { b.dataset.label ||= b.querySelector('span').textContent; b.dataset.title ||= b.title; return b.dataset; };
+function flash(b, text, title = '', ms = 1200) { // the button's own text says it, for a moment; its tooltip why
+  const own = labelOf(b);
+  clearTimeout(b.flashTimer);
+  b.querySelector('span').textContent = text;
+  b.title = title || own.title;
+  b.flashTimer = setTimeout(() => { b.querySelector('span').textContent = own.label; b.title = own.title; }, ms);
 }
 const about = $('#about');
 $('#b-about').addEventListener('click', () => about.showModal());
@@ -995,15 +999,33 @@ function renderCredits() {
 }
 map.on('styledata', renderCredits);
 map.on('sourcedata', (e) => { if (!e.tile) renderCredits(); });
-// The map's next frame, after pending tiles (so a layer switched on a moment ago is in the
-// picture): fn(canvas) runs while the canvas still holds it, and must read it before awaiting.
+// An export from button b: after before() (a library to load), the map's next frame, after pending
+// tiles (so a layer switched on a moment ago is in the picture). fn(canvas) runs while the canvas
+// still holds it, and must read it before awaiting; it returns what it left out, if anything. The
+// button says "Saving…" meanwhile, then "Failed" or "Partial" for a few seconds, its tooltip why.
 let exporting = false; // one export at a time, however often the buttons are clicked
-function onFrame(fn) {
+async function onFrame(b, fn, before = async () => {}) {
   if (exporting) return;
   exporting = true;
+  const label = b.querySelector('span'), own = labelOf(b);
+  clearTimeout(b.flashTimer); // a "Failed" still shown: this try replaces it
+  b.setAttribute('aria-busy', 'true');
+  label.textContent = 'Saving…';
+  b.title = own.title;
+  const done = (text, title) => {
+    b.removeAttribute('aria-busy');
+    label.textContent = own.label;
+    exporting = false;
+    if (text) flash(b, text, title, 5000);
+  };
+  const failed = (e) => { console.error('export failed:', e.message); done('Failed', `Export failed: ${e.message}`); };
+  try { await before(); } catch (e) { failed(e); return; }
   const go = () => {
     map.once('render', async () => {
-      try { await fn(map.getCanvas()); } catch (e) { console.error('export failed:', e.message); } finally { exporting = false; }
+      try {
+        const left = await fn(map.getCanvas());
+        done(left?.length ? 'Partial' : '', left?.length ? `Saved without ${left.join('; ')}` : '');
+      } catch (e) { failed(e); }
     });
     map.triggerRepaint();
   };
@@ -1037,8 +1059,8 @@ function snapshot(src) {
     dataText: !timed ? '' : `data ${hr ? `at ${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `of ${dayOf(t)} (UTC)`}${depth == null ? '' : `, ${depthWords(depth)}`}`,
   };
 }
-function exportPng() {
-  onFrame(async (src) => {
+function exportPng(b) {
+  onFrame(b, async (src) => {
     const s = snapshot(src);
     download(await chartPng(chartCanvas(src, s)), `${s.name}.png`);
   });
@@ -1093,10 +1115,9 @@ const polygonClipping = () => memo(libs, 'polygon-clipping', () => new Promise((
   document.head.append(h('script', { src, integrity, crossorigin: 'anonymous', onload: () => resolve(globalThis.polygonClipping),
     onerror: (e) => { e.target.remove(); reject(new Error('polygon-clipping did not load')); } }));
 }));
-async function exportZip() {
+function exportZip(b) {
   let clipping;
-  try { clipping = await polygonClipping(); } catch (e) { console.error('GIS export:', e.message); return; }
-  onFrame(async (src) => {
+  onFrame(b, async (src) => {
     const s = snapshot(src), { when, name, corners, layers } = s; // the view as captured, however long the rest takes
     const plain = h('canvas', { width: src.width, height: src.height });
     plain.getContext('2d').drawImage(src, 0, 0);
@@ -1121,8 +1142,9 @@ async function exportZip() {
     }
     // the values of each layer drawn whose kind has them (Copernicus), as the view was captured
     const xs = corners.map((p) => p[0]), ys = corners.map((p) => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    const left = []; // values that could not be read: the rest is saved, the button says what is missing
     const values = (await Promise.all(layers.filter((l) => kindOf(l.id)?.values).map((l) => kindOf(l.id).values(l, box)
-      .then((rs) => { l.assets.push(...rs.map((r) => r.key)); return rs; }, (e) => { console.warn(`${l.label} values:`, e.message); return []; })))).flat();
+      .then((rs) => { l.assets.push(...rs.map((r) => r.key)); return rs; }, (e) => { console.warn(`${l.label} values:`, e.message); left.push(`${l.label} values (${e.message})`); return []; })))).flat();
     for (const l of layers) Object.assign(l, await kindOf(l.id)?.record(l)); // what each drew: period, day, time, depth
     const measured = measureFeatures(measure.list);
     if (measured.length) vectors.push({ key: 'vector/measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
@@ -1153,7 +1175,8 @@ async function exportZip() {
       ...rasters.map((r) => ({ name: r.file, data: r.data })),
       ...values.map((r) => ({ name: r.file, data: r.data })),
     ], when), `${name}.zip`);
-  });
+    return left;
+  }, async () => { clipping = await polygonClipping(); });
 }
 
 // ---- go ---------------------------------------------------------------------

@@ -64,7 +64,7 @@ export async function emodnetValues(box) {
   const { store, lat, lon } = await dtmStore(), m = store.meta('elevation'), cells = cellsOf(lat, lon, box);
   if (!cells.rows.length) return [];
   const blocks = new Set(cells.rows.map((r) => Math.floor(r / m.chunks[0]))).size * new Set(cells.cols.map((c) => Math.floor(c / m.chunks[1]))).size;
-  if (blocks > 16) { console.warn(`EMODnet depth values: ${blocks} chunks of about 2 MB for this view; zoom in to export them`); return []; }
+  if (blocks > 16) throw new Error(`${blocks} chunks of about 2 MB for this view: zoom in to export them`);
   const w = cells.cols.length, h = cells.rows.length, key = 'raster/emodnet-depth';
   const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
   const description = `EMODnet Bathymetry DTM 2024: elevation (m, negative below the sea surface; vertical reference lowest astronomical tide), its own grid (1/16 arc-minute), EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN. Not for navigation`;

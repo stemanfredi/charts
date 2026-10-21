@@ -235,6 +235,13 @@ try {
   // GIS export: a zip whose STAC item lists the georeferenced map and the files beside it;
   // polygon-clipping loads on this first export, not with the page
   check(await again.evaluate(() => !('polygonClipping' in window) && !document.querySelector('script[src*=polygon-clipping]')), 'polygon-clipping not loaded with the page');
+  // an export that fails says so on its button, and the next click tries again
+  await again.route('**/polygon-clipping*', (r) => r.abort());
+  await again.click('#zip');
+  await again.waitForFunction(() => document.querySelector('#zip span').textContent === 'Failed', null, { timeout: 15000 }).catch(() => {});
+  const [zipLabel, zipTitle] = await again.evaluate(() => [document.querySelector('#zip span').textContent, document.querySelector('#zip').title]);
+  check(zipLabel === 'Failed' && /polygon-clipping/.test(zipTitle), `a failed GIS export says so on its button (${zipLabel}: ${zipTitle})`);
+  await again.unroute('**/polygon-clipping*');
   const [dz] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#zip')]);
   const z = await readFile(await dz.path());
   const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png', 'vector/coastline.geojson', 'vector/isobaths.geojson', 'raster/depth.tif'];
