@@ -30,7 +30,7 @@ test('layer ids unique, sources defined, item layers start hidden', () => {
 });
 
 test('variants: each choice has a layer, except colour schemes', () => {
-  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth' && !i.density && !i.cmems)) { // density, Copernicus: one layer, a tile URL per choice
+  for (const it of ITEMS.filter((i) => i.variants && i.id !== 'depth' && !i.kind)) { // density, Copernicus: one layer, a tile URL per choice
     for (const v of Object.keys(it.variants)) {
       assert.ok(style.layers.some((l) => l.metadata?.item === it.id && l.metadata.variant === v), `${it.id}/${v}: no layer`);
     }
@@ -90,7 +90,7 @@ test('GIBS: the newest date a layer has, from DescribeDomains', () => {
 });
 
 test('Copernicus: items, variants and parts agree; styles fix the range', () => {
-  for (const it of ITEMS.filter((i) => i.cmems)) {
+  for (const it of ITEMS.filter((i) => i.kind === 'cmems')) {
     assert.ok(CMEMS[it.id], `${it.id} has datasets`);
     if (it.variants) assert.deepEqual(Object.keys(it.variants), Object.keys(CMEMS[it.id]));
     else assert.equal(Object.keys(CMEMS[it.id]).length, 1, `${it.id}: one choice, or variants in the menu`);
