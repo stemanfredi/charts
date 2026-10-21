@@ -39,3 +39,15 @@ test('URL round trip; bad rings dropped; hidden flag kept', () => {
   again.load(m.serialize());
   assert.equal(again.serialize(), m.serialize());
 });
+
+test('preview: the cursor adds a leg, but not where a tap just put a point', () => {
+  const fake = { on() {}, getSource() {}, getCanvas: () => ({ style: {} }), doubleClickZoom: { enable() {}, disable() {} } };
+  globalThis.window ??= { addEventListener() {} };
+  const m = new Measure(fake, () => {});
+  m.start('ruler');
+  m.click({ lngLat: { lng: 10, lat: 43 } });
+  m.hover = [10, 43]; // a tap: the "cursor" is on the point it added
+  assert.equal(m.preview().pts.length, 1);
+  m.hover = [10.5, 43.2]; // a mouse elsewhere: the next leg
+  assert.equal(m.preview().pts.length, 2);
+});

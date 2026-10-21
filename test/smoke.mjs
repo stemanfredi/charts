@@ -208,6 +208,8 @@ try {
     `sea surface temperature: the time within its days, its day shown (t=${obT}, ${obShown}) ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);
   await ob.close();
 
+  // the nautical scale reads NM, as Measure and the PNG do (MapLibre writes "nm")
+  check(/\d\sNM$/.test(await again.evaluate(() => document.querySelectorAll('.maplibregl-ctrl-scale')[1].textContent)), 'the nautical scale reads NM');
   // PNG export
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), again.click('#png')]);
   const png = await readFile(await dl.path());

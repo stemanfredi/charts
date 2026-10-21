@@ -164,6 +164,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .mbar .what { font-weight: 600; white-space: nowrap; }
 .mbar .val { font-family: var(--mono); white-space: nowrap; }
 .mbar .tip { color: var(--soft); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (pointer: coarse) { .keys-hint { display: none; } } /* no keys on a touch screen: the bar's buttons */
 .mbar button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: 44px; padding: 0 12px; flex: none; }
 .mbar button.done { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
@@ -223,7 +224,7 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .panel header { padding-top: 10px; }
   body.menu-open .legends { display: none; }
   .mbar { right: calc(var(--rail) + 20px); flex-wrap: wrap; }
-  .mbar .tip { display: none; }
+  .mbar .tip, .mbar .what { display: none; } /* the tool is lit in the column: room for the buttons on one line */
   .pos:not(.shown) { display: none; } /* no cursor on a phone; the time shown stays */
   .status { flex-wrap: wrap; } /* the credits' line above the readout */
   .credits { flex-basis: 100%; }

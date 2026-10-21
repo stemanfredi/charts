@@ -191,6 +191,8 @@ const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
 const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time (and depth) the layers show
 const scales = ['metric', 'nautical'].map((unit) => new maplibregl.ScaleControl({ maxWidth: 100, unit }));
 const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s.onAdd(map)));
+// MapLibre writes nautical miles "nm" (the nanometre's symbol): NM, as on charts and in Measure
+const scaleUnits = () => { for (const el of scalesEl.children) el.textContent = el.textContent.replace(/\snm$/, '\u00a0NM'); };
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const nfnEl = h('div', { class: 'scalenote nfn' }, 'Not for navigation'); // on every screen (About says why)
 const attribution = new maplibregl.AttributionControl({ compact: false });
@@ -792,7 +794,7 @@ const toolBtns = Object.entries(TOOL).map(([k, [label, title]]) => h('button', {
 const unitSeg = seg('Distance units', { km: ['km · m', 'Kilometres and metres'], nm: ['Nautical miles', 'Nautical miles'] }, () => measure.units, (u) => measure.setUnits(u));
 const measureList = h('ul', { class: 'mlist' });
 measureView.append(h('div', { class: 'tools3' }, toolBtns), h('h2', {}, 'Units'), unitSeg, h('h2', {}, 'Measurements'), measureList,
-  h('p', { class: 'note' }, 'Geodesic on WGS 84. Bearings are true (°T). Double-click or Enter finishes; Backspace undoes; Esc cancels.'));
+  h('p', { class: 'note' }, 'Geodesic on WGS 84. Bearings are true (°T).', h('span', { class: 'keys-hint' }, ' Double-click or Enter finishes; Backspace undoes; Esc cancels.')));
 function renderMeasures() {
   const u = measure.units === 'nm' ? ['NM', 1852] : ['km', 1000];
   measureList.replaceChildren(...measure.list.map((x) => h('li', { class: 'item' },
@@ -1250,11 +1252,12 @@ map.on('load', () => {
   ready = true;
   setPanel(state.panel); // also writes the URL, now with everything applied
   scaleNote();
+  scaleUnits();
   renderCompass();
 });
 map.on('moveend', writeHash);
-let moveRaf = 0; // once per frame while moving: the graticule's edge labels follow the frame, the scale note the view
-map.on('move', () => { cancelAnimationFrame(moveRaf); moveRaf = requestAnimationFrame(() => { updateGraticule(); scaleNote(); }); });
+let moveRaf = 0; // once per frame while moving: the graticule's edge labels follow the frame, the scale note and units the view
+map.on('move', () => { cancelAnimationFrame(moveRaf); moveRaf = requestAnimationFrame(() => { updateGraticule(); scaleNote(); scaleUnits(); }); });
 map.on('zoomend', renderMenu);
 map.on('dataloading', () => document.body.classList.add('loading'));
 map.on('idle', () => document.body.classList.remove('loading'));

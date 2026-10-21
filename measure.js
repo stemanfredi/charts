@@ -207,10 +207,11 @@ export class Measure {
 
   undo() { if (this.draft?.pts.length) { this.draft.pts.pop(); if (this.draft.kind === 'ring') this.draft.r = 0; this.render(); } }
 
-  // the measurement being drawn, with the cursor as its next point (or the ring's edge)
+  // the measurement being drawn, with the cursor as its next point (or the ring's edge); a tap
+  // also moves the "cursor" to the point it adds: not a leg of its own
   preview() {
-    const d = this.draft;
-    if (!d || !this.hover || !d.pts.length) return d;
+    const d = this.draft, last = d?.pts[d.pts.length - 1];
+    if (!d || !this.hover || !last || (this.hover[0] === last[0] && this.hover[1] === last[1])) return d;
     return d.kind === 'ring'
       ? { ...d, r: G.Inverse(d.pts[0][1], d.pts[0][0], this.hover[1], this.hover[0]).s12, edge: this.hover }
       : { ...d, pts: [...d.pts, this.hover] };
