@@ -59,8 +59,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .x { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; width: 44px; height: 44px; border-radius: 6px; color: var(--soft); flex: none; }
 .x:hover { background: var(--line2); color: var(--ink); }
-.about-link { border: 0; background: none; color: var(--warn); font-size: 12px; font-weight: 600; min-height: var(--row); padding: 0 8px; width: 100%; text-align: left; }
-.about-link:hover { text-decoration: underline; }
 #menu { overflow-y: auto; flex: 0 1 auto; min-height: 0; padding-bottom: 6px; overscroll-behavior: contain; }
 .view { overflow-y: auto; flex: 0 1 auto; min-height: 0; padding: 10px 12px; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
 
@@ -165,27 +163,31 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 
 /* ---- legends, stacked bottom left above the credits ---- */
 .legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
-.legends .stack { display: contents; }
-.shown { pointer-events: auto; min-height: var(--row); padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); box-shadow: var(--shadow); font-weight: 600; } /* the time shown: opens Layers */
+.legends:empty { display: none; }
 .legends canvas { display: block; box-sizing: content-box; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* the border outside its size: not squeezed (blurred) */
 
 /* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */
 .status {
   position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; pointer-events: none;
-  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 4px 12px; padding: 0 10px 6px;
+  display: flex; align-items: flex-end; gap: 4px 12px; padding: 0 10px 6px;
   font-size: 11px; color: var(--soft);
 }
-.status > *, .readout > * { pointer-events: auto; }
+.status > *, .readout > *, .credits > * { pointer-events: auto; }
 .pos, .scalenote { background: rgba(255,255,255,.85); border-radius: 4px; padding: 1px 6px; }
 .pos { font: 11.5px var(--mono); color: var(--ink); white-space: nowrap; }
 .pos:empty { display: none; }
 .scalenote { color: var(--warn); }
+.nfn { font-weight: 600; white-space: nowrap; }
 .scalenote:empty { display: none; }
-/* credits: always written out (no (i) toggle), wrapping within the left of the row */
-.status .maplibregl-ctrl-attrib { margin: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); text-align: left; flex: 0 1 auto; max-width: 62%; }
-.readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; }
-.status .maplibregl-ctrl-attrib-inner { white-space: normal; }
+/* credits: always on screen (no (i) toggle) */
+.status .maplibregl-ctrl-attrib { margin: 0; background: none; text-align: left; }
+.readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; flex: none; }
+/* one line of credits (MapLibre's <details>), ending in "…" where they do not fit; a tap shows them all */
+.credits { display: flex; flex: 0 1 auto; min-width: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); cursor: pointer; }
+.credits .maplibregl-ctrl-attrib { min-width: 0; padding: 0; }
+.credits .maplibregl-ctrl-attrib-inner { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.credits.open .maplibregl-ctrl-attrib-inner { white-space: normal; }
 .maplibregl-ctrl-scale { border-color: var(--ink); color: var(--ink); background: rgba(255, 255, 255, .85); font: 11px var(--font); }
 /* double scale (as on OpenSeaMap): km bar open at the top, NM bar hanging below the same line */
 .scales { display: flex; flex-direction: column; align-items: flex-start; }
@@ -215,5 +217,8 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   body.menu-open .legends { display: none; }
   .mbar { right: calc(var(--rail) + 20px); flex-wrap: wrap; }
   .mbar .tip { display: none; }
-  .pos { display: none; }
+  .pos:not(.shown) { display: none; } /* no cursor on a phone; the time shown stays */
+  .status { flex-wrap: wrap; } /* the credits' line above the readout */
+  .credits { flex-basis: 100%; }
+  .readout { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; }
 }

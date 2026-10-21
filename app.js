@@ -157,17 +157,22 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 const small = () => window.innerWidth < 720;
 
-// ---- bottom row: credits, scale note, cursor position, double scale ------------------------
+// ---- bottom row: credits; not for navigation, scale note, time shown, cursor position, double scale
 // The scale is double, as on OpenSeaMap: km above the line, nautical miles below. Credits are
-// always written out, at every width (Esri: data attribution "always visible"; OSM likewise).
+// always on screen (Esri: data attribution "always visible"; OSM likewise), on one line: what
+// does not fit ends in "…", and a tap on the line shows it all.
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
+const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time (and depth) the layers show
 const scales = ['metric', 'nautical'].map((unit) => new maplibregl.ScaleControl({ maxWidth: 100, unit }));
 const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s.onAdd(map)));
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
+const nfnEl = h('div', { class: 'scalenote nfn' }, 'Not for navigation'); // on every screen (About says why)
 const attribution = new maplibregl.AttributionControl({ compact: false });
-// credits on the left; the scale note, cursor position and scale grouped on the right
-statusEl.append(attribution.onAdd(map), h('div', { class: 'readout' }, scaleNoteEl, posEl, scalesEl));
+const credits = h('div', { class: 'credits', title: 'Tap for all the credits' }, attribution.onAdd(map));
+credits.addEventListener('click', (e) => { if (!e.target.closest('a')) credits.classList.toggle('open'); });
+// credits on the left; not for navigation, the scale note, time shown, cursor position and scale on the right
+statusEl.append(credits, h('div', { class: 'readout' }, nfnEl, scaleNoteEl, shownEl, posEl, scalesEl));
 // the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits
 new ResizeObserver(() => document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`)).observe(statusEl);
 
@@ -437,11 +442,11 @@ function setTime(t) {
   renderMenu();
 }
 // ---- the map's settings: the time and the depth, for every layer that uses them -------------
-// Set on one line at the foot of the Layers panel, read above the legends (a tap there opens
-// Layers). The time is a datetime-local field in local time, on the hour (step 3600 s), within
-// the dates the layers on have (min, max: the browser's calendar greys out the rest); ‹ › step
-// an hour, or a day when only daily layers are on, and stop at those dates; Now goes back to now.
-const when = $('#when'), whenIn = $('input', when), stepBtns = when.querySelectorAll('[data-step]'), depthSel = $('.depthsel', when), shown = $('#shown');
+// Set on one line at the foot of the Layers panel, read beside the coordinates. The time is a
+// datetime-local field in local time, on the hour (step 3600 s), within the dates the layers on
+// have (min, max: the browser's calendar greys out the rest); ‹ › step an hour, or a day when
+// only daily layers are on, and stop at those dates; Now goes back to now.
+const when = $('#when'), whenIn = $('input', when), stepBtns = when.querySelectorAll('[data-step]'), depthSel = $('.depthsel', when), shown = shownEl;
 const pad = (n) => String(n).padStart(2, '0');
 const local = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const RANGE = [Date.UTC(2000, 0, 1), Date.UTC(2099, 11, 31, 23)]; // until the layers' own dates are known
@@ -469,7 +474,6 @@ for (const b of stepBtns) b.addEventListener('click', () => setTime(Math.min(ran
 $('[data-now]', when).addEventListener('click', () => setTime(Date.now()));
 $('select', depthSel).append(...CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface')));
 $('select', depthSel).addEventListener('change', (e) => setDepth(+e.target.value));
-shown.addEventListener('click', () => setPanel('layers'));
 function renderWhen() {
   const on = timeOn().length > 0, deep = depthOn().length > 0;
   when.hidden = !on;
@@ -483,11 +487,11 @@ function renderWhen() {
   for (const b of stepBtns) b.title = `${b.dataset.step < 0 ? 'Earlier' : 'Later'}: one ${hr ? 'hour' : 'day'}`;
   depthSel.hidden = !deep;
   $('select', depthSel).value = state.depth;
-  // on the map: "Today 18:00 · 100 m", "Wed 21" (the day only when only daily layers are on)
+  // beside the coordinates: "Today 18:00 · 100 m", "Wed 21" (the day only when only daily layers are on)
   const day = new Date().toDateString() === d.toDateString() ? 'Today' : `${d.toLocaleDateString([], { weekday: 'short' })} ${d.getDate()}`;
   shown.textContent = [[day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' '),
     deep ? (state.depth ? `${state.depth} m` : 'surface') : ''].filter(Boolean).join(' · ');
-  shown.title = `${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full' })}: set in Layers`;
+  shown.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full' })}, set in Layers`;
 }
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
 const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
@@ -698,7 +702,7 @@ function renderMenu() {
 
 // ---- legends: stacked bottom left, one per drawn colour layer (the Legends switch shows them) ----
 // The canvases are drawn whenever their layer is (the PNG copies them, switch or not).
-const legends = $('#legends .stack');
+const legends = $('#legends');
 const legendEls = {};
 let legendWant = [];
 function legendEl(id) {
@@ -801,7 +805,7 @@ function flash(b, text) { // the button's own text says it, for a moment
   setTimeout(() => { label.textContent = was; }, 1200);
 }
 const about = $('#about');
-for (const b of document.querySelectorAll('[data-about]')) b.addEventListener('click', () => about.showModal());
+$('#b-about').addEventListener('click', () => about.showModal());
 about.querySelector('[data-close]').addEventListener('click', () => about.close());
 
 // keys: / search, L layers, R / A / C measuring tools (measure.js handles Esc while drawing)

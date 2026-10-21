@@ -143,7 +143,7 @@ try {
   await cm.fill('#when input', aLocal);
   await cm.waitForTimeout(1500);
   const [shownText, cmHash] = await cm.evaluate(() => [document.querySelector('#shown').textContent, location.hash]);
-  check(!shownText.startsWith('Today') && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a time picked on the time line is drawn, shown on the map and kept in the link (${shownText})`);
+  check(!shownText.startsWith('Today') && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a time picked on the time line is drawn, shown beside the coordinates and kept in the link (${shownText})`);
   const cmAgain = await open(cmHash);
   check((await cmAgain.evaluate(() => document.querySelector('#when input').value)) === aLocal, 'the link reopens at that time');
   await cm.click('#when [data-step="1"]');
@@ -157,9 +157,10 @@ try {
   await cm.click('#when [data-now]');
   await cm.waitForTimeout(500);
   check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'Now goes back to now');
-  await cm.click('#close');
-  await cm.click('#shown');
-  check(await cm.evaluate(() => !document.querySelector('#panel').hidden), 'the time on the map opens Layers');
+  // About, in the right-hand column
+  await cm.click('#b-about');
+  check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
+  await cm.click('#about [data-close]');
   await cm.close(); await cmAgain.close();
   // water properties at a depth from the link: each model at its nearest level, said so
   const wp = await open('#v=5/40/10/0&on=chart,coastline,temperature,legend&menu=1&g=water&dz=100');

@@ -311,8 +311,10 @@ export const ITEMS = [
 
 // ---- sources ----------------------------------------------------------------
 function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density = {} }) {
-  const ATTR_OSM = '<a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-  const ATTR_DEM = 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen/AWS Terrain Tiles</a>';
+  // credits: the names each provider asks for, short enough for one line; what each layer is
+  // made from is behind its ⓘ
+  const ATTR_OSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · <a href="https://openfreemap.org">OpenFreeMap</a>';
+  const ATTR_DEM = '<a href="https://registry.opendata.aws/terrain-tiles/">Mapzen Terrain Tiles</a>';
   const s = {
     omt: { type: 'vector', url: OMT_TILEJSON, attribution: ATTR_OSM },
     'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: ATTR_DEM },
@@ -329,21 +331,21 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
       tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
     // the grid is 1 km: beyond zoom 10 the map overzooms instead of asking for more tiles
     traffic: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('traffic', ...(density.traffic || ['all', DENSITY.traffic.defaultPeriod])),
-      attribution: 'Vessel density: <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a> (Cogea; AIS: CLS, ORBCOMM, vesseltracker.com)' },
+      attribution: '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>' },
     routes: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('routes', ...(density.routes || ['all', DENSITY.routes.defaultPeriod])),
-      attribution: 'Route density: <a href="https://www.emsa.europa.eu/">EMSA</a> via <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>, CC BY 4.0' },
-    seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: 'Seamarks: <a href="https://openseamap.org">OpenSeaMap</a>',
+      attribution: '<a href="https://www.emsa.europa.eu/">EMSA</a> (CC BY 4.0) via <a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>' },
+    seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '<a href="https://openseamap.org">OpenSeaMap</a>',
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   };
   // tiles set by app.js once the hour is known (cmems:// is cmems.js's tile handler)
   for (const id of Object.keys(CMEMS)) {
-    s[`cmems-${id}`] = { type: 'raster', tileSize: 512, maxzoom: 10, tiles: [], attribution: 'Ocean data: <a href="https://marine.copernicus.eu">Copernicus Marine Service</a>' };
+    s[`cmems-${id}`] = { type: 'raster', tileSize: 512, maxzoom: 10, tiles: [], attribution: '<a href="https://marine.copernicus.eu">Copernicus Marine Service</a>' };
   }
   for (const [k, g] of Object.entries(GIBS)) {
     s[`gibs-${k}`] = { type: 'raster', tileSize: 256, maxzoom: g.level, tiles: gibsTiles(k, date),
-      attribution: 'Imagery: <a href="https://earthdata.nasa.gov/gibs">NASA EOSDIS GIBS</a>' };
+      attribution: '<a href="https://earthdata.nasa.gov/gibs">NASA GIBS</a>' };
   }
   return s;
 }
