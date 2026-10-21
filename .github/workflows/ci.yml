@@ -47,6 +47,8 @@ jobs:
       # one retry each: a provider hiccup should not block a deploy, a real failure still does
       - run: npm run smoke || (sleep 60 && npm run smoke)
       - run: npm run ui || (sleep 60 && npm run ui)    # no overlaps, 44 px targets, 390/820/1280 px
+      - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: npm run tiles-check     # known trouble spots: seams, zooms, lakes (live data, weekly)
 
   deploy:
     needs: [test, browser]
