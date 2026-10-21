@@ -442,12 +442,14 @@ function setTime(t) {
   renderMenu();
 }
 // ---- the map's settings: the time and the depth, for every layer that uses them -------------
-// Set on one line at the foot of the Layers panel, read beside the coordinates. The time is a
+// Set on one line at the head of the Layers panel, read beside the coordinates. The time is a
 // datetime-local field in local time, on the hour (step 3600 s), within the dates the layers on
-// have (min, max: the browser's calendar greys out the rest); ‹ › step an hour, or a day when
-// only daily layers are on, and stop at those dates; Now goes back to now.
+// have (min, max: the browser's calendar greys out the rest, the field's tooltip names them);
+// ‹ › step an hour, or a day when only daily layers are on, and stop at those dates; Now goes back
+// to now.
 const when = $('#when'), whenIn = $('input', when), stepBtns = when.querySelectorAll('[data-step]'), depthSel = $('.depthsel', when), shown = shownEl;
 const pad = (n) => String(n).padStart(2, '0');
+const fmtDate = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 const local = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const RANGE = [Date.UTC(2000, 0, 1), Date.UTC(2099, 11, 31, 23)]; // until the layers' own dates are known
 let range = RANGE, rangeKey = '';
@@ -463,9 +465,10 @@ async function updateRange() {
   range = [starts.length ? hour(Math.min(...starts)) : RANGE[0], ends.length ? hour(Math.max(...ends)) : RANGE[1]];
   renderWhen();
 }
-// a time typed in the field changes with each key (year 0002, 0020, 0202, 2026): only a whole
-// time within the field's range is taken
-whenIn.addEventListener('change', () => {
+// taken as it changes (a day clicked in the calendar, not when the calendar closes). A time typed
+// in the field changes with each key (year 0002, 0020, 0202, 2026): only a whole time within the
+// field's range is taken
+whenIn.addEventListener('input', () => {
   const v = whenIn.validity;
   if (!(v.valueMissing || v.badInput || v.rangeUnderflow || v.rangeOverflow)) setTime(new Date(whenIn.value).getTime());
 });
@@ -483,6 +486,7 @@ function renderWhen() {
   const d = new Date(state.time), hr = hourly();
   whenIn.min = local(range[0]);
   whenIn.max = local(range[1]);
+  whenIn.title = `Data: ${fmtDate(range[0])} – ${fmtDate(range[1])}`;
   if (document.activeElement !== whenIn) whenIn.value = local(state.time); // not while a time is typed in it
   for (const b of stepBtns) b.title = `${b.dataset.step < 0 ? 'Earlier' : 'Later'}: one ${hr ? 'hour' : 'day'}`;
   depthSel.hidden = !deep;
@@ -627,7 +631,7 @@ function controlsOf(it) {
     variant = h('select', { class: 'variant', 'aria-label': `${it.label} variant`, onchange: (e) => setVariant(it.id, e.target.value) },
       Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label)));
   }
-  return h('div', { class: 'controls' }, variant, kindOf(it.id)?.controls?.(it)); // the time and depth: at the panel's foot
+  return h('div', { class: 'controls' }, variant, kindOf(it.id)?.controls?.(it)); // the time and depth: at the panel's head
 }
 function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
@@ -776,7 +780,7 @@ function renderTools() {
 // One side panel; the Layers and Measure buttons switch what it shows, and the button of the
 // view already shown closes it. It keeps its place and size, so nothing overlaps.
 const panel = $('#panel'), panelTitle = $('#panel-title');
-const VIEWS = { layers: [$('#b-layers'), menu, 'Layers'], measure: [$('#b-measure'), measureView, 'Measure'] };
+const VIEWS = { layers: [$('#b-layers'), $('#lview'), 'Layers'], measure: [$('#b-measure'), measureView, 'Measure'] };
 function setPanel(view) {
   state.panel = view;
   panel.hidden = !view;

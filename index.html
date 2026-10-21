@@ -55,15 +55,16 @@
       <span class="spin" aria-hidden="true"></span>
       <button type="button" id="close" class="x" aria-label="Close panel" title="Close">×</button>
     </header>
-    <div id="menu"></div>
-    <div id="mview" class="view" hidden></div>
-    <footer>
-      <!-- the map's settings, for every layer that uses them: the time shown (local time), the depth -->
+    <!-- Layers: the map's settings for the layers that use them (the time shown, in local time, and
+         the depth), then the groups, scrolling under them -->
+    <div id="lview" class="lview">
       <div id="when" class="when" role="group" aria-label="Time and depth shown" hidden>
         <button type="button" data-step="-1" aria-label="Earlier" title="Earlier">‹</button><input type="datetime-local" step="3600" required aria-label="Time shown"><button type="button" data-step="1" aria-label="Later" title="Later">›</button><button type="button" data-now>Now</button>
         <label class="depthsel" hidden><span>Depth</span><select aria-label="Depth"></select></label>
       </div>
-    </footer>
+      <div id="menu"></div>
+    </div>
+    <div id="mview" class="view" hidden></div>
   </aside>
 
   <div id="mbar" class="mbar" role="status" hidden></div>

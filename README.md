@@ -51,7 +51,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Place search | Photon (komoot), OpenStreetMap data | ODbL |
 
 Layers that change with time (Copernicus and NASA daily) share one time, now by
-default. While one is on, the foot of the Layers panel holds one line to set
+default. While one is on, the top of the Layers panel holds one line to set
 it, in local time: the browser's own date and time field, limited to the dates
 those layers have, a step of an hour (a day, for daily layers) either way, and
 Now. The time shown is also written beside the cursor's coordinates. Forecasts reach about nine days ahead. Copernicus layers: waves, currents and wind;

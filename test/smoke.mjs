@@ -68,7 +68,7 @@ try {
   const pv = await open('#v=6/41/12/0&menu=1');
   await pv.click('#b-measure');
   await pv.waitForTimeout(400);
-  const views = await pv.evaluate(() => [!document.querySelector('#panel').hidden, document.querySelector('#menu').hidden, !document.querySelector('#mview').hidden, document.querySelector('#panel-title').textContent, location.hash.includes('menu=measure')]);
+  const views = await pv.evaluate(() => [!document.querySelector('#panel').hidden, document.querySelector('#lview').hidden, !document.querySelector('#mview').hidden, document.querySelector('#panel-title').textContent, location.hash.includes('menu=measure')]);
   check(views.join() === 'true,true,true,Measure,true', `Measure switches the panel in place and the link keeps it (${views.join()})`);
   await pv.click('#b-measure');
   check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");

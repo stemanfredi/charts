@@ -45,9 +45,9 @@ svg { flex: none; }
 }
 .panel header { display: flex; align-items: center; gap: 8px; padding: 0 0 0 16px; min-height: 48px; border-bottom: 1px solid var(--line); flex: none; }
 .panel h1 { font-size: 15px; margin: 0; letter-spacing: .02em; }
-.panel footer { flex: none; border-top: 1px solid var(--line2); padding: 0 8px; }
-/* the map's settings, at the panel's foot: ‹ time › Now, then the depth (on the next line if need be) */
-.when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0 2px; }
+.lview { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; }
+/* the map's settings, at the head of Layers: ‹ time › Now, then the depth (on the next line if need be) */
+.when { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); background: #f6f8fa; }
 .when input, .when select, .when button { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 8px; }
 .when input { flex: 1; min-width: 0; }
 .when button { min-width: var(--row); }
