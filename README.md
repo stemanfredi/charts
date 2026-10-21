@@ -78,6 +78,29 @@ are chosen in the Ocean data group, in two menus, one for colours and one for
 arrows, since two colour layers cannot be read together, nor two sets of arrows:
 currents are in both (speed in colour, direction in arrows), wind is arrows.
 
+### Shipping traffic data outside the app
+
+The density layers are pictures drawn by their services. To work with the data
+itself, these sources publish it (check each provider's current terms before use):
+
+- **EMODnet Human Activities**: vessel density (hours per km² per month, by ship
+  type, 2017–2024) and EMSA route density (monthly since 2019) for European seas,
+  as GeoTIFF downloads and OGC services, CC BY 4.0
+  ([emodnet.ec.europa.eu/en/human-activities](https://emodnet.ec.europa.eu/en/human-activities)).
+- **World Bank and IMF, Global Shipping Traffic Density**: world, 2015–2021, about
+  500 m, all vessels and by type (commercial, fishing, passenger, leisure, oil and
+  gas), as zipped GeoTIFFs (510 MB for all vessels), CC BY 4.0
+  ([dataset 0037580](https://datacatalog.worldbank.org/search/dataset/0037580)).
+- **Global Maritime Traffic Density Service** (GMTDS): world, monthly from 2011;
+  downloads and services by request ([globalmaritimetraffic.org](https://globalmaritimetraffic.org)).
+- **Global Fishing Watch**: fishing effort and vessel presence worldwide, through
+  its API with a free account and token
+  ([globalfishingwatch.org](https://globalfishingwatch.org)).
+- **Raw AIS positions** for national waters: the United States' Marine Cadastre
+  ([marinecadastre.gov](https://marinecadastre.gov)) and the Danish Maritime
+  Authority publish historical AIS downloads; live AIS streams exist too, mostly
+  behind a free registration or in exchange for feeding a receiver.
+
 Esri imagery is not open data: it is used under Esri's terms of use. The EOX
 2024 mosaic does not allow commercial use. Vessel and route density cover European and neighbouring
 seas only.
