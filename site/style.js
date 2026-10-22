@@ -46,6 +46,8 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
       tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'] },
     ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
       { type: 'raster', tileSize: 256, maxzoom: OVERLAY_MAXZOOM[item] ?? 18, tiles, attribution: OVERLAY_CREDIT[item] || HA_CREDIT }]))),
+    // GEBCO's type identifier grid, coloured by gebco.js (gebco-tid://); level 0 from zoom 8, then magnified
+    'gebco-tid': { type: 'raster', tileSize: 256, maxzoom: 10, tiles: ['gebco-tid://{z}/{x}/{y}'], attribution: '<a href="https://www.gebco.net">GEBCO 2026 Grid</a>' },
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   };
@@ -124,6 +126,7 @@ function layers() {
 
     // colour fills are chart-only: over satellite the image shows the water; isobaths still draw
     { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
+    raster('gebco-tid', 'depthsource'),
     ...overlayLayers(['emodnetdepth', 'substrate']),
     ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
     // colours, then the layers that can draw arrows (currents, then wind), whose arrows go over them

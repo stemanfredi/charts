@@ -10,15 +10,12 @@ lists only what it does not do, or not well enough.
   (ows.emodnet-seabedhabitats.eu) did not answer when tried (2026-10-21). Retry; if it
   answers, a classed layer like the substrate.
 
-- **Where depths come from (GEBCO type identifier).** For every 15″ cell, how its depth was
-  obtained: surveyed (multibeam, single-beam, soundings), indirect (predicted from satellite
-  gravity, interpolated, from charts) or unknown. Published beside the depths, at
-  `geodata.makaw.org/gebco-2026/tid.zarr/` (the same levels; a coarse cell takes the most
-  common source, the less certain on a tie). Once Charts reads GEBCO's depths:
-  - a layer or legend showing where depths are measured and where estimated;
-  - smoothing only where they are estimated: the regular rings in flat seas (Gulf of Panama)
-    could not be told from real detail by the depths alone;
-  - the source codes beside the depths in the GIS export.
+- **Smoothing where GEBCO's depths are estimated.** The layer *Depth sources (GEBCO)* shows,
+  from GEBCO's type identifier grid, where depths are surveyed and where interpolated or
+  predicted. Interpolated areas of sparse data can still show patterns of the data's own grid
+  (as Terrarium's Gulf of Panama did): smoothing them there, and never where depths are
+  surveyed, would remove those without touching real detail. None seen with GEBCO so far:
+  only if one appears.
 
 ## Parked
 

@@ -17,6 +17,7 @@ import { $, h } from './dom.js';
 import { search } from './search.js';
 import { chartCanvas, chartPng, pngOf } from './png.js';
 import { cmemsValues, emodnetValues, gebcoValues } from './values.js';
+import { tidTile } from './gebco.js';
 
 const byId = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
 // Ocean data: the layers that change with time, chosen in two menus, colours and arrows. An entry
@@ -129,6 +130,7 @@ for (const [dem, clip] of [[seaDem, seaClip], [landDem, landClip]]) {
 maplibregl.addProtocol('clip-sea', seaClip.protocol);
 maplibregl.addProtocol('clip-land', landClip.protocol);
 maplibregl.addProtocol('cmems', cmemsTile);
+maplibregl.addProtocol('gebco-tid', tidTile);
 const contourOpts = { contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level', extent: 4096, buffer: 1 };
 const style = buildStyle({
   seaDemUrl: 'clip-sea://{z}/{x}/{y}',
@@ -360,6 +362,14 @@ const KINDS = {
     show: (id) => applyItem(id),
     record: async () => ({}),
     values: (it, box) => gebcoValues(box),
+  },
+  // where GEBCO's depths come from (its type identifier grid, drawn by gebco.js): a classed layer,
+  // its codes in the GIS export
+  gebcotid: {
+    show: (id) => applyItem(id),
+    legend: (id, el) => KINDS.classes.legend(id, el),
+    record: async () => ({}),
+    values: (it, box) => gebcoValues(box, 'tid'),
   },
   emodnet: {
     show: (id) => applyItem(id),

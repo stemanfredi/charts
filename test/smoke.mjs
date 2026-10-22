@@ -338,7 +338,7 @@ try {
     await pp.close();
   }
   // EMODnet: depth and its values, seabed substrate with its classes, the human activities overlays
-  const em = await open('#v=9/52.6/3.2/0&on=chart,coastline,emodnetdepth,substrate,cables,windfarms,wrecks,worlddensity,legend&menu=0');
+  const em = await open('#v=9/52.6/3.2/0&on=chart,coastline,emodnetdepth,substrate,cables,windfarms,wrecks,worlddensity,depthsource,legend&menu=0');
   await em.waitForTimeout(3000);
   const [emBroken, emClasses] = await em.evaluate(() => [[...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('.name').textContent} (${r.title})`),
     document.querySelector('#legends canvas[data-legend=substrate]')?.getAttribute('aria-label') || '']);
@@ -346,6 +346,11 @@ try {
   const emFiles = files(await readFile(await de.path())), emItem = JSON.parse(emFiles['item.json']);
   check(!emBroken.length && !em.errors.length && /Sand/.test(emClasses) && emFiles['raster/emodnet-depth.tif'] && emItem.assets['raster/emodnet-depth']?.bands?.[0]?.unit === 'm',
     `EMODnet and World Bank layers load; substrate classes (${emClasses.slice(0, 60)}…); the depth values in the GIS export ${emBroken.join(', ')} ${em.errors.join(' | ')}`);
+  // where GEBCO's depths come from: its layer draws, its codes go in the GIS export
+  const src = emItem.assets['raster/gebco-source'];
+  check(emFiles['raster/gebco-source.tif'] && /type identifier/.test(src?.description || '') && src?.['proj:code'] === 'EPSG:4326'
+    && (await em.evaluate(() => /Surveyed/.test(document.querySelector('#legends canvas[data-legend=depthsource]')?.getAttribute('aria-label') || ''))),
+    `depth sources (GEBCO): drawn with its legend, its codes in the GIS export (${src ? src['proj:shape'].join(' × ') : 'missing'})`);
   await em.close();
   // Marine Regions' maritime limits load, with their legend (line types, from its WMS)
   const mz = await open('#v=6/40/16/0&on=chart,coastline,maritime,legend&menu=0');

@@ -96,6 +96,14 @@ export const EMODNET_DTM = 'https://s3.waw3-1.cloudferro.com/emodnet/emodnet_bat
 // GEBCO 2026 (15″ cells, the world) as a multiscale Zarr store, built by tools/gebco.mjs and
 // published on R2: the sea's depths (gebco.js, clip.js); its type identifier grid beside it (tid.zarr)
 export const GEBCO = 'https://geodata.makaw.org/gebco-2026/elevation.zarr';
+export const GEBCO_TID = 'https://geodata.makaw.org/gebco-2026/tid.zarr';
+// where GEBCO's depths come from, by its type identifier codes (codes [from, to], inclusive); land
+// (0) and no data (127) are not drawn
+export const DEPTH_SOURCES = [
+  { label: 'Surveyed', codes: [10, 17], colour: '#2f9e44', what: 'multibeam, single-beam, seismic, lidar, soundings' },
+  { label: 'Estimated', codes: [40, 47], colour: '#f08c00', what: 'predicted from satellite gravity, interpolated, from chart contours' },
+  { label: 'Other grids, unknown', codes: [70, 72], colour: '#868e96', what: 'taken from another grid, or of unknown origin' },
+];
 // a classed layer's legend for a variant: the URL of its WMS's JSON legend, or the URLs of several
 // (legend.js wmsClasses), or its classes [{ label, colour, … }] where the service gives them as
 // pictures only
@@ -112,6 +120,8 @@ export const EMODNET_DEPTH_STOPS = {
   rainbow: [[0, '#db000e'], [5, '#ff0911'], [40, '#d4dc1f'], [200, '#3ac845'], [500, '#33b6c3'], [3000, '#326cc4'], [4800, '#382a93'], [5500, '#8547bc'], [6000, '#bf00dc']],
 };
 export const CLASS_LEGENDS = {
+  // GEBCO's type identifier grid, by group (gebco.js draws it)
+  depthsource: () => DEPTH_SOURCES.map(({ label, colour }) => ({ label, colour })),
   // AIS positions per cell, as the World Bank's tile service colours them (its legend's swatches)
   worlddensity: () => [['< 100 k', '#1b0c42'], ['100–250 k', '#4c0c6b'], ['250–500 k', '#791c6e'], ['0.5–1 M', '#a62d61'], ['1–5 M', '#cf4447'],
     ['5–10 M', '#ee6925'], ['10–15 M', '#fc9b06'], ['15–25 M', '#f8d13c'], ['25–60 M', '#fdffa5']].map(([label, colour]) => ({ label, colour })),
@@ -290,6 +300,8 @@ export const ITEMS = [
     info: { src: 'GEBCO 2026 Grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs); AWS Terrain Tiles (Terrarium) where it cannot be read', lic: 'GEBCO terms: free to use and redistribute, with attribution', res: 'GEBCO\'s cells of 15 arc-seconds (about 460 m), worldwide: about a quarter of the seabed from surveys, the rest interpolated or predicted from satellite gravity (in Europe, EMODnet depth is finer: its own layer). Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://www.gebco.net' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 2,
     info: { src: 'Contoured in your browser from GEBCO 2026 (maplibre-contour)', lic: 'As GEBCO', res: 'At the depths nautical charts use, more of them as you zoom in: 3000 and 5000 m from zoom 2 (ridges, trenches, abyssal plains); 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: GEBCO\'s cells are about 460 m, many of them interpolated where there are no surveys. As coarse as the grid beneath: smoothed shapes, not surveyed soundings. Traced on the depths cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
+  { id: 'depthsource', group: 'sea', label: 'Depth sources (GEBCO)', opacity: 0.6, kind: 'gebcotid', legendSub: 'where the depths come from',
+    info: { src: 'GEBCO 2026 type identifier grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: 'GEBCO terms: free to use and redistribute, with attribution', res: 'For each of GEBCO\'s 15″ cells (about 460 m), how its depth was obtained: surveyed (multibeam, single-beam, seismic, lidar, soundings), estimated (predicted from satellite gravity, interpolated, from chart contours), or taken from another grid or of unknown origin. Zoomed out, each cell shows the most common source of the cells it covers (the less certain on a tie). The depth shading and isobaths are only as good as their source here. Its codes go in the GIS export', url: 'https://www.gebco.net' } },
   { id: 'emodnetdepth', group: 'sea', label: 'EMODnet depth (Europe)', opacity: 1, kind: 'emodnet',
     variants: { multicolour: 'Multicolour', rainbow: 'Rainbow' },
     info: { src: 'EMODnet Bathymetry digital terrain model, drawn by EMODnet (tiles); its values go in the GIS export', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'About 115 m (1/16 arc-minute) in European seas, from surveys where there are, a coarser model elsewhere; no data outside Europe. Mean depth, in EMODnet\'s own colours (its legend: not linear in depth). Referenced to lowest astronomical tide. Not for navigation', url: 'https://emodnet.ec.europa.eu/en/bathymetry' } },
