@@ -11,6 +11,7 @@
     "smoke": "node test/smoke.mjs",
     "ui": "node test/ui.mjs",
     "tiles-check": "node test/tiles-check.mjs",
+    "perf": "node test/perf.mjs",
     "deps": "node tools/deps.mjs",
     "serve": "node test/serve.mjs"
   },

@@ -3,8 +3,11 @@
 // coarsest level whose cells are no larger than its pixels (level 0, GEBCO's own cells, from zoom 8
 // up). Chunks (512 × 512 cells, about 2° at level 0) are shared by many neighbouring tiles: the
 // latest are kept.
-//   gebcoTile   the sea's depths for the elevation tiles (clip.js): interpolated between cell
-//               centres in floating point, so no precision is lost however far the map zooms in
+//   gebcoTile   the sea's depths for the elevation tiles (clip.js): a cubic B-spline over 4 × 4 cells,
+//               in floating point, so no precision is lost however far the map zooms in, and
+//               isobaths curve through GEBCO's whole metres instead of breaking at its cells (a
+//               straight-line interpolation left a wave one cell long on flat shelves); the
+//               spline barely moves anything smaller than a cell, below what the data resolves
 //   tidTile     where the depths come from (the type identifier grid): each cell's own code,
 //               coloured by its group (catalog.js DEPTH_SOURCES), a MapLibre tile handler
 //   tidAt       the code of the cell at a point (the depth on a click)
@@ -13,7 +16,7 @@ import { latOf } from './geo.js';
 import { FETCH, memo } from './net.js';
 import { GEBCO, GEBCO_TID, DEPTH_SOURCES } from './catalog.js';
 
-const SIZE = 256, CELL = 15 / 3600, LEVELS = 7, KEEP = 48; // KEEP: chunks kept, 512 kB each at most
+const SIZE = 256, CELL = 15 / 3600, LEVELS = 7, KEEP = 96; // KEEP: chunks kept (512 kB each at most): a zoomed-out view's, and its neighbours'
 
 // the level for tiles of zoom z: the coarsest whose cells are no larger than the tile's pixels
 export const levelFor = (z) => Math.max(0, Math.min(LEVELS - 1, Math.floor(Math.log2(360 / (SIZE * 2 ** z) / CELL))));
@@ -36,15 +39,15 @@ function chunk(s, name, key, idx) {
 }
 
 // a grid's values at the pixel centres of 256 px Web Mercator tile z/x/y, row-major, north up:
-// interpolated (Float32Array), or each pixel its cell's own value (nearest: codes)
+// smoothly interpolated (a cubic B-spline), or each pixel its cell's own value (nearest: codes)
 async function gridTile(url, variable, z, x, y, nearest) {
   const s = await store(url), k = levelFor(z), name = `${k}/${variable}`, meta = s.meta(name);
   const [H, W] = meta.shape, [CH, CW] = meta.chunks, cs = CELL * 2 ** k, n = 2 ** z;
   // each pixel centre's place in the grid, in cells (0.5 off a cell's corner is its centre)
   const col = Float64Array.from({ length: SIZE }, (_, i) => (((x + (i + 0.5) / SIZE) / n) * 360) / cs - 0.5);
   const row = Float64Array.from({ length: SIZE }, (_, j) => (90 - latOf((y + (j + 0.5) / SIZE) / n)) / cs - 0.5);
-  const r0 = Math.max(0, Math.floor(row[0])), r1 = Math.min(H - 1, Math.floor(row[SIZE - 1]) + 1);
-  const c0 = Math.floor(col[0]), c1 = Math.floor(col[SIZE - 1]) + 1;
+  const r0 = Math.max(0, Math.floor(row[0]) - 1), r1 = Math.min(H - 1, Math.floor(row[SIZE - 1]) + 2);
+  const c0 = Math.floor(col[0]) - 1, c1 = Math.floor(col[SIZE - 1]) + 2;
   const wrap = (c) => ((c % W) + W) % W; // across the antimeridian
   // the chunks those cells are in, fetched together
   const need = new Map(), chunkCols = new Set();
@@ -53,17 +56,43 @@ async function gridTile(url, variable, z, x, y, nearest) {
     for (const cc of chunkCols) { const key = `${url} ${k}/${cr}.${cc}`; need.set(key, chunk(s, name, key, [cr, cc])); }
   }
   const got = new Map(await Promise.all([...need].map(async ([key, p]) => [key, await p])));
-  const cell = (r, c) => {
-    r = Math.min(H - 1, Math.max(0, r)); c = wrap(c);
-    return got.get(`${url} ${k}/${Math.floor(r / CH)}.${Math.floor(c / CW)}`)[(r % CH) * CW + (c % CW)];
-  };
+  // the cells around the tile as one block (rows r0…r1, columns c0…c1, wrapped and clamped), copied
+  // from their chunks once, so that sampling below is plain indexing
+  const ww = c1 - c0 + 1, wh = r1 - r0 + 1, win = new Float32Array(ww * wh);
+  const colChunk = new Int32Array(ww), colOff = new Int32Array(ww);
+  for (let x = 0; x < ww; x++) { const c = wrap(c0 + x); colChunk[x] = Math.floor(c / CW); colOff[x] = c % CW; }
+  for (let y = 0; y < wh; y++) {
+    const r = Math.min(H - 1, Math.max(0, r0 + y)), cr = Math.floor(r / CH), ro = (r % CH) * CW;
+    let cc = -1, block = null;
+    for (let x = 0; x < ww; x++) {
+      if (colChunk[x] !== cc) { cc = colChunk[x]; block = got.get(`${url} ${k}/${cr}.${cc}`); } // a new chunk: a few times a row
+      win[y * ww + x] = block[ro + colOff[x]];
+    }
+  }
+  const at = (r, c) => win[Math.min(wh - 1, Math.max(0, r - r0)) * ww + (c - c0)];
   const out = new Float32Array(SIZE * SIZE);
+  if (nearest) {
+    for (let j = 0; j < SIZE; j++) for (let i = 0; i < SIZE; i++) out[j * SIZE + i] = at(Math.round(row[j]), Math.round(col[i]));
+    return out;
+  }
+  // cubic B-spline weights of the four cells around t ∈ [0, 1): the columns' once for the tile
+  const bs = (t, w, o) => { const t2 = t * t, t3 = t2 * t; w[o] = (1 - t) ** 3 / 6; w[o + 1] = (3 * t3 - 6 * t2 + 4) / 6; w[o + 2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; w[o + 3] = t3 / 6; };
+  const wc = new Float64Array(SIZE * 4), cx = new Int32Array(SIZE), wr = new Float64Array(4);
+  for (let i = 0; i < SIZE; i++) { const ca = Math.floor(col[i]); cx[i] = ca - 1 - c0; bs(col[i] - ca, wc, i * 4); }
   for (let j = 0; j < SIZE; j++) {
-    const v = row[j], ra = Math.floor(v), fr = v - ra;
+    const ra = Math.floor(row[j]);
+    bs(row[j] - ra, wr, 0);
+    const y0 = Math.min(wh - 1, Math.max(0, ra - 1 - r0)), y1 = Math.min(wh - 1, Math.max(0, ra - r0)),
+      y2 = Math.min(wh - 1, Math.max(0, ra + 1 - r0)), y3 = Math.min(wh - 1, Math.max(0, ra + 2 - r0));
+    const rows4 = [y0 * ww, y1 * ww, y2 * ww, y3 * ww];
     for (let i = 0; i < SIZE; i++) {
-      const u = col[i], ca = Math.floor(u), fc = u - ca;
-      out[j * SIZE + i] = nearest ? cell(Math.round(v), Math.round(u))
-        : (cell(ra, ca) * (1 - fc) + cell(ra, ca + 1) * fc) * (1 - fr) + (cell(ra + 1, ca) * (1 - fc) + cell(ra + 1, ca + 1) * fc) * fr;
+      const x = cx[i], o = i * 4;
+      let sum = 0;
+      for (let a = 0; a < 4; a++) {
+        const b = rows4[a] + x;
+        sum += wr[a] * (wc[o] * win[b] + wc[o + 1] * win[b + 1] + wc[o + 2] * win[b + 2] + wc[o + 3] * win[b + 3]);
+      }
+      out[j * SIZE + i] = sum;
     }
   }
   return out;
