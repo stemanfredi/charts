@@ -26,7 +26,9 @@ draws, at their resolution, over the view's bounding box), the values of each
 Copernicus layer drawn as GeoTIFF (`raster/<layer>-global.tif`,
 `-mediterranean.tif`: read from Copernicus Marine's public Zarr stores at the
 time and depth drawn, in each dataset's own latitude/longitude grid over the
-view's bounding box, arrows as eastward and northward bands), EMODnet's depth
+view's bounding box, arrows as eastward and northward bands), GEBCO's depth
+under the depth shading as GeoTIFF (`raster/gebco-depth.tif`, its own 15″ grid,
+or its means of 2 × 2, 4 × 4 … cells for wider views), EMODnet's depth
 as GeoTIFF (`raster/emodnet-depth.tif`, 1/16 arc-minute, for views up to about
 4° wide; imagery, density and the other EMODnet layers are in the pictures only), and a [STAC](https://stacspec.org) Item (`item.json`) with the
 view's footprint, the time of the data shown (its `datetime`; the export's own is `created`), the layers drawn (what each draws: colours or arrows, its time and depth), their sources, licences and files. QGIS
@@ -47,7 +49,8 @@ them from each provider, and each layer stays under its provider's licence.
 |---|---|---|
 | Chart base, coastline, roads, buildings, names, boundaries | OpenStreetMap via OpenFreeMap (OpenMapTiles schema) | ODbL |
 | Satellite | Esri World Imagery, or EOX Sentinel-2 cloudless | Esri terms of use; EOX: CC BY 4.0 (2016) or CC BY-NC-SA 4.0 (2024, non-commercial) |
-| Depth shading, isobaths, relief shading, land contours | AWS Terrain Tiles (Terrarium) | Open data, with attribution per source |
+| Depth shading, isobaths | GEBCO 2026 Grid (GEBCO Compilation Group), repacked as a Zarr store at `geodata.makaw.org` (`tools/gebco.mjs`); Terrarium where it cannot be read | Free to use and redistribute, with attribution |
+| Relief shading, land contours | AWS Terrain Tiles (Terrarium) | Open data, with attribution per source |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
 | EMODnet depth (Europe) | EMODnet Bathymetry (tiles; its values from its Zarr store, listed in EDITO's catalogue) | CC BY 4.0 |
 | Seabed substrate | EMODnet Geology | CC BY 4.0 |
@@ -117,7 +120,8 @@ on-screen credits and the PNG list only the sources that are drawn.
 - A Content-Security-Policy limits the page to the pinned CDN packages and the
   provider hosts listed in `tools/deps.mjs`.
 - Tile requests necessarily tell each provider which area is being viewed. A
-  hidden layer makes no requests. A GIS export with Copernicus layers drawn
+  hidden layer makes no requests. GEBCO's depths come from this project's own
+  bucket, `geodata.makaw.org` (Cloudflare R2). A GIS export with Copernicus layers drawn
   also reads their datasets from Copernicus Marine's catalogue and stores.
 - Coordinates typed into the search box are parsed in the page and never sent.
   Place names are sent to Photon as you type, along with the map centre rounded
@@ -164,7 +168,8 @@ development.
 | `site/app.js` | Map setup, state and URL, panels, legends, graticule, credits; assembles the exports. |
 | `site/search.js` | Place search (Photon) and coordinates. |
 | `site/png.js` | The PNG export's picture and text fields. |
-| `site/values.js` | Layers as data for the GIS export: Copernicus and EMODnet values from their Zarr stores. |
+| `site/values.js` | Layers as data for the GIS export: Copernicus, GEBCO and EMODnet values from their Zarr stores. |
+| `site/gebco.js` | The sea's depths for the elevation tiles, from GEBCO's Zarr store. |
 | `site/export.js` | GIS export contents: georeferencing, the STAC Item, PNG text fields. |
 | `site/vector.js` | Vector layers of the view as GeoJSON: tile pieces joined, clipped to the view. |
 | `site/geotiff.js` | GeoTIFF writer: elevation grids of the view, data values. |

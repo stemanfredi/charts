@@ -261,6 +261,10 @@ try {
   const { entries, item } = unzip(z);
   const listed = Object.values(item.assets).map((a) => a.href.replace(/^\.\//, '')).sort().join();
   check(listed === entries.map((e) => e.name).filter((n) => n !== 'item.json').sort().join(), `item.json lists every file in the zip (${Object.keys(item.assets).length} assets)`);
+  // GEBCO's own values under the depth shading: its grid over the view, in metres, at a level that fits
+  const gb = item.assets['raster/gebco-depth'];
+  check(entries.some((e) => e.name === 'raster/gebco-depth.tif') && gb?.bands?.[0]?.unit === 'm' && gb['proj:code'] === 'EPSG:4326' && /GEBCO 2026/.test(gb.description),
+    `GIS export: GEBCO's depths as values (${gb ? `${gb['proj:shape'].join(' × ')} cells, ${/level \d+|own grid/.exec(gb.description)?.[0]}` : 'missing'})`);
   // the values of a Copernicus layer, from its datasets' Zarr stores: global and Mediterranean waves
   const cv = await open('#v=7/39.5/14/0&col=waves:height&on=chart,coastline&menu=0');
   await cv.waitForTimeout(3000);

@@ -14,6 +14,7 @@
 // the encoded bytes) and masked at the higher zoom, so the coast stays sharp.
 
 import { NO_DEPTH_M, DEPTH_LEVELS, levelsFor } from './catalog.js';
+import { gebcoTile } from './gebco.js';
 import { latOf, tileBounds } from './geo.js';
 import { FETCH, memo } from './net.js';
 
@@ -24,14 +25,11 @@ const OMT_MAXZOOM = 14;
 
 // Water bodies whose surface is not at sea level but which OSM maps with a coastline
 // (so they arrive as `ocean`). Depths inside them are measured from that surface.
-// [name, [west, south, east, north], surface elevation m, [min, max] DEM zoom with real depths]
-// Caspian: Terrarium has only the flat lake surface (−29 m) in large rectangles above zoom 6,
-// and in blocks at zooms 3–4; zooms 5–6 carry the bathymetry. Tiles at map zoom 3–4 are
-// therefore downsampled from zoom 5 (≤ 36 source tiles); zoom ≤ 2 reads its own tiles.
+// [name, [west, south, east, north], surface elevation m] (GEBCO gives the Caspian's bed relative
+// to sea level: −36 m in the north, −630 m in the south)
 export const DATUMS = [
-  ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28, [5, 6]],
+  ['Caspian Sea', [46.5, 36.5, 55.2, 47.4], -28],
 ];
-const DATUM_DOWNSAMPLE_MINZOOM = 3;
 const SEA_CLASSES = new Set(['ocean', 'dock']);
 // Inland water (OSM lagoons, limans, harbour basins, lakes) is classified once per water
 // body, from the DEM along its shoreline (its polygon's vertices, relative to any DATUMS
@@ -184,7 +182,7 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
       const X = (ax + all[i][0] / layer.extent) / 2 ** az, Y = (ay + all[i][1] / layer.extent) / 2 ** az; // 0..1 web mercator
       const lon = X * 360 - 180, lat = latOf(Y);
       const tx = Math.min(n - 1, Math.floor(X * n)), ty = Math.min(n - 1, Math.floor(Y * n));
-      const t = await demMetres(ctx.template.replace('{z}', dz).replace('{x}', tx).replace('{y}', ty));
+      const t = await ctx.raw(dz, tx, ty);
       const px = Math.min(SIZE - 1, Math.floor((X * n - tx) * SIZE)), py = Math.min(SIZE - 1, Math.floor((Y * n - ty) * SIZE));
       const h0 = datumAt(lon, lat);
       vals.push(t[py * SIZE + px] - h0);
@@ -409,10 +407,15 @@ export function fillZeroHoles(e, parent, [qx, qy]) {
   }
   return out;
 }
-// Terrarium tile in metres for the sea: zero holes filled from the parent, itself filled first
+// the sea's elevation tile in metres: GEBCO (gebco.js); where its store cannot be read, Terrarium,
+// zero holes filled from the parent, itself filled first
 const seaRawCache = lru(64);
+let gebcoDown = false; // said once on the console, not for every tile
 function seaMetres(template, z, x, y) {
   return seaRawCache(`${z}/${x}/${y}`, async () => {
+    try { return await gebcoTile(z, x, y); } catch (e) {
+      if (!gebcoDown) { gebcoDown = true; console.warn(`GEBCO not readable (${e.message}): sea depths from Terrarium`); }
+    }
     const e = await demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y));
     if (!z || !hasHoles(e)) return e;
     return fillZeroHoles(e, await seaMetres(template, z - 1, x >> 1, y >> 1), [x & 1, y & 1]);
@@ -451,6 +454,9 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
   const once = {};
   const omtTemplate = () => memo(once, 'omt', () => fetchOk(omtTileJson).then((r) => r.json()).then((tj) => tj.tiles[0]));
   const cache = lru(128);
+  // a DEM tile's elevation in metres as the data has it (no clean-up): the sea's from GEBCO, the
+  // land's from Terrarium; also what inland water is classified from
+  const raw = (z, x, y) => (mode === 'sea' ? seaMetres(template, z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y)));
   const waiting = new Map(); // water body id → cache keys of tiles drawn before it was classified
   let staleTimer = 0;
   decidedListeners.add((id) => {
@@ -467,9 +473,7 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
     return cache(key, async () => {
     const [tw, ts, te, tn] = tileBounds(z, x, y);
     const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
-    let nz = Math.min(z, native);
-    for (const [, , , [lo, hi]] of datums) nz = Math.min(Math.max(nz, z >= DATUM_DOWNSAMPLE_MINZOOM ? lo : 0), hi);
-    const d = z - nz, f = 2 ** d, n = 2 ** nz; // d < 0: downsampled from a higher zoom
+    const nz = Math.min(z, native), d = z - nz, f = 2 ** d, n = 2 ** nz;
     // source pixels this tile needs, in global pixel coordinates at the native zoom;
     // bilinear sampling reads one pixel past the edge, so neighbours may be needed
     const w = SIZE, step = 1 / f, gx = (x / f) * w, gy = (y / f) * w;
@@ -480,8 +484,7 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
     // the sea reads the filtered DEM (no isobath rings smaller than the data); depths measured from
     // a DATUMS surface and the land layers read it as it is
     const filtered = mode === 'sea' && !datums.length;
-    const tiles = await Promise.all(want.map(([tx, ty]) => (filtered ? seaDem(template, nz, ((tx % n) + n) % n, ty)
-      : demMetres(template.replace('{z}', nz).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty)))));
+    const tiles = await Promise.all(want.map(([tx, ty]) => (filtered ? seaDem(template, nz, ((tx % n) + n) % n, ty) : raw(nz, ((tx % n) + n) % n, ty))));
     // the source tiles as one flat buffer (sw × sh), so sampling is plain indexing
     const sw = (tx1 - tx0 + 1) * w, sh = (ty1 - ty0 + 1) * w, src = new Float32Array(sw * sh);
     want.forEach(([tx, ty], k) => {
@@ -499,7 +502,7 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
       return 0;
     };
     const demAt = (px, py) => at(Math.floor(gx + px * step), Math.floor(gy + py * step));
-    const { mask, pending } = await seaMask({ omtTemplate, template, native }, z, x, y,
+    const { mask, pending } = await seaMask({ omtTemplate, raw, native }, z, x, y,
       (px, py) => demAt(px, py) - surface(px, py), (px, py) => surface(px, py) !== 0, omtOffset);
     for (const id of pending) (waiting.get(id) || waiting.set(id, new Set()).get(id)).add(key);
     const out = new Float32Array(SIZE * SIZE);
