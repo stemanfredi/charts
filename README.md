@@ -28,7 +28,8 @@ Copernicus layer drawn as GeoTIFF (`raster/<layer>-global.tif`,
 time and depth drawn, in each dataset's own latitude/longitude grid over the
 view's bounding box, arrows as eastward and northward bands), GEBCO's depth
 under the depth shading as GeoTIFF (`raster/gebco-depth.tif`, its own 15″ grid,
-or its means of 2 × 2, 4 × 4 … cells for wider views), EMODnet's depth
+or its means of 2 × 2, 4 × 4 … cells for wider views; with *Depth sources*, GEBCO's
+codes for how each depth was obtained, `raster/gebco-source.tif`), EMODnet's depth
 as GeoTIFF (`raster/emodnet-depth.tif`, 1/16 arc-minute, for views up to about
 4° wide; imagery, density and the other EMODnet layers are in the pictures only), and a [STAC](https://stacspec.org) Item (`item.json`) with the
 view's footprint, the time of the data shown (its `datetime`; the export's own is `created`), the layers drawn (what each draws: colours or arrows, its time and depth), their sources, licences and files. QGIS
@@ -50,6 +51,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Chart base, coastline, roads, buildings, names, boundaries | OpenStreetMap via OpenFreeMap (OpenMapTiles schema) | ODbL |
 | Satellite | Esri World Imagery, or EOX Sentinel-2 cloudless | Esri terms of use; EOX: CC BY 4.0 (2016) or CC BY-NC-SA 4.0 (2024, non-commercial) |
 | Depth shading, isobaths | GEBCO 2026 Grid (GEBCO Compilation Group), repacked as a Zarr store at `geodata.makaw.org` (`tools/gebco.mjs`); Terrarium where it cannot be read | Free to use and redistribute, with attribution |
+| Depth sources (GEBCO) | GEBCO 2026 type identifier grid, at `geodata.makaw.org` | Free to use and redistribute, with attribution |
 | Relief shading, land contours | AWS Terrain Tiles (Terrarium) | Open data, with attribution per source |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
 | EMODnet depth (Europe) | EMODnet Bathymetry (tiles; its values from its Zarr store, listed in EDITO's catalogue) | CC BY 4.0 |
