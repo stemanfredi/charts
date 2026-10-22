@@ -9,17 +9,17 @@ const A = b64('AgEhAkBCDwAAAAQADBIAACAAAACzCAAAXw0AAMMEAABtAgAA/1LU2+Lp8Pf+BQwTG
 const B = b64('AgEhBLAEAACwBAAAlAIAABQAAAAMAAAAHwABAP8UUAAAAAAA5wAAAPEBAAAAAICAQABAwEDAAABAQA4AgMAAgMCAAICAHQAAEQBAgAAAQA0AABIAgIDAgMAAQIDAIQAAHgCAAACAAIBAQIAyAMUAwMBAgECAwICAwEAfAEAAAABABgDAwEBAwADAwIDAwMCAcgADIAAAKAAAOgAABAAQwF0AMMCAAGMAAGwAAgIAEIBhAACbAAECAACpAABvAAIcABAAeAAAQQARQB0AAR8ARYDAQEC9ACEAgJUAAHgAAKIAAH8AJgBAXgAxgABAEwBwAIDAwADAQAcAAAkAAFIAAWEAAAkAkMDAwMBAgEDAgCwBAAAAyEeUwu8NITNDUl5pcXZ5enhzbGNXSjooFQHVp28NKGgegK/dBBksPUxaZW50eHp5dW9nXFBBMB0J6LuLNqaI6lecyvcQJDZGVGBqcnd5eXdya2FVRzclEvrOn1/4yJYuiLflCBwvQE9cZm91eHp4dG5lWk0+LRoG4bODJoQIBWij0v4UJzlJVmJsc3d5eXZxaV9TRTQiDvPGl07YALg/kL/sCx8yQlFeaHB2eXp4dG1kWEs7KhcC2at3FUhIFnir2QIXKjxLWWRtdHh6eXZwaF1RQjEfC+y+jz62ENpPmMfzDyI0RVNfaXF2eXl3c2tiVkg5JxP+0aNnBASGJoSz4QYaLT5NW2ZudHh6eHVvZltOPy4cB+S3hy2U0PpgoM77EiY3R1Vha3J3eXlRAAAAfwA/QEBAQEEBAAEAGQB/P7/AwMDAwQEAAQAZAC+/Pj8ABgE+AB8+PwAMAT4AD34AAg8/ABcPuwABAj8AH75+AAYAvAADfgAPPwATUMHBwcHB');
 const C = b64('AgEyBKAAAACgAAAAsAAAAAAAAAABAAAAAgAAAAMAAAAEAAAABQAAAAYAAAAHAAAACAAAAAkAAAAKAAAACwAAAAwAAAANAAAADgAAAA8AAAAQAAAAEQAAABIAAAATAAAAFAAAABUAAAAWAAAAFwAAABgAAAAZAAAAGgAAABsAAAAcAAAAHQAAAB4AAAAfAAAAIAAAACEAAAAiAAAAIwAAACQAAAAlAAAAJgAAACcAAAA=');
 
-test('unblosc: LZ4 blocks and streams, byte shuffle, a short last block, a buffer stored as is', () => {
-  const a = new Int16Array(unblosc(A).buffer);
+test('unblosc: LZ4 blocks and streams, byte shuffle, a short last block, a buffer stored as is', async () => {
+  const a = new Int16Array((await unblosc(A)).buffer);
   assert.equal(a.length, 500000);
   assert.ok(a.every((v, i) => v === (i % 97) * 7 - 300));
-  const b = new Float32Array(unblosc(B).buffer);
+  const b = new Float32Array((await unblosc(B)).buffer);
   assert.ok(b.every((v, i) => v === Math.round(Math.sin(i / 10) * 1000) / 64));
-  assert.deepEqual([...new Int32Array(unblosc(C).buffer)], Array.from({ length: 40 }, (_, i) => i));
+  assert.deepEqual([...new Int32Array((await unblosc(C)).buffer)], Array.from({ length: 40 }, (_, i) => i));
 });
 
-test('decode: a chunk not stored is all fill', () => {
-  const v = decode({ dtype: '<i2', chunks: [1, 2, 3], fill_value: -32767, compressor: { id: 'blosc' } }, null);
+test('decode: a chunk not stored is all fill', async () => {
+  const v = await decode({ dtype: '<i2', chunks: [1, 2, 3], fill_value: -32767, compressor: { id: 'blosc' } }, null);
   assert.deepEqual([...v], Array(6).fill(-32767));
 });
 

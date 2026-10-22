@@ -1,8 +1,8 @@
-// Copernicus Marine's datasets as data (the ZIP export): the values behind a layer, read from the
-// dataset's Zarr store (version 2, "timeChunked": a chunk is one or a few time steps over a large
-// block of the grid), public and readable from a page. What these stores use, and nothing more:
-// Blosc (version 1 format) with LZ4 and byte shuffle; little-endian int16, int32, float32,
-// float64; C order; coordinates time, [elevation,] latitude, longitude.
+// Zarr stores (version 2), public and readable from a page: Copernicus Marine's datasets ("timeChunked":
+// a chunk is one or a few time steps over a large block of the grid), EMODnet's depth model, GEBCO's
+// grids (tools/gebco.mjs builds them). What these stores use, and nothing more: Blosc (version 1
+// format) with LZ4 or zlib, and byte shuffle; little-endian int8, int16, int32, float32, float64;
+// C order; coordinates time, [elevation,] latitude, longitude.
 
 // ---- Blosc ----------------------------------------------------------------------------------
 
@@ -26,17 +26,26 @@ function lz4(src, dst) {
   return o;
 }
 
-// a Blosc buffer (16-byte header, block starts, blocks of LZ4 streams) → its bytes. Flags: 1 byte
-// shuffle, 2 stored as is, 4 bit shuffle (not used here), 16 blocks not split by byte; the
-// compressor in the top 3 bits (1: LZ4). A block is split into one stream per byte of the type,
-// but for the last, short one; a stream as long as its output is stored as is.
-export function unblosc(b) {
+// a zlib stream → its bytes, by the browser's own decompressor
+async function inflate(src, size) {
+  const out = new Uint8Array(await new Response(new Blob([src]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+  if (out.length !== size) throw new Error('Blosc: a zlib stream decodes short');
+  return out;
+}
+
+// a Blosc buffer (16-byte header, block starts, blocks of LZ4 or zlib streams) → promise of its
+// bytes. Flags: 1 byte shuffle, 2 stored as is, 4 bit shuffle (not used here), 16 blocks not split
+// by byte; the compressor in the top 3 bits (1: LZ4 or LZ4HC, 3: zlib). A block is split into one
+// stream per byte of the type, but for the last, short one; a stream as long as its output is
+// stored as is.
+export async function unblosc(b) {
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const flags = b[2], typesize = b[3], nbytes = v.getUint32(4, true), blocksize = v.getUint32(8, true);
   const out = new Uint8Array(nbytes);
   if (flags & 2) { out.set(b.subarray(16, 16 + nbytes)); return out; }
   if (flags & 4) throw new Error('Blosc: bit shuffle is not supported');
-  if (flags >> 5 !== 1) throw new Error(`Blosc: compressor ${flags >> 5} is not LZ4`);
+  const codec = flags >> 5;
+  if (codec !== 1 && codec !== 3) throw new Error(`Blosc: compressor ${codec} is neither LZ4 nor zlib`);
   const tmp = new Uint8Array(blocksize);
   for (let k = 0, n = Math.ceil(nbytes / blocksize); k < n; k++) {
     const size = Math.min(blocksize, nbytes - k * blocksize), streams = !(flags & 16) && size === blocksize ? typesize : 1;
@@ -46,6 +55,7 @@ export function unblosc(b) {
       p += 4;
       const dst = tmp.subarray(s * part, (s + 1) * part);
       if (cb === part) dst.set(b.subarray(p, p + cb));
+      else if (codec === 3) dst.set(await inflate(b.subarray(p, p + cb), part));
       else if (lz4(b.subarray(p, p + cb), dst) !== part) throw new Error('Blosc: a stream decodes short');
       p += cb;
     }
@@ -61,14 +71,15 @@ export function unblosc(b) {
 
 // ---- arrays ---------------------------------------------------------------------------------
 
-const TYPES = { '<i2': Int16Array, '<i4': Int32Array, '<f4': Float32Array, '<f8': Float64Array };
-// a chunk's bytes (Blosc, or none: the chunk is not stored, all fill) → numbers of the array's dtype
-export function decode(meta, bytes) {
+const TYPES = { '|i1': Int8Array, '<i2': Int16Array, '<i4': Int32Array, '<f4': Float32Array, '<f8': Float64Array };
+// a chunk's bytes (Blosc, or none: the chunk is not stored, all fill) → promise of numbers of the
+// array's dtype
+export async function decode(meta, bytes) {
   const T = TYPES[meta.dtype];
   if (!T) throw new Error(`Zarr: dtype ${meta.dtype} is not supported`);
   const n = meta.chunks.reduce((a, c) => a * c, 1);
   if (!bytes) return new T(n).fill(meta.fill_value ?? 0);
-  const raw = meta.compressor ? unblosc(bytes) : bytes;
+  const raw = meta.compressor ? await unblosc(bytes) : bytes;
   return new T(raw.buffer.slice(raw.byteOffset, raw.byteOffset + n * T.BYTES_PER_ELEMENT));
 }
 
