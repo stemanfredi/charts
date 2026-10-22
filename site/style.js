@@ -63,6 +63,12 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
 }
 
 // ---- layers, bottom to top --------------------------------------------------
+// a pier line's width in pixels at each zoom: PIER_M metres (pixels of 512 px tiles at 45°, where most
+// of the map's use is: 55 346 / 2^z metres; nearer the poles a line reads a little wider), at least
+// a pixel; plus `extra` pixels (the outline's)
+const PIER_M = 3, PIER_OUTLINE_PX = 0.6;
+const pierWidth = (extra) => ['interpolate', ['linear'], ['zoom'],
+  ...[13, 14, 15, 16, 17, 18, 19, 20, 22].flatMap((z) => [z, +(Math.max(1, (PIER_M * 2 ** z) / 55346) + extra).toFixed(2)])];
 const m = (item, variant) => ({ metadata: variant ? { item, variant } : { item } });
 // an overlay's layers, one per variant (OVERLAYS), from its item's minzoom; a variant drawn lighter
 // than the item's opacity says so (OVERLAY_FAINT: app.js multiplies the opacity by it)
@@ -142,14 +148,18 @@ function layers() {
     { id: 'piers', type: 'fill', source: 'omt', 'source-layer': 'transportation', minzoom: 12, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
       filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'Polygon']],
       paint: { 'fill-color': C.land, 'fill-outline-color': C.ink } },
-    { id: 'pier-lines-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 12, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
+    // Piers mapped as lines (pontoons, jetties) at about their true width, PIER_M: as narrow as a
+    // marina's pontoons are, with boats between them, not a comb of land; never under a pixel, and
+    // from zoom 13, where a marina's pontoons can be told apart. A thin ink outline, the same at
+    // every zoom, as mapped areas have
+    { id: 'pier-lines-casing', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 13, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
       filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'LineString']],
       layout: { 'line-cap': 'butt', 'line-join': 'round' },
-      paint: { 'line-color': C.ink, 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 12, 1.5, 18, 36] } },
-    { id: 'pier-lines', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 12, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
+      paint: { 'line-color': ['interpolate', ['linear'], ['zoom'], 14, C.inkSoft, 15, C.ink], 'line-width': pierWidth(PIER_OUTLINE_PX * 2) } }, // while a pier is a pixel wide, a softer outline: not a dark hatching
+    { id: 'pier-lines', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 13, metadata: { item: 'coastline', base: 'chart' }, // over satellite the image shows the piers
       filter: ['all', ['==', ['get', 'class'], 'pier'], ['==', ['geometry-type'], 'LineString']],
       layout: { 'line-cap': 'butt', 'line-join': 'round' },
-      paint: { 'line-color': C.land, 'line-width': ['interpolate', ['exponential', 2], ['zoom'], 12, 0.5, 18, 32] } },
+      paint: { 'line-color': C.land, 'line-width': pierWidth(0) } },
 
     { id: 'roads', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 6, ...m('roads'),
       filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service']]],
