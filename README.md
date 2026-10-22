@@ -3,7 +3,7 @@
 A world chart in a single static web page. It combines an OpenStreetMap base
 map with satellite imagery, depth shading and isobaths, seamarks, shipping
 density, Copernicus Marine ocean data (sea state, water properties, satellite
-observations, water quality) and NASA daily imagery, and adds geodesic measuring tools. Every source
+observations, water quality) and NASA daily imagery, and adds geodesic measuring tools. A click on the sea gives its depth (GEBCO's, rounded towards shallower) and how it was obtained. Every source
 is public and needs no API key. There is no build step and no backend.
 
 **Not for navigation.** Positions, coastlines and depths come from open

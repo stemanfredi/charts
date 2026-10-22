@@ -162,6 +162,10 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .results li[aria-selected="true"], .results li:hover { background: #e3edf4; }
 .results li.none { cursor: default; color: var(--soft); background: none; }
 .pin { width: 18px; height: 18px; border-radius: 50%; background: var(--magenta); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+/* the depth at a clicked point */
+.depthpop .maplibregl-popup-content { padding: 8px 26px 8px 10px; font: 13px/1.35 var(--font); color: var(--ink); }
+.depthpop b { display: block; font-size: 15px; }
+.depthpop small { color: var(--soft); }
 
 /* ---- measuring bar: under the search box, only while drawing ---- */
 .mbar { z-index: 7; top: 66px; left: 10px; display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 12px; max-width: calc(100vw - var(--rail) - 40px); }

@@ -7,6 +7,7 @@
 //               centres in floating point, so no precision is lost however far the map zooms in
 //   tidTile     where the depths come from (the type identifier grid): each cell's own code,
 //               coloured by its group (catalog.js DEPTH_SOURCES), a MapLibre tile handler
+//   tidAt       the code of the cell at a point (the depth on a click)
 import { openStore } from './zarr.js';
 import { latOf } from './geo.js';
 import { FETCH, memo } from './net.js';
@@ -84,4 +85,12 @@ export async function tidTile({ url }) {
     if (c) img.data.set([...c, 255], p * 4);
   }
   return { data: await createImageBitmap(img) };
+}
+
+// GEBCO's type identifier code of the 15″ cell holding lon/lat: how its depth was obtained
+export async function tidAt(lon, lat) {
+  const s = await store(GEBCO_TID), name = '0/tid', meta = s.meta(name), [H, W] = meta.shape, [CH, CW] = meta.chunks;
+  const r = Math.min(H - 1, Math.max(0, Math.floor((90 - lat) / CELL))), c = ((Math.floor((lon + 180) / CELL) % W) + W) % W;
+  const cells = await chunk(s, name, `${GEBCO_TID} 0/${Math.floor(r / CH)}.${Math.floor(c / CW)}`, [Math.floor(r / CH), Math.floor(c / CW)]);
+  return cells[(r % CH) * CW + (c % CW)];
 }

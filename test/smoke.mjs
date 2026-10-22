@@ -352,6 +352,17 @@ try {
     && (await em.evaluate(() => /Surveyed/.test(document.querySelector('#legends canvas[data-legend=depthsource]')?.getAttribute('aria-label') || ''))),
     `depth sources (GEBCO): drawn with its legend, its codes in the GIS export (${src ? src['proj:shape'].join(' × ') : 'missing'})`);
   await em.close();
+  // a click on the sea says its depth (GEBCO, rounded towards shallower) and its source; on land, nothing
+  const dp = await open('#v=9/43.9/8.3/0&on=chart,coastline,depth,isobaths&menu=0');
+  const at = async (lng, lat) => {
+    const { x, y } = await dp.evaluate(([a, b]) => map.project([a, b]), [lng, lat]);
+    await dp.mouse.click(x, y);
+    await dp.waitForTimeout(2500);
+    return dp.evaluate(() => document.querySelector('.depthpop .maplibregl-popup-content > div')?.textContent || '');
+  };
+  const sea = await at(8.3, 43.9), land = await at(8.0, 44.2);
+  check(/^\d+ m deepGEBCO 2026 · (surveyed|estimated|other grids, unknown)$/.test(sea) && !land && !dp.errors.length, `a click on the sea gives its depth and source (${sea}); on land, nothing ${dp.errors.join(' | ')}`);
+  await dp.close();
   // Marine Regions' maritime limits load, with their legend (line types, from its WMS)
   const mz = await open('#v=6/40/16/0&on=chart,coastline,maritime,legend&menu=0');
   await mz.waitForFunction(() => /Median line/.test(document.querySelector('#legends canvas[data-legend=maritime]')?.getAttribute('aria-label') || ''), null, { timeout: 30000 }).catch(() => {});
