@@ -168,7 +168,7 @@ development.
 | `site/export.js` | GIS export contents: georeferencing, the STAC Item, PNG text fields. |
 | `site/vector.js` | Vector layers of the view as GeoJSON: tile pieces joined, clipped to the view. |
 | `site/geotiff.js` | GeoTIFF writer: elevation grids of the view, data values. |
-| `site/zarr.js` | Zarr stores: metadata, chunks, Blosc/LZ4 decoded. |
+| `site/zarr.js` | Zarr stores: metadata, chunks, Blosc (LZ4 or zlib) decoded. |
 | `site/cmems.js` | Copernicus Marine tiles (regional over global), time steps and depth levels, legends. |
 | `site/zip.js` | Zip writer (the browser's own deflate). |
 | `site/clip.js`, `site/clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
@@ -177,6 +177,7 @@ development.
 | `site/format.js` | Pure formatting and parsing helpers. |
 | `site/geo.js`, `site/net.js`, `site/dom.js` | Web Mercator maths; how requests are made and shared; DOM helpers. |
 | `tools/deps.mjs` | Pins, hashes and checks the CDN dependencies. |
+| `tools/gebco.mjs` | GEBCO's depth grids as Zarr stores (download, build, verify), published at `geodata.makaw.org`. |
 | `test/` | Unit tests, browser tests, and the development server. |
 
 ## Development
