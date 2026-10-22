@@ -1,7 +1,7 @@
 // Layers as data (the GIS export): the values a layer draws, read from its datasets' Zarr stores
 // (zarr.js) and written as GeoTIFF (geotiff.js), over the view's bounding box [west, south, east,
 // north]. Each returns [{ key, file, w, h, transform, names, units, title, description, data }].
-import { CMEMS, cmemsStacUrl, storedVariables, EMODNET_DTM } from './catalog.js';
+import { CMEMS, cmemsStacUrl, storedVariables, EMODNET_DTM, GEBCO } from './catalog.js';
 import { partTimes, partLevels, regionOf } from './cmems.js';
 import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
 import { geotiff } from './geotiff.js';
@@ -70,4 +70,28 @@ export async function emodnetValues(box) {
   const description = `EMODnet Bathymetry DTM 2024: elevation (m, negative below the sea surface; vertical reference lowest astronomical tide), its own grid (1/16 arc-minute), EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN. Not for navigation`;
   return [{ key, file: `${key}.tif`, w, h, transform, names: ['elevation'], units: ['m'], title: 'EMODnet depth: values', description,
     data: geotiff([await readCells(store, 'elevation', 0, 0, cells)], w, h, transform, { crs: 4326, bands: [{ description: 'elevation, EMODnet DTM 2024', unit: 'm' }] }) }];
+}
+
+// raster/gebco-depth.tif: GEBCO's elevation over the view's bounding box, in its own grid, at the
+// finest level that needs at most 16 of its chunks (level 0, GEBCO's 15″ cells, for views up to
+// several degrees across; a coarser one, means of 2^k × 2^k cells, for wider views: never left out).
+// The coordinates follow from the grid's regular spacing, so none are downloaded.
+const gebcoStore = () => memo(stores, GEBCO, () => openStore(GEBCO, fetchBytes));
+export async function gebcoValues(box) {
+  const store = await gebcoStore();
+  for (let k = 0; ; k++) {
+    const name = `${k}/elevation`, m = store.meta(name);
+    if (!m) throw new Error('no level of the grid fits this view');
+    const [H, W] = m.shape, cs = 180 / H;
+    const cells = cellsOf(Float64Array.from({ length: H }, (_, i) => 90 - (i + 0.5) * cs), Float64Array.from({ length: W }, (_, i) => -180 + (i + 0.5) * cs), box);
+    if (!cells.rows.length) return [];
+    const blocks = new Set(cells.rows.map((r) => Math.floor(r / m.chunks[0]))).size * new Set(cells.cols.map((c) => Math.floor(c / m.chunks[1]))).size;
+    if (blocks > 16 || cells.step > 1) continue;
+    const w = cells.cols.length, h = cells.rows.length, key = 'raster/gebco-depth';
+    const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
+    const grid = k ? `level ${k} of its grid (means of ${2 ** k} × ${2 ** k} of its 15″ cells)` : 'its own grid (15″ cells)';
+    const description = `GEBCO 2026 Grid (GEBCO Compilation Group): elevation (m, negative below mean sea level), ${grid}, EPSG:4326, over the view's bounding box. No data: NaN. Not for navigation`;
+    return [{ key, file: `${key}.tif`, w, h, transform, names: ['elevation'], units: ['m'], title: 'GEBCO depth: values', description,
+      data: geotiff([await readCells(store, name, 0, 0, cells)], w, h, transform, { crs: 4326, bands: [{ description: 'elevation, GEBCO 2026', unit: 'm' }] }) }];
+  }
 }

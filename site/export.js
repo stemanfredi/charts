@@ -54,9 +54,10 @@ export function stacItem({ id, title = 'Chart export', when, data, corners, zoom
   const providers = new Map(); // one per source, however many layers it feeds
   for (const l of layers) {
     if (!l.info || l.info.lic === '—' || providers.has(l.info.src)) continue;
-    // isobaths, contours, relief are made from the DEM here: processors, under its licence
-    const derived = l.info.lic === 'As DEM';
-    providers.set(l.info.src, { name: l.info.src, description: `Licence: ${derived ? 'as the DEM' : l.info.lic}`, roles: [derived ? 'processor' : 'producer'], ...(l.info.url && { url: l.info.url }) });
+    // isobaths, contours, relief are made here from another source's data ('As GEBCO', 'As DEM'):
+    // processors, under that source's licence
+    const derived = /^As /.test(l.info.lic);
+    providers.set(l.info.src, { name: l.info.src, description: `Licence: ${derived ? `as ${l.info.lic.slice(3)}` : l.info.lic}`, roles: [derived ? 'processor' : 'producer'], ...(l.info.url && { url: l.info.url }) });
   }
   return {
     type: 'Feature',

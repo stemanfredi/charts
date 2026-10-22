@@ -10,7 +10,10 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../site/', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
-export async function serve({ port = 0, host = '127.0.0.1' } = {}) {
+// The browser tests' port: fixed, because the GEBCO bucket (geodata.makaw.org) answers only the
+// origins its CORS rule lists, and this is one of them; npm run serve keeps 8000.
+export const TEST_PORT = 8099;
+export async function serve({ port = TEST_PORT, host = '127.0.0.1' } = {}) {
   const server = createServer(async (req, res) => {
     try {
       const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, ''); // a bad %-escape is a 404, not a crash

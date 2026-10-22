@@ -16,7 +16,7 @@ import { viewFeatures } from './vector.js';
 import { $, h } from './dom.js';
 import { search } from './search.js';
 import { chartCanvas, chartPng, pngOf } from './png.js';
-import { cmemsValues, emodnetValues } from './values.js';
+import { cmemsValues, emodnetValues, gebcoValues } from './values.js';
 
 const byId = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
 // Ocean data: the layers that change with time, chosen in two menus, colours and arrows. An entry
@@ -355,6 +355,12 @@ function classesOf(urls) {
 
 const KINDS = {
   // EMODnet's depth, drawn by EMODnet (tiles); its values from its Zarr store
+  // GEBCO's depths, drawn by the depth shading (clip.js); its values from its Zarr store
+  gebco: {
+    show: (id) => applyItem(id),
+    record: async () => ({}),
+    values: (it, box) => gebcoValues(box),
+  },
   emodnet: {
     show: (id) => applyItem(id),
     legend(id, el) {

@@ -22,11 +22,12 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
   // made from is behind its ⓘ
   const ATTR_OSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · <a href="https://openfreemap.org">OpenFreeMap</a>';
   const ATTR_DEM = '<a href="https://registry.opendata.aws/terrain-tiles/">Mapzen Terrain Tiles</a>';
+  const ATTR_GEBCO = '<a href="https://www.gebco.net">GEBCO 2026 Grid</a>'; // the sea's depths (gebco.js)
   const s = {
     omt: { type: 'vector', url: OMT_TILEJSON, attribution: ATTR_OSM },
-    'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: ATTR_DEM },
+    'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: ATTR_GEBCO },
     dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
-    isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: 12, attribution: ATTR_DEM }, // 512 px tiles: z12 is cut with the z12 coastline
+    isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: 12, attribution: ATTR_GEBCO }, // 512 px tiles: z12 is cut with the z12 coastline
     contours: { type: 'vector', tiles: [contourUrl], maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
     eox16: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2016 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2016), CC BY 4.0',
       tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'] },

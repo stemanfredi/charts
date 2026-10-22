@@ -45,6 +45,7 @@ export const API_HOSTS = [
   // Copernicus Marine's datasets as data, read on a GIS export (zarr.js): the STAC catalogue that
   // says where each dataset's Zarr store is, and the stores
   'https://stac.marine.copernicus.eu', 'https://s3.waw3-1.cloudferro.com', // (EMODnet's depth model too, GIS export)
+  'https://geodata.makaw.org', // GEBCO's depths as a Zarr store (gebco.js, in the clip worker; tools/gebco.mjs builds it)
 ];
 const CDN = 'https://cdn.jsdelivr.net';
 
