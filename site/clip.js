@@ -543,9 +543,14 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
     async contourElevation(z, x, y) {
       const { h: e } = await elevation(z, x, y, 0);
       // lakes carry NO_DEPTH_M for the shading's grey; for contours they are just "not sea"
-      // (+1 m), or every lake would be ringed by contours from 0 to 9000 m
+      // (+1 m), or every lake would be ringed by contours from 0 to 9000 m. Depths half a metre
+      // shallower: GEBCO is in whole metres, so on a flat shelf whole groups of cells read exactly
+      // −20, and the 20 m line traced their edges cell by cell (a staircase, Adriatic at zoom 12);
+      // a whole metre stands for ±0.5 m, and with the half added no flat lies on a line, which
+      // crosses the slope between values instead (towards shallower: the shallow side a line
+      // encloses is never smaller)
       // always a new array: the worker transfers it, which would empty the cached tile
-      return mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v)) : e.slice();
+      return mode === 'sea' ? e.map((v) => (v > 1 ? 1 : v < 0 ? v + 0.5 : v)) : e.slice();
     },
     // metres as the raster-dem tile draws them, NaN where it shows no value of its own: for the sea
     // land, lakes and inland water at sea level (flat, depth unknown); for the land the sea (ZIP export)

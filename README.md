@@ -201,6 +201,7 @@ npm run check       # index.html CDN block matches the pins, SRI hashes and CSP
 npm run smoke       # end-to-end in headless Chrome, against the live providers
 npm run ui          # layout at phone, tablet and desktop widths
 npm run tiles-check # elevation tiles of known trouble spots: seams, zooms, lakes
+npm run perf        # how long the depth layers take to draw, GEBCO against Terrarium
 npm run deps        # newer library versions and newer density data periods
 ```
 
