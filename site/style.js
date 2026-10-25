@@ -9,7 +9,7 @@ const C = {
   noDepth: NO_DEPTH,
   water: '#a9cbe3', waterText: '#2f6690', building: '#d9d1c1', buildingEdge: '#b7ac98',
   road: '#c9bea9', roadMajor: '#b3a68e', boundary: '#8a6f8f', grid: '#6b8193',
-  isobath: '#5b8db5', contour: '#a88a62',
+  isobath: DEPTH_SCHEMES.atlas.at(-1)[1], contour: '#a88a62', // isobaths on white: the deepest blue of the depth shading
 };
 const FONT = ['Noto Sans Regular'], FONT_I = ['Noto Sans Italic'], FONT_B = ['Noto Sans Bold'];
 const NAME = ['coalesce', ['get', 'name:en'], ['get', 'name']];
@@ -138,11 +138,15 @@ function layers() {
     ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
     // colours, then the layers that can draw arrows (currents, then wind), whose arrows go over them
     ...Object.keys(CMEMS).sort((a, b) => ARROWS_LAST(a) - ARROWS_LAST(b)).map((id) => raster(`cmems-${id}`, id)),
+    raster('traffic', 'traffic'), raster('routes', 'routes'), ...overlayLayers(['worlddensity']),
 
-    // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined
+    // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined; above every
+    // picture that colours the sea, under what stands in it (piers, zones, cables, wrecks, seamarks).
+    // Their colour follows what is under them (app.js isobathInk). The shelf and every 1000 m a
+    // little wider: not so much that they outweigh the rest (their labels say which they are)
     ...ISOBATH_RANGES.map(([z0, z1, depths], k) => ({ id: k ? `isobaths-${k}` : 'isobaths', type: 'line', source: 'isobaths', 'source-layer': 'contours',
       minzoom: z0, maxzoom: z1, ...m('isobaths'), filter: isobathFilter(depths),
-      paint: { 'line-color': C.isobath, 'line-width': ['case', MAJOR, 0.9, 0.45] } })),
+      paint: { 'line-color': C.isobath, 'line-width': ['case', MAJOR, 0.8, 0.55] } })),
 
     // Piers and breakwaters as land at about their true width (the shore line under the water
     // fill would otherwise half-hide anything narrower than itself), above every water layer
@@ -179,8 +183,7 @@ function layers() {
       paint: { 'line-color': C.boundary, 'line-dasharray': [3, 2],
         'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
 
-    raster('traffic', 'traffic'), raster('routes', 'routes'),
-    ...overlayLayers(['worlddensity', 'maritime', 'protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
+    ...overlayLayers(['maritime', 'protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
     { ...raster('seamarks', 'seamarks'), minzoom: 9 },
 
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
@@ -189,8 +192,11 @@ function layers() {
     ...ISOBATH_RANGES.map(([z0, z1, depths], k) => ({ id: k ? `isobath-labels-${k}` : 'isobath-labels', type: 'symbol', source: 'isobaths', 'source-layer': 'contours',
       minzoom: Math.max(6, z0), maxzoom: z1, ...m('isobaths'), filter: isobathFilter(depths),
       layout: { 'symbol-placement': 'line', 'text-field': ['concat', ['to-string', DEPTH], ' m'],
-        // coarse contours wiggle: allow more bend and place often, or long stretches go unlabelled
-        'text-font': FONT, 'text-size': 10, 'symbol-spacing': 220, 'text-max-angle': 55 },
+        // coarse contours wiggle: allow more bend and place often, or long stretches go unlabelled;
+        // zoomed in, where lines run close along a coast, each label further along its line and
+        // kept clear of its neighbours' (padding), so fewer of them crowd together
+        'text-font': FONT, 'text-size': 10, 'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 8, 220, 13, 600], 'text-max-angle': 55,
+        'text-padding': ['interpolate', ['linear'], ['zoom'], 8, 2, 13, 24] },
       paint: { 'text-color': C.isobath, ...HALO } })),
     { id: 'contour-labels', type: 'symbol', source: 'contours', 'source-layer': 'contours', minzoom: 11, ...m('contours'),
       filter: ['all', ['>', ['get', 'ele'], 0], ['==', ['get', 'level'], 1]],
@@ -235,6 +241,11 @@ function layers() {
   for (const l of L) if (l.metadata) l.layout = { ...l.layout, visibility: 'none' };
   return L;
 }
+
+// the colour pictures drawn above EMODnet depth and under the isobaths (layers() puts them there):
+// over one, the isobaths take a dark ink (app.js isobathInk). Ocean data is the same; seagrass, whose
+// meadows leave the depth shading seen round them, is not
+export const SEA_PICTURES = ['substrate', 'traffic', 'routes', 'worlddensity'];
 
 export function buildStyle(opts) {
   return {

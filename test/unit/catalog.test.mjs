@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
-import { buildStyle } from '../../site/style.js';
+import { buildStyle, SEA_PICTURES } from '../../site/style.js';
 import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
 import { PINS, CSP_HOSTS } from '../../tools/deps.mjs';
 
@@ -160,4 +160,13 @@ test('every overlay drawn in colours or symbols has a legend, and Europe-only la
   }
   // EMODnet's and EMSA's data cover European seas, but for the UKHO's wrecks (worldwide)
   for (const it of ITEMS) if (it.group !== 'labels' && /EMODnet|EMSA/.test(it.info.src) && !/worldwide/.test(it.info.res)) assert.match(it.label, /\(Europe\)$/, `${it.id}: Europe only, not in its name`);
+});
+
+test('the isobaths\' pictures: what lies between EMODnet depth and the isobaths is a sea picture, ocean data or seagrass, and every sea picture is there', () => {
+  const group = Object.fromEntries(ITEMS.map((it) => [it.id, it.group]));
+  const ids = style.layers.map((l) => l.metadata?.item ?? null);
+  const from = ids.lastIndexOf('emodnetdepth'), to = style.layers.findIndex((l) => l.id.startsWith('isobaths'));
+  const between = [...new Set(ids.slice(from + 1, to))];
+  assert.deepEqual(between.filter((it) => !SEA_PICTURES.includes(it) && group[it] !== 'data' && it !== 'seagrass'), []);
+  assert.deepEqual(SEA_PICTURES.filter((it) => !between.includes(it)), []);
 });

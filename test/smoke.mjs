@@ -362,6 +362,9 @@ try {
   };
   const sea = await at(8.3, 43.9), land = await at(8.0, 44.2);
   check(/^\d+ m deepGEBCO 2026 · (surveyed|estimated|other grids, unknown)$/.test(sea) && !land && !dp.errors.length, `a click on the sea gives its depth and source (${sea}); on land, nothing ${dp.errors.join(' | ')}`);
+  // isobaths over the shading take its colours up to its last zoom, then the style's blue again
+  const ink = await dp.evaluate(() => [map.getPaintProperty('isobaths', 'line-color'), map.getStyle().layers.find((l) => l.id === 'depth').maxzoom]);
+  check(Array.isArray(ink[0]) && ink[0][0] === 'step' && ink[0][3] === ink[1] && ink[0][4] === '#335f97', `isobaths: the shading's colours up to zoom ${ink[1]}, its deepest blue above (${JSON.stringify(ink[0]).slice(0, 80)})`);
   await dp.close();
   // Marine Regions' maritime limits load, with their legend (line types, from its WMS)
   const mz = await open('#v=6/40/16/0&on=chart,coastline,maritime,legend&menu=0');

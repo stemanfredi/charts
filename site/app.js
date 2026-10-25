@@ -1,7 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEPTH_SOURCES, DEM_LAND, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS } from './catalog.js';
-import { buildStyle, depthRamp, OPACITY_PROP } from './style.js';
+import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses, wmsClasses } from './legend.js';
@@ -242,9 +242,10 @@ function setOn(id, on) {
   }
   on ? state.on.add(id) : state.on.delete(id);
   refresh(id);
-  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); labelPaint(); creditEsri(); }
+  if (it.group === 'base') { for (const k of baseDependent) applyItem(k); renderLegends(); creditEsri(); }
   if (id === 'graticule') updateGraticule();
-  if (id === 'depth') { shoreFill(); labelPaint(); }
+  if (id === 'depth') shoreFill();
+  labelPaint(); // the isobaths' colour follows what is under them
   renderMenu();
   writeHash();
 }
@@ -256,14 +257,37 @@ function shoreFill() {
 }
 // the depth colour scheme is the Depth shading item's variant
 const depthStops = () => DEPTH_SCHEMES[state.variant.depth];
-// isobaths under the atlas scheme: navy over its pale shallow blues, pale over its dark deep
-// blues (one colour can't read on both); the nautical scheme keeps the style's own blue
-const ATLAS_SPLIT_M = 200;
-const byDepth = (shallow, deep) => ['step', ['abs', ['get', 'ele']], shallow, ATLAS_SPLIT_M, deep];
+// Isobaths and their labels in what reads on what is under them (contrast 3:1 at least, measured
+// against each scheme's colour at each depth): the topmost picture decides.
+//   a colour picture (Ocean data, EMODnet, densities, depth sources): dark ink, the one colour that
+//     reads across their scales, which run from dark blue to yellow and red
+//     (EMODnet depth: as they, but white over its dark blues from 1000 m, both its schemes)
+//   satellite: light, on a dark halo
+//   atlas shading: navy over its pale blues down to 1500 m, white over its dark blues from 2000 m
+//   nautical shading, all pale: a darker blue than on white
+//   white water, and the shading's scheme above its zoom (it hides itself there): the style's blue
+const LIGHT_HALO = 'rgba(255,255,255,0.9)', DARK_HALO = 'rgba(8,16,24,0.85)';
+const ATLAS_SPLIT_M = 2000;
+const byDepth = (shallow, deep, at = ATLAS_SPLIT_M) => ['step', ['abs', ['get', 'ele']], shallow, at, deep];
 const ISOBATH_INK = {
-  atlas: { line: byDepth('#22436a', '#e3eef8'), text: byDepth('#22436a', '#ffffff'), halo: byDepth('rgba(255,255,255,0.9)', 'rgba(20,45,80,0.85)') },
-  nautical: null,
+  picture: { line: 'rgba(43,58,70,0.7)', text: '#2b3a46', halo: LIGHT_HALO },
+  emodnet: { line: byDepth('rgba(43,58,70,0.7)', '#ffffff', 1000), text: byDepth('#2b3a46', '#ffffff', 1000), halo: byDepth(LIGHT_HALO, DARK_HALO, 1000) },
+  sat: { line: '#bfe0ff', text: '#cfe6ff', halo: DARK_HALO },
+  atlas: { line: byDepth('#22436a', '#ffffff'), text: byDepth('#22436a', '#ffffff'), halo: byDepth(LIGHT_HALO, 'rgba(20,45,80,0.85)') },
+  nautical: { line: '#3d6a91', text: '#3d6a91', halo: LIGHT_HALO },
 };
+const PICTURES = new Set(SEA_PICTURES); // drawn above EMODnet depth (style.js)
+const isPicture = (id) => state.on.has(id) && (PICTURES.has(id) || (byId[id].group === 'data' && looks[id] !== 'arrows'));
+function isobathInk() {
+  if (ITEMS.some((it) => isPicture(it.id))) return ISOBATH_INK.picture;
+  if (state.on.has('emodnetdepth')) return ISOBATH_INK.emodnet;
+  if (state.on.has('depthsource')) return ISOBATH_INK.picture;
+  if (state.on.has('sat')) return ISOBATH_INK.sat;
+  const plain = { line: chartLineColour[LINE_IDS[0]], text: chartLabelPaint[LABEL_IDS[0]]['text-color'], halo: LIGHT_HALO };
+  if (!state.on.has('depth')) return plain;
+  const shaded = ISOBATH_INK[state.variant.depth], zmax = style.layers.find((l) => l.id === 'depth').maxzoom;
+  return Object.fromEntries(Object.entries(plain).map(([k, v]) => [k, ['step', ['zoom'], shaded[k], zmax, v]]));
+}
 function depthColours() {
   map.setPaintProperty('depth', 'color-relief-color', depthRamp(depthStops()));
   labelPaint();
@@ -274,19 +298,25 @@ function depthColours() {
 const SAT_LABELS = {
   places: '#ffffff', islands: '#ffffff', 'graticule-labels': '#ffffff',
   'sea-names': '#cfe6ff', 'sea-names-line': '#cfe6ff',
-  ...Object.fromEntries(style.layers.filter((l) => l.id.startsWith('isobath-labels')).map((l) => [l.id, '#cfe6ff'])),
 };
+const LABEL_IDS = style.layers.filter((l) => l.id.startsWith('isobath-labels')).map((l) => l.id);
 const chartLabelPaint = {};
-for (const l of style.layers) if (SAT_LABELS[l.id]) chartLabelPaint[l.id] = { ...l.paint };
+for (const l of style.layers) if (SAT_LABELS[l.id] || LABEL_IDS.includes(l.id)) chartLabelPaint[l.id] = { ...l.paint };
 function labelPaint() {
-  const sat = state.on.has('sat'), ink = state.on.has('depth') && state.on.has('chart') ? ISOBATH_INK[state.variant.depth] : null;
+  const sat = state.on.has('sat');
   for (const [id, colour] of Object.entries(SAT_LABELS)) {
-    const p = chartLabelPaint[id], inked = !sat && ink && id.startsWith('isobath-labels');
-    map.setPaintProperty(id, 'text-color', sat ? colour : inked ? ink.text : p['text-color']);
-    map.setPaintProperty(id, 'text-halo-color', sat ? 'rgba(8,16,24,0.85)' : inked ? ink.halo : p['text-halo-color']);
+    const p = chartLabelPaint[id];
+    map.setPaintProperty(id, 'text-color', sat ? colour : p['text-color']);
+    map.setPaintProperty(id, 'text-halo-color', sat ? DARK_HALO : p['text-halo-color']);
     map.setPaintProperty(id, 'text-halo-width', sat ? 1.4 : p['text-halo-width']);
   }
-  for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', sat ? '#bfe0ff' : ink ? ink.line : chartLineColour[id]);
+  const ink = isobathInk();
+  for (const id of LABEL_IDS) {
+    map.setPaintProperty(id, 'text-color', ink.text);
+    map.setPaintProperty(id, 'text-halo-color', ink.halo);
+    map.setPaintProperty(id, 'text-halo-width', ink === ISOBATH_INK.sat ? 1.4 : chartLabelPaint[id]['text-halo-width']);
+  }
+  for (const id of LINE_IDS) map.setPaintProperty(id, 'line-color', ink.line);
 }
 const LINE_IDS = style.layers.filter((l) => /^isobaths(-\d+)?$/.test(l.id) && l.type === 'line').map((l) => l.id);
 const chartLineColour = Object.fromEntries(LINE_IDS.map((id) => [id, style.layers.find((l) => l.id === id).paint['line-color']]));
@@ -758,7 +788,7 @@ function dataBlock(items, sections) {
   dataMore = moreButton('the ocean data shown', h('div'));
   dataMore.onclick = (e) => { e.currentTarget.setAttribute('aria-expanded', String(e.currentTarget.getAttribute('aria-expanded') !== 'true')); renderMenu(); };
   const pick = (slot, label) => {
-    picks[slot] = h('select', { 'aria-label': label, onchange: (e) => { state[slot] = e.target.value; applyData(); writeHash(); renderMenu(); } },
+    picks[slot] = h('select', { 'aria-label': label, onchange: (e) => { state[slot] = e.target.value; applyData(); labelPaint(); writeHash(); renderMenu(); } },
       h('option', { value: '' }, 'None'),
       sections.map((sec) => {
         const es = ENTRIES[slot].filter((e) => e.it.section === sec);
