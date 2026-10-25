@@ -211,10 +211,12 @@ test('a circle and sectors of different apertures on one point: each its own, al
   assert.deepEqual(e, [['circle', 1000, undefined, undefined], ['sector', 2000, 60, 90], ['sector', 3000, 120, 90]]);
 });
 
-test('flatten: order kept, collisions prefixed, distributions numbered', () => {
-  assert.deepEqual(flatten([{ key: 'depth', value: '1' }, { key: 'name', value: 'x' }, { key: 'depth', value: '2' }, { key: 'depth', value: '3' }, { key: 'name', value: 'y' }]),
+test('flatten: order kept, collisions prefixed, repeats numbered; no prototype (a key may be named __proto__)', () => {
+  const plain = (o) => Object.fromEntries(Object.entries(o));
+  assert.equal(Object.getPrototypeOf(flatten([])), null);
+  assert.deepEqual(plain(flatten([{ key: 'depth', value: '1' }, { key: 'name', value: 'x' }, { key: 'depth', value: '2' }, { key: 'depth', value: '3' }, { key: 'name', value: 'y' }])),
     { depth: '1', p_name: 'x', depth_2: '2', depth_3: '3', p_name_2: 'y' });
-  assert.deepEqual(flatten([{ key: 'guide', value: 1 }, { key: 'length_m', value: 2 }, { key: 'part_name', value: 3 }, { key: 'filled', value: 4 }, { key: 'radius_name', value: 5 }]),
+  assert.deepEqual(plain(flatten([{ key: 'guide', value: 1 }, { key: 'length_m', value: 2 }, { key: 'part_name', value: 3 }, { key: 'filled', value: 4 }, { key: 'radius_name', value: 5 }])),
     { p_guide: 1, p_length_m: 2, p_part_name: 3, p_filled: 4, radius_name: 5 }); // a part's fields
 });
 

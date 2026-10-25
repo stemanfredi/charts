@@ -841,3 +841,29 @@ test('the file\'s text: number pairs on one line, the user\'s text never touched
   assert.ok(text.includes('[12.5, 41.25]'));
   assert.deepEqual([parse(text, null, NOW).doc.points[0].name, parse(text, null, NOW).doc.points[0].properties[0].value], ['grid [ 3, 4 ]', '[  10,  20 ]']);
 });
+
+test('hardening: a property key named like Object.prototype\'s is a column like any other; a layer so named is not "known"; caps on parts, properties, text, positions', () => {
+  const { doc, report } = read(collection([
+    F('p', 'Point', [12, 41], { kind: 'point', properties: [{ key: 'toString', value: 'a' }, { key: '__proto__', value: 'b' }, { key: 'constructor', value: 'c' }],
+      parts: Array.from({ length: 150 }, () => ({ kind: 'circle', radius: 100 })) }, { name: 'x'.repeat(20000) }),
+    F('s', 'LineString', Array.from({ length: 100001 }, (_, i) => [12 + i * 1e-6, 41]), { kind: 'line' }),
+    F('q', 'Polygon', [[...Array.from({ length: 100001 }, (_, i) => [12 + i * 1e-6, 41]), [12, 41]]], { kind: 'area' }),
+    F('t', 'Point', [12, 41], { kind: 'point', properties: Array.from({ length: 250 }, (_, i) => ({ key: `k${i}`, value: '1' })) }),
+  ], { view: { center: [12, 41], zoom: 5, layers: [{ id: '__proto__' }, { id: 'constructor' }], data: { colour: { id: 'toString' } } } }), { layers: { chart: { variants: null, periods: null } }, data: {}, depths: [] });
+  const p = doc.points.find((n) => n.id === 'p');
+  assert.deepEqual(p.properties.map((x) => x.key), ['toString', '__proto__', 'constructor']);
+  assert.equal(p.parts.length, 100);
+  assert.equal(p.name.length, 10000);
+  assert.equal(doc.points.find((n) => n.id === 't').properties.length, 200);
+  assert.deepEqual([doc.lines.length, doc.areas.length], [0, 0], 'too many positions: skipped');
+  assert.deepEqual(report.skipped.map((x) => x.id).sort(), ['q', 's']);
+  assert.deepEqual(doc.view.layers, [], 'neither "__proto__" nor "constructor" is a layer the app offers');
+  assert.equal(doc.view.data.colour, null);
+  for (const re of [/more than 100 parts/, /cut to 10000 characters/, /more than 200 properties/, /layer "__proto__" not known/, /layer "constructor" not known/, /colour: "toString" not known/]) warned(report, re);
+  // the columns of the export keep every key as it is: toString, not toString_2
+  const cols = Object.entries(toFile(doc).features.find((f) => f.id === 'p').properties).filter(([k]) => k !== 'charts' && k !== 'name');
+  assert.deepEqual(cols, [['toString', 'a'], ['__proto__', 'b'], ['constructor', 'c']]);
+  assert.ok(!toFile(doc).features.find((f) => f.id === 'p').properties.charts.properties, 'no key had to be renamed');
+  const back = read(JSON.stringify(toFile(doc))).doc.points.find((n) => n.id === 'p');
+  assert.deepEqual(back.properties, p.properties, 'read back as they were');
+});

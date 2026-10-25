@@ -14,6 +14,7 @@
 // the encoded bytes) and masked at the higher zoom, so the coast stays sharp.
 
 import { NO_DEPTH_M, DEPTH_LEVELS, levelsFor } from './catalog.js';
+import { HOSTS } from './hosts.js';
 import { gebcoTile } from './gebco.js';
 import { latOf, tileBounds } from './geo.js';
 import { FETCH, memo } from './net.js';
@@ -108,7 +109,7 @@ function waterLayer(buf) {
       for (let i = 0; i < geom.length;) {
         const cmd = geom[i++], id = cmd & 7, n = cmd >> 3;
         if (id === 7) { if (ring) rings.push(ring); ring = null; continue; }
-        for (let j = 0; j < n; j++) {
+        for (let j = 0; j < n && i + 1 < geom.length; j++) { // never past the data, whatever the count says
           x += zigzag(geom[i++]); y += zigzag(geom[i++]);
           if (id === 1) { if (ring) rings.push(ring); ring = [x, y]; } else ring.push(x, y);
         }
@@ -444,7 +445,13 @@ function seaDem(template, z, x, y) {
 export function clipper({ template, native, mode, omtTileJson }) {
   // the OpenMapTiles tile URL, fetched once; a failure is retried on the next tile
   const once = {};
-  const omtTemplate = () => memo(once, 'omt', () => fetchOk(omtTileJson).then((r) => r.json()).then((tj) => tj.tiles[0]));
+  // the TileJSON says where its tiles are: taken only from the host the page names (hosts.js), since
+  // a worker is outside the page's Content-Security-Policy
+  const omtTemplate = () => memo(once, 'omt', () => fetchOk(omtTileJson).then((r) => r.json()).then((tj) => {
+    const t = tj?.tiles?.[0];
+    if (typeof t !== 'string' || new URL(t).origin !== new URL(HOSTS.openfreemap).origin) throw new Error('the base map\'s TileJSON names tiles elsewhere');
+    return t;
+  }));
   const cache = lru(128);
   // a DEM tile's elevation in metres as the data has it (no clean-up): the sea's from GEBCO, the
   // land's from Terrarium; also what inland water is classified from
@@ -547,16 +554,25 @@ export function clipper({ template, native, mode, omtTileJson }) {
 // worker the map stays responsive. Tiles come back transferred, not copied.
 const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
 let worker = null, seq = 0;
-const replies = new Map();
+const replies = new Map(), inits = []; // each clipper's init, sent again to a worker started anew
 function clipWorker() {
   if (worker) return worker;
   worker = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
+  for (const init of inits) worker.postMessage({ init });
   worker.onmessage = ({ data }) => {
     const r = replies.get(data.seq);
     replies.delete(data.seq);
     if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);
   };
-  worker.onerror = (e) => console.error('clip worker:', e.message);
+  // the worker died (out of memory, a script error): every tile waiting on it fails now rather than
+  // waits forever, and the next ask starts a new one
+  worker.onerror = (e) => {
+    console.error('clip worker:', e.message);
+    worker.terminate();
+    worker = null;
+    for (const r of replies.values()) r.reject(new Error(`clip worker: ${e.message}`));
+    replies.clear();
+  };
   return worker;
 }
 const ask = (msg, signal) => new Promise((resolve, reject) => {
@@ -568,7 +584,8 @@ const ask = (msg, signal) => new Promise((resolve, reject) => {
 
 // MapLibre protocol handler and maplibre-contour hooks for one clipper (mode 'sea' or 'land')
 export function workerClipper({ template, native, mode, omtTileJson }) {
-  clipWorker().postMessage({ init: { template, native, mode, omtTileJson } });
+  inits.push({ template, native, mode, omtTileJson });
+  clipWorker().postMessage({ init: inits.at(-1) });
   return {
     protocol: async (params, abortController) => {
       if (abortController?.signal.aborted) throw new Error('aborted');

@@ -209,7 +209,7 @@ A point's parts (`charts.parts`), a list of entries, each drawn to scale about i
 | `strokeColor`, `strokeDash` | `null`: the point's stroke |
 
 A part has no ID: it is named by its place in the list, from 1 ("part 2" in the report); references
-name it from 0 (§7.4). An entry of an unknown kind, or whose size is not a distance in range, is
+name it from 0 (§7.4). A point keeps at most 100 parts (warning). An entry of an unknown kind, or whose size is not a distance in range, is
 skipped (warning); the rest of the point loads. Only the sizes its kind needs are kept.
 
 ## 7. Elements
@@ -489,8 +489,8 @@ it is not GeoJSON; or `charts.version` is a number other than 1.
 
 **One feature or element is skipped** (the rest loads; the report gives its ID and why) when it is not
 a Feature; it has no geometry; its geometry is a GeometryCollection or of another type; a position is
-not `[longitude, latitude]` or out of range; a line has fewer than two positions; an area fewer than
-three corners. A group or rule without a valid, unused ID is skipped, a rule of another kind, and a
+not `[longitude, latitude]` or out of range; a line has fewer than two positions, or more than
+100 000; an area fewer than three corners, or more than 100 000. A group or rule without a valid, unused ID is skipped, a rule of another kind, and a
 Distribute along without `along`.
 
 ## 13. What other tools see

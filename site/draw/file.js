@@ -15,7 +15,8 @@ import { targetPosition } from './attach.js';
 import { columnsOf } from './features.js';
 
 const SIDES = ['left', 'right', 'alternate'];
-const MAX_OFFSET = 2000;
+const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
+const MAX_POSITIONS = 100000; // positions in one line or area: more would stall the page at every change
 // the properties a feature's own are written beside: a user's key that is one of these gets a p_
 const RESERVED = ['name', 'stroke', 'stroke-width', 'stroke-opacity', 'fill', 'fill-opacity', 'charts'];
 const GEOMETRIES = ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'];
@@ -239,6 +240,7 @@ const READ = {
   },
   line(coords, props, mine, x, c, { ends }) {
     if (!Array.isArray(coords) || coords.length < 2) c.skip('a line needs two positions');
+    if (coords.length > MAX_POSITIONS) c.skip(`more than ${MAX_POSITIONS} positions`);
     const pts = coords.map((q, k) => coord(q, c, `position ${k + 1}`));
     const meta = Array.isArray(mine.vertices) ? mine.vertices : [];
     const s = { ...x, start: { position: pts[0], element: null }, end: { position: pts.at(-1), element: null },
@@ -260,6 +262,7 @@ const READ = {
   area(coords, props, mine, x, c) {
     if (!Array.isArray(coords) || !Array.isArray(coords[0])) c.skip('no ring');
     if (coords.length > 1) c.warn('holes are not read; the outer ring only');
+    if (coords[0].length > MAX_POSITIONS) c.skip(`more than ${MAX_POSITIONS} corners`);
     let pts = coords[0].map((q, k) => coord(q, c, `corner ${k + 1}`));
     if (pts.length > 1 && pts[0][0] === pts.at(-1)[0] && pts[0][1] === pts.at(-1)[1]) pts = pts.slice(0, -1);
     if (pts.length < 3) c.skip('an area needs 3 corners');
@@ -269,7 +272,7 @@ const READ = {
   label(coords, props, mine, x, c, { anchored }) {
     const at = coord(coords, c, 'position');
     const o = mine.offset;
-    const offset = Array.isArray(o) && o.length >= 2 && fin(o[0]) && fin(o[1]) ? [Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, o[0])), Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, o[1]))]
+    const offset = Array.isArray(o) && o.length >= 2 && fin(o[0]) && fin(o[1]) ? [Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, o[0])), Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, o[1]))]
       : (o !== undefined && c.warn('offset: not [x, y] pixels, the default used'), [...LABEL_OFFSET]);
     const one = (v, list, d, what) => (v === undefined ? d : list.includes(v) ? v : (c.warn(`${what}: unknown "${String(v).slice(0, 20)}", ${d} used`), d));
     const a = { ...x, text: text(mine.text, c, 'text'), anchor: { position: at }, offset, leader: one(mine.leader, LEADERS, 'arrow', 'leader') };
@@ -341,7 +344,7 @@ const signed = (pts) => pts.reduce((a, p, i) => { const q = pts[(i + 1) % pts.le
 // one element as a Feature
 function feature(doc, kind, el) {
   const { out: cols, changed } = columns(el.properties);
-  const props = lean({ name: el.name }, { name: '' });
+  const props = Object.assign(Object.create(null), lean({ name: el.name }, { name: '' })); // no prototype: a column named __proto__ is set, not the prototype
   Object.assign(props, cols, kind === 'label' ? {} : styleNames(el.look));
   const mine = { kind, ...(changed ? { properties: el.properties.map((p) => ({ ...p })) } : {}),
     ...lean({ group: el.groupId, visible: el.visible, guide: el.guide ?? false, look: lookOut(el.look, kind !== 'label') }, { group: null, visible: true, guide: false, look: {} }) };

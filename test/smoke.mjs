@@ -83,6 +83,11 @@ try {
   const again = await open(new URL(link).hash);
   check((await again.evaluate(() => map.getZoom().toFixed(2))) === '6.00' && (await visible(again, 'isobaths')) === 'visible', 'the copied link reopens the same view and layers');
   check(again.errors.length === 0, `reloaded view without errors ${again.errors.join(' | ')}`);
+  // a link with a latitude past the pole and a time that is no date: the page comes up, both ignored
+  const bad = await open('#v=5/95/10/0&t=2026-13-40T99&on=chart');
+  const badView = await bad.evaluate(() => [map.getCenter().lat, document.querySelector('#nostart')]);
+  check(bad.errors.length === 0 && Math.abs(badView[0]) <= 85.1 && badView[1] === null, `a bad link's latitude and time are ignored, the page starts (lat ${badView[0]}) ${bad.errors.join(' | ')}`);
+  await bad.close();
 
   // one side panel: Draw replaces Layers in place, the link keeps the view, its button closes it
   const pv = await open('#v=6/41/12/0&menu=1');

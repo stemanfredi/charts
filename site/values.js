@@ -17,7 +17,7 @@ async function fetchBytes(url) {
   return new Uint8Array(await r.arrayBuffer());
 }
 
-const stores = {}; // part (or EMODNET_DTM) → promise of its store and coordinates
+const stores = Object.create(null); // part (or EMODNET_DTM) → promise of its store and coordinates
 function storeOf(part) {
   return memo(stores, part, async () => {
     const r = await fetch(cmemsStacUrl(part), FETCH);

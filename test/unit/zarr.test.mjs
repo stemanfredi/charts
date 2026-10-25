@@ -77,3 +77,18 @@ test('readCells: a 2-D variable (latitude × longitude), NaN as its fill', async
   const out = await readCells(store, 'e', 0, 0, { rows: [1, 0], cols: [0, 1, 2] });
   assert.deepEqual([...out].map(String), ['-20', 'NaN', 'NaN', '-10', '-11', 'NaN']);
 });
+
+test('decode refuses what it cannot trust: a Blosc header longer or shorter than the chunk, a block larger than the buffer, another compressor, filters, a short raw chunk', async () => {
+  const meta = { dtype: '<i2', chunks: [500000], fill_value: 0, compressor: { id: 'blosc' } };
+  assert.equal((await decode(meta, A)).length, 500000, 'the right size decodes');
+  await assert.rejects(decode({ ...meta, chunks: [500001] }, A), /1000000 bytes where the chunk holds 1000002/);
+  await assert.rejects(decode({ ...meta, chunks: [10] }, A), /bytes where the chunk holds 20/);
+  const bomb = new Uint8Array(A); new DataView(bomb.buffer).setUint32(4, 2 ** 31, true); // nbytes rewritten to 2 GB
+  await assert.rejects(unblosc(bomb, 1000000), /where the chunk holds/);
+  const big = new Uint8Array(A); new DataView(big.buffer).setUint32(8, 2 ** 31, true); // blocksize past nbytes
+  await assert.rejects(unblosc(big), /block size out of range/);
+  await assert.rejects(unblosc(new Uint8Array(8)), /no header/);
+  await assert.rejects(decode({ ...meta, compressor: { id: 'zstd' } }, A), /compressor zstd/);
+  await assert.rejects(decode({ ...meta, filters: [{ id: 'delta' }] }, A), /filters/);
+  await assert.rejects(decode({ ...meta, compressor: null, chunks: [100] }, new Uint8Array(10)), /10 bytes where 200/);
+});

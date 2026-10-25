@@ -62,7 +62,7 @@ let urlBearings = false;
 function readHash() {
   const q = new URLSearchParams(location.hash.slice(1));
   const v = (q.get('v') || '').split('/').map(Number);
-  if (v.length >= 3 && v.every(Number.isFinite)) view = { zoom: v[0], center: [v[2], v[1]], bearing: v[3] || 0 };
+  if (v.length >= 3 && v.every(Number.isFinite) && Math.abs(v[1]) <= 90) view = { zoom: v[0], center: [v[2], v[1]], bearing: v[3] || 0 }; // a latitude past the pole would throw in MapLibre
   if (q.has('on')) state.on = new Set(q.get('on').split(',').filter((id) => byId[id]));
   for (const kv of (q.get('var') || '').split(',')) {
     const [k, val] = kv.split(':');
@@ -74,7 +74,8 @@ function readHash() {
   }
   for (const [slot, key] of [['colour', 'col'], ['arrows', 'arr']]) if (ENTRIES[slot].some((e) => e.key === q.get(key))) state[slot] = q.get(key);
   for (const it of DATA) state.on.delete(it.id); // the menus switch them (applyData)
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(q.get('t') || '')) state.time = Date.parse(`${q.get('t')}:00:00Z`);
+  const t = /^\d{4}-\d{2}-\d{2}T\d{2}$/.test(q.get('t') || '') ? Date.parse(`${q.get('t')}:00:00Z`) : NaN; // a date that is no date (month 13) is NaN
+  if (Number.isFinite(t)) state.time = t;
   state.date = new Date(state.time).toISOString().slice(0, 10);
   if (CMEMS_DEPTHS.includes(+q.get('dz'))) state.depth = +q.get('dz');
   for (const kv of (q.get('per') || '').split(',')) {
@@ -511,7 +512,7 @@ async function cmemsDrawn(id, at = { variant: variantOf(id), t: state.time, dept
 // a classed layer's classes, from its services' JSON legends (legend.js wmsClasses): a class drawn
 // by several (an area, and a point where it is too small) once, with its fill and its symbol; the
 // symbols loaded as pictures (one that does not load is left out, its class kept)
-const classLegends = {}, icons = {};
+const classLegends = Object.create(null), icons = Object.create(null); // keyed by URLs: no prototype to reach
 const iconOf = (url) => memo(icons, url, () => fetch(url, FETCH).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); }).then(createImageBitmap));
 function classesOf(urls) {
   return memo(classLegends, urls.join(' '), async () => {
@@ -1461,19 +1462,21 @@ function exportZip(b) {
       if (fs.length) vectors.push({ key: `vector/${it.id}`, title: it.label, file: `vector/${it.id}.geojson`, data: featureCollection(it.label, fs), n: fs.length, how: 'clipped to the view' });
       it.assets = fs.length ? [`vector/${it.id}`] : []; // in item.json: the assets that hold this layer as data (keyed by path: a layer may be called chart, as the overview is)
     }
+    const left = []; // what could not be read: the rest is saved, the button says what is missing
     // raster/<key>.tif for each elevation grid an item drawn reads
     const rasters = [];
     for (const r of RASTERS) {
       if (!layers.some((l) => r.items.includes(l.id))) continue;
       const grid = gridFor(corners.map(mercator), Math.max(0, Math.min(Math.floor(s.zoom + 1), r.max))), n = 2 ** grid.z;
-      const tiles = await Promise.all(grid.tiles.map(([tx, ty]) => r.clip.metres(grid.z, ((tx % n) + n) % n, ty)));
-      const transform = gridTransform(grid);
-      rasters.push({ ...r, file: `raster/${r.key}.tif`, asset: `raster/${r.key}`, data: geotiff(mosaic(grid, tiles), grid.w, grid.h, transform, { description: r.description }), grid, transform });
-      for (const l of layers) if (r.items.includes(l.id)) l.assets.push(`raster/${r.key}`);
+      try {
+        const tiles = await Promise.all(grid.tiles.map(([tx, ty]) => r.clip.metres(grid.z, ((tx % n) + n) % n, ty)));
+        const gt = gridTransform(grid);
+        rasters.push({ ...r, file: `raster/${r.key}.tif`, asset: `raster/${r.key}`, data: geotiff(mosaic(grid, tiles), grid.w, grid.h, gt, { description: r.description }), grid, transform: gt });
+        for (const l of layers) if (r.items.includes(l.id)) l.assets.push(`raster/${r.key}`);
+      } catch (e) { console.warn(`${r.title}:`, e.message); left.push(`${r.title} (${e.message})`); }
     }
     // the values of each layer drawn whose kind has them (Copernicus), as the view was captured
     const xs = corners.map((p) => p[0]), ys = corners.map((p) => p[1]), box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
-    const left = []; // values that could not be read: the rest is saved, the button says what is missing
     const values = (await Promise.all(layers.filter((l) => kindOf(l.id)?.values).map((l) => kindOf(l.id).values(l, box)
       .then((rs) => { l.assets.push(...rs.map((r) => r.key)); return rs; }, (e) => { console.warn(`${l.label} values:`, e.message); left.push(`${l.label} values (${e.message})`); return []; })))).flat();
     for (const l of layers) Object.assign(l, await kindOf(l.id)?.record(l)); // what each drew: period, day, time, depth

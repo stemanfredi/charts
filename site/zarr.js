@@ -38,9 +38,12 @@ async function inflate(src, size) {
 // by byte; the compressor in the top 3 bits (1: LZ4 or LZ4HC, 3: zlib). A block is split into one
 // stream per byte of the type, but for the last, short one; a stream as long as its output is
 // stored as is.
-export async function unblosc(b) {
+export async function unblosc(b, expected = null) {
+  if (b.length < 16) throw new Error('Blosc: no header');
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const flags = b[2], typesize = b[3], nbytes = v.getUint32(4, true), blocksize = v.getUint32(8, true);
+  if (expected !== null && nbytes !== expected) throw new Error(`Blosc: ${nbytes} bytes where the chunk holds ${expected}`); // sizes from the header are only trusted against the store's metadata
+  if (!blocksize || blocksize > nbytes) throw new Error('Blosc: block size out of range');
   const out = new Uint8Array(nbytes);
   if (flags & 2) { out.set(b.subarray(16, 16 + nbytes)); return out; }
   if (flags & 4) throw new Error('Blosc: bit shuffle is not supported');
@@ -77,10 +80,13 @@ const TYPES = { '|i1': Int8Array, '<i2': Int16Array, '<i4': Int32Array, '<f4': F
 export async function decode(meta, bytes) {
   const T = TYPES[meta.dtype];
   if (!T) throw new Error(`Zarr: dtype ${meta.dtype} is not supported`);
-  const n = meta.chunks.reduce((a, c) => a * c, 1);
+  const n = meta.chunks.reduce((a, c) => a * c, 1), size = n * T.BYTES_PER_ELEMENT;
   if (!bytes) return new T(n).fill(meta.fill_value ?? 0);
-  const raw = meta.compressor ? await unblosc(bytes) : bytes;
-  return new T(raw.buffer.slice(raw.byteOffset, raw.byteOffset + n * T.BYTES_PER_ELEMENT));
+  if (meta.compressor && meta.compressor.id !== 'blosc') throw new Error(`Zarr: compressor ${meta.compressor.id} is not supported`);
+  if (meta.filters?.length) throw new Error('Zarr: filters are not supported');
+  const raw = meta.compressor ? await unblosc(bytes, size) : bytes;
+  if (raw.length < size) throw new Error(`Zarr: a chunk of ${raw.length} bytes where ${size} are expected`);
+  return new T(raw.buffer.slice(raw.byteOffset, raw.byteOffset + size));
 }
 
 // CF time units ("hours since 1950-01-01", "seconds since 1970-01-01 00:00:00") → value → ms

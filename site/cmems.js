@@ -61,7 +61,7 @@ export const nearestLevel = (levels, depth) => (levels.length ? levels.reduce((a
 
 // part (product/dataset/variable) → promise of { time: its time domain, levels: its depth levels }
 // (timeDomain, depthLevels)
-const domains = {};
+const domains = Object.create(null);
 export function domainOf(part) {
   return memo(domains, part, () => fetch(cmemsCapsUrl(part), FETCH).then(ok).then((r) => r.text())
     .then((xml) => {
@@ -121,7 +121,7 @@ export async function cmemsTile({ url }, abortController) {
 
 // legend of item/variant: the service's colour map over the fixed range, as entries for
 // legend.js drawColormap, in the units shown (offset applied; log10 of the value for a log scale)
-const legends = {};
+const legends = Object.create(null);
 export function cmemsLegend(item, variant) {
   const v = CMEMS[item][variant], url = cmemsLegendUrl(v.parts[0], cmemsStyle(v));
   return memo(legends, url, () => fetch(url, FETCH).then(ok).then((r) => r.json())

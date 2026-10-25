@@ -21,7 +21,7 @@ const SIZE = 256, CELL = 15 / 3600, LEVELS = 7, KEEP = 96; // KEEP: chunks kept 
 // the level for tiles of zoom z: the coarsest whose cells are no larger than the tile's pixels
 export const levelFor = (z) => Math.max(0, Math.min(LEVELS - 1, Math.floor(Math.log2(360 / (SIZE * 2 ** z) / CELL))));
 
-const stores = {};
+const stores = Object.create(null);
 const store = (url) => memo(stores, url, () => openStore(url, async (u) => {
   const r = await fetch(u, FETCH);
   if (r.status === 404 || r.status === 403) return null; // a chunk not stored: the fill value

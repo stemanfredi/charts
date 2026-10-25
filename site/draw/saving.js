@@ -7,7 +7,7 @@
 import { emptyDoc } from './document.js';
 import { parse } from './file.js';
 
-const INDEX = 'charts.drawings', CURRENT = 'charts.drawings.current';
+const INDEX = 'charts.drawings', CURRENT = 'charts.drawings.current', OPENING = 'charts.drawings.opening';
 const KEY = (id) => `charts.drawing.${id}`;
 
 const store = {
@@ -62,7 +62,12 @@ export class Saving {
     lastRead = null; // the document is the drawing's own from now on
     // one this app cannot read (another format version): left as it is, never saved over; a new one opens
     if (!doc) { console.error('saved drawing not read:', report.refused); this.id = newKey(); store.set(CURRENT, this.id); return; }
+    // one that stalled the page while it was drawn last time (the page closed before OPENING was
+    // cleared): left as it is, a new one opens, so the page always comes up
+    if (store.get(OPENING) === this.id) { console.error('saved drawing not opened: the page did not finish drawing it last time'); store.remove(OPENING); this.id = newKey(); store.set(CURRENT, this.id); return; }
+    store.set(OPENING, this.id);
     this.d.adopt(doc);
+    store.remove(OPENING);
   }
   soon() { clearTimeout(this.timer); this.timer = setTimeout(() => this.now(), 400); }
   now() {

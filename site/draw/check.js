@@ -16,9 +16,12 @@ export class Skip extends Error {}
 export function time(t) {
   return typeof t === 'string' && !Number.isNaN(Date.parse(t)) ? isoNow(Date.parse(t)) : null;
 }
+export const MAX_TEXT = 10000; // characters: a name, a value, a description
+export const MAX_PARTS = 100; // parts on one point
+export const MAX_PROPERTIES = 200; // properties on one element
 export function text(v, c, what) {
   if (v === undefined || v === null) return '';
-  if (typeof v === 'string') return v;
+  if (typeof v === 'string') return v.length > MAX_TEXT ? (c.warn(`${what}: cut to ${MAX_TEXT} characters`), v.slice(0, MAX_TEXT)) : v;
   if (typeof v === 'number' || typeof v === 'boolean') { c.warn(`${what}: ${typeof v} made text`); return String(v); }
   c.warn(`${what}: not text, ignored`);
   return '';
@@ -28,6 +31,7 @@ export function properties(list, c) {
   if (!Array.isArray(list)) { c.warn('properties: not a list, ignored'); return []; }
   const out = [];
   for (const p of list) {
+    if (out.length >= MAX_PROPERTIES) { c.warn(`more than ${MAX_PROPERTIES} properties: the rest dropped`); break; }
     if (!isObj(p)) { c.warn('a property that is not {key, value} dropped'); continue; }
     const key = text(p.key, c, 'property key');
     if (!key) { c.warn('a property with an empty key dropped'); continue; }
@@ -142,6 +146,7 @@ export function parts(list, c) {
   if (list === undefined || list === null) return [];
   if (!Array.isArray(list)) { c.warn('parts: not a list, ignored'); return []; }
   const out = [];
+  if (list.length > MAX_PARTS) { c.warn(`more than ${MAX_PARTS} parts: the first ${MAX_PARTS} kept`); list = list.slice(0, MAX_PARTS); }
   list.forEach((r, i) => {
     const n = i + 1, round = ROUND.includes(r?.kind), size = (v) => fin(v) && v > 0 && v < MAX_RADIUS;
     const bad = !isObj(r) ? 'not an object' : !PART_KINDS.includes(r.kind) ? `unknown kind "${String(r.kind).slice(0, 20)}"`
@@ -177,7 +182,7 @@ export function readView(v, known, c) {
     for (const l of v.layers) {
       if (!isObj(l) || typeof l.id !== 'string') { c.warn('a layer without an ID skipped'); continue; }
       const k = known?.layers;
-      if (k && !k[l.id]) { c.warn(`layer "${l.id.slice(0, 40)}" not known here; skipped`); continue; }
+      if (k && !Object.hasOwn(k, l.id)) { c.warn(`layer "${l.id.slice(0, 40)}" not known here; skipped`); continue; }
       const out = { id: l.id };
       for (const [key, list] of [['variant', k?.[l.id]?.variants], ['period', k?.[l.id]?.periods]]) {
         if (l[key] === undefined || l[key] === null) continue;
@@ -194,7 +199,7 @@ export function readView(v, known, c) {
       const e = v.data[slot];
       if (e === undefined || e === null) continue;
       if (!isObj(e) || typeof e.id !== 'string') { c.warn(`data ${slot}: not {id, variant}, ignored`); continue; }
-      const variants = known?.data?.[e.id];
+      const variants = known?.data && Object.hasOwn(known.data, e.id) ? known.data[e.id] : undefined;
       if (known && !(variants && (e.variant == null || variants.includes(e.variant)))) { c.warn(`data ${slot}: "${e.id}${e.variant ? `:${e.variant}` : ''}" not known here; skipped`); continue; }
       d[slot] = { id: e.id, variant: e.variant == null ? null : String(e.variant) };
     }

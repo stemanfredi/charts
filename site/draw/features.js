@@ -268,11 +268,11 @@ const RESERVED = ['kind', 'id', 'name', 'outline', 'group', 'guide', 'text', 'an
 // the user's properties as columns, in their order: a key that collides with a field (reserved) gets
 // p_, a repeated key _2, _3…; changed: whether a key had to be changed
 export function columnsOf(props, reserved = RESERVED) {
-  const out = {};
+  const out = Object.create(null); // no prototype: a key named __proto__ is a column too
   let changed = false;
   for (const { key, value } of props) {
     let k = reserved.includes(key) ? `p_${key}` : key;
-    if (k in out) { let i = 2; while (`${k}_${i}` in out) i++; k = `${k}_${i}`; }
+    if (Object.hasOwn(out, k)) { let i = 2; while (Object.hasOwn(out, `${k}_${i}`)) i++; k = `${k}_${i}`; } // hasOwn: a key named toString is a column like any other
     if (k !== key) changed = true;
     out[k] = value;
   }
