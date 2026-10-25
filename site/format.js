@@ -47,6 +47,12 @@ export function parseLatLon(text) {
   }
   return latLon(text);
 }
+// degrees [, minutes [, seconds]]: only the last part may have decimals; a minus on the degrees ("-0 30") counts
+function dmsValue(nums) {
+  const [d, m = 0, s = 0] = nums;
+  if (m < 0 || m >= 60 || s < 0 || s >= 60 || nums.slice(0, -1).some((v) => !Number.isInteger(v))) return NaN;
+  return (d < 0 || Object.is(d, -0) ? -1 : 1) * (Math.abs(d) + m / 60 + s / 3600);
+}
 function latLon(text) {
   const t = text.toUpperCase().replace(/[°º˚′'″",;]/g, ' ').replace(/([NSEW])/g, ' $1 ').trim();
   if (!t || /[^0-9NSEW.+\-\s]/.test(t)) return null;
@@ -70,12 +76,7 @@ function latLon(text) {
     comps = [{ nums: n.slice(0, n.length / 2) }, { nums: n.slice(n.length / 2) }];
   } else return null;
   if (comps.length !== 2 || comps.some((c) => !c.nums.length || c.nums.length > 3)) return null;
-  // degrees [, minutes [, seconds]]: only the last part may have decimals; a minus on the degrees ("-0 30") counts
-  const value = ({ nums }) => {
-    const [d, m = 0, s = 0] = nums;
-    if (m < 0 || m >= 60 || s < 0 || s >= 60 || nums.slice(0, -1).some((v) => !Number.isInteger(v))) return NaN;
-    return (d < 0 || Object.is(d, -0) ? -1 : 1) * (Math.abs(d) + m / 60 + s / 3600);
-  };
+  const value = ({ nums }) => dmsValue(nums);
   let lat, lon;
   if (comps[0].hemi) {
     const la = comps.find((c) => 'NS'.includes(c.hemi)), lo = comps.find((c) => 'EW'.includes(c.hemi));
@@ -85,6 +86,42 @@ function latLon(text) {
   } else [lat, lon] = comps.map(value);
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
   return { lat, lon };
+}
+
+// One coordinate typed into its own field: axis 'lat' or 'lon' → decimal degrees, or null. The
+// notations of parseLatLon (decimal degrees, degrees and minutes, DMS, a decimal comma), with a
+// hemisphere letter before or after, which must be the axis's own (N or S for a latitude).
+export function parseCoord(text, axis) {
+  let t = text.trim();
+  if (!t.includes('.')) t = t.replace(/(\d),(\d)/g, '$1.$2');
+  t = t.toUpperCase().replace(/[°º˚′'″"]/g, ' ').replace(/([NSEW])/g, ' $1 ').trim();
+  if (!t || /[^0-9NSEW.+\-\s]/.test(t)) return null;
+  const tokens = t.split(/\s+/);
+  const isHemi = (x) => /^[NSEW]$/.test(x);
+  const letters = tokens.filter(isHemi);
+  if (letters.length > 1 || (letters.length && !isHemi(tokens[0]) && !isHemi(tokens.at(-1)))) return null;
+  const hemi = letters[0];
+  if (hemi && !(axis === 'lat' ? 'NS' : 'EW').includes(hemi)) return null;
+  const nums = tokens.filter((x) => !isHemi(x));
+  if (!nums.length || nums.length > 3 || nums.some((x) => !/^[+-]?\d+(\.\d+)?$/.test(x))) return null;
+  if (hemi && nums[0].startsWith('-')) return null;
+  const v = dmsValue(nums.map(Number)) * (hemi === 'S' || hemi === 'W' ? -1 : 1);
+  return Number.isFinite(v) && Math.abs(v) <= (axis === 'lat' ? 90 : 180) ? v : null;
+}
+
+// A distance typed into a field → metres, or null: a number with m, km or NM (any case), or a bare
+// number, read in the unit the field showed (bare: 'm', 'km' or 'nm'). A decimal comma is read as such.
+const UNIT_M = { m: 1, km: 1000, nm: 1852 };
+export function parseDist(text, bare) {
+  const r = /^\s*(\d+(?:[.,]\d+)?|[.,]\d+)\s*(m|km|nm)?\s*$/i.exec(text);
+  return r ? +r[1].replace(',', '.') * UNIT_M[(r[2] || bare).toLowerCase()] : null;
+}
+// A distance as a field shows it, exact to the millimetre (fmtDist rounds, for reading): in the km
+// mode metres below 1 km, else km; in the nm mode NM. With its unit, for parseDist's bare number.
+export function distText(m, units) {
+  const unit = units === 'nm' ? 'nm' : m < 1000 ? 'm' : 'km';
+  const v = +(m / UNIT_M[unit]).toFixed(unit === 'm' ? 3 : 6);
+  return { text: `${v} ${unit === 'nm' ? 'NM' : unit}`, unit };
 }
 
 // Export file name (and STAC id): chart-YYYYMMDD-HHMM in UTC, then the view's centre to 0.01°

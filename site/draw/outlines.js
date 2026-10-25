@@ -1,0 +1,50 @@
+// Shape outlines (docs/drawing-format.md §7.5): each a fixed silhouette in a unit frame, stretched to a
+// shape's length (along its bearing) and width (across it). Pure: no map, no DOM.
+
+import { destination, rectangle, pathOf } from '../geodesy.js';
+export { OUTLINES } from './document.js'; // the file's list (document.js stays free of geodesy)
+export const OUTLINE_NAME = { rectangle: 'Rectangle', triangle: 'Triangle', ellipse: 'Ellipse', 'aerial-vehicle': 'Aerial vehicle', 'surface-vehicle': 'Surface vehicle', 'underwater-vehicle': 'Underwater vehicle' };
+// drawn small, a vehicle is enlarged to this many times the drawing's minimum display size
+export const VEHICLE_MIN_FACTOR = 2;
+export const isVehicle = (outline) => outline.endsWith('-vehicle');
+
+const R2D = 180 / Math.PI;
+// n + 1 points of a curve f(t), t from 0 to 1
+const curve = (f, n) => Array.from({ length: n + 1 }, (_, i) => f(i / n));
+const q = Math.PI / 2;
+// The right half of each silhouette, [u, v]: u across (0 the axis … ½ the right side), v along (½ the
+// front … −½ the back), from the front on the axis to the back on the axis
+const RIGHT = {
+  // a pointed bow curving out to full beam over the front 30 %; straight sides; a flat stern
+  'surface-vehicle': [...curve((s) => [0.5 * Math.sin(q * s), 0.5 - 0.3 * s], 16), [0.5, -0.44], [0.485, -0.485], [0.44, -0.5], [0, -0.5]],
+  // a rounded nose; a straight body; a tail tapering over the last fifth
+  'underwater-vehicle': [...curve((s) => [0.5 * Math.sin(q * s), 0.38 + 0.12 * Math.cos(q * s)], 12), [0.5, -0.28], [0.18, -0.5], [0, -0.5]],
+  // a slim body with a rounded nose; swept wings; small tail wings
+  'aerial-vehicle': [...curve((s) => [0.05 * Math.sin(q * s), 0.42 + 0.08 * Math.cos(q * s)], 8),
+    [0.05, 0.1], [0.5, -0.12], [0.5, -0.2], [0.05, -0.08], [0.05, -0.36], [0.18, -0.44], [0.18, -0.5], [0, -0.5]],
+};
+
+// A silhouette's points in the unit frame, clockwise seen from above, not closed: [[u, v]]
+export function unitOutline(outline) {
+  if (outline === 'rectangle') return [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]];
+  if (outline === 'triangle') return [[0, 0.5], [0.5, -0.5], [-0.5, -0.5]]; // isosceles, its apex at the front
+  if (outline === 'ellipse') return Array.from({ length: 72 }, (_, i) => [0.5 * Math.sin((i * Math.PI) / 36), 0.5 * Math.cos((i * Math.PI) / 36)]);
+  const right = RIGHT[outline];
+  // the left half: the right one mirrored, back to front, without the points on the axis twice
+  return [...right, ...right.slice(1, -1).reverse().map(([u, v]) => [-u, v])];
+}
+
+// A shape's outline on the ellipsoid: { ring (closed, its edges geodesics), corners (of its bounding
+// rectangle: front right, back right, back left, front left, as geodesy.rectangle) }. Each point is
+// a geodesic destination from the centre, as the rectangle's corners are.
+export function outlineOf(center, bearing, length, width, outline = 'rectangle') {
+  const box = rectangle(center, bearing, length, width);
+  if (outline === 'rectangle') return box;
+  return { ring: pathOf(outlinePoints(center, bearing, length, width, outline), true, 1000), corners: box.corners };
+}
+// An outline's own corners on the ellipsoid, in order, not closed: a rectangle's four (as
+// geodesy.rectangle), a silhouette's points. Its edges join each to the next, the last to the first.
+export function outlinePoints(center, bearing, length, width, outline = 'rectangle') {
+  if (outline === 'rectangle') return rectangle(center, bearing, length, width).corners;
+  return unitOutline(outline).map(([u, v]) => destination(center, bearing + Math.atan2(u * width, v * length) * R2D, Math.hypot(u * width, v * length)));
+}

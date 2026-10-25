@@ -186,7 +186,7 @@ development.
 | `site/hosts.js` | Every host the page may reach: read by the catalogue and by `tools/deps.mjs` (the Content-Security-Policy). |
 | `site/legend.js` | Legend drawing. |
 | `site/format.js` | Pure formatting and parsing helpers. |
-| `site/geo.js`, `site/net.js`, `site/dom.js` | Web Mercator maths; how requests are made and shared; DOM helpers. |
+| `site/geo.js`, `site/net.js`, `site/dom.js` | Web Mercator maths and small geometry helpers (`D2R`, `norm360`, `nearestOnSegment`); how requests are made and shared; DOM helpers. |
 | `tools/deps.mjs` | Pins, hashes and checks the CDN dependencies. |
 | `tools/gebco.mjs` | GEBCO's depth grids as Zarr stores (download, build, verify), published at `geodata.makaw.org`. |
 | `tools/seagrass.mjs` | EMODnet's seagrass as vector tiles (download, build), published at `geodata.makaw.org`: its WMS takes a minute or more a tile. |

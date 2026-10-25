@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, exportName } from '../../site/format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, parseCoord, parseDist, distText, exportName } from '../../site/format.js';
 
 test('fmtAngle: degrees, minutes, hemispheres, carry', () => {
   assert.equal(fmtAngle(44, 'N', 'S', 1), '44°N');
@@ -60,4 +60,45 @@ test('parseLatLon: a decimal comma, where the text has no decimal point', () => 
   assert.deepEqual(parseLatLon('43,6N 13,5E'), { lat: 43.6, lon: 13.5 });
   assert.deepEqual(parseLatLon('43,13'), { lat: 43, lon: 13 }); // a comma between two numbers stays a separator
   assert.deepEqual(parseLatLon('43.6,13.5'), { lat: 43.6, lon: 13.5 });
+});
+
+test('parseCoord: one coordinate, each notation, its own hemisphere only', () => {
+  const near = (v, want) => assert.ok(v !== null && Math.abs(v - want) < 1e-9, `${v} vs ${want}`);
+  near(parseCoord('37.2913083', 'lat'), 37.2913083);
+  near(parseCoord('-9.5', 'lon'), -9.5);
+  near(parseCoord('37,29', 'lat'), 37.29); // decimal comma
+  near(parseCoord('37 17.48N', 'lat'), 37 + 17.48 / 60);
+  near(parseCoord('N37 17.48', 'lat'), 37 + 17.48 / 60);
+  near(parseCoord('37° 17\' 28.71"S', 'lat'), -(37 + 17 / 60 + 28.71 / 3600));
+  near(parseCoord('009° 31\' 28.34"E', 'lon'), 9 + 31 / 60 + 28.34 / 3600);
+  near(parseCoord('-0 30', 'lat'), -0.5);
+  assert.equal(parseCoord('37N', 'lon'), null); // a latitude's letter in a longitude field
+  assert.equal(parseCoord('91', 'lat'), null);
+  assert.equal(parseCoord('181', 'lon'), null);
+  assert.equal(parseCoord('37 61', 'lat'), null); // minutes ≥ 60
+  assert.equal(parseCoord('N37 S2', 'lat'), null);
+  assert.equal(parseCoord('-37N', 'lat'), null);
+  assert.equal(parseCoord('', 'lat'), null);
+  assert.equal(parseCoord('abc', 'lat'), null);
+});
+
+test('parseDist: units, a bare number in the unit shown, rubbish', () => {
+  assert.equal(parseDist('500 m', 'km'), 500);
+  assert.equal(parseDist('1.2 NM', 'm'), 1.2 * 1852);
+  assert.equal(parseDist('3km', 'nm'), 3000);
+  assert.equal(parseDist('2,5 km', 'm'), 2500);
+  assert.equal(parseDist('750', 'm'), 750);
+  assert.equal(parseDist('1.5', 'km'), 1500);
+  assert.equal(parseDist('2', 'nm'), 3704);
+  for (const bad of ['', 'abc', '-5 m', '5 mi', '1e3 m']) assert.equal(parseDist(bad, 'm'), null, bad);
+});
+
+test('distText: exact to the millimetre, in the unit the mode reads', () => {
+  assert.deepEqual(distText(500, 'km'), { text: '500 m', unit: 'm' });
+  assert.deepEqual(distText(1234.5, 'km'), { text: '1.2345 km', unit: 'km' });
+  assert.deepEqual(distText(1852 * 1.5, 'nm'), { text: '1.5 NM', unit: 'nm' });
+  for (const m of [0.001, 999.999, 1000, 12345.678]) {
+    const t = distText(m, 'km');
+    assert.ok(Math.abs(parseDist(t.text, t.unit) - m) < 1e-3, t.text);
+  }
 });

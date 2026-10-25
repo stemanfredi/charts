@@ -2,7 +2,17 @@
 
 export const R = 6378137; // the sphere's radius, metres
 export const CIRC = 2 * Math.PI * R; // the world's width, metres
-const D2R = Math.PI / 180;
+export const MAX_LAT = 85.05112878; // the latitude the map stops at (a square world)
+export const D2R = Math.PI / 180;
+// an angle in degrees as 0 ≤ a < 360
+export const norm360 = (a) => ((a % 360) + 360) % 360;
+// the nearest place on the planar segment a–b to p: { q, t (0–1 along it), d }
+export function nearestOnSegment(a, b, p) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  const q = [a[0] + t * dx, a[1] + t * dy];
+  return { q, t, d: Math.hypot(q[0] - p[0], q[1] - p[1]) };
+}
 // lon/lat → EPSG:3857 metres, and back
 export const mercator = ([lng, lat]) => [R * lng * D2R, R * Math.log(Math.tan(Math.PI / 4 + (lat * D2R) / 2))];
 export const unmercator = ([x, y]) => [x / R / D2R, 90 - (360 / Math.PI) * Math.atan(Math.exp(-y / R))];
