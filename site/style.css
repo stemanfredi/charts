@@ -13,6 +13,10 @@
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
 body { font: 13px/1.4 var(--font); color: var(--ink); background: #f1ebdc; overflow: hidden; }
+/* the map not started: said after a few seconds, unless app.js has removed it by then */
+.nostart { position: absolute; z-index: 10; top: 40%; left: 16px; right: 16px; max-width: 420px; margin: 0 auto; padding: 12px 16px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); visibility: hidden; animation: nostart 0s 8s forwards; }
+@keyframes nostart { to { visibility: visible; } }
 #map { position: absolute; inset: 0; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }

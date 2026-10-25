@@ -209,6 +209,7 @@ const map = new maplibregl.Map({
   transformRequest: (url) => ({ url, referrerPolicy: 'no-referrer' }),
 });
 map.touchZoomRotate.disableRotation();
+$('#nostart').remove(); // started (index.html)
 const small = () => window.innerWidth < 720;
 
 // ---- bottom row: credits; scale note, time shown, cursor position, double scale
@@ -1105,7 +1106,27 @@ function flash(b, text, title = '', ms = 1200) { // the button's own text says i
   b.flashTimer = setTimeout(() => { b.querySelector('span').textContent = own.label; b.title = own.title; }, ms);
 }
 const about = $('#about');
-$('#b-about').addEventListener('click', () => about.showModal());
+$('#b-about').addEventListener('click', () => { about.showModal(); showVersion(); });
+// the version published: version.json, written by the deploy (ci.yml); none on a development copy
+let versionShown = false;
+async function showVersion() {
+  if (versionShown) return;
+  versionShown = true;
+  try {
+    const r = await fetch('version.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const { commit, date } = await r.json();
+    if (!/^[0-9a-f]{40}$/.test(commit)) return;
+    $('#version').replaceChildren('version ', h('a', { href: `https://github.com/stemanfredi/charts/commit/${commit}`, target: '_blank', rel: 'noopener' }, commit.slice(0, 7)), date ? ` of ${String(date).slice(0, 10)}` : '');
+  } catch { /* a development copy */ }
+}
+// Report an issue: a new GitHub issue with this view's link (the area and the layers; never the
+// measurements or the drawing), editable before it is submitted
+$('#issue').addEventListener('click', (e) => {
+  writeHashNow();
+  const body = `What happened, and what you expected:\n\n\nThe view (its link shows the area viewed and the layers; delete it if you prefer):\n${location.href}\n`;
+  e.currentTarget.href = `https://github.com/stemanfredi/charts/issues/new?body=${encodeURIComponent(body)}`;
+});
 about.querySelector('[data-close]').addEventListener('click', () => about.close());
 
 // the single keys (keys.js), from anywhere: search, a panel, or a tool, which opens its panel

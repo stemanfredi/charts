@@ -22,11 +22,11 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
   // credits: the names each provider asks for, short enough for one line; what each layer is
   // made from is behind its ⓘ
   const ATTR_OSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · <a href="https://openfreemap.org">OpenFreeMap</a>';
-  const ATTR_DEM = '<a href="https://registry.opendata.aws/terrain-tiles/">Mapzen Terrain Tiles</a>';
+  const ATTR_DEM = '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Mapzen Terrain Tiles</a>'; // its sources' credits there
   const ATTR_GEBCO = '<a href="https://www.gebco.net">GEBCO 2026 Grid</a>'; // the sea's depths (gebco.js)
   const s = {
     omt: { type: 'vector', url: OMT_TILEJSON, attribution: ATTR_OSM },
-    'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: ATTR_GEBCO },
+    'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: `${ATTR_GEBCO} · ${ATTR_DEM}` }, // Terrain Tiles where GEBCO cannot be read
     dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
     seagrass: { type: 'vector', tiles: ['seagrass://{z}/{x}/{y}'], minzoom: SEAGRASS_ZOOMS[0], maxzoom: SEAGRASS_ZOOMS[1], bounds: [-50, 25, 45, 72],
       attribution: '<a href="https://emodnet.ec.europa.eu/en/seabed-habitats">EMODnet Seabed Habitats</a>' },
@@ -45,7 +45,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
       attribution: HA_CREDIT },
     routes: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('routes', ...(density.routes || ['all', DENSITY.routes.defaultPeriod])),
       attribution: '<a href="https://www.emsa.europa.eu/">EMSA</a> (CC BY 4.0) via ' + HA_CREDIT },
-    seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '<a href="https://openseamap.org">OpenSeaMap</a>',
+    seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '© <a href="https://openseamap.org">OpenSeaMap</a> contributors (CC BY-SA)',
       tiles: [`${HOSTS.openseamap}/seamark/{z}/{x}/{y}.png`] },
     ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
       { type: 'raster', tileSize: 256, maxzoom: OVERLAY_MAXZOOM[item] ?? 18, tiles, attribution: OVERLAY_CREDIT[item] || HA_CREDIT }]))),

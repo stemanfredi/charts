@@ -195,6 +195,14 @@ try {
   await cm.click('#b-about');
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
+  check(await cm.evaluate(() => !document.querySelector('#nostart')), 'the map started: the notice that it did not is gone');
+  // coordinates being typed never reach the place search
+  const sent = [];
+  cm.on('request', (r) => { if (r.url().includes('photon')) sent.push(r.url()); });
+  await cm.fill('#q', '35 54N 14');
+  await cm.waitForTimeout(800);
+  check(!sent.length && /latitude, then longitude/.test(await cm.textContent('#results')), `coordinates being typed stay in the page (${sent.length} sent)`);
+  await cm.fill('#q', '');
   await cm.close(); await cmAgain.close();
   // the Ocean data menus: waves in colours, currents in arrows; wind in arrows; currents in both
   // draw speed and direction; none

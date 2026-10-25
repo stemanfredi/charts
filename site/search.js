@@ -5,6 +5,10 @@ import { dm, parseLatLon } from './format.js';
 import { FETCH } from './net.js';
 import { HOSTS } from './hosts.js';
 
+// Text that can only be coordinates, complete or not: digits with signs, separators, degree, minute
+// and second marks, hemisphere letters
+export const looksLikeCoords = (text) => /\d/.test(text) && /^[\d\s.,;:°º'"′″+\-NSEWnsew]+$/.test(text);
+
 const PHOTON = `${HOSTS.photon}/api/`;
 // what a sea chart is mostly searched for comes first: places, the coast and the sea (capes, bays,
 // straits, beaches, harbours), marinas, ferry terminals, lighthouses, piers; then the rest (streets,
@@ -88,6 +92,9 @@ export function search(map, Marker, free = () => 60) {
     if (ll) { // coordinates: nothing leaves the page
       searchCtl?.abort();
       showResults([{ go: true, name: `${dm(ll.lat, 'N', 'S')}  ${dm(ll.lon, 'E', 'W')}`, where: 'coordinates', at: [ll.lon, ll.lat], zoom: 11 }]);
+    } else if (looksLikeCoords(text)) { // coordinates still being typed: never sent either
+      searchCtl?.abort();
+      showResults([{ name: 'Coordinates: latitude, then longitude', where: 'kept in the page' }]);
     } else if (text.length >= 3) searchTimer = setTimeout(() => searchPlaces(text), 300);
     else hideResults();
   });

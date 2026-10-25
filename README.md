@@ -74,7 +74,7 @@ from soundings.
 One limit of the GeoJSON: OpenMapTiles merges neighbouring buildings into one
 feature whose parts touch, which is not valid geometry to begin with. The export
 unions those parts, but now and then a building feature comes out still touching
-itself (3 of 49 in central Taranto at zoom 14.5). GIS tools open these files;
+itself (a few in a dense city centre). GIS tools open these files;
 QGIS's *Fix geometries* repairs them.
 
 The drawing's file is plain GeoJSON, so any GIS opens it, with these limits:
@@ -110,13 +110,13 @@ them from each provider, and each layer stays under its provider's licence.
 | Relief shading, land contours | AWS Terrain Tiles (Terrarium) | Open data, with attribution per source |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
 | EMODnet depth (Europe) | EMODnet Bathymetry (tiles; its values from its Zarr store, listed in EDITO's catalogue) | CC BY 4.0 |
-| Seabed substrate | EMODnet Geology | CC BY 4.0 |
+| Seabed substrate (Europe) | EMODnet Geology | CC BY 4.0 |
 | Seagrass (Europe) | EMODnet Seabed Habitats, seagrass cover 2025, cut into tiles at `geodata.makaw.org` (`tools/seagrass.mjs`); its Caribbean part (CC BY-NC) left out | CC BY 4.0 |
 | Maritime zones | Marine Regions (Flanders Marine Institute, VLIZ): maritime boundaries and zones | CC BY 4.0; not for legal or navigational use |
 | Wrecks, cables, pipelines, offshore installations, wind farms, military and protected areas | EMODnet Human Activities (wrecks: UKHO) | CC BY 4.0 |
-| Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
+| Vessel density (Europe) | EMODnet Human Activities | EMODnet open data, attribution requested |
 | Vessel density (world) | World Bank Group and IMF, Global Shipping Traffic Density (the World Bank's tiles) | CC BY 4.0 |
-| Route density | EMSA, via EMODnet Human Activities | CC BY 4.0 |
+| Route density (Europe) | EMSA, via EMODnet Human Activities | CC BY 4.0 |
 | Sea state, water properties, satellite observations, water quality | Copernicus Marine Service | Copernicus Marine licence: free, attribution required |
 | NASA daily (true colour) | NASA EOSDIS GIBS | NASA open data |
 | Place search | Photon (komoot), OpenStreetMap data | ODbL |
@@ -176,7 +176,8 @@ on-screen credits and the PNG list only the sources that are drawn.
 - No request sends a `Referer` header, including requests from MapLibre's and
   the clipping worker's threads.
 - A Content-Security-Policy limits the page to the pinned CDN packages and the
-  provider hosts listed in `tools/deps.mjs`.
+  provider hosts listed in `site/hosts.js`. The libraries come from jsDelivr,
+  which sees each visit as any CDN does.
 - Tile requests necessarily tell each provider which area is being viewed. A
   hidden layer makes no requests. GEBCO's depths and the seagrass come from this project's own
   bucket, `geodata.makaw.org`. A GIS export with Copernicus layers drawn
@@ -185,7 +186,8 @@ on-screen credits and the PNG list only the sources that are drawn.
   depth tiles along that line; nothing else of a drawing makes a request.
 - Coordinates typed into the search box are parsed in the page and never sent.
   Place names are sent to Photon as you type, along with the map centre rounded
-  to 0.1°. The results list says so.
+  to 0.1°. The results list says so. For a place that should not be named, type
+  its coordinates.
 
 ## How it works
 
@@ -226,7 +228,7 @@ development.
 | `site/catalog.js` | Menu items and their provenance, data sources, datasets. |
 | `site/style.js` | The map style built from the catalogue: sources, layers in draw order. |
 | `site/app.js` | Map setup, state and URL, panels, legends, graticule, credits; assembles the exports. |
-| `site/search.js` | Place search (Photon) and coordinates. |
+| `site/search.js` | Place search (Photon) and coordinates (never sent, complete or not). |
 | `site/png.js` | The PNG export's picture and text fields. |
 | `site/values.js` | Layers as data for the GIS export: Copernicus, GEBCO and EMODnet values from their Zarr stores. |
 | `site/gebco.js` | The sea's depths for the elevation tiles, from GEBCO's Zarr store. |

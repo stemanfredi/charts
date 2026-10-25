@@ -3,7 +3,10 @@
   "private": true,
   "license": "GPL-3.0-or-later",
   "type": "module",
-  "description": "Static world chart. No build: these scripts are for development only.",
+  "description": "A world chart in one static page: open map, depth and ocean data, with measuring and drawing tools. No build: these scripts are for development only.",
+  "author": "Stefano Manfredi",
+  "homepage": "https://charts.makaw.org",
+  "repository": { "type": "git", "url": "git+https://github.com/stemanfredi/charts.git" },
   "scripts": {
     "test": "node --test \"test/unit/*.test.mjs\"",
     "lint": "eslint .",
