@@ -1054,7 +1054,7 @@ map.on('click', async (e) => {
   if (!Number.isFinite(v)) { depthPopup.remove(); return; } // land, a lake, inland water: no depth here
   const source = DEPTH_SOURCES.find(({ codes: [a, b] }) => code >= a && code <= b);
   // −1: shallower than 1 m, or sea the data calls dry (clip.js)
-  const depth = v >= -1 ? 'Shallow: under 1 m, or not known' : `${Math.floor(-v)} m deep`;
+  const depth = v >= -1 ? 'Shallow: under 1 m, or not known' : `${Math.floor(-v)} m`;
   depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, depth),
     h('small', {}, ['GEBCO 2026', source?.label.toLowerCase()].filter(Boolean).join(' · ')))).addTo(map);
 });
