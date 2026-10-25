@@ -3,7 +3,7 @@
 How drawing and measuring look and behave. The file is in `drawing-format.md`.
 
 Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, `attach.js`,
-`drag.js`, `features.js` what the map draws and its handles, `generator.js` Repeat along and Connect,
+`drag.js`, `features.js` what the map draws and its handles, `generator.js` Distribute along and Connect,
 `clipboard.js`, `presets.js`, `place.js` what Point and Shape place), `site/tools.js` (the keys of what is being drawn),
 `site/keys.js`.
 
@@ -171,7 +171,7 @@ heading opens it); a point placed from a preset says so under it ("from preset R
 
 **Lists** (parts, vertices, corners, data): fixed columns, the first ones kept
 in place while a wide list scrolls sideways; a row clicked or typed in is the current one, its
-actions in a bar under the list (Insert after, Delete, Split, Repeat along it…), and on keys
+actions in a bar under the list (Insert after, Delete, Split, Distribute along it…), and on keys
 (Insert, Ctrl/⌘ Delete); ↑, ↓ and Enter go to the same column in the row above or below. **Copy** on
 a list's heading puts its rows on the clipboard, tab-separated, a header first, every column (metres
 and degrees), for a spreadsheet. Places pasted into a vertex's or a corner's latitude (several lines,
@@ -203,9 +203,9 @@ it.
   **Parts**, always its own, a list: each its place, its kind (circle, sector, an outline; changing it
   keeps its reach), its size (a radius, a sector's with its aperture; an outline's length × width, its
   area in the tooltip), **Fill**, **Shown**, its own stroke colour and dash, a name. The empty last row
-  ("add a part…") adds one (a round one twice the last round one's radius); its bar: **Repeat along
-  it…**, **Delete**. When outlines are drawn enlarged, it says so.
-  With parts: **Repeat along…** (§6). Then **Save as preset…** (§9).
+  ("add a part…") adds one (a round one twice the last round one's radius); its bar: **Distribute
+  along it…**, **Delete**. When outlines are drawn enlarged, it says so.
+  With parts: **Distribute along…** (§6). Then **Save as preset…** (§9).
 - **Area:** area and perimeter; its corners (latitude, longitude; from corner 2 on, the **Edge** from
   the corner before, its length and bearing: typed, that corner and those after it move together, the
   closing edge following; its bar: **Insert after** (halfway to the next), **Delete** (while more than
@@ -213,7 +213,7 @@ it.
 - **Line:** **Start** and **End** (attached: what to, and which vertex or edge, with **Attach to…**
   (the next click on the map chooses again; Esc cancels) and **×**, which detaches it: the end stays where it
   is; free: its position, and **Attach to…**); Length (the drawn line's, curves
-  included) with **Repeat along…** (§6); **Depth profile** (pressed: the depth along
+  included) with **Distribute along…** (§6); **Depth profile** (pressed: the depth along
   the line, as the depth shading has it (GEBCO, cut to the coast), sampled at the grid's spacing, at
   most 1,000 places; the shallowest and the deepest; a chart whose place pointed at shows on the map,
   and the line pointed at on the map shows on the chart; its length along the seabed, a lower bound;
@@ -243,51 +243,54 @@ it.
   **Totals** (all, then **By** group or by any property key the drawing uses, one row per value and one
   for those without it; guides left out; hidden ones counted and said so).
 
-## 6. Repeat along and Connect: rules
+## 6. Distribute along and Connect: rules
 
 Both are **rules** (`generator.js`): what they make stays linked to them, follows what it was made
 from, and can be edited again. What a rule makes is in a group of its own; anything it made (a copy,
-a hub, a line, its groups) shows a first row in its inspector, **Made by** ("Repeat along Line 2 · 12
-copies, connected to 1 origin") with **Edit…** (its form) and **Select all** (everything it made).
+a hub, a line, its groups) shows a first row in its inspector, **Made by** ("Distribute along Line 2 ·
+12 copies, connected to 1 root") with **Edit…** (its form) and **Select all** (everything it made).
 
-**Repeat along…** opens a form in the inspector, headed **Repeat along** and the name of what it is
-along: a line, or a point, round one of its parts (**Part**, when it has several; to start with, its
-first filled round part), clockwise: a circle's whole round from its bearing, a sector's arc from
+**Distribute along…** opens a form in the inspector, headed **Distribute along** and the name of what
+it is along: a line, or a point, round one of its parts (**Part**, when it has several; to start with,
+its first filled round part), clockwise: a circle's whole round from its bearing, a sector's arc from
 one end to the other, an outline's ring.
 
 - Settings: **By** spacing or count; **Margins** at the start and the end (not round a whole part);
-  **Offset** to the left, the right or alternating (Out, In, Alternate round a part); **Repeat**: what
+  **Offset** to the left, the right or alternating (Out, In, Alternate round a part); **Copy**: what
   each copy is, a built-in kind (a circle to start with: a point with a diamond and one circle) or a
   preset of yours; **Radius**, the copies' reach, apart from the spacing (500 m to start with; they
   may overlap; a preset of yours keeps its size, shown); **Sector** (the circle only) none, 90°, 180°
   or 270°, facing away from the line or outwards; **In group** (where its own group goes: at the top
   to start with).
-- It makes its own group, "Repeat along" and the name, holding **Circles** (the copies) and, when
-  connected, **Connection**: each looked at, hidden or styled apart.
-- **Connect to origins**, in the same form: **Layout: Chain · Tree** (Chain: origin → point → next
-  point; Tree: origin → hub → each point; Tree to start with); **Capacity** Auto (the size with the
-  shortest total) or Set, a number (3 to start with); **Branch at least** (Tree only: 0 m to start
-  with; each hub moves back along its trunk until every branch is that long; at 0 a hub may sit on
-  a point, a branch of 0 m, and can be dragged off it; one pushed back to its origin is said in the
-  summary); **Origins**, listed, × dropping one. While origins are picked the cursor is a crosshair,
-  where a click places a new origin (made with the rest), or a pointer over a point, which a click
-  takes as an origin or drops. The points are shared evenly among the origins, in order; an origin
-  far from every share is reported unused.
-- A faint preview shows the copies, the lines and the origins (ringed) as the settings change.
+- It makes its own group, "Distribute along" and the name, holding **Copies** and, when connected,
+  **Connection**: each looked at, hidden or styled apart.
+- **Connect to roots**, in the same form: **Tree · Chain** (Tree: root → hub → each point; Chain:
+  root → point → next point; Tree to start with); **Group size** Auto (any size: the cheapest cut,
+  trees of up to 32 points) or Set, a number (3 to start with); **Min. branch** (Tree only: 0 m to
+  start with; every hub at least this far from its points and from its root; at 0 a hub may sit on a
+  point, a branch of 0 m, and can be dragged off it); **Roots**, listed with a **weight** each (1 to
+  start with), × dropping one. While roots are picked the cursor is a crosshair, where a click places
+  a new root (made with the rest), or a pointer over a point, which a click takes as a root or drops.
+  The plan: the points, in order along the line, are cut into groups of consecutive points, each
+  joined to one root, the cut and the roots chosen together as the cheapest: the sum of the groups'
+  lengths, each divided by its root's weight (a root weighted 2 wins groups as if it were half as
+  far); a tie goes to the most even cut. The summary says the trees or chains and their sizes, the
+  roots used and the total length of the lines; a root that wins no group is reported unused.
+- A faint preview shows the copies, the lines and the roots (ringed) as the settings change.
   **Create** makes it all in one undo step and selects its group (another selection closes the
   form). The copies follow what they lie along; hubs follow their points; one moved by hand stops
   following.
-- **Edit…** opens the same form, headed **Edit, repeated along** and the name. The same count moves
-  the copies and makes each the rule's again, but one changed by hand (its parts or symbol): it keeps
-  its own, and its inspector offers **↺** for the rule's. Another count makes them anew (it warns
-  first), and their connection with them. A changed connection is made again; unticking Connect
-  removes its lines and hubs (the origins stay).
-- **Connect…** (two or more points selected, placed by hand): the Connect half alone; its lines, hubs
-  and new origins go in a **Connection** group in the points' group. **Edit…** makes it anew; lines
-  edited by hand are replaced (Undo brings them back).
-- **Deleting an origin** makes its connection again with the origins left, in the same undo step as
-  the delete; deleting the last one removes the connection's lines and hubs (the copies stay). An
-  origin moved by hand: its lines and hubs follow; nothing is planned again until Edit….
+- **Edit…** opens the same form, headed **Edit, distributed along** and the name. The same count
+  moves the copies and makes each the rule's again, but one changed by hand (its parts or symbol): it
+  keeps its own, and its inspector offers **↺** for the rule's. Another count makes them anew (it
+  warns first), and their connection with them. A changed connection is made again; unticking Connect
+  removes its lines and hubs (the roots stay).
+- **Connect…** (two or more points selected, placed by hand): the Connect half alone, the points taken
+  in the order selected; its lines, hubs and new roots go in a **Connection** group in the points'
+  group. **Edit…** makes it anew; lines edited by hand are replaced (Undo brings them back).
+- **Deleting a root** makes its connection again with the roots left, in the same undo step as the
+  delete; deleting the last one removes the connection's lines and hubs (the copies stay). A root
+  moved by hand: its lines and hubs follow; nothing is planned again until Edit….
 
 ## 7. On the map
 
@@ -357,7 +360,7 @@ it. Presets live in this browser only, never in a drawing's file; **Export › P
 
 - Delete goes at once; the note says so, with **Undo**. Lines attached to what goes stay, their ends
   free where they were (the note counts them). Labels on it stay, free where they pointed.
-  Deleting an origin of a connection makes the connection again with the origins left (§6).
+  Deleting a root of a connection makes the connection again with the roots left (§6).
 - A group with members asks first: delete the group only (its members and subgroups go to the group
   above it, or to none, with their look), or the group and everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.

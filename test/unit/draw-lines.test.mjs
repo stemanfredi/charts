@@ -171,36 +171,6 @@ test('applySmooth and refreshAuto: lines in mode auto take the Smooth handles, f
   assert.equal(fixed.mode, 'fixed');
 });
 
-test('relaxed curves: a line heading onwards from a point leaves along the lines arriving there; one turning back stays straight', () => {
-  const doc = emptyDoc(0);
-  const a = addPoint(doc, [12, 40]), d = addDot(doc, [12.2, 40]), n = addPoint(doc, [12.4, 40.05]), s = addPoint(doc, [12.1, 39.95]);
-  addLine(doc, a.id, [], d.id); // arrives at d, heading east
-  const on = addLine(doc, d.id, [], n.id, { mode: 'auto' });
-  const back = addLine(doc, d.id, [], s.id, { mode: 'auto' });
-  refreshAuto(doc);
-  assert.ok(on.startHandle && Math.abs(on.startHandle[1]) < 1e-3 * Math.abs(on.startHandle[0]) && on.startHandle[0] > 0, 'east, along the arriving line');
-  assert.ok(on.endHandle, 'and bends to its end');
-  assert.equal(back.startHandle, null);
-  assert.equal(back.endHandle, null);
-});
-
-test('relaxed curves: only lines ending at the point count, guides left out; a free start stays straight', () => {
-  const doc = emptyDoc(0);
-  const d = addDot(doc, [12.2, 40]), n = addPoint(doc, [12.4, 40.05]);
-  // a sibling leaving the same point, and a guide arriving there: neither is followed
-  addLine(doc, d.id, [], [12.4, 39.9]);
-  addLine(doc, [12, 40], [], d.id, { guide: true });
-  const on = addLine(doc, d.id, [], n.id, { mode: 'auto' });
-  const free = addLine(doc, [12.2, 40], [], [12.4, 40.05], { mode: 'auto' });
-  refreshAuto(doc);
-  assert.deepEqual([on.startHandle, on.endHandle], [null, null]);
-  assert.deepEqual([free.startHandle, free.endHandle], [null, null]);
-  // arriving from the north-west: the line leaves heading south-east, then bends to its end
-  addLine(doc, [12.1, 40.1], [], d.id);
-  refreshAuto(doc);
-  assert.ok(on.startHandle && on.startHandle[0] > 0 && on.startHandle[1] < 0, `south-east: ${on.startHandle}`);
-});
-
 test('an attached end follows its point; one whose point is deleted stays where it was, free', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.2, 40]);

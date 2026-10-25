@@ -93,7 +93,7 @@ export class DrawStore {
   }
   // what deleting ids takes with it (to ask first), and the deletion: one undo step
   dependents(ids, withMembers) { return dependents(this.doc, ids, withMembers); }
-  // a delete: one undo step; a connection that lost an origin made again with those left
+  // a delete: one undo step; a connection that lost a root made again with those left
   remove(ids, withMembers = false) { this.change((doc) => reconnectWithout(doc, removeKeepingLabels(doc, ids, withMembers))); }
   // A whole other document (read back, opened, New): its display settings with it, nothing selected,
   // undo starting again.

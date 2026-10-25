@@ -1,23 +1,23 @@
-// Rules (docs/drawing-ui.md §6): Repeat along and Connect, two tools that make ordinary points and
-// lines and stay linked to them, kept in doc.rules ({ kind: 'repeat' | 'connect', ... }). What a rule
-// makes is in a group of its own: Repeat along's, "Repeat along X", holds a subgroup "Circles" (the
-// copies) and Connect's subgroup "Connection" (its lines, hubs and new origins); Connect alone makes
+// Rules (docs/drawing-ui.md §6): Distribute along and Connect, two tools that make ordinary points and
+// lines and stay linked to them, kept in doc.rules ({ kind: 'distribute' | 'connect', ... }). What a
+// rule makes is in a group of its own: Distribute along's, "Distribute along X", holds a subgroup
+// "Copies" and Connect's subgroup "Connection" (its lines, hubs and new roots); Connect alone makes
 // its "Connection" in the points' group. Pure: no map, no DOM.
-//   Repeat along: circles along a line, or round a point's part (a circle: the whole of it from its bearing,
-//     or its sector's arc from one end to the other, clockwise): points every `spacing` (or `count` of
-//     them) between the margins, offset to one side or alternating, each a circle or a sector facing
+//   Distribute along: copies along a line, or round a point's part (a circle: the whole of it from its
+//     bearing, or its sector's arc from one end to the other, clockwise): points every `spacing` (or
+//     `count` of them) between the margins, offset to one side or alternating, each a copy facing
 //     away from the line (on an arc, left is outwards). They follow the line or the point when it is
 //     edited (moved, turned, its radius or arc changed); one moved by hand stops following.
-//   Connect: points joined to origins. The points, in order (an array's along its line, otherwise
-//     along the direction they mainly run in), are shared evenly among the origins, each origin taking
-//     the share nearest it (one far from its share, likely a mistake, gives it to its neighbour and is
-//     reported unused); each share is cut into groups of at most `capacity` (one shorter, placed where
-//     the total is smallest; 'auto': the size with the shortest total). Pattern 'tree': a hub per
-//     group (the geometric median of its points and its origin, Weiszfeld; moved back along the trunk
-//     while a branch is shorter than `minBranch`), a line from the origin to it (part "trunk"), lines
-//     from it to each point ("branch", 0 m where the hub is on the point); 'chain': a line from the origin to
-//     the group's nearer end point, then point to point ("chain"). Each line is attached to the points
-//     it joins; hubs follow their points; one moved by hand stops following.
+//   Connect: points joined to roots. The points in order (a distribution's along its line, otherwise
+//     as given) are cut into groups of consecutive points, at most `groupSize` each ('auto': any
+//     size), each joined to one root: the cut and the roots chosen together as the cheapest (plan:
+//     the sum of the groups' lengths, each divided by its root's weight; a root with a weight of 2
+//     wins groups as if it were half as far). A root that wins no group is reported unused. Tree: a
+//     hub per group (the geometric median of its points and its root, kept at least `minBranch` from
+//     each of them), a line from the root to it (part "trunk"), lines from it to each point ("branch");
+//     chain: a line from the root to the group's nearer end point, then point to point ("chain").
+//     Each line is attached to the points it joins; hubs follow their points; one moved by hand stops
+//     following.
 // The lines are straight: they are the real object (positions, lengths).
 
 import { inverse, destination, localFrame as frame } from '../geodesy.js';
@@ -28,11 +28,9 @@ import { outlineOf } from './outlines.js';
 import { BUILT_IN, scaled } from './place.js';
 
 // a drawing's rules of each kind
-export const repeats = (doc) => doc.rules.filter((r) => r.kind === 'repeat');
+export const distributions = (doc) => doc.rules.filter((r) => r.kind === 'distribute');
 export const connections = (doc) => doc.rules.filter((r) => r.kind === 'connect');
 import { removeKeepingLabels } from './labels.js';
-
-const FORCE_LIMIT = 2; // an origin keeps its share unless a neighbouring origin's connection is less than half as long
 
 // ---- placing points along a line ---------------------------------------------------------------------
 
@@ -90,8 +88,9 @@ const facingOf = (el, position, azi, left) => (el.position ? away(inverse(el.pos
 
 // ---- planning a connection ----------------------------------------------------------------------------
 
-// The geometric median of planar points (Weiszfeld), weights all 1.
-export function weiszfeld(pts, iterations = 500) {
+// The geometric median of planar points (Weiszfeld), weights all 1; tol: the step (m) at which it
+// has settled.
+export function weiszfeld(pts, iterations = 500, tol = 1e-6) {
   let m = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
   for (let it = 0; it < iterations; it++) {
     let wx = 0, wy = 0, w = 0;
@@ -101,104 +100,107 @@ export function weiszfeld(pts, iterations = 500) {
       wx += p[0] / d; wy += p[1] / d; w += 1 / d;
     }
     const next = [wx / w, wy / w];
-    if (Math.hypot(next[0] - m[0], next[1] - m[1]) < 1e-6) return next;
+    if (Math.hypot(next[0] - m[0], next[1] - m[1]) < tol) return next;
     m = next;
   }
   return m;
 }
 const hubOf = (positions) => { const f = frame(positions[0]); return f.from(weiszfeld(positions.map(f.to))); };
-// A tree's hub: the geometric median of its nodes and its origin (on a node, it stays there: a branch
-// of 0 m). A branch shorter than minBranch (m) moves it back along the trunk towards the origin, to the
-// first place where every branch is that long, or to the origin.
-const HUB_STEPS = 64;
-export function hubFor(nodes, origin, minBranch = 0) {
-  const b = hubOf([...nodes, origin]);
-  const ok = (q) => nodes.every((n) => inverse(n, q).s >= minBranch - 1e-6);
-  if (!(minBranch > 0) || ok(b)) return b;
-  const t = inverse(b, origin), at = (f) => destination(b, t.azi, t.s * f);
-  for (let i = 1; i < HUB_STEPS; i++) {
-    if (!ok(at(i / HUB_STEPS))) continue;
-    let lo = (i - 1) / HUB_STEPS, hi = i / HUB_STEPS; // the first step far enough: the place between it and the one before
-    for (let k = 0; k < 30; k++) { const mid = (lo + hi) / 2; if (ok(at(mid))) hi = mid; else lo = mid; }
-    return at(hi);
+// A tree's hub: the geometric median of its nodes and its root (on a node when that is the median: a
+// branch of 0 m). With a shortest branch (minBranch, m), the hub is kept that far from every node and
+// from the root: pushed straight away from each it is too near, in turn, until none is. On one of them
+// (within a metre: the median settles beside a node), it goes towards the root (from the root: towards
+// the nodes).
+export function hubFor(nodes, root, minBranch = 0) {
+  let h = hubOf([...nodes, root]);
+  if (!(minBranch > 0)) return h;
+  const all = [...nodes, root];
+  for (let it = 0; it < 100; it++) {
+    const q = all.find((p) => inverse(p, h).s < minBranch - 1e-6);
+    if (!q) break;
+    const d = inverse(q, h);
+    const azi = d.s > 1 ? d.azi : q === root ? inverse(root, hubOf(nodes)).azi : inverse(q, root).azi;
+    h = destination(q, azi, minBranch);
   }
-  return [...origin];
+  return h;
 }
-// How a group joins an origin, and its length (straight lines). 'tree': origin → hub → each node;
-// 'chain': origin → the nearer end node → the next … → the other end (reversed: from the last node).
-function route(nodes, origin, pattern, minBranch = 0) {
+// How a group joins a root, and its length (straight lines). 'tree': root → hub → each node; 'chain':
+// root → the nearer end node → the next … → the other end (reversed: from the last node).
+function route(nodes, root, pattern, minBranch = 0) {
   if (pattern === 'chain') {
     let along = 0;
     for (let i = 1; i < nodes.length; i++) along += inverse(nodes[i - 1], nodes[i]).s;
-    const a = inverse(origin, nodes[0]).s, z = inverse(origin, nodes.at(-1)).s;
-    return { reversed: z < a, first: Math.min(a, z), cost: Math.min(a, z) + along };
+    const a = inverse(root, nodes[0]).s, z = inverse(root, nodes.at(-1)).s;
+    return { reversed: z < a, cost: Math.min(a, z) + along };
   }
-  const b = hubFor(nodes, origin, minBranch);
-  return { hub: b, first: inverse(origin, b).s, cost: inverse(origin, b).s + nodes.reduce((a, n) => a + inverse(b, n).s, 0) };
+  const b = hubFor(nodes, root, minBranch);
+  return { hub: b, cost: inverse(root, b).s + nodes.reduce((a, n) => a + inverse(b, n).s, 0) };
 }
-// the ways to cut n nodes into groups of at most c, in order: arrays of sizes (the shorter group at
-// each possible place)
-export function partitions(n, c) {
-  const g = Math.ceil(n / c), short = n - (g - 1) * c;
-  if (!n) return [];
-  if (short === c) return [Array(g).fill(c)];
-  return Array.from({ length: g }, (_, j) => Array.from({ length: g }, (__, i) => (i === j ? short : c)));
-}
-// One share of the nodes (indices, in order) cut for one origin: groups of at most capacity (one
-// shorter, placed where the total is smallest), or 'auto': a chain is the whole share; a tree, groups
-// of the size with the shortest total.
-function cut(points, idx, origin, capacity, pattern, minBranch) {
-  const sizes = capacity !== 'auto' ? [Math.min(capacity, idx.length)] : pattern === 'chain' ? [idx.length] : Array.from({ length: idx.length }, (_, i) => idx.length - i);
-  let best = null;
-  for (const c of sizes) { // from the largest down: a tie keeps fewer groups
-    for (const parts of partitions(idx.length, c)) {
-      let at = 0;
-      const groups = parts.map((n) => { const g = idx.slice(at, at + n); at += n; return { nodes: g, ...route(g.map((i) => points[i]), origin, pattern, minBranch) }; });
-      const total = groups.reduce((a, g) => a + g.cost, 0);
-      if (!best || total < best.total - 1e-6) best = { groups, total, capacity: c };
-    }
-  }
-  return best;
-}
+// the largest tree Auto considers: each candidate group costs a hub, and every run of this many
+// points is a candidate
+export const MAX_AUTO_TREE = 32;
 
-// The plan: the nodes (positions, in order) shared evenly among the origins (each origin taking the
-// share nearest it), each share joined to its origin; minBranch: a tree's shortest branch (m). An
-// origin far from its share (its connection more than twice as long as the neighbouring origin's would
-// be) gives the share to that neighbour and is reported unused: probably a mistake.
-// { groups: [{ nodes, origin, hub | reversed, cost }], unused: [origin indices], estimate, capacity }.
-export function plan(points, origins, capacity, pattern = 'tree', minBranch = 0) {
-  const n = points.length, K = origins.length;
-  if (!n || !K) return { groups: [], unused: origins.map((_, i) => i), estimate: 0, capacity };
-  // the origins in order along the nodes: by the node nearest each
-  const nearest = (o) => points.reduce((bi, p, i) => (inverse(o, p).s < inverse(o, points[bi]).s ? i : bi), 0);
-  const order = origins.map((o, i) => ({ i, at: nearest(o) })).sort((x, y) => x.at - y.at || x.i - y.i).map((x) => x.i);
-  const shares = order.map((oi, k) => { const from = Math.round((k * n) / K), to = Math.round(((k + 1) * n) / K); return { oi, idx: Array.from({ length: to - from }, (_, j) => from + j) }; });
-  // a share whose origin is far: to the neighbouring origin (before or after it), if that is less than half
-  const cost = (sh, oi) => route(sh.idx.map((i) => points[i]), origins[oi], pattern).first;
-  shares.forEach((sh, k) => {
-    if (!sh.idx.length) return;
-    const own = cost(sh, sh.oi);
-    const others = [shares[k - 1], shares[k + 1]].filter(Boolean).map((x) => x.oi).filter((oi) => oi !== sh.oi);
-    const better = others.find((oi) => FORCE_LIMIT * cost(sh, oi) < own);
-    if (better !== undefined) sh.oi = better;
-  });
-  const groups = [];
-  let used = 0;
-  for (const sh of shares) {
-    if (!sh.idx.length) continue;
-    const c = cut(points, sh.idx, origins[sh.oi], capacity, pattern, minBranch);
-    used = Math.max(used, c.capacity);
-    for (const g of c.groups) groups.push({ nodes: g.nodes, origin: sh.oi, hub: g.hub, reversed: g.reversed, first: g.first, cost: g.cost });
+// The plan: the points (positions, in order) cut into groups of consecutive points, each joined to one
+// of the roots ([{ position, weight }]), the cut and the roots chosen together as the cheapest: the sum
+// over the groups of their length divided by its root's weight (dynamic programming over the order:
+// the best plan for the first i points ends with one group of up to groupSize points to one root). A
+// tie (points evenly along a line: every cut costs the same) goes to the plan whose largest group is
+// smallest. groupSize: a number, or 'auto' (a chain of any length; a tree of up to MAX_AUTO_TREE).
+// minBranch: a tree's shortest branch (m).
+// The candidates are costed in one local planar frame (metres about the middle point: the choice
+// only needs their lengths against each other); the groups chosen are then routed on the ellipsoid.
+// { groups: [{ nodes (indices), root (index), hub | reversed, cost (m) }], unused: [root indices],
+//   total (m, the real length), groupSize (the largest group's, for 'auto') }
+export function plan(points, roots, groupSize = 'auto', pattern = 'tree', minBranch = 0) {
+  const n = points.length, R = roots.length;
+  if (!n || !R) return { groups: [], unused: roots.map((_, i) => i), total: 0, groupSize };
+  const k = Math.min(n, groupSize === 'auto' ? (pattern === 'chain' ? n : MAX_AUTO_TREE) : groupSize);
+  const weight = (r) => (roots[r].weight > 0 ? roots[r].weight : 1);
+  const f = frame(points[n >> 1]), P = points.map(f.to), Q = roots.map((r) => f.to(r.position));
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const along = [0]; // along[i]: the chain from the first point to point i
+  for (let i = 1; i < n; i++) along[i] = along[i - 1] + dist(P[i - 1], P[i]);
+  // a group's cost from root r, planar: a chain from its nearer end; a tree through its hub, the
+  // median pushed off what it is nearer than minBranch (as hubFor)
+  const cost = (j, i, r) => {
+    if (pattern === 'chain') return Math.min(dist(Q[r], P[j]), dist(Q[r], P[i - 1])) + along[i - 1] - along[j];
+    const nodes = P.slice(j, i), all = [...nodes, Q[r]];
+    let h = weiszfeld(all, 100, 0.01);
+    for (let it = 0; minBranch > 0 && it < 100; it++) {
+      const q = all.find((p) => dist(p, h) < minBranch - 1e-6);
+      if (!q) break;
+      const d = dist(q, h), to = d > 1 ? h : q === Q[r] ? weiszfeld(nodes, 100, 0.01) : Q[r], l = dist(q, to);
+      h = [q[0] + ((to[0] - q[0]) / l) * minBranch, q[1] + ((to[1] - q[1]) / l) * minBranch];
+    }
+    return dist(Q[r], h) + nodes.reduce((a, p) => a + dist(h, p), 0);
+  };
+  const best = [{ score: 0, mx: 0 }]; // best[i]: the cheapest plan for the first i points (its largest group mx), and its last group
+  for (let i = 1; i <= n; i++) {
+    let b = null;
+    for (let j = Math.max(0, i - k); j < i; j++) {
+      for (let r = 0; r < R; r++) {
+        const score = best[j].score + cost(j, i, r) / weight(r), mx = Math.max(best[j].mx, i - j);
+        if (!b || score < b.score - 1e-6 || (score <= b.score + 1e-6 && mx < b.mx)) b = { score, mx, j, r };
+      }
+    }
+    best[i] = b;
   }
-  const serving = new Set(groups.map((g) => g.origin));
-  return { groups, unused: origins.map((_, i) => i).filter((i) => !serving.has(i)), estimate: groups.reduce((a, g) => a + g.cost, 0), capacity: capacity === 'auto' ? used : capacity };
+  const groups = [];
+  for (let i = n; i > 0; i = best[i].j) {
+    const { j, r } = best[i], nodes = Array.from({ length: i - j }, (_, x) => j + x);
+    const rt = route(nodes.map((x) => points[x]), roots[r].position, pattern, minBranch);
+    groups.unshift({ nodes, root: r, hub: rt.hub, reversed: rt.reversed, cost: rt.cost });
+  }
+  const used = new Set(groups.map((g) => g.root));
+  return { groups, unused: roots.map((_, i) => i).filter((i) => !used.has(i)), total: groups.reduce((a, g) => a + g.cost, 0),
+    groupSize: groupSize === 'auto' ? Math.max(...groups.map((g) => g.nodes.length)) : groupSize };
 }
 
 // The straight lines a plan makes, as [from, to] positions (the preview, before anything is made).
-export function lines(points, origins, p, pattern = 'tree') {
+export function lines(points, roots, p, pattern = 'tree') {
   const out = [];
   for (const g of p.groups) {
-    const o = origins[g.origin], pts = g.nodes.map((i) => points[i]);
+    const o = roots[g.root].position, pts = g.nodes.map((i) => points[i]);
     if (pattern === 'chain') {
       const seq = g.reversed ? pts.slice().reverse() : pts;
       [o, ...seq].forEach((q, i, all) => { if (i) out.push([all[i - 1], q]); });
@@ -210,37 +212,32 @@ export function lines(points, origins, p, pattern = 'tree') {
   return out;
 }
 
-// points in the order a connection shares them out: all in one array, its order along its line;
-// otherwise along the direction they mainly run in (their principal axis)
+// points in the order a connection cuts them: all in one distribution, its order along its line;
+// otherwise as given
 function ordered(doc, nodes) {
-  const arr = repeats(doc).find((a) => nodes.every((n) => a.points.some((x) => x.pointId === n.id)));
+  const arr = distributions(doc).find((a) => nodes.every((n) => a.points.some((x) => x.pointId === n.id)));
   if (arr) { const t = new Map(arr.points.map((x) => [x.pointId, x.t])); return [...nodes].sort((a, b) => t.get(a.id) - t.get(b.id)); }
-  if (nodes.length < 2) return nodes;
-  const f = frame(nodes[0].position), xy = nodes.map((n) => f.to(n.position));
-  const mx = xy.reduce((a, p) => a + p[0], 0) / xy.length, my = xy.reduce((a, p) => a + p[1], 0) / xy.length;
-  let sxx = 0, syy = 0, sxy = 0;
-  for (const [x, y] of xy) { sxx += (x - mx) ** 2; syy += (y - my) ** 2; sxy += (x - mx) * (y - my); }
-  const th = Math.atan2(2 * sxy, sxx - syy) / 2, dx = Math.cos(th), dy = Math.sin(th);
-  return nodes.map((n, i) => ({ n, k: (xy[i][0] - mx) * dx + (xy[i][1] - my) * dy })).sort((a, b) => a.k - b.k).map((x) => x.n);
+  return nodes;
 }
 
-// A connection's plan before it is made (the form's preview): { nodes (points), origins (positions), plan }.
-// params: pointIds, originIds, newOrigins (positions), pattern, capacity.
-export function planConnection(doc, { pointIds, originIds = [], newOrigins = [], pattern = 'tree', capacity = 'auto', minBranch = 0 }) {
+// A connection's plan before it is made (the form's preview): { nodes (points), roots ([{ position,
+// weight }]), plan }. params: pointIds, roots ([{ id, weight }]), newRoots (positions, weight 1),
+// pattern, groupSize, minBranch.
+export function planConnection(doc, { pointIds, roots = [], newRoots = [], pattern = 'tree', groupSize = 'auto', minBranch = 0 }) {
   const byId = new Map(doc.points.map((n) => [n.id, n]));
   const nodes = ordered(doc, pointIds.map((id) => byId.get(id)).filter(Boolean));
-  const origins = [...originIds.map((id) => byId.get(id)).filter(Boolean).map((n) => n.position), ...newOrigins];
-  return { nodes, origins, plan: nodes.length && origins.length ? plan(nodes.map((n) => n.position), origins, capacity, pattern, minBranch) : null };
+  const rs = [...roots.filter((r) => byId.has(r.id)).map((r) => ({ position: byId.get(r.id).position, weight: r.weight })), ...newRoots.map((position) => ({ position, weight: 1 }))];
+  return { nodes, roots: rs, plan: nodes.length && rs.length ? plan(nodes.map((n) => n.position), rs, groupSize, pattern, minBranch) : null };
 }
 
 // ---- making ----------------------------------------------------------------------------------------
 
-export const ARRAY_RADIUS = 500; // m: the circles' radius when none is given
-const ARRAY_KEYS = ['spacing', 'count', 'startMargin', 'endMargin', 'offset', 'side', 'radius', 'aperture', 'preset', 'copy'];
+export const COPY_RADIUS = 500; // m: the copies' radius when none is given
+const DISTRIBUTE_KEYS = ['spacing', 'count', 'startMargin', 'endMargin', 'offset', 'side', 'radius', 'aperture', 'preset', 'copy'];
 const settings = (p) => ({ spacing: p.count ? null : p.spacing, count: p.count || null, startMargin: p.startMargin || 0, endMargin: p.endMargin || 0,
-  offset: p.offset || 0, side: p.side || 'left', radius: p.radius > 0 ? p.radius : ARRAY_RADIUS, aperture: p.aperture ?? null,
+  offset: p.offset || 0, side: p.side || 'left', radius: p.radius > 0 ? p.radius : COPY_RADIUS, aperture: p.aperture ?? null,
   preset: typeof p.preset === 'string' ? p.preset : null, copy: p.copy ?? null });
-// What a repetition's copies are: { symbol, parts }. Its preset: null or 'circle', a circle of its
+// What a distribution's copies are: { symbol, parts }. Its preset: null or 'circle', a circle of its
 // radius (a sector, with its aperture), a diamond; another built-in kind scaled to its radius (its
 // largest part reaching it); one of the user's ('preset:<name>'): copy, kept as it was chosen, its size
 // its own.
@@ -259,43 +256,43 @@ function groupFor(doc, name, parent) {
   doc.groups.push(g);
   return g;
 }
-// the repetition's copies made at places, into its Circles group: each facing away from what it follows
+// the distribution's copies made at places, into its Copies group: each facing away from what it follows
 function place(doc, a, points) {
   const taken = idsOf(doc), copy = copyOf(a);
   a.points = points.map((pt) => {
-    const n = addPoint(doc, pt.position, { groupId: a.circlesId, ...structuredClone(copy), bearing: +pt.facing.toFixed(4) }, taken);
+    const n = addPoint(doc, pt.position, { groupId: a.copiesId, ...structuredClone(copy), bearing: +pt.facing.toFixed(4) }, taken);
     return { pointId: n.id, t: pt.t, left: pt.left, pos: [...n.position] };
   });
 }
 
-// Repeat along: copies along a line or round a point's part (doc is changed: one undo step for the
+// Distribute along: copies along a line or round a point's part (doc is changed: one undo step for the
 // caller). params: along ({ element, part }: the line, or the point and the place of its part), spacing
 // or count, startMargin, endMargin, offset, side ('left', 'right', 'alternate'), radius (the copies',
 // apart from the spacing), aperture (the circle's as a sector, facing away from what it follows; null:
 // circles), preset and copy (copyOf), groupId (the group its own group goes in; null: at the top).
-// Returns { array (its rule), group (its own: "Repeat along X", with "Circles" in it) }.
-export function makeArray(doc, params) {
+// Returns { distribution (its rule), group (its own: "Distribute along X", with "Copies" in it) }.
+export function makeDistribution(doc, params) {
   const along = alongOf(doc, params.along.element);
   const set = settings(params);
   const { points } = distribute(doc, along, { ...set, part: params.along.part ?? null });
   const parent = doc.groups.some((g) => g.id === params.groupId) ? params.groupId : null;
-  const group = groupFor(doc, `Repeat along ${label(along.position ? 'point' : 'line', along)}`, parent);
-  const circles = groupFor(doc, 'Circles', group.id);
-  const array = { id: newId(doc), kind: 'repeat', groupId: group.id, circlesId: circles.id, along: { element: along.id, part: params.along.part ?? null }, ...set, points: [] };
-  doc.rules.push(array);
-  place(doc, array, points);
-  return { array, group };
+  const group = groupFor(doc, `Distribute along ${label(along.position ? 'point' : 'line', along)}`, parent);
+  const copies = groupFor(doc, 'Copies', group.id);
+  const distribution = { id: newId(doc), kind: 'distribute', groupId: group.id, copiesId: copies.id, along: { element: along.id, part: params.along.part ?? null }, ...set, points: [] };
+  doc.rules.push(distribution);
+  place(doc, distribution, points);
+  return { distribution, group };
 }
 
-// A repetition with new settings. The same number of copies: they move (one moved by hand too), each
+// A distribution with new settings. The same number of copies: they move (one moved by hand too), each
 // made the rule's copy again unless changed by hand since (its symbol or parts: then its own stay);
 // another number: they are made anew, and each connection built on them is made again with its
-// settings. Returns { array, remade }, or null (the rule or what it follows gone).
-export function editArray(doc, id, params) {
+// settings. Returns { distribution, remade }, or null (the rule or what it follows gone).
+export function editDistribution(doc, id, params) {
   const a = doc.rules.find((x) => x.id === id), along = a && alongOf(doc, a.along.element);
   if (!along) return null;
   const was = copyOf(a); // the copy before: a point that is still it takes the new one
-  Object.assign(a, settings({ ...Object.fromEntries(ARRAY_KEYS.map((k) => [k, a[k]])), ...params }));
+  Object.assign(a, settings({ ...Object.fromEntries(DISTRIBUTE_KEYS.map((k) => [k, a[k]])), ...params }));
   if (params.along) a.along = { element: a.along.element, part: params.along.part ?? null };
   const { points } = distribute(doc, along, { ...a, part: a.along.part });
   const byId = new Map(doc.points.map((n) => [n.id, n])), copy = copyOf(a);
@@ -307,7 +304,7 @@ export function editArray(doc, id, params) {
       if (isCopy(n, was)) Object.assign(n, structuredClone(copy)); // not changed by hand: the rule's
       Object.assign(x, { t: pt.t, left: pt.left, pos: [...pt.position] });
     });
-    return { array: a, remade: false };
+    return { distribution: a, remade: false };
   }
   const old = new Set(a.points.map((x) => x.pointId));
   const built = connections(doc).filter((c) => c.pointIds.some((n) => old.has(n))).map((c) => unconnect(doc, c.id, true));
@@ -315,51 +312,49 @@ export function editArray(doc, id, params) {
   place(doc, a, points);
   const made = a.points.map((x) => x.pointId);
   for (const c of built) connect(doc, { ...c, pointIds: [...c.pointIds.filter((n) => !old.has(n)), ...made] });
-  return { array: a, remade: true };
+  return { distribution: a, remade: true };
 }
 // the rule's copy given back to a copy changed by hand (its inspector's ↺)
 export function giveBack(doc, pointId) {
-  const a = repeats(doc).find((r) => r.points.some((x) => x.pointId === pointId)), n = doc.points.find((x) => x.id === pointId);
+  const a = distributions(doc).find((r) => r.points.some((x) => x.pointId === pointId)), n = doc.points.find((x) => x.id === pointId);
   if (!a || !n) return;
   Object.assign(n, structuredClone(copyOf(a)));
 }
 // whether a copy has been changed by hand (its symbol or parts no longer the rule's)
 export const changedByHand = (doc, pointId) => {
-  const a = repeats(doc).find((r) => r.points.some((x) => x.pointId === pointId)), n = doc.points.find((x) => x.id === pointId);
+  const a = distributions(doc).find((r) => r.points.some((x) => x.pointId === pointId)), n = doc.points.find((x) => x.id === pointId);
   return !!a && !!n && !isCopy(n, copyOf(a));
 };
 
-// Connect points to origins (doc is changed: one undo step for the caller). params: pointIds, originIds
-// (points), newOrigins (positions where an origin point is made: square, with its lines), pattern
-// ('tree' or 'chain'), capacity (a number, or 'auto'), minBranch (a tree's shortest branch, m), id
-// (the connection made again: its own), groupId (made again: its group, kept), parentId (the group a
-// new "Connection" group goes in; undefined: the first point's, a repetition's own for its copies).
-// Returns { connection, groups, capacity, lines, unused (origin IDs), estimate, atOrigin (trees whose
-// hub is at their origin: their points nearer it than the shortest branch) }, or null (no point or no
-// origin).
+// Connect points to roots (doc is changed: one undo step for the caller). params: pointIds, roots
+// ([{ id (a point), weight }]), newRoots (positions where a root point is made: square, weight 1),
+// pattern ('tree' or 'chain'), groupSize (a number, or 'auto'), minBranch (a tree's shortest branch,
+// m), id (the connection made again: its own), groupId (made again: its group, kept), parentId (the
+// group a new "Connection" group goes in; undefined: the first point's, a distribution's own for its
+// copies). Returns { connection, groups, groupSize, lines, unused (root IDs), total (m) }, or null (no
+// point or no root).
 export function connect(doc, params) {
   const byId = new Map(doc.points.map((n) => [n.id, n]));
   const first = params.pointIds.map((id) => byId.get(id)).find(Boolean);
   if (!first) return null;
   const pattern = params.pattern === 'chain' ? 'chain' : 'tree';
   if (!planConnection(doc, { ...params, pattern }).plan) return null;
-  // its group: the one it had, else a new "Connection" in the points' group (a repetition's copies:
-  // beside their Circles, in its own group)
-  const around = repeats(doc).find((a) => a.circlesId && a.circlesId === first.groupId)?.groupId ?? first.groupId ?? null;
+  // its group: the one it had, else a new "Connection" in the points' group (a distribution's copies:
+  // beside their Copies, in its own group)
+  const around = distributions(doc).find((a) => a.copiesId && a.copiesId === first.groupId)?.groupId ?? first.groupId ?? null;
   const groupId = doc.groups.some((g) => g.id === params.groupId) ? params.groupId
     : groupFor(doc, 'Connection', params.parentId !== undefined ? params.parentId : around).id;
   const inGroup = (el) => { el.groupId = groupId; return el; };
   const before = idsOf(doc);
-  const made = (params.newOrigins || []).map((pos) => inGroup(addPoint(doc, pos, { symbol: 'square', parts: [] })));
-  const originIds = [...(params.originIds || []).filter((id) => byId.has(id)), ...made.map((n) => n.id)];
-  const { nodes, plan: p } = planConnection(doc, { ...params, originIds, newOrigins: [], pattern });
-  const origins = originIds.map((id) => doc.points.find((n) => n.id === id));
+  const made = (params.newRoots || []).map((pos) => inGroup(addPoint(doc, pos, { symbol: 'square', parts: [] })));
+  const roots = [...(params.roots || []).filter((r) => byId.has(r.id)).map((r) => ({ id: r.id, weight: r.weight > 0 ? r.weight : 1 })), ...made.map((n) => ({ id: n.id, weight: 1 }))];
+  const { nodes, plan: p } = planConnection(doc, { ...params, roots, newRoots: [], pattern });
+  const rootPoints = roots.map((r) => doc.points.find((n) => n.id === r.id));
   // a straight line from a to b, attached to both, saying its part
   const line = (a, b, part) => inGroup(addLine(doc, a.id, [], b.id, { properties: [{ key: 'part', value: part }] }));
   const hubs = [];
-  let atOrigin = 0;
   for (const g of p.groups) {
-    const o = origins[g.origin], ns = g.nodes.map((i) => nodes[i]);
+    const o = rootPoints[g.root], ns = g.nodes.map((i) => nodes[i]);
     if (pattern === 'chain') {
       const seq = [o, ...(g.reversed ? ns.slice().reverse() : ns)];
       seq.slice(1).forEach((n, i) => line(seq[i], n, 'chain'));
@@ -367,18 +362,17 @@ export function connect(doc, params) {
     }
     // a hub of its own, always: on one of the points (the median often is), a branch of 0 m to it
     const b = inGroup(addDot(doc, g.hub));
-    if (inverse(b.position, o.position).s < 1) atOrigin++;
-    hubs.push({ pointId: b.id, pointIds: ns.map((x) => x.id), originId: o.id, pos: [...b.position] });
+    hubs.push({ pointId: b.id, pointIds: ns.map((x) => x.id), rootId: o.id, pos: [...b.position] });
     line(o, b, 'trunk');
     for (const n of ns) line(b, n, 'branch');
   }
-  const keep = new Set(originIds);
+  const keep = new Set(roots.map((r) => r.id));
   const created = [...doc.points, ...doc.lines].map((x) => x.id).filter((id) => !before.has(id) && !keep.has(id));
   const minBranch = pattern === 'tree' && params.minBranch > 0 ? params.minBranch : 0;
-  const connection = { id: params.id || newId(doc), kind: 'connect', groupId, pattern, capacity: params.capacity ?? 'auto', minBranch, originIds, pointIds: nodes.map((n) => n.id), hubs, created };
+  const connection = { id: params.id || newId(doc), kind: 'connect', groupId, pattern, groupSize: params.groupSize ?? 'auto', minBranch, roots, pointIds: nodes.map((n) => n.id), hubs, created };
   doc.rules.push(connection);
-  return { connection, groups: p.groups.length, capacity: p.capacity, lines: doc.lines.filter((x) => created.includes(x.id)).length,
-    unused: p.unused.map((i) => originIds[i]), estimate: p.estimate, atOrigin };
+  return { connection, groups: p.groups.length, groupSize: p.groupSize, lines: doc.lines.filter((x) => created.includes(x.id)).length,
+    unused: p.unused.map((i) => roots[i].id), total: p.total };
 }
 
 // A connection undone: what it made that still exists goes (its points and origins stay), and its
@@ -387,7 +381,7 @@ export function connect(doc, params) {
 export function unconnect(doc, id, keepGroup = false) {
   const c = connections(doc).find((x) => x.id === id);
   if (!c) return null;
-  const keep = new Set([...c.originIds, ...c.pointIds]);
+  const keep = new Set([...c.roots.map((r) => r.id), ...c.pointIds]);
   const live = new Set([...doc.points, ...doc.lines].map((x) => x.id));
   removeKeepingLabels(doc, c.created.filter((x) => !keep.has(x) && live.has(x)));
   doc.rules = doc.rules.filter((x) => x !== c);
@@ -397,50 +391,50 @@ export function unconnect(doc, id, keepGroup = false) {
   return c;
 }
 
-// After a delete (gone: the IDs deleted): each connection that lost an origin is made again with the
-// origins left; with none left, its lines and hubs go.
+// After a delete (gone: the IDs deleted): each connection that lost a root is made again with the
+// roots left; with none left, its lines and hubs go.
 export function reconnectWithout(doc, gone) {
-  for (const c of connections(doc).filter((x) => x.originIds.some((o) => gone.has(o)))) {
-    const left = c.originIds.filter((o) => !gone.has(o));
-    if (left.length && c.pointIds.some((n) => doc.points.some((p) => p.id === n))) reconnect(doc, c.id, { originIds: left });
+  for (const c of connections(doc).filter((x) => x.roots.some((r) => gone.has(r.id)))) {
+    const left = c.roots.filter((r) => !gone.has(r.id));
+    if (left.length && c.pointIds.some((n) => doc.points.some((p) => p.id === n))) reconnect(doc, c.id, { roots: left });
     else unconnect(doc, c.id);
   }
 }
 
 // Connect again: a connection made anew, in its group, with its settings and changes ({ pattern,
-// capacity, minBranch, originIds, newOrigins }). Lines edited by hand are replaced. Returns as connect.
+// groupSize, minBranch, roots, newRoots }). Lines edited by hand are replaced. Returns as connect.
 export function reconnect(doc, id, changes = {}) {
   const c = unconnect(doc, id, true);
-  return c && connect(doc, { pointIds: c.pointIds, originIds: c.originIds, pattern: c.pattern, capacity: c.capacity, minBranch: c.minBranch, groupId: c.groupId, ...changes, id: c.id });
+  return c && connect(doc, { pointIds: c.pointIds, roots: c.roots, pattern: c.pattern, groupSize: c.groupSize, minBranch: c.minBranch, groupId: c.groupId, ...changes, id: c.id });
 }
 
-// The rule an element was made by or is part of: a repetition's copy, its group or Circles; a
-// connection's line, hub or group; else null. { rule, array? (the repetition, for a connection on its
-// copies) }
+// The rule an element was made by or is part of: a distribution's copy, its group or Copies; a
+// connection's line, hub or group; else null.
 export function ruleOf(doc, id) {
   for (const r of doc.rules) {
-    if (r.kind === 'repeat' && (r.groupId === id || r.circlesId === id || r.points.some((x) => x.pointId === id))) return r;
+    if (r.kind === 'distribute' && (r.groupId === id || r.copiesId === id || r.points.some((x) => x.pointId === id))) return r;
     if (r.kind === 'connect' && (r.groupId === id || r.created.includes(id))) return r;
   }
   return null;
 }
-// the repetition whose copies a connection connects, or null
-export const repeatOf = (doc, c) => repeats(doc).find((a) => c.pointIds.length && c.pointIds.every((n) => a.points.some((x) => x.pointId === n))) ?? null;
-// the connection made on a repetition's copies, or null
+// the distribution whose copies a connection connects, or null
+export const distributionOf = (doc, c) => distributions(doc).find((a) => c.pointIds.length && c.pointIds.every((n) => a.points.some((x) => x.pointId === n))) ?? null;
+// the connection made on a distribution's copies, or null
 export const connectionOn = (doc, a) => { const ids = new Set(a.points.map((x) => x.pointId)); return connections(doc).find((c) => c.pointIds.length && c.pointIds.every((n) => ids.has(n))) ?? null; };
 
 // ---- after any change: what the tools made follows ---------------------------------------------------
 
 const same = (a, b) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
-// Each array's points re-placed along its line or arc as it is now (at the same place along it, the
-// same offset and side), each facing away from it again; each hub at the median of its points and
-// origin again (its branches at least the connection's shortest). One moved by hand since (not where it was last put) stops following. An array whose
-// line or point (or its radius) or points are gone, a connection whose points are gone, is dropped.
+// Each distribution's points re-placed along its line or arc as it is now (at the same place along it,
+// the same offset and side), each facing away from it again; each hub at the median of its points and
+// root again (its branches at least the connection's shortest). One moved by hand since (not where it
+// was last put) stops following. A distribution whose line or point (or its radius) or points are gone,
+// a connection whose points are gone, is dropped.
 export function refreshGenerated(doc) {
   if (!doc.rules.length) return;
   const byId = new Map(doc.points.map((n) => [n.id, n]));
   doc.rules = doc.rules.filter((a) => {
-    if (a.kind !== 'repeat') return true;
+    if (a.kind !== 'distribute') return true;
     a.points = a.points.filter((x) => byId.has(x.pointId)).sort((x, y) => x.t - y.t);
     const along = alongOf(doc, a.along.element), tr = along && alongTrace(doc, along, a.along.part);
     if (!tr || !a.points.length) return false;
@@ -458,7 +452,7 @@ export function refreshGenerated(doc) {
   doc.rules = doc.rules.filter((c) => {
     if (c.kind !== 'connect') return true;
     c.hubs = c.hubs.filter((b) => {
-      const n = byId.get(b.pointId), o = byId.get(b.originId), members = b.pointIds.map((id) => byId.get(id)).filter(Boolean);
+      const n = byId.get(b.pointId), o = byId.get(b.rootId), members = b.pointIds.map((id) => byId.get(id)).filter(Boolean);
       if (!n || !o || !members.length || !same(n.position, b.pos)) return false;
       n.position = hubFor(members.map((x) => x.position), o.position, c.minBranch);
       b.pos = [...n.position];

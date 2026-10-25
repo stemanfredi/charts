@@ -22,7 +22,7 @@ import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, handleTo, moved } from '
 // the ID of the line being drawn, as measured for its values: always the same, so the traces cached by
 // ID (lines.js) keep one entry for it, not one for each move of the pointer
 const DRAFT_ID = '~draft';
-const SNAP = 12; // px: a click this close to a point is on it (Connect's origins)
+const SNAP = 12; // px: a click this close to a point is on it (Connect's roots)
 // with a finger (drawing-ui.md §1): snapping reaches farther, handles are grabbed farther, a + is
 // added only along longer legs
 const SNAP_PX = FINGER ? 16 : SNAP_RADIUS, GRAB_PX = FINGER ? 22 : 5, MID_PX = FINGER ? 80 : 40;
@@ -55,7 +55,7 @@ export class Drawing extends DrawStore {
     this.drag = null; // a drag under way: { id, role, ref, start, orig (the document before), moved }
     this.handlesShown = false; // a selected line's Bézier handles shown (the inspector's Handles)
     this.repointing = null; // { id, key }: what the next click attaches a label's anchor or a line's end to (its inspector's Attach to…)
-    this.picking = null; // the Connect form: what a click on the map picks (origins)
+    this.picking = null; // the Connect form: what a click on the map picks (roots)
     this.marksOn = true;
     // what each tool with kinds makes (its sub-rail; drawing-ui.md §2): Point a symbol or a preset
     // of the user's with only a symbol; Shape a circle, rings, a sector (three clicks), an outline, a
@@ -118,7 +118,7 @@ export class Drawing extends DrawStore {
     if (parts.base || parts.marks) set('drawvalue', [...(this.values ??= valueFeatures(this.doc, this.units(), this.bearings())), ...this.draftValues()]);
     if (parts.marks) {
       let over = [...p.marks, ...this.draftFeatures()];
-      // the generator's form: the lines and nodes it would make, faint, and the origins picked, ringed; the
+      // the generator's form: the lines and nodes it would make, faint, and the roots picked, ringed; the
       // guide line's selection marks hidden (its handles would read as more nodes, its halo hide the lines)
       if (this.previewPts?.length || this.picked?.length) over = over.filter((f) => !['handle', 'sel', 'hover', 'stalk'].includes(f.properties.kind));
       for (const l of this.previewLines || []) over.push({ type: 'Feature', properties: { kind: 'ghostline' }, geometry: { type: 'LineString', coordinates: l } });
@@ -137,7 +137,7 @@ export class Drawing extends DrawStore {
     if (!src) return;
     src.setData({ type: 'FeatureCollection', features: labelFeatures(this.doc, this.view(), this.marksOn ? this.sel : new Set(), this.marksOn ? this.hover : null, this.units()) });
   }
-  // what a form would make, shown on the map, not in the drawing: nodes, origins (ringed), lines
+  // what a form would make, shown on the map, not in the drawing: nodes, roots (ringed), lines
   setPreview(pts, picked = [], lines = []) {
     if (!pts.length && !picked.length && !this.previewPts?.length && !this.picked?.length) return;
     this.previewPts = pts;
@@ -162,7 +162,7 @@ export class Drawing extends DrawStore {
     if (this.tool === 'shape') return this.shapeClick(e.point, e.originalEvent);
     if (this.tool === 'polygon') return this.polygonClick(e.point, e.originalEvent);
     if (this.tool === 'sector') return this.sectorClick(e.point, e.originalEvent);
-    // picking (Connect's origins): a click on a point or anywhere is for the picker, not a selection
+    // picking (Connect's roots): a click on a point or anywhere is for the picker, not a selection
     if (this.picking && !this.tool) { this.picking(this.pointAt(e.point), p); return; } // a point, or a place (no point there)
     if (this.tool === 'label') return this.placeLabel(e.point, p);
     if (this.repointing) { // a label's anchor or a line's end attached to what is clicked (its inspector's Attach to…)
@@ -202,8 +202,8 @@ export class Drawing extends DrawStore {
     if (this.tool === 'point' || this.tool === 'shape') { this.snapFor(e.point, e.originalEvent); this.renderMarks(); return; } // where a click would place it
     if (this.snapMark && !this.drag) { this.snapMark = null; this.renderMarks(); }
     if (this.repointing) { this.map.getCanvas().style.cursor = 'crosshair'; return; }
-    // picking origins (the form's Connect): over a point, it is taken (or dropped); elsewhere, a new
-    // origin is placed there
+    // picking roots (the form's Connect): over a point, it is taken (or dropped); elsewhere, a new
+    // root is placed there
     if (this.picking && !this.tool) { this.map.getCanvas().style.cursor = this.pointAt(e.point) ? 'pointer' : 'crosshair'; return; }
     if (this.tool || this.drag) return;
     // over a handle, the cursor says what dragging it does; over a selected element, that it moves
@@ -311,7 +311,7 @@ export class Drawing extends DrawStore {
     const pts = [...(d.start ? [placeOfEnd(this.doc, d.start)] : []), ...d.pts].filter(Boolean);
     return { from: pts.at(-1) ?? null, prev: pts.at(-2) ?? null };
   }
-  // a point within SNAP px of a screen point, if any (the nearest): Connect's origins
+  // a point within SNAP px of a screen point, if any (the nearest): Connect's roots
   pointAt(point) {
     let best = null, bd = SNAP;
     for (const n of this.doc.points) {

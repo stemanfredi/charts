@@ -13,7 +13,7 @@ short example; §16 lists every default.
   `.json`). There is no other format of the app's own: any GIS reads the file as it is, and the app
   reads any GeoJSON (§11).
 - One drawing per file: its elements (measurements included: they are guides showing their values),
-  its groups, its rules (what Repeat along and Connect keep linked), and the view it was made in.
+  its groups, its rules (what Distribute along and Connect keep linked), and the view it was made in.
 - Each element is a Feature with its real geometry. Its name and its properties (a description, a
   category: properties like any other) are plain GeoJSON properties, its colours in the common style names where they exist.
   Everything else that is the app's is under one property, **`charts`**. The drawing's own (version,
@@ -361,17 +361,17 @@ A label has no stroke or fill names in its properties, and no `guide`.
 
 ## 8. Rules
 
-What the panel's **Repeat along** and **Connect** make are ordinary points, lines and groups. Their
+What the panel's **Distribute along** and **Connect** make are ordinary points, lines and groups. Their
 rules, in the collection's `charts.rules`, keep the link to them so that they can follow and be made
-again; each has a `kind`, `"repeat"` or `"connect"` (another: skipped, warning). Their IDs may name
+again; each has a `kind`, `"distribute"` or `"connect"` (another: skipped, warning). Their IDs may name
 elements deleted since: that is not an error, and such a reference is dropped at the next change.
 They are checked loosely: one without a valid, unused `id` is skipped.
 
-### 8.1 Repeat along
+### 8.1 Distribute along
 
 ```json
 {
-  "id": "ar1", "kind": "repeat", "groupId": "g5", "circlesId": "g6", "along": { "element": "l9" },
+  "id": "ar1", "kind": "distribute", "groupId": "g5", "copiesId": "g6", "along": { "element": "l9" },
   "count": 3, "startMargin": 500, "endMargin": 500, "offset": 200, "side": "alternate", "radius": 300, "aperture": 120,
   "points": [ { "pointId": "p20", "t": 0.060255231, "left": true, "pos": [12.4060243, 41.9018031] } ]
 }
@@ -380,7 +380,7 @@ They are checked loosely: one without a valid, unused `id` is skipped.
 | Field | Notes |
 |---|---|
 | `along` | required: `{ "element" }`, the line the copies are placed along, or the point round whose part they are placed (`"part"`: its place; missing: its first filled round part, else its first), clockwise: a circle's whole round from its bearing, a sector's arc, an outline's ring. Without it the rule is skipped. |
-| `groupId` | its own group ("Repeat along" and the name of what it follows), which holds `circlesId`, the group of its copies ("Circles"), and its connection's group |
+| `groupId` | its own group ("Distribute along" and the name of what it follows), which holds `copiesId`, the group of its copies ("Copies"), and its connection's group |
 | `spacing`, `count` | a copy every `spacing` metres from the start margin, or `count` copies evenly between the margins (round a whole circle: evenly, no margins) |
 | `startMargin`, `endMargin` | metres left free at each end |
 | `offset` | metres to one side |
@@ -403,39 +403,42 @@ or point (or its part) is gone, or all of whose copies are, is dropped.
 
 ```json
 {
-  "id": "c1", "kind": "connect", "groupId": "g7", "pattern": "tree", "capacity": "auto", "minBranch": 200,
-  "originIds": ["o1"], "pointIds": ["p20", "p21", "p22"],
-  "hubs": [ { "pointId": "h1", "pointIds": ["p20", "p21", "p22"], "originId": "o1", "pos": [12.45, 41.85] } ],
+  "id": "c1", "kind": "connect", "groupId": "g7", "pattern": "tree", "groupSize": "auto", "minBranch": 200,
+  "roots": [ { "id": "o1", "weight": 2 } ], "pointIds": ["p20", "p21", "p22"],
+  "hubs": [ { "pointId": "h1", "pointIds": ["p20", "p21", "p22"], "rootId": "o1", "pos": [12.45, 41.85] } ],
   "created": ["h1", "l40", "l41", "l42", "l43"]
 }
 ```
 
 | Field | Notes |
 |---|---|
-| `groupId` | its group ("Connection"), where its lines, hubs and new origins are: in the repetition's own group, or in the points' group for points placed by hand |
-| `pattern` | `"tree"`: origin → hub → each point; `"chain"`: origin → the nearer end point → the next … Anything else is read as `"tree"`. |
-| `capacity` | points at most per tree or chain (an integer), or `"auto"` |
-| `minBranch` | a tree's shortest branch, metres (0 when absent): a hub nearer a point than this moves back along its trunk towards the origin |
-| `originIds` | the points the lines start from |
-| `pointIds` | the points connected, in the order they are shared among the origins |
-| `hubs` | each hub made: its point, its tree's points and origin, where it was last put |
-| `created` | what it made: hubs and lines (not its points or origins). Connect again removes these and makes them anew. |
+| `groupId` | its group ("Connection"), where its lines, hubs and new roots are: in the distribution's own group, or in the points' group for points placed by hand |
+| `pattern` | `"tree"`: root → hub → each point; `"chain"`: root → the nearer end point → the next … Anything else is read as `"tree"`. |
+| `groupSize` | points at most per tree or chain (an integer), or `"auto"`: any size (a tree of up to 32) |
+| `minBranch` | a tree's shortest branch, metres (0 when absent): every hub at least this far from its points and from its root |
+| `roots` | the points the lines start from, each `{ "id", "weight" }`; `weight` above 0 (missing: 1, which is not written) |
+| `pointIds` | the points connected, in the order they are cut into groups |
+| `hubs` | each hub made: its point, its tree's points and root, where it was last put |
+| `created` | what it made: hubs and lines (not its points or roots). Connect again removes these and makes them anew. |
 
 Each line it makes is a plain line attached to the points it joins, with a plain property **`part`**:
-`"trunk"` (origin to hub), `"branch"` (hub to point) or `"chain"`. Every tree has a hub of its own,
-never one of its points: where the median falls on a point, its branch is 0 m long. After every
-change, each hub still at `pos` moves to the geometric median of its points and its origin (moved
-back along the trunk while a branch is shorter than `minBranch`); one moved by hand stops following.
-Deleting one of its origins makes it again with the origins left (one undo step); deleting the last
-removes its lines and hubs (its points stay), and its group when nothing is left in it.
+`"trunk"` (root to hub), `"branch"` (hub to point) or `"chain"`. The plan: the points, in order, are
+cut into groups of consecutive points, each joined to one root, the cut and the roots chosen together
+as the cheapest, the sum of the groups' lengths each divided by its root's weight (a tie: the most
+even cut). Every tree has a hub of its own, never one of its points: where the median falls on a
+point, its branch is 0 m long. After every change, each hub still at `pos` moves to the geometric
+median of its points and its root (kept at least `minBranch` from each of them); one moved by hand
+stops following. Deleting one of its roots makes it again with the roots left (one undo step);
+deleting the last removes its lines and hubs (its points stay), and its group when nothing is left in
+it.
 
 ## 9. Writing: only what differs
 
 - Every value equal to its default (§16) is left out, and an object when nothing in it differs: a
   point that is only an ID and a position is written as `"charts": { "kind": "point" }`.
 - Rounding: positions 7 decimals (about 1 cm); metres (radii, outline sizes, handles, margins,
-  offsets, a repetition's `spacing` and `radius`) 3; angles (bearings, apertures, the view's zoom) 4;
-  opacities and widths 3; an edge's `at` 6; a repeated copy's `t` 9.
+  offsets, a distribution's `spacing` and `radius`) 3; angles (bearings, apertures, the view's zoom) 4;
+  opacities and widths 3; an edge's `at` 6; a copy's `t` 9.
   The reader takes any precision.
 - The text is indented JSON, each position and handle on one line.
 - A drawing read back is the same drawing (tested in `test/unit/draw-document.test.mjs`).
@@ -487,7 +490,7 @@ it is not GeoJSON; or `charts.version` is a number other than 1.
 a Feature; it has no geometry; its geometry is a GeometryCollection or of another type; a position is
 not `[longitude, latitude]` or out of range; a line has fewer than two positions; an area fewer than
 three corners. A group or rule without a valid, unused ID is skipped, a rule of another kind, and a
-Repeat along without `along`.
+Distribute along without `along`.
 
 ## 13. What other tools see
 
@@ -626,10 +629,11 @@ What a value is when the file leaves it out. Writing it with this value means th
 | label | `offset` | `[40, -40]` |
 | label | `leader` | `"arrow"` |
 | label | `look` | `{}`: as any element's |
-| repeat | `groupId`, `circlesId` | `null` |
-| repeat | `along.part` | none: its first filled round part |
-| repeat | `spacing`, `count` | `null` |
-| repeat | `startMargin`, `endMargin`, `offset`; `side`; `radius`; `aperture`; `preset`; `copy`; `points` | `0`; `"left"`; `null` (500 m when made again); `null`; `null` (a circle); `null`; `[]` |
-| repeat point | `left` | `false` |
-| connect | `groupId`; `pattern`; `capacity`; `minBranch` | `null`; `"tree"`; `"auto"`; `0` |
-| connect | `originIds`, `pointIds`, `hubs`, `created` | `[]` |
+| distribute | `groupId`, `copiesId` | `null` |
+| distribute | `along.part` | none: its first filled round part |
+| distribute | `spacing`, `count` | `null` |
+| distribute | `startMargin`, `endMargin`, `offset`; `side`; `radius`; `aperture`; `preset`; `copy`; `points` | `0`; `"left"`; `null` (500 m when made again); `null`; `null` (a circle); `null`; `[]` |
+| distribute point | `left` | `false` |
+| connect | `groupId`; `pattern`; `groupSize`; `minBranch` | `null`; `"tree"`; `"auto"`; `0` |
+| connect | `roots`, `pointIds`, `hubs`, `created` | `[]` |
+| connect root | `weight` | `1` |

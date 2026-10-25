@@ -614,11 +614,11 @@ try {
   const guide = await dw.evaluate(() => drawing.doc.lines.at(-1).id);
   await dw.evaluate((id) => drawing.select([id]), guide);
   const beforeGen = await dw.evaluate(() => [drawing.doc.lines.length, drawing.undos.length]);
-  await dw.click('.dinspect button:has-text("Repeat along…")');
+  await dw.click('.dinspect button:has-text("Distribute along…")');
   const gsp = dw.locator('input[aria-label=Spacing]');
   await gsp.fill('2 km');
   await gsp.press('Enter');
-  await dw.click('.dinspect label:has-text("Connect to origins") input');
+  await dw.click('.dinspect label:has-text("Connect to roots") input');
   await dw.mouse.click(420, 700); // the circle's centre: an origin (a click on a point uses it)
   const mb = dw.locator('input[aria-label="Shortest branch"]'); // Tree: each branch at least this long
   await mb.fill('300 m');
@@ -627,9 +627,9 @@ try {
   await dw.click('.dinspect button.done:has-text("Create")');
   const gen = await dw.evaluate(() => {
     const part = (v) => drawing.doc.lines.filter((s) => s.properties.some((p) => p.key === 'part' && p.value === v)).length;
-    const rules = (k) => drawing.doc.rules.filter((r) => r.kind === k), a = rules('repeat')[0], c = rules('connect')[0];
+    const rules = (k) => drawing.doc.rules.filter((r) => r.kind === k), a = rules('distribute')[0], c = rules('connect')[0];
     const names = (gid) => drawing.doc.groups.filter((g) => g.groupId === gid).map((g) => g.name).sort().join();
-    return { a: rules('repeat').length, n: a?.points.length, c: rules('connect').length, subgroups: a && names(a.groupId), inCircles: a && a.points.every((x) => drawing.doc.points.find((q) => q.id === x.pointId).groupId === a.circlesId), trunks: part('trunk'), branches: part('branch'),
+    return { a: rules('distribute').length, n: a?.points.length, c: rules('connect').length, subgroups: a && names(a.groupId), inCircles: a && a.points.every((x) => drawing.doc.points.find((q) => q.id === x.pointId).groupId === a.copiesId), trunks: part('trunk'), branches: part('branch'),
       attached: drawing.doc.lines.filter((s) => s.start.element && s.end.element).length, undos: drawing.undos.length, group: drawing.selected()[0]?.kind,
       // the branches' shortest (m, near enough at this scale), the hubs: one of its own per trunk
       shortest: Math.min(...drawing.doc.lines.filter((s) => s.properties.some((p) => p.key === 'part' && p.value === 'branch')).map((s) => {
@@ -639,16 +639,16 @@ try {
   });
   await dw.locator('.dinspect h2').first().click();
   await dw.keyboard.press('Control+z');
-  const genUndone = await dw.evaluate(() => [drawing.doc.rules.filter((r) => r.kind === 'connect').length, drawing.doc.lines.length, drawing.doc.rules.filter((r) => r.kind === 'repeat').length]);
-  check(previewed[0] === gen.n && previewed[1] > 0, `drawing: Repeat along previews its points and lines before making them (${previewed})`);
+  const genUndone = await dw.evaluate(() => [drawing.doc.rules.filter((r) => r.kind === 'connect').length, drawing.doc.lines.length, drawing.doc.rules.filter((r) => r.kind === 'distribute').length]);
+  check(previewed[0] === gen.n && previewed[1] > 0, `drawing: Distribute along previews its points and lines before making them (${previewed})`);
   check(gen.a === 1 && gen.n > 1 && gen.c === 1 && gen.trunks > 0 && gen.branches > 0 && gen.attached >= gen.trunks + gen.branches && gen.undos === beforeGen[1] + 1 && gen.group === 'group'
-    && genUndone.join() === `0,${beforeGen[0]},0`, `drawing: Repeat along and Connect in one form, one undo step, the group selected (${gen.n} points, ${gen.trunks} + ${gen.branches} lines)`);
-  check(gen.subgroups === 'Circles,Connection' && gen.inCircles, `rules: Repeat along's own group holds Circles (its copies) and Connection (${gen.subgroups})`);
+    && genUndone.join() === `0,${beforeGen[0]},0`, `drawing: Distribute along and Connect in one form, one undo step, the group selected (${gen.n} points, ${gen.trunks} + ${gen.branches} lines)`);
+  check(gen.subgroups === 'Connection,Copies' && gen.inCircles, `rules: Distribute along's own group holds Copies and Connection (${gen.subgroups})`);
   check(gen.minBranch === 300 && gen.shortest >= 297 && gen.hubs === gen.trunks && gen.branches === gen.n,
     `drawing: Tree, a hub of its own per trunk, a branch to every point, each at least the 300 m set (${Math.round(gen.shortest)} m)`);
   // points round a circle: a circle's inspector offers them; they follow it when it grows
   const arcOf = await dw.evaluate(() => { const x = drawing.doc.points.at(-1); drawing.select([x.id]); return x.id; });
-  await dw.click('.dinspect button:has-text("Repeat along…")');
+  await dw.click('.dinspect button:has-text("Distribute along…")');
   await dw.click('.dinspect [aria-label="Points by"] button:has-text("Count")');
   const gcount = dw.locator('input[aria-label=Count]');
   await gcount.fill('6');
@@ -656,18 +656,18 @@ try {
   await dw.click('.dinspect button.done:has-text("Create")');
   const onArc = await dw.evaluate(async (id) => {
     const { inverse } = await import('./geodesy.js');
-    const a = drawing.doc.rules.find((x) => x.kind === 'repeat' && x.along.element === id);
+    const a = drawing.doc.rules.find((x) => x.kind === 'distribute' && x.along.element === id);
     drawing.change((doc) => { doc.points.find((x) => x.id === id).parts[0].radius *= 2; });
     const c2 = drawing.doc.points.find((x) => x.id === id), r = c2.parts[0].radius;
     return a.points.map((x) => Math.round(inverse(c2.position, drawing.doc.points.find((n) => n.id === x.pointId).position).s / r * 100) / 100);
   }, arcOf);
   check(onArc.length === 6 && onArc.every((k) => k === 1), `drawing: points along a circle, following it when its radius doubles (${onArc})`);
   // a copy selected: the rule it was made by, Select all selects every copy
-  await dw.evaluate((id) => { const a = drawing.doc.rules.find((x) => x.kind === 'repeat' && x.along.element === id); drawing.select([a.points[0].pointId]); }, arcOf);
+  await dw.evaluate((id) => { const a = drawing.doc.rules.find((x) => x.kind === 'distribute' && x.along.element === id); drawing.select([a.points[0].pointId]); }, arcOf);
   const madeBy = await dw.locator('.dinspect .frow:has(.flabel:text-is("Made by")) .fvalue').textContent().catch(() => '');
   await dw.click('.dinspect button:has-text("Select all")'); // under Made by
   const allCopies = await dw.evaluate(() => drawing.sel.size);
-  check(/Repeat along .* · 6 copies/.test(madeBy) && allCopies === 6, `rules: a copy says what made it; Select all selects every copy (${madeBy}; ${allCopies})`);
+  check(/Distribute along .* · 6 copies/.test(madeBy) && allCopies === 6, `rules: a copy says what made it; Select all selects every copy (${madeBy}; ${allCopies})`);
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('Control+z');
   await dw.keyboard.press('Control+z');

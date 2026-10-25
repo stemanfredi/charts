@@ -138,15 +138,9 @@ export function totals(doc, by = null) {
 // to the anchor after, each handle a third of its own leg; at the ends, towards the neighbouring
 // handle's end, a third of the leg. Returned as the line's handle fields, in ground metres. A
 // line without vertices stays as it is: straight, a geodesic.
-//
-// Relaxed curves: where other lines arrive at the point the line starts from (their end attached to
-// it), the line leaves along their arriving direction (the mean), a third of its first leg, then bends
-// to its end: branches carry on the incoming direction and fan out. Then even a line without vertices
-// curves.
 export function smooth(doc, line) {
   const anchors = anchorsOf(doc, line);
-  const arrive = arriving(doc, line);
-  if (anchors.length < 3 && !arrive) return { startHandle: line.startHandle, endHandle: line.endHandle, vertices: line.vertices.map((v) => ({ handleIn: v.handleIn, handleOut: v.handleOut })) };
+  if (anchors.length < 3) return { startHandle: line.startHandle, endHandle: line.endHandle, vertices: line.vertices.map((v) => ({ handleIn: v.handleIn, handleOut: v.handleOut })) };
   const ps = [anchors[0].position];
   for (const a of anchors.slice(1)) ps.push(near(ps[ps.length - 1], a.position));
   const M = ps.map(mercator);
@@ -162,37 +156,13 @@ export function smooth(doc, line) {
   }
   const last = M.length - 1;
   const end = (i, j, h) => { const target = [M[j][0] + h[0], M[j][1] + h[1]], d = unit(sub(target, M[i])), l = len(sub(M[j], M[i])) / 3; return [d[0] * l, d[1] * l]; };
-  // the start: along the arriving direction, if lines arrive there; else towards the next handle
-  const first = len(sub(M[1], M[0])) / 3;
-  // the arriving direction is followed only where the line heads roughly onwards (within about 80°),
-  // the less the further it turns: a branch going sideways or back would otherwise loop round
-  const onwards = arrive ? arrive[0] * unit(sub(M[1], M[0]))[0] + arrive[1] * unit(sub(M[1], M[0]))[1] : 0;
-  const start = arrive && onwards > 0.17 ? [arrive[0] * first * onwards, arrive[1] * first * onwards] : last > 1 ? end(0, 1, hIn[1]) : null;
-  if (!start) return { startHandle: null, endHandle: null, vertices: [] }; // no vertex, nothing to follow: straight
+  const start = end(0, 1, hIn[1]); // the start: towards the next handle
   return {
     startHandle: ground(start, 0),
-    endHandle: ground(last > 1 ? end(last, last - 1, hOut[last - 1]) : end(last, 0, start), last),
+    endHandle: ground(end(last, last - 1, hOut[last - 1]), last),
     vertices: line.vertices.map((v, k) => ({ handleIn: ground(hIn[k + 1], k + 1), handleOut: ground(hOut[k + 1], k + 1) })),
   };
 }
-// The mean direction (Mercator, unit) in which other lines arrive at the point a line starts from, or
-// null.
-function arriving(doc, line) {
-  const at = line.start.element;
-  if (!at) return null;
-  const dirs = [];
-  for (const s of doc.lines) {
-    if (s === line || s.end.element !== at || s.guide) continue;
-    const c = lineTrace(doc, s).coords;
-    if (c.length < 2) continue;
-    const A = mercator(c.at(-2)), B = mercator(c.at(-1)), d = [B[0] - A[0], B[1] - A[1]], l = Math.hypot(d[0], d[1]);
-    if (l) dirs.push([d[0] / l, d[1] / l]);
-  }
-  if (!dirs.length) return null;
-  const m = [dirs.reduce((a, d) => a + d[0], 0), dirs.reduce((a, d) => a + d[1], 0)], l = Math.hypot(m[0], m[1]);
-  return l > 1e-9 ? [m[0] / l, m[1] / l] : null;
-}
-
 // set a line's handles by the Smooth rule
 export function applySmooth(doc, line) {
   const h = smooth(doc, line);

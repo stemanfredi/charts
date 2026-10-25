@@ -7,7 +7,7 @@ globalThis.window ??= { addEventListener() {} };
 const d = await import('../../site/draw/document.js');
 const { parse, serialise, toFile } = await import('../../site/draw/file.js');
 const { refreshAttached, lineRef, resolve } = await import('../../site/draw/attach.js');
-const { repeats, connections } = await import('../../site/draw/generator.js');
+const { distributions, connections } = await import('../../site/draw/generator.js');
 const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
   label, styleOf, offsetOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, splitLine,
   DEFAULT_STYLE, GUIDE_STYLE, FORMAT, VERSION } = d;
@@ -442,32 +442,32 @@ test('minimum display size: the drawing\'s value and a point\'s own, read, check
   assert.deepEqual(f.charts.look, { minSize: 20 });
 });
 
-test('rules (repeat, connect) are kept as records; defaults left out; an unknown kind or a repeat along nothing skipped', () => {
+test('rules (distribute, connect) are kept as records; defaults left out; an unknown kind or a distribution along nothing skipped', () => {
   const copy = { symbol: 'square', parts: [{ kind: 'circle', radius: 300 }, { kind: 'rectangle', length: 400, width: 200, fill: false }] };
   const { doc, report } = read(collection([], { rules: [
-    { id: 'a1', kind: 'repeat', groupId: 'g1', circlesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250, preset: 'preset:mine', copy,
+    { id: 'a1', kind: 'distribute', groupId: 'g1', copiesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250, preset: 'preset:mine', copy,
       points: [{ pointId: 'n1', t: 0.5, pos: [1, 2] }] },
-    { id: 'a2', kind: 'repeat' }, { id: 'a3', kind: 'repeat', along: { element: 's', part: -1 } }, { id: 'a4', kind: 'repeat', along: { element: 's', part: 1.5 } },
-    { id: 'a5', kind: 'repeat', along: {} },
-    { id: 'c1', kind: 'connect', groupId: 'g3', capacity: 3, originIds: ['n9'], pointIds: ['n1'], created: ['gone'] }, { id: 'c1', kind: 'connect' },
+    { id: 'a2', kind: 'distribute' }, { id: 'a3', kind: 'distribute', along: { element: 's', part: -1 } }, { id: 'a4', kind: 'distribute', along: { element: 's', part: 1.5 } },
+    { id: 'a5', kind: 'distribute', along: {} },
+    { id: 'c1', kind: 'connect', groupId: 'g3', groupSize: 3, roots: [{ id: 'n9' }, { id: 'n8', weight: 2 }, 'x'], pointIds: ['n1'], created: ['gone'] }, { id: 'c1', kind: 'connect' },
     { id: 'x1', kind: 'spiral' }, { id: 'x2' }] }));
-  const [a] = repeats(doc), [c] = connections(doc);
+  const [a] = distributions(doc), [c] = connections(doc);
   assert.deepEqual(doc.rules.map((x) => x.id), ['a1', 'a3', 'a4', 'c1']);
-  assert.deepEqual(repeats(doc).map((x) => x.id), ['a1', 'a3', 'a4']); // a2, a5 are along nothing
+  assert.deepEqual(distributions(doc).map((x) => x.id), ['a1', 'a3', 'a4']); // a2, a5 are along nothing
   assert.deepEqual(report.skipped.filter((x) => x.kind === 'rule').map((x) => x.id), ['a2', 'a5', 'c1', 'x1', 'x2']);
   assert.ok(report.skipped.some((x) => x.id === 'x1' && /unknown kind "spiral"/.test(x.reason)));
-  assert.deepEqual([a.kind, a.groupId, a.circlesId, a.along, a.spacing, a.side, a.offset, a.count, a.radius, a.aperture, a.preset, a.points[0].left],
-    ['repeat', 'g1', 'g2', { element: 's', part: 2 }, 1000, 'alternate', 0, null, 250, null, 'preset:mine', false]);
+  assert.deepEqual([a.kind, a.groupId, a.copiesId, a.along, a.spacing, a.side, a.offset, a.count, a.radius, a.aperture, a.preset, a.points[0].left],
+    ['distribute', 'g1', 'g2', { element: 's', part: 2 }, 1000, 'alternate', 0, null, 250, null, 'preset:mine', false]);
   assert.deepEqual([a.copy.symbol, a.copy.parts], ['square', [makePart('circle', { radius: 300 }), { ...makePart('rectangle', { length: 400, width: 200 }), fill: false }]]);
-  assert.deepEqual(repeats(doc).slice(1).map((x) => x.along.part), [null, null]); // not a place in the list: the part followed by default
-  assert.deepEqual(repeats(doc).slice(1).map((x) => [x.groupId, x.circlesId, x.preset, x.copy]), [[null, null, null, null], [null, null, null, null]]);
+  assert.deepEqual(distributions(doc).slice(1).map((x) => x.along.part), [null, null]); // not a place in the list: the part followed by default
+  assert.deepEqual(distributions(doc).slice(1).map((x) => [x.groupId, x.copiesId, x.preset, x.copy]), [[null, null, null, null], [null, null, null, null]]);
   assert.equal(connections(doc).length, 1); // the second c1: its ID used
-  assert.deepEqual([c.kind, c.groupId, c.pattern, c.capacity, c.created, c.hubs], ['connect', 'g3', 'tree', 3, ['gone'], []]); // deleted since: not an error
+  assert.deepEqual([c.kind, c.groupId, c.pattern, c.groupSize, c.created, c.hubs, c.roots], ['connect', 'g3', 'tree', 3, ['gone'], [], [{ id: 'n9', weight: 1 }, { id: 'n8', weight: 2 }]]); // deleted since: not an error; a weight of 1 unless given
   const f = toFile(doc).charts;
-  assert.deepEqual(f.rules[3], { id: 'c1', kind: 'connect', groupId: 'g3', capacity: 3, originIds: ['n9'], pointIds: ['n1'], created: ['gone'] });
-  assert.deepEqual(f.rules[0], { id: 'a1', kind: 'repeat', groupId: 'g1', circlesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250,
+  assert.deepEqual(f.rules[3], { id: 'c1', kind: 'connect', groupId: 'g3', groupSize: 3, roots: [{ id: 'n9' }, { id: 'n8', weight: 2 }], pointIds: ['n1'], created: ['gone'] });
+  assert.deepEqual(f.rules[0], { id: 'a1', kind: 'distribute', groupId: 'g1', copiesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250,
     preset: 'preset:mine', copy, points: [{ pointId: 'n1', t: 0.5, pos: [1, 2] }] });
-  assert.deepEqual(f.rules[1], { id: 'a3', kind: 'repeat', along: { element: 's' }, points: [] });
+  assert.deepEqual(f.rules[1], { id: 'a3', kind: 'distribute', along: { element: 's' }, points: [] });
   assert.deepEqual(again(doc).doc, doc);
 });
 

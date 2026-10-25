@@ -156,7 +156,7 @@ function read(raw, app, known, now, report) {
     label.anchor = { position: [...p], ...to };
   }
 
-  // rules: what Repeat along and Connect keep linked, checked loosely (a reference gone is dropped at
+  // rules: what Distribute along and Connect keep linked, checked loosely (a reference gone is dropped at
   // the next change)
   const idList = (v) => (Array.isArray(v) ? v.filter((y) => typeof y === 'string' && ID.test(y)) : []);
   const pair = (p) => Array.isArray(p) && fin(p[0]) && fin(p[1]);
@@ -164,14 +164,14 @@ function read(raw, app, known, now, report) {
   for (const x of Array.isArray(app?.rules) ? app.rules : []) {
     const r = attempt('rule', x?.id, (c) => {
       if (!isObj(x) || !ref(x.id) || taken.has(x.id)) c.skip('no valid ID');
-      if (x.kind !== 'repeat' && x.kind !== 'connect') c.skip(`unknown kind "${String(x.kind).slice(0, 20)}"`);
-      if (x.kind === 'repeat') {
+      if (x.kind !== 'distribute' && x.kind !== 'connect') c.skip(`unknown kind "${String(x.kind).slice(0, 20)}"`);
+      if (x.kind === 'distribute') {
         const along = isObj(x.along) ? ref(x.along.element) : null;
         if (!along) c.skip('nothing it is along');
         taken.add(x.id);
         const d = (k) => (fin(x[k]) && x[k] >= 0 ? x[k] : 0);
         const copy = isObj(x.copy) ? { symbol: SYMBOLS.includes(x.copy.symbol) ? x.copy.symbol : 'none', parts: parts(x.copy.parts, c) } : null;
-        return { id: x.id, kind: 'repeat', groupId: ref(x.groupId), circlesId: ref(x.circlesId), along: { element: along, part: Number.isInteger(x.along.part) && x.along.part >= 0 ? x.along.part : null },
+        return { id: x.id, kind: 'distribute', groupId: ref(x.groupId), copiesId: ref(x.copiesId), along: { element: along, part: Number.isInteger(x.along.part) && x.along.part >= 0 ? x.along.part : null },
           spacing: fin(x.spacing) && x.spacing > 0 ? x.spacing : null, count: Number.isInteger(x.count) && x.count > 0 ? x.count : null,
           startMargin: d('startMargin'), endMargin: d('endMargin'), offset: d('offset'), side: SIDES.includes(x.side) ? x.side : 'left',
           radius: fin(x.radius) && x.radius > 0 ? x.radius : null, aperture: fin(x.aperture) && x.aperture > 0 && x.aperture < 360 ? x.aperture : null,
@@ -179,10 +179,11 @@ function read(raw, app, known, now, report) {
           points: Array.isArray(x.points) ? x.points.filter((f) => isObj(f) && ref(f.pointId) && fin(f.t) && pair(f.pos)).map((f) => ({ pointId: f.pointId, t: f.t, left: f.left === true, pos: [f.pos[0], f.pos[1]] })) : [] };
       }
       taken.add(x.id);
-      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', capacity: Number.isInteger(x.capacity) && x.capacity > 0 ? x.capacity : 'auto',
-        minBranch: Number.isFinite(x.minBranch) && x.minBranch > 0 ? x.minBranch : 0, originIds: idList(x.originIds), pointIds: idList(x.pointIds),
-        hubs: Array.isArray(x.hubs) ? x.hubs.filter((b) => isObj(b) && ref(b.pointId) && ref(b.originId) && Array.isArray(b.pointIds) && pair(b.pos))
-          .map((b) => ({ pointId: b.pointId, pointIds: idList(b.pointIds), originId: b.originId, pos: [b.pos[0], b.pos[1]] })) : [],
+      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', groupSize: Number.isInteger(x.groupSize) && x.groupSize > 0 ? x.groupSize : 'auto',
+        minBranch: Number.isFinite(x.minBranch) && x.minBranch > 0 ? x.minBranch : 0, pointIds: idList(x.pointIds),
+        roots: Array.isArray(x.roots) ? x.roots.filter((r) => isObj(r) && ref(r.id)).map((r) => ({ id: r.id, weight: fin(r.weight) && r.weight > 0 ? r.weight : 1 })) : [],
+        hubs: Array.isArray(x.hubs) ? x.hubs.filter((b) => isObj(b) && ref(b.pointId) && ref(b.rootId) && Array.isArray(b.pointIds) && pair(b.pos))
+          .map((b) => ({ pointId: b.pointId, pointIds: idList(b.pointIds), rootId: b.rootId, pos: [b.pos[0], b.pos[1]] })) : [],
         created: idList(x.created) };
     });
     if (r) doc.rules.push(r);
@@ -299,8 +300,8 @@ const partOut = (r) => lean({ kind: r.kind, radius: r.radius && r3(r.radius), ap
 { radius: undefined, aperture: undefined, length: undefined, width: undefined, fill: true, shown: true, name: '', strokeColor: null, strokeDash: null });
 const VIEW_D = { center: null, zoom: null, bearing: 0, layers: null, data: null, units: 'km', bearings: false };
 const VERTEX_D = { handleIn: null, handleOut: null, name: '', properties: [] };
-const REPEAT_D = { groupId: null, circlesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };
-const CONNECTION_D = { groupId: null, pattern: 'tree', capacity: 'auto', minBranch: 0, hubs: [] };
+const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };
+const CONNECTION_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, hubs: [] };
 
 // the user's properties as GIS columns (features.js), their keys checked against the file's own
 const columns = (list) => columnsOf(list, RESERVED);
@@ -382,12 +383,12 @@ export function toFile(doc) {
     look: lookOut(doc.look ?? {}),
     groups: doc.groups.map((g) => lean({ id: g.id, groupId: g.groupId, name: g.name, properties: g.properties.map((p) => ({ ...p })), visible: g.visible,
       look: lookOut(g.look) }, { groupId: null, name: '', properties: [], visible: true, look: {} })),
-    rules: doc.rules.map((a) => (a.kind === 'repeat'
+    rules: doc.rules.map((a) => (a.kind === 'distribute'
       ? lean({ ...a, along: { element: a.along.element, ...(a.along.part != null ? { part: a.along.part } : {}) }, spacing: a.spacing == null ? null : r3(a.spacing), radius: a.radius == null ? null : r3(a.radius),
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),
         copy: a.copy && { symbol: a.copy.symbol, parts: a.copy.parts.map(partOut) },
-        points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, REPEAT_D)
-      : lean({ ...a, originIds: [...a.originIds], pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
+        points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
+      : lean({ ...a, roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { ...r })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
   }, { meta: {}, view: null, look: {}, groups: [], rules: [] });
   return { type: 'FeatureCollection', charts: app, features: KINDS.filter((k) => k !== 'group').flatMap((k) => doc[KIND[k].list].map((el) => feature(doc, k, el))) };
 }

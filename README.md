@@ -29,8 +29,8 @@ from soundings.
     three, a polygon corner by corner).
   - Line ends attach to points, to outlines' and polygons' corners and edges and
     to other lines' vertices, and follow them; snapping finds them.
-  - Circles are repeated along a line or an arc and connected to origins in trees
-    or chains.
+  - Copies are distributed along a line or an arc and connected to roots in trees
+    or chains, the cheapest way.
   - Everything is named, edited in small tables and dragged on the map, with
     lengths, areas and totals; a line also has its depth profile and its length
     along the seabed.
@@ -91,7 +91,7 @@ The drawing's file is plain GeoJSON, so any GIS opens it, with these limits:
   latitude. A long east-west leg is drawn slightly apart elsewhere (about 40 m at
   the middle of a 50 km leg at 40°N; nothing for a leg running north-south).
   Curved lines show straight through their vertices.
-- Groups, the view, attachments, labels' placement and what Repeat along and
+- Groups, the view, attachments, labels' placement and what Distribute along and
   Connect keep linked are in the app's own member, `charts`, which other tools
   ignore and keep or drop as they do.
 - The app reads its own files of format version 1; a file of another version
@@ -258,7 +258,7 @@ development.
 | `site/draw/presets.js`, `site/draw/clipboard.js` | The user's presets (this browser only); copy, paste, duplicate. |
 | `site/draw/lines.js` | Lines: geodesic and curved legs, lengths, distance along, totals, smoothing. |
 | `site/draw/features.js` | What the map draws, what the GIS export writes; each kind's bounds, box test and move. |
-| `site/draw/generator.js` | Repeat along a line or an arc, Connect (trees, chains), and how they follow. |
+| `site/draw/generator.js` | Distribute along a line or an arc, Connect (trees, chains: the cheapest cut), and how they follow. |
 | `site/draw/store.js`, `site/draw/saving.js` | The document's selection and undo; the drawings kept in the browser. |
 | `site/draw/drawing.js`, `site/draw/layers.js` | The drawing on the map: every tool (Measure's are its own, with Guide and Show values), the values shown while drawing, dragging, its layers. |
 | `site/draw/place.js` | What the Point and Shape tools place, sized by the second click, each named after its look ("Circle 2"). |
