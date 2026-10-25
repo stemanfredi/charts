@@ -1,5 +1,7 @@
 # Charts
 
+**[charts.makaw.org](https://charts.makaw.org)**
+
 A world chart in a single static web page. It combines an OpenStreetMap base
 map with satellite imagery, depth shading and isobaths, seamarks, shipping
 density, Copernicus Marine ocean data (sea state, water properties, satellite
@@ -180,6 +182,7 @@ development.
 | `site/zip.js` | Zip writer (the browser's own deflate). |
 | `site/clip.js`, `site/clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
 | `site/measure.js` | Geodesic ruler, area and range ring. |
+| `site/hosts.js` | Every host the page may reach: read by the catalogue and by `tools/deps.mjs` (the Content-Security-Policy). |
 | `site/legend.js` | Legend drawing. |
 | `site/format.js` | Pure formatting and parsing helpers. |
 | `site/geo.js`, `site/net.js`, `site/dom.js` | Web Mercator maths; how requests are made and shared; DOM helpers. |

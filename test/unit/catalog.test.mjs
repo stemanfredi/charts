@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
 import { buildStyle } from '../../site/style.js';
 import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
-import { PINS, TILE_HOSTS } from '../../tools/deps.mjs';
+import { PINS, CSP_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });
 const NO_LAYERS = new Set(['legend']); // items that drive the page, not style layers
@@ -42,9 +42,9 @@ test('variants: each choice has a layer, except colour schemes', () => {
 
 test('every remote source host is allowed by the CSP', () => {
   // a host, or a host and path (CSP: a source ending in / allows what is under it)
-  const ok = (u) => TILE_HOSTS.some((h) => (h.endsWith('/') ? u.startsWith(h) : new URL(u).origin === h));
+  const ok = (u) => CSP_HOSTS.some((h) => (h.endsWith('/') ? u.startsWith(h) : new URL(u).origin === h));
   for (const [id, src] of Object.entries(style.sources)) {
-    for (const u of [src.url, ...(src.tiles || [])].filter((x) => x && /^https?:/.test(x))) assert.ok(ok(u), `${id}: ${u} not in TILE_HOSTS`);
+    for (const u of [src.url, ...(src.tiles || [])].filter((x) => x && /^https?:/.test(x))) assert.ok(ok(u), `${id}: ${u} not in CSP_HOSTS (site/hosts.js)`);
   }
   assert.ok(ok(DEM_TILES), 'the DEM (clip.js) not allowed');
   assert.ok(ok(style.glyphs), 'glyph host not allowed');

@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { HOSTS, cspSource } from '../site/hosts.js';
 
 export const PINS = [
   { name: 'maplibre-gl', version: '6.15.0', file: 'dist/maplibre-gl.mjs', kind: 'module' },
@@ -29,24 +30,9 @@ export const PINS = [
   { name: 'polygon-clipping', version: '0.15.7', file: 'dist/polygon-clipping.umd.min.js', kind: 'lazy' },
 ];
 
-// Every host the page may talk to (Content-Security-Policy).
-export const TILE_HOSTS = [
-  'https://tiles.openfreemap.org', 'https://s3.amazonaws.com/elevation-tiles-prod/', 'https://tiles.maps.eox.at',
-  'https://server.arcgisonline.com',
-  'https://gibs.earthdata.nasa.gov', 'https://tiles.openseamap.org', 'https://ows.emodnet-humanactivities.eu',
-  'https://wmts.marine.copernicus.eu',
-  'https://tiles.emodnet-bathymetry.eu', 'https://drive.emodnet-geology.eu', // EMODnet depth, seabed substrate
-  'https://tiles.arcgis.com', // the World Bank's world vessel density
-  'https://geo.vliz.be', // Marine Regions' maritime zones
-];
-// Hosts the page calls for data but never draws from (connect-src only).
-export const API_HOSTS = [
-  'https://photon.komoot.io', // place search (app.js)
-  // Copernicus Marine's datasets as data, read on a GIS export (zarr.js): the STAC catalogue that
-  // says where each dataset's Zarr store is, and the stores
-  'https://stac.marine.copernicus.eu', 'https://s3.waw3-1.cloudferro.com', // (EMODnet's depth model too, GIS export)
-  'https://geodata.makaw.org', // GEBCO's depths as a Zarr store (gebco.js, in the clip worker; tools/gebco.mjs builds it)
-];
+// Every host the page may talk to, as Content-Security-Policy sources (site/hosts.js: the code builds
+// its addresses from the same list)
+export const CSP_HOSTS = Object.values(HOSTS).map(cspSource);
 const CDN = 'https://cdn.jsdelivr.net';
 
 const url = (p) => `${CDN}/npm/${p.name}@${p.version}/${p.file}`;
@@ -89,7 +75,7 @@ async function regenerate() {
     `script-src 'self' ${PACKAGES} '${sri(Buffer.from(importmap), 'sha256')}'`,
     `style-src 'self' ${PACKAGES}`, // the page sets styles through the DOM only, never as markup
     "img-src 'self' data: blob:", // tiles come by fetch (connect-src), drawn from blobs
-    `connect-src 'self' ${PACKAGES} ${TILE_HOSTS.join(' ')} ${API_HOSTS.join(' ')}`,
+    `connect-src 'self' ${PACKAGES} ${CSP_HOSTS.join(' ')}`,
     "worker-src 'self' blob:", 'child-src blob:', // 'self': clip-worker.js; blob: MapLibre's verified worker
     "base-uri 'none'", "form-action 'none'", "object-src 'none'",
   ].join('; ');

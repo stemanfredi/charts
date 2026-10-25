@@ -3,8 +3,9 @@
 import { $, h } from './dom.js';
 import { dm, parseLatLon } from './format.js';
 import { FETCH } from './net.js';
+import { HOSTS } from './hosts.js';
 
-const PHOTON = 'https://photon.komoot.io/api/';
+const PHOTON = `${HOSTS.photon}/api/`;
 // what a sea chart is mostly searched for comes first: places, the coast and the sea (capes, bays,
 // straits, beaches, harbours), marinas, ferry terminals, lighthouses, piers; then the rest (streets,
 // hotels, cafés…), in Photon's order. Nothing is left out.

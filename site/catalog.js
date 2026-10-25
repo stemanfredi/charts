@@ -1,7 +1,9 @@
 // The catalogue: every data source, what each menu item shows and where it comes from (ITEMS,
 // GROUPS), and the datasets behind them. style.js builds the map's style from it.
 
-export const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+import { HOSTS } from './hosts.js';
+
+export const DEM_TILES = `${HOSTS.terrain}/terrarium/{z}/{x}/{y}.png`;
 // Terrarium carries bathymetry only up to zoom 10: above that most seas read 0 m
 // (SRTM fills water with 0). `native` is the zoom read from the server, `max` the
 // zoom served after clipping to the OSM coastline (clip.js), upsampled in between.
@@ -10,7 +12,7 @@ export const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrariu
 // zoom-11 coastline, where small islands do not exist yet, and they vanished under the tint
 export const DEM_SEA = { native: 10, max: 13 };
 export const DEM_LAND = { native: 12, max: 12 }; // no upsampling: slopes of an upsampled DEM shade in facets
-export const OMT_TILEJSON = 'https://tiles.openfreemap.org/planet';
+export const OMT_TILEJSON = `${HOSTS.openfreemap}/planet`;
 
 // Shipping density from EMODnet Human Activities (WMS, keyless, CORS), on a 1 km grid over
 // EU and neighbouring seas. Two datasets, each with ship types (keys prefixed 't', because
@@ -48,7 +50,7 @@ export const DENSITY = {
 // a WMS layer as 256 px Web Mercator tiles; more: further parameters (&time=…)
 const wms = (base, layers, style = '', more = '') => [`${base}?service=WMS&version=1.3.0&request=GetMap&layers=${layers}&styles=${style}`
   + `&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true${more}`];
-export const HA_WMS = 'https://ows.emodnet-humanactivities.eu/wms';
+export const HA_WMS = `${HOSTS.emodnetHumanActivities}/wms`;
 export const HA_CREDIT = '<a href="https://emodnet.ec.europa.eu/en/human-activities">EMODnet Human Activities</a>';
 export const densityTiles = (id, type, period) => wms(HA_WMS, DENSITY[id].layer(type), '', `&time=${DENSITY[id].time(period)}T00:00:00.000Z`);
 
@@ -56,18 +58,18 @@ export const densityTiles = (id, type, period) => wms(HA_WMS, DENSITY[id].layer(
 // Depth (EMODnet Bathymetry's model, about 115 m in European waters: the styles that leave land to
 // the chart), seabed substrate (EMODnet Geology, 1:250k, Folk classes: its legend from the
 // service, CLASS_LEGENDS), and what is built, sunk or set aside at sea (EMODnet Human Activities).
-const GEOLOGY_WMS = 'https://drive.emodnet-geology.eu/geoserver/gtk/wms';
-const MR_WMS = 'https://geo.vliz.be/geoserver/MarineRegions/wms';
+const GEOLOGY_WMS = `${HOSTS.emodnetGeology}/geoserver/gtk/wms`;
+const MR_WMS = `${HOSTS.vliz}/geoserver/MarineRegions/wms`;
 // Marine Regions' zones, drawn landward first, with their fills (its legends name each "Single symbol")
 const MR_ZONES = [['eez_internal_waters', 'Internal waters', '#3D9EFF'], ['eez_archipelagic_waters', 'Archipelagic waters', '#7ABDFF'],
   ['eez_12nm', 'Territorial sea (12 NM)', '#0B6A67'], ['eez_24nm', 'Contiguous zone (24 NM)', '#0D827E']];
 const FOLK = { folk5: 'folk_5_substrate_class', folk7: 'folk_7_substrate_class' }; // the substrate's styles by variant
-const bathy = (style) => [`https://tiles.emodnet-bathymetry.eu/latest/${style}/web_mercator/{z}/{x}/{y}.png`];
+const bathy = (style) => [`${HOSTS.emodnetBathymetry}/latest/${style}/web_mercator/{z}/{x}/{y}.png`];
 export const OVERLAYS = {
   emodnetdepth: { multicolour: bathy('mean_multicolour'), rainbow: bathy('mean_rainbowcolour') },
   substrate: Object.fromEntries(Object.entries(FOLK).map(([v, style]) => [v, wms(GEOLOGY_WMS, 'seabed_substrate_250k', style)])),
   // the World Bank's tiles of its global shipping density (with the IMF): world, all vessels, coarse
-  worlddensity: { all: ['https://tiles.arcgis.com/tiles/iQ1dY19aHwbSDYIF/arcgis/rest/services/Shipping_density_all_vessels_2015_to_2020/MapServer/tile/{z}/{y}/{x}'] },
+  worlddensity: { all: [`${HOSTS.arcgisTiles}/tiles/iQ1dY19aHwbSDYIF/arcgis/rest/services/Shipping_density_all_vessels_2015_to_2020/MapServer/tile/{z}/{y}/{x}`] },
   wrecks: { all: wms(HA_WMS, 'wwshipwrecks') },
   cables: { telecom: wms(HA_WMS, 'telecablesactual'), power: wms(HA_WMS, 'powercables') },
   pipelines: { all: wms(HA_WMS, 'pipelines') },
@@ -92,11 +94,11 @@ export const OVERLAY_CREDIT = {
 };
 // EMODnet Bathymetry's model as data (GIS export): its Zarr store, as EDITO's catalogue lists it
 // (collection emodnet-elevation, DTM 2024): elevation in metres, 1/16 arc-minute, chunks of ~1°
-export const EMODNET_DTM = 'https://s3.waw3-1.cloudferro.com/emodnet/emodnet_bathymetry/14157/bathymetry_dtm_2024.zarr';
+export const EMODNET_DTM = `${HOSTS.cloudferro}/emodnet/emodnet_bathymetry/14157/bathymetry_dtm_2024.zarr`;
 // GEBCO 2026 (15″ cells, the world) as a multiscale Zarr store, built by tools/gebco.mjs and
 // published on the project's data host: the sea's depths (gebco.js, clip.js); its type identifier grid beside it (tid.zarr)
-export const GEBCO = 'https://geodata.makaw.org/gebco-2026/elevation.zarr';
-export const GEBCO_TID = 'https://geodata.makaw.org/gebco-2026/tid.zarr';
+export const GEBCO = `${HOSTS.geodata}/gebco-2026/elevation.zarr`;
+export const GEBCO_TID = `${HOSTS.geodata}/gebco-2026/tid.zarr`;
 // where GEBCO's depths come from, by its type identifier codes (codes [from, to], inclusive); land
 // (0) and no data (127) are not drawn
 export const DEPTH_SOURCES = [
@@ -145,7 +147,7 @@ export const CLASS_LEGENDS = {
       ['France (SIGCables)', '#ff8c00'], ['UK (OGA)', '#3737ff']].map(([label, colour]) => ({ label, colour, line: true, casing: '#ff0000' }))),
 };
 
-export const ESRI_META = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=json';
+export const ESRI_META = `${HOSTS.esri}/ArcGIS/rest/services/World_Imagery/MapServer?f=json`;
 const escapeHtml = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 export const esriAttribution = (copyrightText) => `Powered by <a href="https://www.esri.com">Esri</a> · ${escapeHtml(copyrightText)}`;
 
@@ -156,13 +158,13 @@ export const GIBS = {
 // (sea surface temperature and chlorophyll come from Copernicus: gap-free, with Mediterranean detail)
 export function gibsTiles(key, date) {
   const g = GIBS[key];
-  return [`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${g.layer}/default/${date}/GoogleMapsCompatible_Level${g.level}/{z}/{y}/{x}.${g.ext}`];
+  return [`${HOSTS.gibs}/wmts/epsg3857/best/${g.layer}/default/${date}/GoogleMapsCompatible_Level${g.level}/{z}/{y}/{x}.${g.ext}`];
 }
 // NASA publishes each layer after its own delay (true colour within a day, MUR SST about two days):
 // GIBS DescribeDomains lists the dates a layer has between from and to (YYYY-MM-DD)
 export function gibsDomainUrl(key, from, to) {
   const g = GIBS[key];
-  return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/1.0.0/${g.layer}/default/GoogleMapsCompatible_Level${g.level}/all/${from}--${to}.xml`;
+  return `${HOSTS.gibs}/wmts/epsg3857/best/1.0.0/${g.layer}/default/GoogleMapsCompatible_Level${g.level}/all/${from}--${to}.xml`;
 }
 // the newest date in a DescribeDomains reply: <Domain>start/end/P1D[,start/end/P1D…]</Domain>
 export function domainEnd(xml) {
@@ -175,7 +177,7 @@ export function domainEnd(xml) {
 // the global model, then the regional one over it where it has data (Mediterranean 4.2 km), so
 // the detail is regional and the coverage global, in one layer with one opacity. Colour ranges
 // are fixed, so a colour means the same at every hour; legends come from the service.
-const CMEMS_WMTS = 'https://wmts.marine.copernicus.eu/teroWmts';
+const CMEMS_WMTS = `${HOSTS.copernicusWmts}/teroWmts`;
 const GLO_WAV = 'GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411';
 const MED_WAV = 'MEDSEA_ANALYSISFORECAST_WAV_006_017/cmems_mod_med_wav_anfc_4.2km_PT1H-i_202311';
 const GLO_CUR = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_merged-uv_PT1H-i_202211';
@@ -252,7 +254,7 @@ export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
 }
 export const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
 // a dataset's entry in Copernicus Marine's STAC catalogue: where its values are, as Zarr stores (zarr.js)
-export const cmemsStacUrl = (part) => `https://stac.marine.copernicus.eu/metadata/${part.split('/').slice(0, 2).join('/')}/dataset.stac.json`;
+export const cmemsStacUrl = (part) => `${HOSTS.copernicusStac}/metadata/${part.split('/').slice(0, 2).join('/')}/dataset.stac.json`;
 // the stored variables a part draws: itself, or for arrows their eastward and northward components
 // (the global currents: the total, with tides and wave drift, as the tiles draw it)
 export function storedVariables(part) {
