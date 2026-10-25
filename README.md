@@ -251,8 +251,10 @@ public bucket does) that serves the folders the two tools build, `gebco-2026/`
 (two Zarr stores: small files, whole files fetched, no range requests) and
 `seagrass-2025/` (`{z}/{x}/{y}.pbf` and `index.json`), over HTTPS, with
 cross-origin reads allowed from the page's origin and, for the browser tests,
-from `http://127.0.0.1:8099`. The release is in each path, so the files can be
-cached as immutable. Nothing else: no listing, no function, no key. The browser tests use `/usr/bin/google-chrome` by default; set
+from `http://127.0.0.1:8099`. The page reads every file as bytes itself, so
+content types and encodings are not needed (nor is anything compressed on the
+wire). The release is in each path, so the files can be cached as immutable.
+Nothing else: no listing, no function, no key. The browser tests use `/usr/bin/google-chrome` by default; set
 `CHROME=/path/to/chrome` to use another binary.
 
 The smoke test depends on the network by design, because the page depends on
