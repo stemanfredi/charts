@@ -4,8 +4,7 @@
 //  - nothing on screen leaves the viewport;
 //  - every visible control is a ≥ 44 × 44 px target (labels count for their checkbox).
 //   CHROME=/path/to/chrome npm run ui        Screenshots go to $UI_SHOTS if set.
-import { chromium } from 'playwright-core';
-import { serve, chromeOptions } from './serve.mjs';
+import { start } from './browser.mjs';
 
 // phone and tablet are touch devices (pointer: coarse, 44 px targets); desktop has a mouse (36 px)
 const VIEWPORTS = [['phone', 390, 844, true], ['tablet', 820, 1180, true], ['desktop', 1280, 800, false]];
@@ -28,20 +27,17 @@ const DRAWING = JSON.stringify({ type: 'FeatureCollection', charts: { format: 'c
 // put where the app keeps its drawings (draw/saving.js): the list, the one open, its text
 const SEED = (d) => { localStorage.setItem('charts.drawings', JSON.stringify([{ id: 'ui', title: '', modified: '2026-10-24T00:00:00Z', size: d.length }])); localStorage.setItem('charts.drawings.current', 'ui'); localStorage.setItem('charts.drawing.ui', d); };
 
-const server = await serve();
-const browser = await chromium.launch(chromeOptions());
-const failures = [];
-const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); if (!ok) failures.push(what); };
+const { browser, base, check, section, finish } = await start();
 
-try {
-  for (const [name, width, height, touch] of VIEWPORTS) {
-    for (const menu of [0, 1, 'drawing', 'draw', 'line', 'label']) { // the Draw view four times: the drawing's inspector, a node's, a line's, a label's
+for (const [name, width, height, touch] of VIEWPORTS) {
+  for (const menu of [0, 1, 'drawing', 'draw', 'line', 'label']) { // the Draw view four times: the drawing's inspector, a node's, a line's, a label's
+    await section(`${name} ${width}px, ${menu}`, async () => {
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
       // the Draw view with a drawing: a node with two parts (its inspector shown) and a shape
       if (typeof menu === 'string') await page.addInitScript(SEED, DRAWING);
       // a zoomed-out view (scale note shown), four stacked legends (they once ran over the
       // credits), a measurement
-      await page.goto(`${server.url}#v=5/45/14/0&menu=${typeof menu === 'string' ? 'draw' : menu}&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
+      await page.goto(`${base}#v=5/45/14/0&menu=${typeof menu === 'string' ? 'draw' : menu}&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
       await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
       await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 44], [], [13, 44.5], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
       if (menu === 'draw') await page.click('#dview .drow .dname');
@@ -95,13 +91,7 @@ try {
       check(!r.offscreen.length, `${where}: nothing off screen ${r.offscreen.join(', ')}`);
       check(!r.small.length, `${where}: targets ≥ ${r.MIN} px ${r.small.join(', ')}`);
       await page.close();
-    }
+    });
   }
-} catch (err) {
-  check(false, `ui check crashed: ${err.message}`);
-} finally {
-  await browser.close();
-  server.close();
 }
-console.log(failures.length ? `\n${failures.length} failed` : '\nall passed');
-process.exit(failures.length ? 1 : 0);
+await finish();

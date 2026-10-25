@@ -218,7 +218,7 @@ development.
 | `tools/deps.mjs` | Pins, hashes and checks the CDN dependencies. |
 | `tools/gebco.mjs` | GEBCO's depth grids as Zarr stores (download, build, verify), published at `geodata.makaw.org`. |
 | `tools/seagrass.mjs` | EMODnet's seagrass as vector tiles (download, build), published at `geodata.makaw.org`: its WMS takes a minute or more a tile. |
-| `test/` | Unit tests, browser tests, and the development server. |
+| `test/` | Unit tests; the browser tests (`browser.mjs`: what they share: the site served, Chrome, sections that fail on their own) and the development server. |
 | `docs/` | The drawing tools: the file format and the interface. |
 
 ## Development

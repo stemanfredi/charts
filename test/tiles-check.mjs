@@ -6,16 +6,12 @@
 //             blocks)
 //   probes    places whose answer is known get it: lakes without depth, limans flat at sea level,
 //             Caspian depths, the Marciana Marina pit filled
-import { chromium } from 'playwright-core';
-import { serve, chromeOptions } from './serve.mjs';
+import { start } from './browser.mjs';
 import { NO_DEPTH_M } from '../site/catalog.js';
 import { tileXY } from '../site/geo.js';
 
-const server = await serve();
-const browser = await chromium.launch(chromeOptions());
+const { browser, base, check, section, finish } = await start();
 const page = await browser.newPage();
-const failures = [];
-const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); if (!ok) failures.push(what); };
 
 // tile z/x/y holding lon/lat, and the pixel in it
 function at(lon, lat, z) {
@@ -23,8 +19,8 @@ function at(lon, lat, z) {
   return { z, x: Math.floor(X), y: Math.floor(Y), i: Math.floor((X % 1) * 256), j: Math.floor((Y % 1) * 256) };
 }
 
-try {
-  await page.goto(`${server.url}#v=3/0/0/0&on=chart&menu=0`);
+await section('the page and its clipper', async () => {
+  await page.goto(`${base}#v=3/0/0/0&on=chart&menu=0`);
   await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
   // the page's own pipeline: the sea clipper in its worker, as the depth layers use it
   await page.evaluate(async () => {
@@ -43,9 +39,11 @@ try {
       return out;
     };
   });
-  const metres = (z, x, y) => page.evaluate(([a, b, c]) => window.metres(a, b, c), [z, x, y]);
-  const shaded = (z, x, y) => page.evaluate(([a, b, c]) => window.shaded(a, b, c), [z, x, y]);
+});
+const metres = (z, x, y) => page.evaluate(([a, b, c]) => window.metres(a, b, c), [z, x, y]);
+const shaded = (z, x, y) => page.evaluate(([a, b, c]) => window.shaded(a, b, c), [z, x, y]);
 
+await section('seams', async () => {
   // ---- seams: no bend in the depth slope at the edge between two tiles -----------------------
   // the bend at a column: how much the slope changes there, |v(x+1) − 2v(x) + v(x−1)|, along each
   // row; at the edge (the last column of the west tile, the first of the east one) no larger than
@@ -60,6 +58,9 @@ try {
     check(Number.isFinite(edge) && edge <= 2 * inside, `seams: no bend at the tile edge, ${name} zoom ${z} (slope change ${edge.toFixed(2)} m at the edge, ${inside.toFixed(2)} m inside)`);
   }
 
+});
+
+await section('zooms', async () => {
   // ---- zooms: a tile agrees with the four of the next zoom it covers -------------------------
   for (const [name, lon, lat, z] of [['Elba', 10.2, 42.8, 9], ['Gulf of Taranto', 17.2, 40.0, 7], ['Gulf of Taranto', 17.2, 40.0, 8], ['Gulf of Panama', -78.6, 8.4, 8]]) {
     const t = at(lon, lat, z);
@@ -89,6 +90,9 @@ try {
     check(n > 1000 && bad <= n * 0.002, `zooms agree: ${name} zoom ${z} against ${z + 1} (${n} pixels, ${bad} apart${worst ? `, e.g. ${worst}` : ''})`);
   }
 
+});
+
+await section('probes', async () => {
   // ---- probe points --------------------------------------------------------------------------
   const probe = async (lon, lat, z, r = 0) => { // the values within r pixels of the point
     const t = at(lon, lat, z), v = await shaded(z, t.x, t.y), out = [];
@@ -108,11 +112,5 @@ try {
   check(Math.min(...v) > -100, `Marciana Marina (Elba): the harbour's false pit is filled (deepest ${Math.min(...v).toFixed(0)} m)`);
   v = await probe(17.3, 39.8, 7);
   check(v[0] < -100, `Gulf of Taranto: real depths, no 0 m blocks (${v[0].toFixed(0)} m)`);
-} catch (err) {
-  check(false, `tiles check crashed: ${err.message}`);
-} finally {
-  await browser.close();
-  server.close();
-}
-console.log(failures.length ? `\n${failures.length} failed` : '\nall passed');
-process.exit(failures.length ? 1 : 0);
+});
+await finish();
