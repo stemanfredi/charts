@@ -32,6 +32,7 @@ import { cpus } from 'node:os';
 import { deflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { openStore, readCells } from '../site/zarr.js';
+import { lru } from '../site/net.js';
 
 export const RELEASE = 'gebco-2026';
 const CEDA = 'https://dap.ceda.ac.uk/bodc/gebco/global/gebco_2026';
@@ -271,6 +272,9 @@ function writeTruncate(path, size) { const fd = openSync(path, 'r+'); try { writ
 export async function verify(dir, name, { out = join(dir, 'zarr', RELEASE, `${name}.zarr`), samples = 20000, log = console.log } = {}) {
   const g = GRIDS[name], grid = openGrid(dir, name);
   const store = await openStore(out, async (path) => { try { return new Uint8Array(readFileSync(path)); } catch { return null; } });
+  // the samples read one cell at a time: each chunk decoded once, not once per cell
+  const decoded = lru(64), rawChunk = store.chunk;
+  store.chunk = (nm, idx) => decoded(`${nm}/${idx.join('.')}`, () => rawChunk(nm, idx));
   const levels = JSON.parse(readFileSync(join(out, '.zmetadata'))).metadata['.zattrs'].multiscales[0].datasets.length;
   const src = (r, c) => readRows(grid, r, r + 1)[c];
   const cellAt = async (k, r, c) => (await readCells(store, `${k}/${name}`, 0, 0, { rows: [r], cols: [c] }))[0];
