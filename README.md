@@ -42,6 +42,10 @@ from soundings.
     (or any GeoJSON).
 - **Search** takes place names or coordinates. **The link** reopens the exact
   view and layers, never a drawing.
+- **My location** (the button under zoom): off until pressed. The map goes to
+  where the device is, with a circle of its accuracy; it is not in the pictures.
+- **On a phone** the page installs as an app (Add to Home Screen), full screen.
+  About has Reload, and a note says when a newer version is published.
 - **Picture (PNG):** the map as on screen, without the controls: legends and
   credits bottom left; its centre, zoom, projection and the data's time beside
   the scale bottom right. The same details, the credits and a
@@ -188,6 +192,11 @@ on-screen credits and the PNG list only the sources that are drawn.
   Place names are sent to Photon as you type, along with the map centre rounded
   to 0.1°. The results list says so. For a place that should not be named, type
   its coordinates.
+- My location, when shown, stays in the page: the browser asks permission the
+  first time, and the page sends it nowhere. Some browsers find it with their
+  maker's location service, which then sees it; that is the browser's, as on
+  any site. The link follows the view, so one copied there shows roughly where
+  you are.
 
 ## How it works
 
@@ -224,6 +233,7 @@ development.
 | Path | Responsibility |
 |---|---|
 | `site/index.html` | Page shell. The CDN block is generated; see *Dependencies*. |
+| `site/manifest.webmanifest`, `site/icon.svg` | The page installed as an app; its icon (the PNGs are drawn from the SVG). |
 | `site/style.css` | All styling. |
 | `site/catalog.js` | Menu items and their provenance, data sources, datasets. |
 | `site/style.js` | The map style built from the catalogue: sources, layers in draw order. |

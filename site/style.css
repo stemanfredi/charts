@@ -17,6 +17,12 @@ body { font: 13px/1.4 var(--font); color: var(--ink); background: #f1ebdc; overf
 .nostart { position: absolute; z-index: 10; top: 40%; left: 16px; right: 16px; max-width: 420px; margin: 0 auto; padding: 12px 16px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); visibility: hidden; animation: nostart 0s 8s forwards; }
 @keyframes nostart { to { visibility: visible; } }
+/* a newer version published (app.js): said at the top, with Reload */
+.update { position: absolute; z-index: 10; top: 64px; left: 16px; right: 16px; max-width: 360px; margin: 0 auto; padding: 8px 14px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); text-align: center; }
+.update[hidden] { display: none; }
+/* a button read as a link (About's Reload) */
+.linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
 #map { position: absolute; inset: 0; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -44,6 +50,7 @@ svg { flex: none; }
 .rail .railmenu button { flex-direction: row; justify-content: flex-start; gap: 10px; height: auto; min-height: var(--row); padding: 0 12px 0 8px; font-size: 13px; }
 .zoom { z-index: 6; right: 10px; bottom: calc(var(--status-h) + 10px); width: var(--rail); display: flex; flex-direction: column; padding: 2px; gap: 2px; }
 .zoom button { height: 54px; } /* square, like the buttons above */
+.zoom button[aria-pressed="true"] { background: var(--magenta); color: #fff; } /* my location shown */
 .zoom .units { height: 54px; font: 600 12px var(--mono); } /* the distance units, beside the scale: as tall as the buttons above */
 
 /* ---- layers panel, left of the column ---- */

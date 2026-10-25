@@ -1,7 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEPTH_SOURCES, DEM_LAND, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
-import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES } from './style.js';
+import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses, wmsClasses } from './legend.js';
@@ -14,6 +14,7 @@ import { exportFeatures } from './draw/features.js';
 import { profileOf } from './draw/profile.js';
 import { lineTrace } from './draw/lines.js';
 import { isShown } from './draw/document.js';
+import { circle } from './geodesy.js';
 import { affine, worldFile, pamXml, stacItem } from './export.js';
 import { mercator, norm360 } from './geo.js';
 import { FETCH, memo } from './net.js';
@@ -181,7 +182,7 @@ const style = buildStyle({
   date: state.date,
   density: Object.fromEntries(Object.keys(DENSITY).map((id) => [id, [state.variant[id], state.period[id]]])),
 });
-style.layers.push(...DRAW_LAYERS); // the drawing above the map, its values on top
+style.layers.push(...DRAW_LAYERS, ...LOCATION_LAYERS); // the drawing above the map, its values on top; the device's location over all
 
 // MapLibre's worker from the pinned, hashed URL in index.html (tools/deps.mjs): a copy the browser
 // has checked against the hash, instead of MapLibre's own unchecked import from the CDN. The hash
@@ -255,6 +256,42 @@ function renderCompass() {
   compass.firstElementChild.style.transform = `rotate(${-b}deg)`;
 }
 map.on('rotate', renderCompass);
+
+// ---- my location: off until pressed (the browser asks permission the first time). Where the device says
+// it is, a circle of its accuracy round it, kept in this page: nothing of it is sent. The first fix
+// brings the map there; later ones move the dot only, so a map panned away stays put. Off, or the page
+// hidden: the device is no longer asked.
+const locate = $('#locate');
+let watching = null, located = false;
+const showLocation = (fix) => map.getSource('mylocation')?.setData({ type: 'FeatureCollection', features: fix ? [
+  { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [circle(fix.at, Math.max(fix.accuracy, 1), 64)] } },
+  { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: fix.at } }] : [] });
+function watchLocation(on) {
+  if (watching != null) navigator.geolocation.clearWatch(watching);
+  watching = null;
+  if (!on) return;
+  watching = navigator.geolocation.watchPosition(({ coords }) => {
+    const at = [coords.longitude, coords.latitude];
+    showLocation({ at, accuracy: coords.accuracy });
+    if (!located) { located = true; map.flyTo({ center: at, zoom: Math.max(map.getZoom(), 13), padding: 0 }); }
+  }, (e) => {
+    if (e.code !== e.PERMISSION_DENIED) return; // not found yet, or too slow: it keeps trying
+    setLocating(false);
+    locate.title = 'Location not available: this site is not allowed to know it (the browser\'s site settings)';
+  }, { enableHighAccuracy: true, maximumAge: 10000 });
+}
+function setLocating(on) {
+  locate.setAttribute('aria-pressed', String(on));
+  locate.title = on ? 'Hide my location' : 'Show my location';
+  locate.setAttribute('aria-label', locate.title);
+  located = false;
+  if (!on) showLocation(null);
+  watchLocation(on);
+}
+const locating = () => locate.getAttribute('aria-pressed') === 'true';
+if (!('geolocation' in navigator)) locate.hidden = true;
+locate.addEventListener('click', () => setLocating(!locating()));
+document.addEventListener('visibilitychange', () => { if (locating()) watchLocation(document.visibilityState === 'visible'); });
 
 // the keys and the one bar of what is being drawn (tools.js)
 const toolbox = new Toolbox(map, () => drawing.select([])); // a right-click with no tool on: nothing selected
@@ -801,6 +838,7 @@ const ICON = {
   plus: ['M12 5v14M5 12h14'],
   minus: ['M5 12h14'],
   compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
+  locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v5', 'M12 8h.01'],
   ruler: ['M3 17 17 3l4 4L7 21z', 'm7 13 2 2M10 10l2 2M13 7l2 2'],
   area: ['m12 3 8 6-3 11H7L4 9z'],
@@ -1107,18 +1145,37 @@ function flash(b, text, title = '', ms = 1200) { // the button's own text says i
 }
 const about = $('#about');
 $('#b-about').addEventListener('click', () => { about.showModal(); showVersion(); });
-// the version published: version.json, written by the deploy (ci.yml); none on a development copy
+// the version published: version.json, written by the deploy (ci.yml); none on a development copy.
+// { commit, date }, or null
+async function published() {
+  try {
+    const r = await fetch('version.json', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const v = await r.json();
+    return /^[0-9a-f]{40}$/.test(v?.commit) ? v : null;
+  } catch { return null; }
+}
+// the version this page is: the commit the deploy wrote into it (ci.yml; empty on a development copy,
+// which never checks). When the page comes back into view (an installed app is often left open for
+// days), a newer one published is said, with Reload: at most every 10 minutes
+const loaded = document.querySelector('meta[name="version"]')?.content || null;
+let lastCheck = Date.now();
+document.addEventListener('visibilitychange', async () => {
+  if (!loaded || document.visibilityState !== 'visible' || Date.now() - lastCheck < 600000) return;
+  lastCheck = Date.now();
+  const now = await published();
+  if (now && now.commit !== loaded) $('#update').hidden = false;
+});
+for (const b of document.querySelectorAll('[data-reload]')) b.addEventListener('click', () => location.reload());
 let versionShown = false;
 async function showVersion() {
   if (versionShown) return;
   versionShown = true;
-  try {
-    const r = await fetch('version.json', { cache: 'no-store' });
-    if (!r.ok) return;
-    const { commit, date } = await r.json();
-    if (!/^[0-9a-f]{40}$/.test(commit)) return;
+  const v = await published();
+  if (v) {
+    const { commit, date } = v;
     $('#version').replaceChildren('version ', h('a', { href: `https://github.com/stemanfredi/charts/commit/${commit}`, target: '_blank', rel: 'noopener' }, commit.slice(0, 7)), date ? ` of ${String(date).slice(0, 10)}` : '');
-  } catch { /* a development copy */ }
+  }
 }
 // Report an issue: a new GitHub issue with this view's link (the area and the layers; never the
 // measurements or the drawing), editable before it is submitted
@@ -1289,12 +1346,16 @@ async function onFrame(b, fn, before = async () => {}) {
   const failed = (e) => { console.error('export failed:', e.message); done('Failed', `Export failed: ${e.message}`); };
   try { await before(); } catch (e) { failed(e); return; }
   const go = () => {
-    drawing.showMarks(false); // the selection's highlight is not part of the picture
+    drawing.showMarks(false); // the selection's highlight is not part of the picture, nor the device's location
+    for (const id of LOCATION_LAYERS.map((l) => l.id)) map.setLayoutProperty(id, 'visibility', 'none');
     map.once('render', async () => {
       try {
         const left = await fn(map.getCanvas());
         done(left?.length ? 'Partial' : '', left?.length ? `Saved without ${left.join('; ')}` : '');
-      } catch (e) { failed(e); } finally { drawing.showMarks(true); }
+      } catch (e) { failed(e); } finally {
+        drawing.showMarks(true);
+        for (const id of LOCATION_LAYERS.map((l) => l.id)) map.setLayoutProperty(id, 'visibility', 'visible');
+      }
     });
     map.triggerRepaint();
   };

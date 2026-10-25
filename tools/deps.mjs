@@ -77,6 +77,7 @@ async function regenerate() {
     "img-src 'self' data: blob:", // tiles come by fetch (connect-src), drawn from blobs
     `connect-src 'self' ${PACKAGES} ${CSP_HOSTS.join(' ')}`,
     "worker-src 'self' blob:", 'child-src blob:', // 'self': clip-worker.js; blob: MapLibre's verified worker
+    "manifest-src 'self'", // manifest.webmanifest: the page installed as an app
     "base-uri 'none'", "form-action 'none'", "object-src 'none'",
   ].join('; ');
   const tags = [

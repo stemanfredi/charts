@@ -59,6 +59,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     drawover: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     drawlabel: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // its labels, drawn again as the map moves
     drawvalue: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // the values shown (lengths, areas, radii)
+    mylocation: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // the device's location, when shown (app.js)
   };
   // tiles set by app.js once the hour is known (cmems:// is cmems.js's tile handler)
   for (const id of Object.keys(CMEMS)) {
@@ -258,6 +259,13 @@ function layers() {
   for (const l of L) if (l.metadata) l.layout = { ...l.layout, visibility: 'none' };
   return L;
 }
+
+// the device's location, above everything: how sure it is (a circle of its accuracy), then the dot
+export const LOCATION_LAYERS = [
+  { id: 'mylocation-accuracy', type: 'fill', source: 'mylocation', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#2f6f9e', 'fill-opacity': 0.15, 'fill-outline-color': '#2f6f9e' } },
+  { id: 'mylocation', type: 'circle', source: 'mylocation', filter: ['==', ['geometry-type'], 'Point'],
+    paint: { 'circle-radius': 7, 'circle-color': '#2f6f9e', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 } },
+];
 
 // the colour pictures drawn above EMODnet depth and under the isobaths (layers() puts them there):
 // over one, the isobaths take a dark ink (app.js isobathInk). Ocean data is the same; seagrass, whose

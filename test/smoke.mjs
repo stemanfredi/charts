@@ -196,6 +196,23 @@ try {
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
   check(await cm.evaluate(() => !document.querySelector('#nostart')), 'the map started: the notice that it did not is gone');
+  // installable: the manifest and every icon it names are served
+  const app = await cm.evaluate(async () => {
+    const m = await (await fetch('manifest.webmanifest')).json();
+    return [m.name, m.display, (await Promise.all(m.icons.map((i) => fetch(i.src).then((r) => r.ok)))).every(Boolean), m.icons.length];
+  });
+  check(app[0] === 'Charts' && app[1] === 'standalone' && app[2] && app[3] >= 3, `the app's manifest and its icons (${app.join(', ')})`);
+  // my location: off until pressed; on, the map goes there and shows the dot and its accuracy; off, gone
+  await cm.context().grantPermissions(['geolocation']);
+  await cm.context().setGeolocation({ latitude: 40.85, longitude: 14.27, accuracy: 30 });
+  await cm.click('#locate');
+  const shown = () => map.getSource('mylocation').serialize().data.features.length;
+  await cm.waitForFunction(`(${shown})() === 2 && !map.isMoving()`, null, { timeout: 15000 }).catch(() => {});
+  const loc = await cm.evaluate(`[document.querySelector('#locate').getAttribute('aria-pressed'), (${shown})(), map.getCenter().lng, map.getCenter().lat]`);
+  await cm.click('#locate');
+  const off = await cm.evaluate(`[document.querySelector('#locate').getAttribute('aria-pressed'), (${shown})()]`);
+  check(loc[0] === 'true' && loc[1] === 2 && Math.abs(loc[2] - 14.27) < 0.01 && Math.abs(loc[3] - 40.85) < 0.01 && off[0] === 'false' && off[1] === 0,
+    `my location: shown where the device is, the map brought there, then hidden (${loc.map((x) => (typeof x === 'number' ? x.toFixed(3) : x)).join(', ')}; off ${off.join(', ')})`);
   // coordinates being typed never reach the place search
   const sent = [];
   cm.on('request', (r) => { if (r.url().includes('photon')) sent.push(r.url()); });
