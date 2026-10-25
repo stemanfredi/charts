@@ -61,10 +61,13 @@ const labelLayout = { 'text-field': ['get', 'text'], 'text-font': FONT, 'text-si
   'text-allow-overlap': true, 'text-ignore-placement': true, 'icon-image': ['case', ['==', ['get', 'box'], 1], 'draw-box', ''],
   'icon-text-fit': 'both', 'icon-text-fit-padding': [3, 5, 3, 5], 'icon-allow-overlap': true, 'icon-ignore-placement': true };
 const DASH = { solid: null, dashed: [4, 3], dotted: [1, 2] };
+// a line's Offset (features.js: off, px, positive to the right of its direction), as QGIS offsets a
+// line symbol: drawn by MapLibre beside the geometry, display only
+const OFF = ['coalesce', ['get', 'off'], 0];
 const lineLayers = (kind, source) => Object.entries(DASH).map(([dash, arr]) => ({
   id: `draw-${kind}-line-${dash}`, type: 'line', source, filter: ['all', ['==', ['get', 'kind'], kind], ['==', ['get', 'dash'], dash]],
   layout: { 'line-join': 'round' },
-  paint: { 'line-color': ['get', 'sc'], 'line-opacity': ['get', 'so'], 'line-width': ['get', 'sw'], ...(arr ? { 'line-dasharray': arr } : {}) },
+  paint: { 'line-color': ['get', 'sc'], 'line-opacity': ['get', 'so'], 'line-width': ['get', 'sw'], 'line-offset': OFF, ...(arr ? { 'line-dasharray': arr } : {}) },
 }));
 const fillLayer = (kind, source) => ({
   id: `draw-${kind}-fill`, type: 'fill', source, filter: ['all', ['==', ['get', 'kind'], kind], ['==', ['get', 'fill'], 1]],
@@ -80,7 +83,7 @@ const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([p
   filter: ['all', ['in', ['get', 'kind'], ['literal', ['sel', 'hover']]], ['==', ['geometry-type'], geom]],
   layout: { 'line-join': 'round' },
   paint: { 'line-color': colour, 'line-width': width, 'line-opacity': ['match', ['get', 'kind'], 'sel', opSel, opHover],
-    'line-offset': ['*', side, ['+', ['/', ['get', 'sw'], 2], 3, width / 2]] } })));
+    'line-offset': ['+', OFF, ['*', side, ['+', ['/', ['get', 'sw'], 2], 3, width / 2]]] } })));
 // bottom to top: points' rings, areas, lines (guides, the others), outlines, the selection's
 // halos, symbols, handles, the selection's rings
 // a finger (a coarse pointer): handles drawn larger (14 px from 8), as drawing.js grabs them farther
@@ -90,7 +93,7 @@ export const DRAW_LAYERS = [
   fillLayer('ring', 'draw'), ...lineLayers('ring', 'draw'),
   fillLayer('polygon', 'draw'), ...lineLayers('polygon', 'draw'),
   // under the lines: the lines' click targets, invisible
-  { id: 'draw-linehit', type: 'line', source: 'drawzoom', filter: ['==', ['get', 'kind'], 'linehit'], paint: { 'line-width': 10, 'line-opacity': 0 } },
+  { id: 'draw-linehit', type: 'line', source: 'drawzoom', filter: ['==', ['get', 'kind'], 'linehit'], paint: { 'line-width': 10, 'line-opacity': 0, 'line-offset': OFF } },
   ...lineLayers('guide', 'drawzoom'), ...lineLayers('path', 'drawzoom'),
   fillLayer('shape', 'drawzoom'), ...lineLayers('shape', 'drawzoom'),
   ...haloLayers('Polygon', [-1], AREA_HALO), ...haloLayers('LineString', [-1, 1], LINE_HALO),
@@ -105,7 +108,7 @@ export const DRAW_LAYERS = [
   { id: 'draw-centremark', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'centremark'],
     layout: { 'icon-image': 'draw-centre', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': CASING, 'icon-halo-color': '#ffffff', 'icon-halo-width': 1.5 } },
-  // the forms' previews: the points an array would make (faint diamonds), Connect's origins (rings) and lines
+  // the forms' previews: the points a distribution would make (faint diamonds), Connect's roots (rings) and lines
   { id: 'draw-ghostline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'ghostline'],
     paint: { 'line-color': '#e8590c', 'line-opacity': 0.75, 'line-width': 2, 'line-dasharray': [3, 2] } },
   { id: 'draw-ghost', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'ghost'],

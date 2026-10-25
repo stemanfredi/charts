@@ -3,7 +3,7 @@
 // (file.js). Pure: no map, no DOM.
 
 import { MAX_LAT, norm360 } from '../geo.js';
-import { DEFAULT_STYLE, MAX_APART, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, PART_KINDS, isoNow } from './document.js';
+import { DEFAULT_STYLE, MAX_OFFSET, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, PART_KINDS, isoNow } from './document.js';
 
 export const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const COLOUR = /^#[0-9a-fA-F]{6}$/;
@@ -35,12 +35,12 @@ export function properties(list, c) {
   }
   return out;
 }
-// Draw apart, on a line or a group: the gap kept between strokes (px, 0: off), or null (a line's: its
+// Offset, on a line or a group: px to the right of the line (negative: left), or null (a line's: its
 // group's)
-export function apart(v, c) {
+export function offset(v, c) {
   if (v === undefined || v === null) return null;
-  if (fin(v) && v >= 0) return Math.min(MAX_APART, v);
-  c.warn('Draw apart: not a number of pixels ≥ 0; ignored');
+  if (fin(v)) return Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, v));
+  c.warn('Offset: not a number of pixels; ignored');
   return null;
 }
 export function flag(v, c, what) {
@@ -132,8 +132,8 @@ export function look(l, c, fill = true) {
     if (t.color != null) { const v = colour(t.color, undefined, c, 'look text colour'); if (v !== undefined) o.color = v; }
     if (Object.keys(o).length) out.text = o;
   }
-  const a = apart(l.apart, c);
-  if (a !== null) out.apart = a;
+  const a = offset(l.offset, c);
+  if (a !== null) out.offset = a;
   if (l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
   return out;
 }

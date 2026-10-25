@@ -2,7 +2,7 @@
 // layers of layers.js from features.js and labels.js, with the placing tools, clicks, hit testing,
 // dragging and the Select area tool; saved in this browser as it changes (saving.js).
 
-import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, label, nextName, makePart, KIND, LABEL_OFFSET, POINT_KIND_NAME, lookOf, setLook } from './document.js';
+import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, label, nextName, makePart, KIND, LABEL_OFFSET, POINT_KIND_NAME, lookOf, setLook, offsetOf } from './document.js';
 import { OUTLINE_NAME, outlineOf } from './outlines.js';
 import { placeKind, nameByLook } from './place.js';
 import { norm360 as norm } from '../geo.js';
@@ -13,7 +13,6 @@ import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, 
 import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures, ringOf } from './features.js';
 import { lineTrace, nearestAlong } from './lines.js';
 import { labelFeatures } from './labels.js';
-import { schematic } from './schematic.js';
 import { inverse, rectangle, fmtDist, areaOf, pathOf, sector, circle } from '../geodesy.js';
 import { snapAt, stepped, neighbours, positionsOf, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
@@ -71,8 +70,8 @@ export class Drawing extends DrawStore {
       cancelAnimationFrame(labelRaf);
       labelRaf = requestAnimationFrame(() => this.renderLabels());
     });
-    // once a frame while zooming, only what depends on it: outlines drawn enlarged and lines drawn
-    // apart; the marks of what is selected (handles are thinned at the zoom)
+    // once a frame while zooming, only what depends on it: outlines drawn enlarged; the marks of what
+    // is selected (handles are thinned at the zoom)
     map.on('zoom', () => {
       const parts = { zoom: zoomDependent(this.doc), marks: this.sel.size > 0 || !!this.hover };
       if (!parts.zoom && !parts.marks) return;
@@ -148,10 +147,10 @@ export class Drawing extends DrawStore {
   }
   // how much a point's outline is drawn enlarged now (1: real size)
   enlargement(point) { return enlargement(this.doc, point, this.map.getZoom()); }
-  // the lines drawn away from their real geometry now (Draw apart): their IDs
-  apart() { return [...schematic(this.doc, this.map.getZoom()).keys()]; }
+  // the lines drawn beside their real geometry (Offset): their IDs
+  offset() { return this.doc.lines.filter((s) => isShown(this.doc, s) && offsetOf(this.doc, s)).map((s) => s.id); }
   // the IDs under a screen point: those right under it first, then those within pad px (lines drawn
-  // apart are a few px from each other: the one clicked must come first), each set topmost first
+  // offset are a few px from each other: the one clicked must come first), each set topmost first
   hitAt(point, pad = 4) {
     const layers = HIT_LAYERS.filter((id) => this.map.getLayer(id));
     const within = (r) => this.map.queryRenderedFeatures([[point.x - r, point.y - r], [point.x + r, point.y + r]], { layers }).map((f) => f.properties.id).filter(Boolean); // not a measurement being measured

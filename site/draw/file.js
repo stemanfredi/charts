@@ -313,7 +313,7 @@ function lookOut(l, simple = false) {
     if (Object.keys(v).length) out[part] = v;
   }
   if (l.text && Object.keys(l.text).length) out.text = { ...l.text };
-  if (l.apart != null) out.apart = r3(l.apart);
+  if (l.offset != null) out.offset = r3(l.offset);
   if (l.minSize != null) out.minSize = r3(l.minSize);
   return out;
 }

@@ -395,18 +395,20 @@ test('lines: guides and the others drawn, a click target each, halos, handles by
   assert.equal(drawFeatures(doc, new Set(['s2'])).features.filter((x) => x.properties.kind === 'ctrl').length, 0);
 });
 
-test('lines drawn apart: side by side at a zoom, on their real geometry otherwise and in the export', () => {
+test('lines with an Offset: drawn on their real geometry, the offset carried for MapLibre (the line, its hit stroke, its marks); none in the export', () => {
   const doc = emptyDoc(0);
   addPoint(doc, [12, 40], { id: 'a' });
   addPoint(doc, [12.2, 40], { id: 'b' });
-  addLine(doc, 'a', [], 'b', { id: 's1', look: { apart: 2 } });
-  addLine(doc, 'a', [], 'b', { id: 's2', look: { apart: 2 } });
-  const paths = (display) => drawFeatures(doc, new Set(), null, display).features.filter((x) => x.properties.kind === 'path').map((x) => x.geometry.coordinates);
-  const [p1, p2] = paths({ zoom: 12 });
-  const mid = (c) => c[Math.floor(c.length / 2)];
-  assert.ok(mid(p1)[1] < 40 && mid(p2)[1] > 40, 'one each side');
-  assert.deepEqual(paths({}), [lineTrace(doc, doc.lines[0]).coords, lineTrace(doc, doc.lines[1]).coords]);
-  assert.deepEqual(exportFeatures(doc).filter((x) => x.properties.kind === 'line').map((x) => x.geometry.coordinates), paths({}));
+  addLine(doc, 'a', [], 'b', { id: 's1', look: { offset: -3 } });
+  addLine(doc, 'a', [], 'b', { id: 's2' });
+  const f = drawFeatures(doc, new Set(['s1']), null, { zoom: 12 }).features;
+  const of = (id, kind) => f.filter((x) => x.properties.id === id && x.properties.kind === kind);
+  assert.deepEqual(of('s1', 'path').map((x) => x.properties.off), [-3]);
+  assert.deepEqual(of('s1', 'linehit').map((x) => x.properties.off), [-3]);
+  assert.deepEqual(of('s1', 'sel').map((x) => x.properties.off), [-3]);
+  assert.deepEqual(of('s2', 'path').map((x) => x.properties.off), [0]);
+  assert.deepEqual(f.filter((x) => x.properties.kind === 'path').map((x) => x.geometry.coordinates), [lineTrace(doc, doc.lines[0]).coords, lineTrace(doc, doc.lines[1]).coords]);
+  assert.ok(exportFeatures(doc).filter((x) => x.properties.kind === 'line').every((x) => !('off' in x.properties)));
 });
 
 test('areas: drawn at real size, corners and edge midpoints as handles, bounded and moved by their corners', () => {
@@ -438,7 +440,7 @@ test('the parts: what never depends on the zoom, what may, the marks; only those
   assert.deepEqual(only.zoom, p.zoom);
 });
 
-test('zoomDependent: an outline that may be drawn enlarged, or lines drawn apart', () => {
+test('zoomDependent: an outline that may be drawn enlarged', () => {
   const doc = emptyDoc(0);
   addPoint(doc, [12, 41]);
   addLine(doc, [12, 40], [], [12.1, 40]);
@@ -453,11 +455,6 @@ test('zoomDependent: an outline that may be drawn enlarged, or lines drawn apart
   h.visible = false;
   doc.look.minSize = 12;
   assert.equal(zoomDependent(doc), false);
-  doc.lines[0].look.apart = 2;
-  assert.equal(zoomDependent(doc), true);
-  delete doc.lines[0].look.apart;
-  makeGroup(doc, [doc.lines[0].id]).look.apart = 2;
-  assert.equal(zoomDependent(doc), true);
 });
 
 test('values shown: each leg\'s length and bearing, the total; an area\'s area and perimeter; a point\'s round parts\' radii', () => {

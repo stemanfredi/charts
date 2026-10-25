@@ -9,7 +9,7 @@ const { parse, serialise, toFile } = await import('../../site/draw/file.js');
 const { refreshAttached, lineRef, resolve } = await import('../../site/draw/attach.js');
 const { repeats, connections } = await import('../../site/draw/generator.js');
 const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
-  label, styleOf, drawApartOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, splitLine,
+  label, styleOf, offsetOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, splitLine,
   DEFAULT_STYLE, GUIDE_STYLE, FORMAT, VERSION } = d;
 
 const NOW = Date.parse('2026-10-22T10:00:00Z');
@@ -24,8 +24,8 @@ const again = (doc, known = null) => parse(serialise(doc), known, NOW);
 // a document as the file holds it: values rounded as the writer rounds them (positions 7 decimals,
 // metres and pixels 3, angles 4)
 const r = (n) => (v) => (typeof v === 'number' ? +v.toFixed(n) : v);
-const ROUND = { position: 7, pos: 7, center: 7, points: 7, startHandle: 3, endHandle: 3, handleIn: 3, handleOut: 3, offset: 3,
-  radius: 3, length: 3, width: 3, at: 6, apart: 3, minSize: 3, opacity: 3, bearing: 4, aperture: 4, zoom: 4 };
+const ROUND = { position: 7, pos: 7, center: 7, points: 7, startHandle: 3, endHandle: 3, handleIn: 3, handleOut: 3,
+  radius: 3, length: 3, width: 3, at: 6, offset: 3, minSize: 3, opacity: 3, bearing: 4, aperture: 4, zoom: 4 };
 function rounded(x, n = null) {
   if (Array.isArray(x)) return x.map((y) => rounded(y, n));
   if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, rounded(v, k in ROUND ? ROUND[k] : n)]));
@@ -47,7 +47,7 @@ function sample() {
   l.properties = [{ key: 'name', value: 'x' }, { key: 'k', value: 'v' }, { key: 'k', value: 'w' }];
   const free = addLine(doc, [13, 40], [], [13.5, 40.5]);
   Object.assign(free, { startHandle: [100, 200], mode: 'auto' });
-  free.look.apart = 4;
+  free.look.offset = 4;
   addArea(doc, [[12, 40], [12, 40.5], [12.5, 40.5]]).look = { fill: { color: '#123456', opacity: 0.5 }, stroke: { dash: 'dotted' } };
   addArea(doc, [[12, 40], [12.5, 40], [12.5, 40.5]]);
   addLabel(doc, lineRef(doc, l, 10));
@@ -106,7 +106,7 @@ test('round trip: values come back rounded as the file writes them', () => {
   const doc = emptyDoc(NOW);
   const p = addPoint(doc, [12.123456789, 41.987654321], { bearing: 45.123456, parts: [makePart('sector', { radius: 1000.12345, aperture: 90.000049 })] });
   p.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 }, minSize: 7.12345 };
-  const s = addLine(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { startHandle: [1.23456, -7.65432], look: { apart: 3.33333 } });
+  const s = addLine(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { startHandle: [1.23456, -7.65432], look: { offset: 3.33333 } });
   s.vertices[0].handleIn = [0.0004, 9.9999];
   addLabel(doc, lineRef(doc, s, 1500.12345)).offset = [10.12345, -20.98765];
   addArea(doc, [[0, 0], [1.123456789, 0], [1, 1]]);
@@ -224,7 +224,7 @@ test('skipped: latitudes out of range, positions missing, too few positions, wha
   assert.match(why.odd, /Curve: not read/);
 });
 
-test('repairs: symbol, angles, sizes, Draw apart, style values, parts, flags', () => {
+test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () => {
   const st = { stroke: '#FF0000', 'stroke-width': 99, 'stroke-opacity': 2, fill: 'red' };
   const { doc, report } = read(collection([
     F('p1', 'Point', [0, 0], { kind: 'point', symbol: 'star', bearing: -90, look: { minSize: -3, stroke: { dash: 'wavy' }, text: { name: 'yes' } },
@@ -235,9 +235,9 @@ test('repairs: symbol, angles, sizes, Draw apart, style values, parts, flags', (
         { kind: 'circle', radius: 2, fill: 'no', shown: 0 }] }),
     F('p3', 'Point', [0, 0], { kind: 'point', parts: [{ kind: 'rectangle', length: 0, width: 4 }, { kind: 'sector', radius: 50 }, { kind: 'sector', radius: 60, aperture: 360 },
       { kind: 'ellipse', length: 10, width: 4, aperture: 30, radius: 9 }, { kind: 'sector', radius: 70, aperture: 45, length: 3 }, { kind: 'triangle', length: 10 }] }),
-    F('s1', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { apart: -1 }, startHandle: 'x', endHandle: [10, 20], mode: 'curvy' }),
-    F('s2', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { apart: 99 } }),
-    F('s3', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { apart: true } }),
+    F('s1', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: -99 }, startHandle: 'x', endHandle: [10, 20], mode: 'curvy' }),
+    F('s2', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: 99 } }),
+    F('s3', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: true } }),
   ]));
   const [p1, p2, p3] = doc.points, [s1, s2, s3] = doc.lines;
   assert.deepEqual([p1.symbol, p1.bearing, p1.look.minSize, p1.look.text, d.lookOf(doc, 'point', p1).text.name], ['none', 270, undefined, undefined, false]); // not valid: left out, the drawing's applies
@@ -248,13 +248,13 @@ test('repairs: symbol, angles, sizes, Draw apart, style values, parts, flags', (
   assert.deepEqual(p2.parts, [makePart('circle', { radius: 5 }), { ...makePart('circle', { radius: 1 }), fill: false, shown: false, name: '7' }, makePart('circle', { radius: 2 })]); // Fill and Shown: on unless false
   assert.deepEqual(p3.parts, [makePart('circle', { radius: 50 }), makePart('circle', { radius: 60 }), makePart('ellipse', { length: 10, width: 4 }), makePart('sector', { radius: 70, aperture: 45 })]); // only a kind's own sizes kept
   assert.equal(p3.symbol, 'none');
-  assert.deepEqual([s1.look.apart, s1.startHandle, s1.endHandle, s1.mode], [undefined, null, [10, 20], 'fixed']);
-  assert.deepEqual([s2.look.apart, s3.look.apart], [d.MAX_APART, undefined]); // true or false is not a number of pixels
+  assert.deepEqual([s1.look.offset, s1.startHandle, s1.endHandle, s1.mode], [-d.MAX_OFFSET, null, [10, 20], 'fixed']); // clamped either side
+  assert.deepEqual([s2.look.offset, s3.look.offset], [d.MAX_OFFSET, undefined]); // true or false is not a number of pixels
   for (const re of [/unknown symbol "star"/, /bearing -90 read as 270/, /aperture 400 read as a full circle/, /aperture: not an angle above 0; a circle/, /look minSize: not a number of pixels/,
     /unknown dash "wavy"/, /look text name: not true or false, ignored/, /part 2: unknown dash, the point's used/, /part 3 skipped: radius not between/, /part 4 skipped: radius not between/, /part 5 skipped: not an object/,
     /part 1 skipped: unknown kind "hovercraft"/, /part 3 name: number made text/, /part 3 stroke colour: not a #rrggbb/, /part 1 skipped: length or width not above 0/, /part 2: a sector with no aperture; a circle/,
     /part 6 skipped: length or width not above 0/, /stroke width 99 clamped to 20/, /stroke opacity 2 clamped to 1/, /fill colour: not a #rrggbb/,
-    /Draw apart: not a number/, /startHandle: not \[east, north\]/]) warned(report, re);
+    /Offset: not a number/, /startHandle: not \[east, north\]/]) warned(report, re);
   assert.equal(report.warnings.filter((w) => /aperture/.test(w)).length, 3); // those three; a sector of exactly 360°: a circle, quietly
 });
 
@@ -393,13 +393,13 @@ test('groups in the file: a member\'s parts are its own (none when missing); a g
     F('own', 'Point', [0, 0], { kind: 'point', group: 'g', parts: [{ kind: 'sector', radius: 1, aperture: 90 }] }),
     F('none', 'Point', [0, 0], { kind: 'point', group: 'g', parts: [] }),
     F('lost', 'Point', [0, 0], { kind: 'point', group: 'nowhere' }),
-  ], { groups: [{ id: 'g', look: { fill: { color: '#ff0000' }, apart: 3 }, parts: [{ kind: 'circle', radius: 300 }], radii: [{ value: 300, primary: true }], aperture: 90 }] }));
+  ], { groups: [{ id: 'g', look: { fill: { color: '#ff0000' }, offset: 3 }, parts: [{ kind: 'circle', radius: 300 }], radii: [{ value: 300, primary: true }], aperture: 90 }] }));
   const [m, own, none, lost] = doc.points;
   const g = doc.groups[0];
-  assert.deepEqual(g.look, { fill: { color: '#ff0000' }, apart: 3 }); // what it sets; the rest from the defaults
+  assert.deepEqual(g.look, { fill: { color: '#ff0000' }, offset: 3 }); // what it sets; the rest from the defaults
   assert.deepEqual(styleOf(doc, 'group', g), { fill: { color: '#ff0000', opacity: DEFAULT_STYLE.fill.opacity }, stroke: DEFAULT_STYLE.stroke });
   assert.ok(!('parts' in g) && !('radii' in g) && !('aperture' in g));
-  assert.equal(drawApartOf(doc, m), 3);
+  assert.equal(offsetOf(doc, m), 3);
   assert.equal(styleOf(doc, 'point', m).fill.color, '#ff0000');
   assert.deepEqual([m.parts, m.symbol, d.pointKind(m)], [[], 'none', 'point']);
   assert.deepEqual([own.parts.map((x) => [x.kind, x.radius, x.aperture]), own.symbol, d.pointKind(own)], [[['sector', 1, 90]], 'none', 'sector']);
@@ -650,7 +650,7 @@ test('shown: hidden itself, or in a hidden group', () => {
 test('groups: made from a selection, members take the group\'s style; their parts stay their own; leaving keeps the look', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [12, 41]), b = addPoint(doc, [12.1, 41]), h = addShape(doc, [12, 40]), j = addDot(doc, [13, 40]);
-  const s = addLine(doc, a.id, [], b.id, { look: { apart: 6 } });
+  const s = addLine(doc, a.id, [], b.id, { look: { offset: 6 } });
   a.parts[0].radius = 750;
   a.look.fill = { color: '#123456' };
   b.look.fill = { color: '#654321' };
@@ -660,11 +660,11 @@ test('groups: made from a selection, members take the group\'s style; their part
   assert.equal(g.name, 'Group 1');
   assert.equal(g.look.fill.color, '#654321'); // b: the first point with round parts (h has an outline only)
   assert.ok(!('parts' in g) && !('radii' in g) && !('aperture' in g)); // the parts are the points' own
-  assert.ok(!('apart' in g.look)); // not set: off, unless a group it is in says otherwise
+  assert.ok(!('offset' in g.look)); // not set: off, unless a group it is in says otherwise
   assert.ok([a, b, h, j, s].every((x) => x.groupId === g.id));
   assert.deepEqual([a.parts.map((x) => x.radius), b.parts.map((x) => x.radius), h.parts.map((x) => [x.kind, x.length]), j.parts], [[750], [1000], [['rectangle', 100]], []]); // as they were
-  assert.deepEqual([a.parts[0].kind, b.parts[0].aperture, b.bearing, s.look.apart, drawApartOf(doc, s)], ['circle', 45, 20, undefined, 0]);
-  assert.deepEqual([a.look, h.look, s.look], [{}, {}, {}]); // they take the group's look (their own fill, stroke and Draw apart go)
+  assert.deepEqual([a.parts[0].kind, b.parts[0].aperture, b.bearing, s.look.offset, offsetOf(doc, s)], ['circle', 45, 20, undefined, 0]);
+  assert.deepEqual([a.look, h.look, s.look], [{}, {}, {}]); // they take the group's look (their own fill, stroke and Offset go)
   g.look.fill.color = '#abcdef';
   assert.equal(styleOf(doc, 'point', h).fill.color, '#abcdef');
   h.look.fill = { color: '#ff0000' }; // its own, over the group's
@@ -674,10 +674,10 @@ test('groups: made from a selection, members take the group\'s style; their part
   setGroup(doc, a.id, null);
   assert.deepEqual([a.parts.map((x) => x.radius), a.parts[0].kind], [[800], 'circle']);
   assert.equal(styleOf(doc, 'point', a).fill.color, '#abcdef'); // the look kept, its own now
-  g.look.apart = 8;
+  g.look.offset = 8;
   const was = styleOf(doc, 'line', s).stroke;
   setGroup(doc, s.id, null);
-  assert.deepEqual([s.look, styleOf(doc, 'line', s).stroke], [{ apart: 8 }, was]); // what differed made its own; the rest as it was
+  assert.deepEqual([s.look, styleOf(doc, 'line', s).stroke], [{ offset: 8 }, was]); // what differed made its own; the rest as it was
   setGroup(doc, j.id, null);
   assert.deepEqual(j.parts, []);
   assert.deepEqual(again(doc).doc, doc);
@@ -745,13 +745,13 @@ test('delete a group: members ungrouped keep the group\'s style and colour as th
   assert.deepEqual([styleOf(doc, 'point', a), styleOf(doc, 'line', s).stroke, d.labelColour(doc, l)], before);
 });
 
-test('nested groups: a group of members of a group is a subgroup of it; looks, Draw apart and visibility come down the chain', () => {
+test('nested groups: a group of members of a group is a subgroup of it; looks, Offset and visibility come down the chain', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]), c = addPoint(doc, [2, 0]);
   const s = addLine(doc, a.id, [], b.id);
   const top = makeGroup(doc, [a.id, b.id, c.id, s.id]);
   top.look = { fill: { color: '#111111' }, stroke: { width: 3 } };
-  top.look.apart = 5;
+  top.look.offset = 5;
   const sub = makeGroup(doc, [a.id, s.id]);
   assert.equal(sub.groupId, top.id, 'in the group its members were in');
   assert.deepEqual([a.groupId, s.groupId, b.groupId], [sub.id, sub.id, top.id]);
@@ -759,9 +759,9 @@ test('nested groups: a group of members of a group is a subgroup of it; looks, D
   assert.equal(styleOf(doc, 'point', a).fill.color, '#111111', 'from the group above');
   sub.look = { fill: { color: '#222222' } };
   assert.deepEqual([styleOf(doc, 'point', a).fill.color, styleOf(doc, 'line', s).stroke.width, styleOf(doc, 'point', b).fill.color], ['#222222', 3, '#111111']);
-  assert.equal(drawApartOf(doc, s), 5);
-  sub.look.apart = 0; // off here, whatever is above
-  assert.equal(drawApartOf(doc, s), 0);
+  assert.equal(offsetOf(doc, s), 5);
+  sub.look.offset = 0; // off here, whatever is above
+  assert.equal(offsetOf(doc, s), 0);
   top.visible = false;
   assert.ok(!isShown(doc, a) && !isShown(doc, sub));
   top.visible = true;
@@ -816,20 +816,20 @@ test('the look: the drawing\'s defaults, then groups, then its own; a measuremen
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]);
   const m = addLine(doc, [0, 0], [], [1, 1], { guide: true, look: { text: { values: true } } });
   const s = addLine(doc, a.id, [], b.id);
-  doc.look = { text: { name: true }, apart: 4, minSize: 20 };
-  assert.deepEqual([d.lookOf(doc, 'point', a).text.name, d.lookOf(doc, 'line', m).text.name, drawApartOf(doc, s), d.minSizeOf(doc, a)], [true, false, 4, { px: 20, own: false }]);
+  doc.look = { text: { name: true }, offset: 4, minSize: 20 };
+  assert.deepEqual([d.lookOf(doc, 'point', a).text.name, d.lookOf(doc, 'line', m).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [true, false, 4, { px: 20, own: false }]);
   const g = makeGroup(doc, [a.id, s.id]);
   d.setLook(g, 'text.name', false);
-  d.setLook(g, 'apart', 0);
+  d.setLook(g, 'offset', 0);
   d.setLook(g, 'minSize', 8);
-  assert.deepEqual([d.lookOf(doc, 'point', a).text.name, d.lookOf(doc, 'point', b).text.name, drawApartOf(doc, s), d.minSizeOf(doc, a)], [false, true, 0, { px: 8, own: true }]);
+  assert.deepEqual([d.lookOf(doc, 'point', a).text.name, d.lookOf(doc, 'point', b).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [false, true, 0, { px: 8, own: true }]);
   d.setLook(a, 'text.name', true); // its own, over the group's
   assert.equal(d.lookOf(doc, 'point', a).text.name, true);
   d.setLook(a, 'text.name', undefined); // taken back
   assert.deepEqual(a.look, {});
   const f = toFile(doc);
-  assert.deepEqual(f.charts.look, { text: { name: true }, apart: 4, minSize: 20 });
-  assert.deepEqual(f.charts.groups[0].look, { text: { name: false }, apart: 0, minSize: 8 });
+  assert.deepEqual(f.charts.look, { text: { name: true }, offset: 4, minSize: 20 });
+  assert.deepEqual(f.charts.groups[0].look, { text: { name: false }, offset: 0, minSize: 8 });
   assert.deepEqual(f.features.find((x) => x.id === m.id).properties.charts.look, { text: { values: true } });
   assert.deepEqual(again(doc).doc, doc);
 });

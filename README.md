@@ -34,8 +34,8 @@ from soundings.
   - Everything is named, edited in small tables and dragged on the map, with
     lengths, areas and totals; a line also has its depth profile and its length
     along the seabed.
-  - Lines that run together can be drawn a few pixels apart (lengths stay real),
-    and small outlines are shown enlarged.
+  - A line can be drawn a few pixels beside where it is, as QGIS offsets a line
+    (lengths stay real), and small outlines are shown enlarged.
   - Drawings stay in the browser, several of them, saved as you go and never sent
     anywhere. Export › Drawing (GeoJSON) writes one as a `.geojson` file
     (`docs/drawing-format.md`) with its view and layers, and Import adds one back
@@ -257,7 +257,6 @@ development.
 | `site/draw/attach.js`, `site/draw/snap.js` | Line ends attached to points, corners, edges and vertices; snapping. |
 | `site/draw/presets.js`, `site/draw/clipboard.js` | The user's presets (this browser only); copy, paste, duplicate. |
 | `site/draw/lines.js` | Lines: geodesic and curved legs, lengths, distance along, totals, smoothing. |
-| `site/draw/schematic.js` | Draw apart: lines kept from being drawn over others on screen (display only). |
 | `site/draw/features.js` | What the map draws, what the GIS export writes; each kind's bounds, box test and move. |
 | `site/draw/generator.js` | Repeat along a line or an arc, Connect (trees, chains), and how they follow. |
 | `site/draw/store.js`, `site/draw/saving.js` | The document's selection and undo; the drawings kept in the browser. |

@@ -564,21 +564,19 @@ try {
     return drawing.doc.lines.every((s) => [s.start, s.end].every((e) => !e.element || (e.position[0] === at[0] && e.position[1] === at[1])));
   });
   check(follows, 'drawing: a point moved, the lines attached to it follow');
-  // Draw apart: nothing moves until ticked; a copy of the first line ticked with it: the two drawn side
-  // by side (2 px between strokes by default), the slider setting the gap; unticked, on the real line
-  // again; the totals unchanged by it
+  // Offset: a line drawn beside its geometry by MapLibre, set in pixels; its length stays real. A copy
+  // of the first line, the two selected: the field sets both
   await dw.evaluate(() => drawing.change((doc) => { doc.lines.push({ ...structuredClone(doc.lines[0]), id: 'copy1', name: 'Line 4' }); }));
-  const before = await dw.evaluate(() => drawing.apart().length);
+  const before = await dw.evaluate(() => drawing.offset().length);
   await dw.evaluate(() => drawing.select([drawing.doc.lines[0].id, 'copy1']));
-  await dw.locator('.dinspect input[aria-label="Draw apart"]').check();
-  const apart = await dw.evaluate(() => drawing.apart().length);
-  await dw.locator('.dinspect input[type=range][aria-label="Draw apart (px)"]').fill('8');
-  const gap = await dw.evaluate(() => [drawing.doc.lines[0].look.apart, drawing.doc.lines.at(-1).look.apart]);
-  await dw.locator('.dinspect input[aria-label="Draw apart"]').uncheck();
-  const flat = await dw.evaluate(async () => { const { totals } = await import('./draw/lines.js'); return [drawing.apart().length, totals(drawing.doc).all.lines]; });
-  await dw.keyboard.press('Escape');
-  check(before === 0 && apart === 2 && gap.join() === '8,8' && flat[0] === 0 && flat[1] === 4,
-    `drawing: Draw apart off until ticked (${before}); two lines together drawn side by side (${apart}), the gap set by its slider (${gap}), unticked on the real line (${flat[0]})`);
+  const offField = dw.locator('.dinspect input[aria-label="Offset (px)"]');
+  await offField.fill('-8');
+  await offField.press('Enter');
+  await dw.waitForTimeout(600);
+  const offset = await dw.evaluate(async () => { const { totals } = await import('./draw/lines.js'); return [drawing.offset().length, drawing.doc.lines[0].look.offset, drawing.doc.lines.at(-1).look.offset, totals(drawing.doc).all.lines]; });
+  const painted = await dw.evaluate(() => map.querySourceFeatures('drawzoom').filter((f) => f.properties.kind === 'path').map((f) => f.properties.off));
+  check(before === 0 && offset.join() === '2,-8,-8,4' && painted.includes(-8),
+    `drawing: Offset off until set (${before}); −8 px on the two lines selected (${offset.slice(0, 3)}), their lengths still counted (${offset[3]} lines), carried to the map (${painted})`);
   await dw.click('.tools2 button[data-tool=area]'); // Select area, a tool after Measure
   await dw.mouse.move(150, 250);
   await dw.mouse.down();

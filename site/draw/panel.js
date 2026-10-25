@@ -4,8 +4,7 @@
 // focus, one undo step each.
 
 import { h } from '../dom.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, DEFAULT_APART, labelColour, addPart, removePart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET,
-  makeGroup, setGroup, straighten, isMeasurement, MAX_RADIUS } from './document.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, removePart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, straighten, isMeasurement, MAX_RADIUS, offsetOf } from './document.js';
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef } from './attach.js';
 import { anchorAt, labelText, labelValues, TOKENS } from './labels.js';
@@ -235,11 +234,11 @@ export function drawView(root, ctx) {
       return [...shape, r ? `${r.kind === 'sector' ? `${+r.aperture.toFixed(1)}° ` : ''}r ${fmtDist(r.radius, u)}` : ''].filter(Boolean).join(' · ');
     }
     if (kind === 'area') return [el.guide ? 'guide' : '', fmtArea(areaOf(pathOf(el.points, true)), u)].filter(Boolean).join(' · ');
-    const apart = el.look?.apart > 0 ? '⇉' : ''; // Draw apart set here: found again in the list
-    if (kind === 'line') return [el.guide ? 'guide' : '', fmtDist(lineTrace(drawing.doc, el).length, u), apart].filter(Boolean).join(' · ');
+    const offset = el.look?.offset ? '⇉' : ''; // Offset set here: found again in the list
+    if (kind === 'line') return [el.guide ? 'guide' : '', fmtDist(lineTrace(drawing.doc, el).length, u), offset].filter(Boolean).join(' · ');
     if (kind === 'label') return labelText(drawing.doc, el, u).split('\n')[0];
     const t = facts.totals.groups.get(el.id);
-    return [t ? countOf(t, u) : 'empty', apart].filter(Boolean).join(' · ');
+    return [t ? countOf(t, u) : 'empty', offset].filter(Boolean).join(' · ');
   }
   // an outline drawn larger than its real size at this zoom says so
   function enlarged(point) {
@@ -423,8 +422,7 @@ export function drawView(root, ctx) {
         h('tr', {}, h('th', {}, 'Stroke'), h('td', {}, ...colour('stroke.color', 'Stroke colour')), h('td', {}, num('stroke.opacity', 'Stroke opacity', 0, 1, 0.05)),
           h('td', {}, num('stroke.width', 'Stroke width (px)', 0.5, 20, 0.5)), h('td', {}, dashSelect()), h('td', {}, back('stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash')))));
     const group = xs.length === 1 && (xs[0].kind === 'group' || xs[0].kind === 'drawing');
-    const dash = same('stroke.dash'), apart = same('apart');
-    const gapOut = h('span', { class: 'fvalue' }, apart ? `${apart} px` : apart === null ? 'mixed' : '');
+    const dash = same('stroke.dash');
     return h('div', { class: 'fblock' }, h('h3', {}, title),
       both ? matrix() : null,
       !both && shown('stroke.color') ? row('Stroke', pair(colour('stroke.color', 'Stroke colour'), '·', num('stroke.opacity', 'Stroke opacity', 0, 1, 0.05)), back('stroke.color', 'stroke.opacity')) : null,
@@ -435,10 +433,8 @@ export function drawView(root, ctx) {
       back('text.color', 'text.background')) : null,
       shown('text.name') ? check('text.name', group || xs.length > 1 ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
       shown('text.values') ? check('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
-      shown('apart') ? row('Draw apart', pair(h('label', { class: 'fcheck' }, (() => { const box = h('input', { type: 'checkbox', checked: apart > 0, 'aria-label': 'Draw apart', title: 'Where lines drawn apart run together (sharing a line, or within 50 m of each other), they are drawn side by side, this gap between their strokes, at every zoom. For the map only: lengths and exports stay real.', onchange: (e) => put('apart', e.target.checked ? DEFAULT_APART : 0) }); box.indeterminate = apart === null; return box; })()), '',
-        apart !== 0 ? [h('input', { type: 'range', min: 1, max: 20, step: 1, value: apart || DEFAULT_APART, 'aria-label': 'Draw apart (px)', title: 'The gap kept between strokes',
-          oninput: (e) => { put('apart', +e.target.value, true); gapOut.textContent = `${e.target.value} px`; }, onchange: (e) => put('apart', +e.target.value) }), gapOut] : []),
-      back('apart')) : null,
+      shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -50, max: 50, placeholder: 'mixed', bad: 'pixels from −50 to 50',
+        title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as QGIS offsets a line: display only, lengths stay real' }), h('span', { class: 'funit' }, 'px'), back('offset')) : null,
       shown('minSize') ? row('Min. size', F.number(() => same('minSize'), (v) => put('minSize', v), 'Minimum size (px)', { max: 200, placeholder: 'mixed', bad: 'pixels from 0 to 200',
         title: 'Shapes shorter than this on screen are drawn enlarged, their outline dotted (0: always real size; a vehicle: twice the drawing\'s)' }), h('span', { class: 'funit' }, 'px'), back('minSize')) : null,
       ...extra);
@@ -843,12 +839,12 @@ export function drawView(root, ctx) {
           act('Delete', 'Take this vertex away (Ctrl/⌘ Delete)', () => removeAt(r - 1)), act('Split', 'Split the line here: this vertex becomes a point both parts are attached to', () => splitAt(r - 1))] } : null),
       keys: { insert: (r) => { if (r <= n) insertAfter(r - 1); }, remove: (r) => { if (r >= 1 && r <= n) removeAt(r - 1); } },
       paste: pasteLine });
-    const apart = drawing.apart().includes(id);
+    const off = el.look.offset ?? null, offNow = offsetOf(drawing.doc, el);
     return [...commonTop('line', id),
       ...[refRow('Start', id, 'start'), refRow('End', id, 'end')].flat(),
       row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u)),
         h('button', { type: 'button', class: 'small', title: 'Circles repeated along this line, every so far or so many, which then follow it; they can be connected to origins', onclick: () => openArray({ element: id, part: null }) }, 'Repeat along…')),
-      apart ? h('p', { class: 'note' }, 'Drawn apart from the lines beside it at this zoom: schematic, not to scale. Its length is the real one.') : null,
+      offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, its group's Offset. Its length is the real one.`) : null,
       profileBlock(id),
       row('Curve', h('span', { class: 'fvalue' }, el.mode === 'auto' ? 'smooth, follows its vertices' : 'as stored')),
       row('', h('button', { type: 'button', class: 'small', title: 'Curve smoothly through its bends; the curve then follows them (it replaces handles typed)', disabled: !el.vertices.length && !el.start.element, onclick: async () => {
@@ -1145,12 +1141,12 @@ export function drawView(root, ctx) {
       h('option', { value: '', selected: !totalsBy }, 'group'), keys.map((k) => h('option', { value: k, selected: totalsBy === k }, k)));
     const rows = totalsBy ? [...fx().totals.values].sort(([a], [b]) => (!a) - (!b) || a.localeCompare(b)).map(([v, b]) => [v ? `“${v}”` : `No ${totalsBy}`, b])
       : t.groups.size > 1 ? [...t.groups].map(([gid, b]) => [groupName(gid), b]) : [];
-    const apartElsewhere = elements(drawing.doc).filter((x) => x.el.look.apart != null); // where Draw apart is set on an element or a group
+    const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look.offset != null); // where Offset is set on an element or a group
     return [h('div', { class: 'fhead' }, h('h2', {}, 'Drawing'), n ? h('button', { type: 'button', class: 'small', onclick: () => showOnMap(new Set(elements(drawing.doc).map((x) => x.el.id))) }, 'Zoom to') : null),
       row('Title', meta('title', 'Title')), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
       drawingsBlock(),
-      lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'apart', 'minSize'], 'Display', [
-        apartElsewhere.length ? h('p', { class: 'note' }, 'Draw apart also set on ', ...apartElsewhere.map((x) => link(x.el.id))) : null,
+      lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'offset', 'minSize'], 'Display', [
+        offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Bearings', h('label', { class: 'fcheck', title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }, h('input', { type: 'checkbox', checked: ctx.display.bearings, onchange: (e) => ctx.setDisplay({ bearings: e.target.checked }) }), 'beside lengths'))]),
       n ? h('div', { class: 'fblock' }, h('h3', {}, 'Totals'),
         keys.length ? row('By', by) : null,

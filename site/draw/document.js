@@ -20,8 +20,7 @@ export { MAX_LAT }; // the map's limit
 // a shape whose long side is shorter than this on screen (px) is drawn enlarged (display only);
 // 0 turns it off. The drawing's value, unless a shape has its own.
 export const MIN_DISPLAY_SIZE = 12;
-export const DEFAULT_APART = 2; // px: Draw apart's gap between strokes when it is turned on
-export const MAX_APART = 50;
+export const MAX_OFFSET = 50; // px: Offset's reach either side of a line
 export const DEFAULT_STYLE = Object.freeze({
   fill: Object.freeze({ color: '#e8590c', opacity: 0.15 }),
   stroke: Object.freeze({ color: '#e8590c', opacity: 1, width: 1.5, dash: 'solid' }),
@@ -36,10 +35,11 @@ export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASUR
 // A look: how an element is drawn. Every field optional where it is set (an element's, a group's, the
 // drawing's); the defaults fill it in. fill, stroke: as a style; text: its name on the map, its values
 // shown, and a label's size, colour (null: its group's stroke colour, else the default) and
-// background; apart: Draw apart's gap (px, 0: off); minSize: a small outline drawn enlarged below it
+// background; offset: a line drawn this many px to the right of where it is (negative: left; 0: on
+// it; display only); minSize: a small outline drawn enlarged below it
 // (px, 0: never; for a vehicle, twice the drawing's).
 export const LOOK_TEXT = Object.freeze({ name: false, values: false, size: 'medium', color: null, background: 'halo' });
-export const DEFAULT_LOOK = Object.freeze({ fill: DEFAULT_STYLE.fill, stroke: DEFAULT_STYLE.stroke, text: LOOK_TEXT, apart: 0, minSize: MIN_DISPLAY_SIZE });
+export const DEFAULT_LOOK = Object.freeze({ fill: DEFAULT_STYLE.fill, stroke: DEFAULT_STYLE.stroke, text: LOOK_TEXT, offset: 0, minSize: MIN_DISPLAY_SIZE });
 export const SYMBOLS = ['diamond', 'square', 'triangle', 'dot', 'none'];
 export const DASHES = ['solid', 'dashed', 'dotted'];
 export const OUTLINES = ['rectangle', 'triangle', 'ellipse', 'aerial-vehicle', 'surface-vehicle', 'underwater-vehicle']; // outlines.js draws them
@@ -164,7 +164,7 @@ const MEASURE_LOOK = Object.freeze({ ...MEASURE_STYLE, text: Object.freeze({ nam
 function layered(looks) {
   const part = (k) => Object.assign({}, ...looks.map((l) => l?.[k]));
   const last = (k) => looks.reduce((v, l) => (l?.[k] != null ? l[k] : v), null);
-  return { fill: part('fill'), stroke: part('stroke'), text: part('text'), apart: last('apart'), minSize: last('minSize') };
+  return { fill: part('fill'), stroke: part('stroke'), text: part('text'), offset: last('offset'), minSize: last('minSize') };
 }
 // The look an element (or a group; or the drawing, kind 'drawing': its defaults) is drawn with, every field: its own, else its group's, else that
 // group's group's, and so on, else a guide's (faint, dashed) or a measurement's (a guide showing its
@@ -183,15 +183,15 @@ export function labelColour(doc, a) {
   const g = groupOf(doc, a);
   return lookOf(doc, 'label', a).text.color ?? (g ? styleOf(doc, 'group', g).stroke.color : LABEL_STYLE.color);
 }
-// how far a line is drawn apart from those it would cover (Draw apart: px between strokes, 0: not)
-export const drawApartOf = (doc, el) => lookOf(doc, 'line', el).apart;
+// how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
+export const offsetOf = (doc, el) => lookOf(doc, 'line', el).offset;
 // A point's minimum display size: { px, own } (own: set on it or a group it is in, not the drawing's,
 // so a vehicle does not double it)
 export function minSizeOf(doc, p) {
   const own = [p, ...groupsOf(doc, p)].find((x) => x.look.minSize != null)?.look.minSize;
   return own != null ? { px: own, own: true } : { px: doc.look.minSize ?? MIN_DISPLAY_SIZE, own: false };
 }
-// Set one field of x's own look (path: 'apart', 'fill.color', 'text.name'…); undefined takes it back
+// Set one field of x's own look (path: 'offset', 'fill.color', 'text.name'…); undefined takes it back
 // (the value then comes from its groups, or the defaults).
 export function setLook(x, path, v) {
   const [a, b] = path.split('.');
@@ -354,9 +354,9 @@ const STYLE_FIELDS = ['fill.color', 'fill.opacity', 'stroke.color', 'stroke.opac
 export const LOOK_FIELDS = {
   point: [...STYLE_FIELDS, 'text.name', 'text.values', 'minSize'],
   area: [...STYLE_FIELDS, 'text.name', 'text.values'],
-  line: [...STYLE_FIELDS.slice(2), 'text.name', 'text.values', 'apart'],
+  line: [...STYLE_FIELDS.slice(2), 'text.name', 'text.values', 'offset'],
   label: ['text.size', 'text.color', 'text.background'],
-  group: [...STYLE_FIELDS, 'text.name', 'text.values', 'text.size', 'text.color', 'text.background', 'apart', 'minSize'],
+  group: [...STYLE_FIELDS, 'text.name', 'text.values', 'text.size', 'text.color', 'text.background', 'offset', 'minSize'],
 };
 // what an element is drawn with now (a label's colour as drawn)
 function lookNow(doc, kind, el) {
@@ -368,10 +368,10 @@ function keepLook(doc, kind, el, before) {
   const after = lookNow(doc, kind, el);
   for (const f of LOOK_FIELDS[kind]) if (lookField(before, f) !== lookField(after, f)) setLook(el, f, lookField(before, f));
 }
-// what a group gives and an element joining one gives up: its fill, stroke, Draw apart, text colour
-const GIVEN = [...STYLE_FIELDS, 'apart', 'text.color'];
+// what a group gives and an element joining one gives up: its fill, stroke, Offset, text colour
+const GIVEN = [...STYLE_FIELDS, 'offset', 'text.color'];
 // Move an element into the group gid, or out of any (null). An element joining a group takes its fill,
-// stroke, Draw apart and text colour (its own go); one leaving a group keeps its look. A group keeps
+// stroke, Offset and text colour (its own go); one leaving a group keeps its look. A group keeps
 // what it sets itself, the rest from where it goes; never into itself or a group inside it.
 export function setGroup(doc, id, gid) {
   const x = find(doc, id);

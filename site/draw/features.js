@@ -5,11 +5,10 @@
 import { circle, sector, rectangle, reachesPole, ccw, areaOf, destination, inverse, pathOf, perimeterOf, fmtDist, fmtArea, fmtBrg } from '../geodesy.js';
 
 export { perimeterOf }; // the panel's and the tests' (geodesy.js)
-import { styleOf, lookOf, minSizeOf, drawApartOf, isShown, elements, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf } from './document.js';
+import { styleOf, lookOf, minSizeOf, offsetOf, isShown, elements, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf } from './document.js';
 import { CIRC, mercator, unmercator } from '../geo.js';
 import { rotateHandle } from './drag.js';
 import { lineTrace, anchorsOf, pointsAlong } from './lines.js';
-import { schematic } from './schematic.js';
 import { anchorAt, labelText } from './labels.js';
 import { outlineOf, isVehicle, VEHICLE_MIN_FACTOR } from './outlines.js';
 
@@ -44,8 +43,8 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 // again (drawing.js):
 // - base: what never depends on the zoom: each shown round part (a polygon, filled when its Fill is
 //   on), each area, each point's symbol, the names of points and of vertices;
-// - zoom: what may (outlines drawn enlarged when small, lines drawn apart): each visible outline and
-//   line, and their names;
+// - zoom: what may (outlines drawn enlarged when small): each visible outline and line, and their
+//   names;
 // - marks: those of the selected elements (sel: Set of IDs) and of the one under the pointer (hover).
 // Every feature has the element's id, so a click on it finds the element.
 // A mark never covers the element's own stroke, so a change to it shows while it is selected: a
@@ -53,8 +52,8 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 // by half the stroke's width and a gap (sw), its ring counter-clockwise so that "outside" is one side;
 // handles at the points a drag grabs; a ring around a point's centre.
 // display: { zoom, ctrl }: an outline too small to see at that zoom is drawn enlarged, dotted
-// (it is not to scale); lines with Draw apart drawn side by side (schematic.js); without a zoom,
-// everything at real size. want: the parts to make (the others come back empty).
+// (it is not to scale); without a zoom, everything at real size. A line with an Offset carries it
+// (off, px): MapLibre draws it beside its geometry (layers.js), display only. want: the parts to make (the others come back empty).
 export function drawParts(doc, sel = new Set(), hover = null, display = {}, want = { base: true, zoom: true, marks: true }) {
   const base = [], zoomed = [], marks = [];
   const markOf = (id) => (!want.marks ? null : sel.has(id) ? 'sel' : hover === id ? 'hover' : null);
@@ -159,22 +158,20 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   }
   // lines: a guide dashed and faint, the others solid; every visible line also has an invisible stroke
   // wide enough to click. A line's halo is on both sides of it.
-  let moved = null; // the lines drawn apart at this zoom: computed once, if needed
-  const movedNow = () => (moved ??= display.zoom == null ? new Map() : schematic(doc, display.zoom));
   for (const sg of doc.lines) {
     if (!isShown(doc, sg)) continue;
     const st = styleOf(doc, 'line', sg).stroke;
     // its named vertices: at their real positions, whatever the zoom
     if (want.base && wants(sg)) for (const v of sg.vertices) if (v.name.trim()) baseNames.push({ type: 'Feature', properties: { id: sg.id, kind: 'name', nm: v.name, c: st.color, vx: 1 }, geometry: { type: 'Point', coordinates: v.position } });
     if (!want.zoom && !markOf(sg.id)) continue;
-    const line = lineTrace(doc, sg);
-    const g = { type: 'LineString', coordinates: movedNow().get(sg.id) || line.coords }; // drawn apart, or where it is
+    const line = lineTrace(doc, sg), off = offsetOf(doc, sg);
+    const g = { type: 'LineString', coordinates: line.coords };
     if (want.zoom) {
-      zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: 'linehit' }, geometry: g });
+      zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: 'linehit', off }, geometry: g });
       if (named(sg)) name(zoomNames, sg, g, st.color);
-      zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: sg.guide ? 'guide' : 'path', ...lineProps(st) }, geometry: g });
+      zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: sg.guide ? 'guide' : 'path', off, ...lineProps(st) }, geometry: g });
     }
-    if (mark(sg.id, g, { sw: st.width }) && sel.has(sg.id)) {
+    if (mark(sg.id, g, { sw: st.width, off }) && sel.has(sg.id)) {
       const an = anchorsOf(doc, sg), last = an.length - 1;
       // its ends: one attached to a point's centre moves the point; another (free, or attached to a
       // corner, an edge, a vertex) itself, attached again where it is dropped
@@ -225,10 +222,9 @@ export function drawFeatures(doc, sel = new Set(), hover = null, display = {}) {
   const p = drawParts(doc, sel, hover, display);
   return { type: 'FeatureCollection', features: [...p.base, ...p.zoom, ...p.marks] };
 }
-// whether anything drawn changes with the zoom: an outline that may be drawn enlarged, lines drawn apart
+// whether anything drawn changes with the zoom: an outline that may be drawn enlarged
 export function zoomDependent(doc) {
-  if (doc.points.some((p) => mainOutline(p) && isShown(doc, p) && minSizeOf(doc, p).px > 0)) return true;
-  return doc.lines.some((s) => drawApartOf(doc, s) > 0); // Draw apart somewhere
+  return doc.points.some((p) => mainOutline(p) && isShown(doc, p) && minSizeOf(doc, p).px > 0);
 }
 // whether an element shows its values (its look's)
 const showsValues = (doc, el) => lookOf(doc, 'point', el).text.values;

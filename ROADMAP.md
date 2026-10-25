@@ -51,10 +51,6 @@ What walkers and climbers need from a map, against the open data that a keyless 
   layer would stay blank. The data is 2.4 million polygons: built into tiles and published with
   geodata.makaw.org, as seagrass is, if seagrass shows that build to be worth it; or live, if
   EMODnet speeds up its service.
-- **Draw: lines offset by MapLibre's own `line-offset`** where a line's whole offset is constant (a
-  line drawn apart along all its length): drawn by the GPU, nothing recomputed while zooming. Today
-  every offset line is computed geometry (`site/draw/schematic.js`), recomputed once a frame while
-  zooming: one mechanism, needed anyway where an offset varies along a line or tapers to its end. Worth it only if zooming gets slow on large drawings.
 - **Draw: a drawing as a viewer page.** Export a standalone HTML page holding only the map and the
   elements visible at that moment, with a box to show and hide them, and no editing: a way to show a
   drawing to someone without the app, as a file (a link never carries a drawing). Only what is

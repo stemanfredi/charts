@@ -52,7 +52,7 @@ kind (later on top). The writer writes points, then lines, areas and labels.
     "modified": "2026-10-22T10:02:11Z",
     "meta": { "title": "", "description": "", "author": "" },
     "view": { … },
-    "look": { "text": { "name": true }, "apart": 3 },
+    "look": { "text": { "name": true }, "offset": 3 },
     "groups": [],
     "rules": []
   },
@@ -137,7 +137,7 @@ drawing is not (§6).
 | `group` | the ID of its group, at most one |
 | `visible` | `false`: hidden. Hidden elements are not drawn and not exported to GIS data, but they are in the file. A hidden group hides its members. |
 | `guide` | supporting geometry: drawn faint and dashed in one colour, left out of totals (not on labels). A guide showing its values is a **measurement**. |
-| `look` | the rest of its own look (§6), what no common style name holds: the stroke's `dash`, `text`, `apart`, `minSize` |
+| `look` | the rest of its own look (§6), what no common style name holds: the stroke's `dash`, `text`, `offset`, `minSize` |
 | `properties` | the user's properties as `[{ "key", "value" }]`. Written only when a key had to be renamed as a column; the reader then takes this list rather than the columns. |
 
 ## 6. The look, the cascade, parts
@@ -150,7 +150,7 @@ How an element is drawn is its **look**: one object, every field optional where 
 { "fill": { "color": "#e8590c", "opacity": 0.15 },
   "stroke": { "color": "#e8590c", "opacity": 1, "width": 1.5, "dash": "solid" },
   "text": { "name": false, "values": false, "size": "medium", "color": "#1f2933", "background": "halo" },
-  "apart": 0,
+  "offset": 0,
   "minSize": 12 }
 ```
 
@@ -160,7 +160,7 @@ How an element is drawn is its **look**: one object, every field optional where 
 | `text.name` | its name drawn on the map (points, lines, areas; a group's: everything in it) |
 | `text.values` | its values drawn on the map: a line's legs, an area's area and perimeter, a point's round parts' radii |
 | `text.size`, `text.color`, `text.background` | a label's text: `"small"`, `"medium"` or `"large"`; its colour; `"halo"` or `"box"` |
-| `apart` | Draw apart: the gap in pixels kept from lines it runs together with, 0 (off) to 50. Display only. |
+| `offset` | Offset: a line drawn this many pixels beside its geometry, to the right of its direction (negative: the left), −50 to 50; 0: on it. Display only, as QGIS offsets a line symbol. |
 | `minSize` | screen pixels, 0–200: an outline whose long side is shorter than this on screen is drawn enlarged (display only, dotted); 0: always real size. The drawing's counts twice for a vehicle. |
 
 Where it is written: an element's colours, opacities and stroke width as the common style names
@@ -185,7 +185,7 @@ A label's colour, set nowhere, is its group's stroke colour (as that group draws
 visible.
 
 A point's symbol, bearing and parts are its own, never the group's. Joining a group
-clears an element's own fill, stroke, Draw apart and text colour (it takes the group's); leaving one,
+clears an element's own fill, stroke, Offset and text colour (it takes the group's); leaving one,
 or its group deleted, makes the values it had from the group its own (it keeps its look). A group
 moved into another keeps what it sets itself; the rest then comes from where it goes.
 
@@ -220,7 +220,7 @@ Groups are not features: they are listed in the collection's `charts.groups`.
 
 ```json
 { "id": "g2", "groupId": "g1", "name": "Group 2", "properties": [], "visible": true,
-  "look": { "fill": { "color": "#e8590c" }, "text": { "name": true }, "apart": 4 } }
+  "look": { "fill": { "color": "#e8590c" }, "text": { "name": true }, "offset": 4 } }
 ```
 
 `groupId` is the group it is in (groups nest; absent: at the top). `properties` is a list of
@@ -603,7 +603,7 @@ What a value is when the file leaves it out. Writing it with this value means th
 | default look | fill | `#e8590c`, opacity 0.15 |
 | default look | stroke | `#e8590c`, opacity 1, width 1.5, `"solid"` |
 | default look | text | `name` `false`, `values` `false`, `size` `"medium"`, `color` none (a label: its group's stroke colour, else `#1f2933`), `background` `"halo"` |
-| default look | `apart`; `minSize` | `0` (off; turned on, 2 px); `12` |
+| default look | `offset`; `minSize` | `0`; `12` |
 | guide style | fill; stroke | `#6b7a86`, opacity 0.05; `#6b7a86`, opacity 1, width 1, `"dashed"` |
 | measurement style | fill; stroke | `#b0127a`, opacity 0.08; `#b0127a`, opacity 1, width 2, `"dashed"` |
 | group | `name`; `properties`; `visible` | `""`; `[]`; `true` |

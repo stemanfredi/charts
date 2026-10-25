@@ -184,7 +184,7 @@ longitude in its list.
 **Look**, one section for one element, several, a group or the drawing, showing only the fields their
 kinds have: **Fill** (colour, opacity; not on lines); **Stroke** (colour, opacity; width, dash);
 **Text** (labels: size S, M, L; colour on Halo or Box); **Name on the map**; **Show values** (its
-lengths, area and perimeter, or radii on the map); **Draw apart** with its **Gap** (lines; §7);
+lengths, area and perimeter, or radii on the map); **Offset** (lines; §7);
 **Min. size** (shapes: drawn enlarged, dotted, when shorter than this on screen). A field shows what
 they are drawn with; where several differ it says "mixed", and a change writes only that field.
 
@@ -239,8 +239,7 @@ it.
   Leader, one Look for all of them, Visible, **Delete all**.
 - **The drawing** (nothing selected): Title, Description, Author; **Drawings in this browser** (§10);
   **Display**, the drawing's look, which every element takes unless it or a group sets its own:
-  Names on the map, Draw apart and its Gap (and where Draw apart is set otherwise, each a link), Min.
-  size; then Bearings beside lengths, for values shown;
+  Names on the map, Offset (and where Offset is set otherwise, each a link), Min. size; then Bearings beside lengths, for values shown;
   **Totals** (all, then **By** group or by any property key the drawing uses, one row per value and one
   for those without it; guides left out; hidden ones counted and said so).
 
@@ -314,9 +313,10 @@ one end to the other, an outline's ring.
     with Handles on, each curve handle;
   - an area's **corners**, and a **+** halfway along each edge adds one;
   - a label's text (its offset) and, for a free label or one on a line, its point.
-- **Display only** (never in lengths or exports): **Draw apart** (lines running together drawn side
-  by side, a **Gap** of 1–20 px; a line or group setting it shows ⇉ in the list); **Min. size** (a
-  shape too small on screen drawn enlarged, dotted).
+- **Display only** (never in lengths or exports): **Offset** (a line drawn this many pixels beside
+  where it is, to the right of its direction, or to the left when negative, −50 to 50, as QGIS
+  offsets a line symbol; a line or group setting it shows ⇉ in the list); **Min. size** (a shape too
+  small on screen drawn enlarged, dotted).
   Names on the map are left out where they collide; labels are always drawn.
 
 ## 8. Keys
