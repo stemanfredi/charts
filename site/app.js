@@ -1385,7 +1385,7 @@ function snapshot(src) {
     depthText: depth == null ? '' : depthWords(depth),
     // drawn shapes too small to see, drawn enlarged: the picture says they are not to scale
     drawText: [drawing.doc.points.some((pt) => isShown(drawing.doc, pt) && drawing.enlargement(pt) > 1) ? 'small shapes shown enlarged, not to scale' : '',
-      drawing.offset().length ? 'lines drawn offset, not to scale' : ''].filter(Boolean).join(' · '),
+      drawing.offset().length ? 'lines drawn offset, not to scale' : '', drawing.inflatedIds().length ? 'lines drawn bowed, not to scale' : ''].filter(Boolean).join(' · '),
     // for files read elsewhere: in UTC
     dataText: !timed ? '' : `data ${hr ? `at ${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `of ${dayOf(t)} (UTC)`}${depth == null ? '' : `, ${depthWords(depth)}`}`,
   };

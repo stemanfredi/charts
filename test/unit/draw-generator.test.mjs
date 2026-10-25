@@ -12,6 +12,7 @@ const { settleGeometry, DrawStore } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
 const { verticesOf } = await import('../../site/draw/attach.js');
 const { parse, serialise } = await import('../../site/draw/file.js');
+const { inflated } = await import('../../site/draw/inflate.js');
 
 const R = (position, weight = 1) => ({ position, weight }); // a root for plan()
 const roots = (...ids) => ids.map((id) => ({ id, weight: 1 })); // roots for connect()
@@ -732,4 +733,32 @@ test('a distribution makes at most MAX_COPIES points, and says so', () => {
   const byCount = distribute(doc, s, { count: MAX_COPIES + 1 }), bySpacing = distribute(doc, s, { spacing: 1 });
   assert.deepEqual([byCount.points.length, byCount.capped, bySpacing.points.length, bySpacing.capped], [MAX_COPIES, true, MAX_COPIES, true]);
   assert.equal(distribute(doc, s, { count: 10 }).capped, false);
+});
+
+test('inflate: display only; a branch along the dominant direction straight, the others bowed away from it by their angle; the trunk arriving along it; off at 0, kept in the file', () => {
+  const doc = emptyDoc(0);
+  const root = addPoint(doc, [12, 40]), ends = [[12.1, 40.03], [12.1, 40], [12.1, 39.97]].map((q) => addPoint(doc, q)); // a fan east of the hub, the trunk from the west
+  const r = connect(doc, { pointIds: ends.map((n) => n.id), roots: roots(root.id), pattern: 'tree', groupSize: 3, inflate: 0.6 });
+  assert.equal(r.connection.inflate, 0.6);
+  const drawn = inflated(doc), line = (end) => doc.lines.find((s) => s.end.element === end);
+  const mid = (c) => c[Math.floor(c.length / 2)];
+  const up = drawn.get(line(ends[0].id).id), level = drawn.get(line(ends[1].id).id), down = drawn.get(line(ends[2].id).id);
+  assert.ok(up && down && !level, 'the branch along the mean direction stays straight: not drawn apart');
+  const hub = find(doc, r.connection.hubs[0].pointId).el;
+  near(inverse(up[0], hub.position).s, 0, 1e-3, 'from the hub'); near(inverse(up.at(-1), ends[0].position).s, 0, 1e-3, 'to its end');
+  assert.ok(mid(up)[1] > (hub.position[1] + ends[0].position[1]) / 2, 'the upper branch bows up, away from the middle');
+  assert.ok(mid(down)[1] < (hub.position[1] + ends[2].position[1]) / 2, 'the lower one down');
+  const trunk = drawn.get(doc.lines.find((s) => s.start.element === root.id).id);
+  assert.ok(trunk && trunk.length > 2, 'the trunk bowed too');
+  assert.ok(doc.lines.every((s) => !s.vertices.length && !s.startHandle && !s.endHandle), 'the real lines untouched');
+  const sum = (c) => c.slice(1).reduce((a, q, i) => a + inverse(c[i], q).s, 0);
+  assert.ok(sum(up) > lineTrace(doc, line(ends[0].id)).length, 'the drawn curve is longer than the real, straight branch');
+  // a vertex added by hand: drawn as it is
+  doc.lines.find((s) => s.end.element === ends[0].id).vertices.push({ position: [12.05, 40.02], handleIn: null, handleOut: null, name: '', properties: [] });
+  assert.ok(!inflated(doc).has(line(ends[0].id).id));
+  r.connection.inflate = 0;
+  assert.equal(inflated(doc).size, 0);
+  r.connection.inflate = 0.25;
+  const back = parse(serialise(doc), null, 0).doc;
+  assert.equal(connections(back)[0].inflate, 0.25);
 });

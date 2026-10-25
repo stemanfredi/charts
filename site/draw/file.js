@@ -180,7 +180,7 @@ function read(raw, app, known, now, report) {
       }
       taken.add(x.id);
       return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', groupSize: Number.isInteger(x.groupSize) && x.groupSize > 0 ? x.groupSize : 'auto',
-        minBranch: Number.isFinite(x.minBranch) && x.minBranch > 0 ? x.minBranch : 0, pointIds: idList(x.pointIds),
+        minBranch: Number.isFinite(x.minBranch) && x.minBranch > 0 ? x.minBranch : 0, inflate: fin(x.inflate) && x.inflate > 0 ? Math.min(1, x.inflate) : 0, pointIds: idList(x.pointIds),
         roots: Array.isArray(x.roots) ? x.roots.filter((r) => isObj(r) && ref(r.id)).map((r) => ({ id: r.id, weight: fin(r.weight) && r.weight > 0 ? r.weight : 1 })) : [],
         hubs: Array.isArray(x.hubs) ? x.hubs.filter((b) => isObj(b) && ref(b.pointId) && ref(b.rootId) && Array.isArray(b.pointIds) && pair(b.pos))
           .map((b) => ({ pointId: b.pointId, pointIds: idList(b.pointIds), rootId: b.rootId, pos: [b.pos[0], b.pos[1]] })) : [],
@@ -301,7 +301,7 @@ const partOut = (r) => lean({ kind: r.kind, radius: r.radius && r3(r.radius), ap
 const VIEW_D = { center: null, zoom: null, bearing: 0, layers: null, data: null, units: 'km', bearings: false };
 const VERTEX_D = { handleIn: null, handleOut: null, name: '', properties: [] };
 const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };
-const CONNECTION_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, hubs: [] };
+const CONNECTION_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, inflate: 0, hubs: [] };
 
 // the user's properties as GIS columns (features.js), their keys checked against the file's own
 const columns = (list) => columnsOf(list, RESERVED);
@@ -388,7 +388,7 @@ export function toFile(doc) {
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),
         copy: a.copy && { symbol: a.copy.symbol, parts: a.copy.parts.map(partOut) },
         points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
-      : lean({ ...a, roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { ...r })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
+      : lean({ ...a, inflate: r3(a.inflate), roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { ...r })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
   }, { meta: {}, view: null, look: {}, groups: [], rules: [] });
   return { type: 'FeatureCollection', charts: app, features: KINDS.filter((k) => k !== 'group').flatMap((k) => doc[KIND[k].list].map((el) => feature(doc, k, el))) };
 }

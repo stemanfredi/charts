@@ -9,6 +9,7 @@ import { styleOf, lookOf, minSizeOf, offsetOf, isShown, elements, groupsOf, cent
 import { CIRC, mercator, unmercator } from '../geo.js';
 import { rotateHandle } from './drag.js';
 import { lineTrace, anchorsOf, pointsAlong } from './lines.js';
+import { inflated } from './inflate.js';
 import { anchorAt, labelText } from './labels.js';
 import { outlineOf, isVehicle, VEHICLE_MIN_FACTOR } from './outlines.js';
 
@@ -53,7 +54,8 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 // handles at the points a drag grabs; a ring around a point's centre.
 // display: { zoom, ctrl }: an outline too small to see at that zoom is drawn enlarged, dotted
 // (it is not to scale); without a zoom, everything at real size. A line with an Offset carries it
-// (off, px): MapLibre draws it beside its geometry (layers.js), display only. want: the parts to make (the others come back empty).
+// (off, px): MapLibre draws it beside its geometry (layers.js), display only; a connection's lines
+// inflated are drawn bowed (inflate.js), display only too. want: the parts to make (the others come back empty).
 export function drawParts(doc, sel = new Set(), hover = null, display = {}, want = { base: true, zoom: true, marks: true }) {
   const base = [], zoomed = [], marks = [];
   const markOf = (id) => (!want.marks ? null : sel.has(id) ? 'sel' : hover === id ? 'hover' : null);
@@ -158,6 +160,8 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   }
   // lines: a guide dashed and faint, the others solid; every visible line also has an invisible stroke
   // wide enough to click. A line's halo is on both sides of it.
+  let bowed = null; // the lines drawn bowed: computed once, if needed
+  const bowedNow = () => (bowed ??= inflated(doc));
   for (const sg of doc.lines) {
     if (!isShown(doc, sg)) continue;
     const st = styleOf(doc, 'line', sg).stroke;
@@ -165,7 +169,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     if (want.base && wants(sg)) for (const v of sg.vertices) if (v.name.trim()) baseNames.push({ type: 'Feature', properties: { id: sg.id, kind: 'name', nm: v.name, c: st.color, vx: 1 }, geometry: { type: 'Point', coordinates: v.position } });
     if (!want.zoom && !markOf(sg.id)) continue;
     const line = lineTrace(doc, sg), off = offsetOf(doc, sg);
-    const g = { type: 'LineString', coordinates: line.coords };
+    const g = { type: 'LineString', coordinates: bowedNow().get(sg.id) || line.coords }; // drawn bowed, or where it is
     if (want.zoom) {
       zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: 'linehit', off }, geometry: g });
       if (named(sg)) name(zoomNames, sg, g, st.color);

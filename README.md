@@ -257,6 +257,7 @@ development.
 | `site/draw/attach.js`, `site/draw/snap.js` | Line ends attached to points, corners, edges and vertices; snapping. |
 | `site/draw/presets.js`, `site/draw/clipboard.js` | The user's presets (this browser only); copy, paste, duplicate. |
 | `site/draw/lines.js` | Lines: geodesic and curved legs, lengths, distance along, totals, smoothing. |
+| `site/draw/inflate.js` | Inflate: a connection's trees drawn bowed (display only). |
 | `site/draw/features.js` | What the map draws, what the GIS export writes; each kind's bounds, box test and move. |
 | `site/draw/generator.js` | Distribute along a line or an arc, Connect (trees, chains: the cheapest cut), and how they follow. |
 | `site/draw/store.js`, `site/draw/saving.js` | The document's selection and undo; the drawings kept in the browser. |
