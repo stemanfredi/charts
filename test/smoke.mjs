@@ -847,6 +847,16 @@ try {
   await pasteInto('Start Latitude', '41.0\t13.0\n41.05\t13.05\n41.1\t13.1');
   const stopped = await dw.evaluate((id) => { const l = drawing.doc.lines.find((x) => x.id === id); return [l.start.position.join(' '), l.vertices.length, !!l.end.element].join(' · '); }, attLine);
   check(stopped === '13 41 · 0 · true', `copy and paste: a paste stops before an attached end (${stopped})`);
+  // a line's depth profile: read when asked, the chart drawn, its length along the seabed longer
+  const deepLine = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.2], [], [12.3, 40.2]); }); drawing.select([l.id]); return l.id; });
+  await dw.click('.dinspect button:has-text("Depth profile")');
+  await dw.waitForSelector('svg.profile polyline', { timeout: 60000 }).catch(() => null);
+  const prof = await dw.evaluate(() => [document.querySelectorAll('svg.profile polyline').length, document.querySelector('.dinspect .fblock .fvalue[title*="lower bound"]')?.textContent || '']);
+  const deepLength = await dw.evaluate(async (id) => { const { lineTrace } = await import('./draw/lines.js'); return lineTrace(drawing.doc, drawing.doc.lines.find((x) => x.id === id)).length; }, deepLine);
+  check(prof[0] > 0 && /along the seabed/.test(prof[1]) && deepLength > 25000, `a line's depth profile: the chart and the length along the seabed (${prof[1]})`);
+  check(!dw.errors.length, `drawing: no errors ${dw.errors.join(' | ')}`);
+  await dw.close();
+
 } catch (err) {
   check(false, `smoke run crashed: ${err.message.split('\n').filter((l) => l.trim()).slice(0, 8).map((l) => l.trim()).join(' / ')} (${err.stack?.split('\n').find((l) => l.includes('smoke.mjs'))?.trim() ?? 'where unknown'})`);
 } finally {

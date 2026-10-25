@@ -10,7 +10,8 @@ import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef } from './attach.js';
 import { anchorAt, labelText, labelValues, TOKENS } from './labels.js';
 import { OUTLINES, OUTLINE_NAME, outlineOf, isVehicle } from './outlines.js';
-import { lineTrace, totals, applySmooth } from './lines.js';
+import { lineTrace, totals, applySmooth, nearestAlong } from './lines.js';
+import { profileCsv } from './profile.js';
 import { ARRAY_RADIUS, distribute, lines, plan, planConnection, makeArray, editArray, connect, reconnect, unconnect, alongTrace, alongOf,
   repeats, connections, ruleOf, repeatOf, connectionOn, changedByHand, giveBack, MAX_COPIES } from './generator.js';
 import { BUILT_IN, builtInName } from './place.js';
@@ -697,6 +698,72 @@ export function drawView(root, ctx) {
     note(res.applied ? `${plural(res.applied, 'place')} pasted${res.left ? `; ${res.left} left out: ${res.left === 1 ? 'it' : 'they'} would move an attached end` : ''}` : 'Not pasted: it would move an attached end', !!res.applied);
   };
 
+  // ---- a line's depth profile (profile.js): read when its Profile button is pressed, read again as
+  // the line changes; pointing at the chart shows the place on the map, pointing at the line on the
+  // map shows it on the chart
+  const profiles = new Map(); // line id → { key (its trace), prof (null while being read), failed }
+  const profileShown = new Set();
+  let profileCursor = null; // (d: metres along, or null) → the chart's cursor there
+  const SVG = 'http://www.w3.org/2000/svg', W = 360, H = 110;
+  const svg = (tag, attrs = {}) => { const e = document.createElementNS(SVG, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+  // depths as said: metres below the surface, positive
+  const fmtDepth = (z) => (z >= -1 ? 'under 1 m' : `${Math.floor(-z)} m`);
+  function profileBlock(id) {
+    const el = now(id), u = ctx.units();
+    if (!profileShown.has(id)) {
+      return row('Profile', h('button', { type: 'button', class: 'small', title: 'The depth along the line, as the depth shading has it (GEBCO, cut to the coast), and its length along the seabed',
+        onclick: () => { profileShown.add(id); renderInspector(); } }, 'Depth profile'));
+    }
+    const tr = lineTrace(drawing.doc, el), key = JSON.stringify(tr.coords);
+    let p = profiles.get(id);
+    if (!p || p.key !== key) {
+      const mine = { key, prof: null, failed: false };
+      profiles.set(id, p = mine);
+      ctx.profile(tr).then((prof) => { mine.prof = prof; }, () => { mine.failed = true; })
+        .then(() => { if (profiles.get(id) === mine && drawing.sel.size === 1 && drawing.sel.has(id)) renderInspector(); });
+    }
+    const close = h('button', { type: 'button', class: 'x', 'aria-label': 'Close the profile', title: 'Close the profile', onclick: () => { profileShown.delete(id); profileCursor = null; renderInspector(); } }, '×');
+    if (!p.prof) return h('div', { class: 'fblock' }, h('h3', {}, 'Profile', close), h('p', { class: 'note' }, p.failed ? 'The depths could not be read.' : 'Reading the depths…'));
+    const { pts, seabed, length, shallowest, deepest } = p.prof;
+    if (!deepest) return h('div', { class: 'fblock' }, h('h3', {}, 'Profile', close), h('p', { class: 'note' }, 'No depth along this line (land, lakes, or no data).'));
+    // the chart: depth down from the surface (0) to the deepest, along the line
+    const bottom = Math.min(deepest.z, -1), X = (d) => (length ? (d / length) * W : 0), Y = (z) => (z / bottom) * (H - 14) + 4;
+    const chart = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'profile', role: 'img', 'aria-label': `Depth along the line, ${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}` });
+    chart.append(svg('line', { x1: 0, x2: W, y1: Y(0), y2: Y(0), class: 'psurface' }));
+    let run = [];
+    const flush = () => { if (run.length > 1) chart.append(svg('polyline', { points: run.join(' '), class: 'pdepth' })); run = []; };
+    for (const x of pts) { if (Number.isFinite(x.z)) run.push(`${X(x.d).toFixed(1)},${Y(x.z).toFixed(1)}`); else flush(); }
+    flush();
+    for (const [x, cls] of [[deepest, 'pmax'], [shallowest, 'pmin']]) chart.append(svg('circle', { cx: X(x.d), cy: Y(x.z), r: 2.5, class: cls }));
+    const cursor = svg('line', { y1: 0, y2: H, class: 'pcursor', visibility: 'hidden' });
+    chart.append(cursor);
+    const at = h('span', { class: 'fvalue' }, '');
+    const nearest = (d) => pts.reduce((a, b) => (Math.abs(b.d - d) < Math.abs(a.d - d) ? b : a));
+    // the chart's cursor at d (metres along), and the place on the map; null: none
+    profileCursor = (d) => {
+      if (d == null) { cursor.setAttribute('visibility', 'hidden'); at.textContent = ''; drawing.setPreview([]); return; }
+      const x = nearest(d);
+      cursor.setAttribute('x1', X(x.d)); cursor.setAttribute('x2', X(x.d)); cursor.setAttribute('visibility', 'visible');
+      at.textContent = `${fmtDist(x.d, u)} · ${Number.isFinite(x.z) ? fmtDepth(x.z) : 'no depth'}`;
+      drawing.setPreview([x.p]);
+    };
+    chart.addEventListener('pointermove', (e) => { const r = chart.getBoundingClientRect(); profileCursor(((e.clientX - r.left) / r.width) * length); });
+    chart.addEventListener('pointerleave', () => profileCursor(null));
+    return h('div', { class: 'fblock' }, h('h3', {}, 'Profile', close),
+      row('Depth', h('span', { class: 'fvalue' }, `${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}`), at),
+      chart,
+      row('Seabed', h('span', { class: 'fvalue', title: 'Each step\'s length counting the change in depth: a lower bound, as relief finer than the depth grid (about 460 m) is not in it' },
+        `${fmtDist(seabed, u)} along the seabed · ${fmtDist(length, u)} on the surface`),
+      h('button', { type: 'button', class: 'small', title: 'The profile as a CSV file: distance along, depth, latitude, longitude', onclick: () => ctx.download(profileCsv(p.prof), `${(el.name || 'line').replace(/[^\w-]+/g, '-')}-profile.csv`, 'text/csv') }, 'CSV')));
+  }
+  // pointing at a line on the map whose profile is shown: its place on the chart
+  map.on('mousemove', (e) => {
+    if (!profileCursor || drawing.sel.size !== 1) return;
+    const id = [...drawing.sel][0], x = find(drawing.doc, id);
+    if (x?.kind !== 'line' || !profileShown.has(id)) return;
+    if (drawing.hitAt(e.point, 6).includes(id)) profileCursor(nearestAlong(lineTrace(drawing.doc, x.el).coords, [e.lngLat.lng, e.lngLat.lat]));
+  });
+
   function lineInspector(id) {
     const doc = drawing.doc, el = now(id), u = ctx.units();
     const hv = drawing.handlesShown; // its Bézier handles, in the table and on the map
@@ -761,6 +828,7 @@ export function drawView(root, ctx) {
       row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u)),
         h('button', { type: 'button', class: 'small', title: 'Circles repeated along this line, every so far or so many, which then follow it; they can be connected to origins', onclick: () => openArray({ element: id, part: null }) }, 'Repeat along…')),
       apart ? h('p', { class: 'note' }, 'Drawn apart from the lines beside it at this zoom: schematic, not to scale. Its length is the real one.') : null,
+      profileBlock(id),
       row('Curve', h('span', { class: 'fvalue' }, el.mode === 'auto' ? 'smooth, follows its vertices' : 'as stored')),
       row('', h('button', { type: 'button', class: 'small', title: 'Curve smoothly through its bends; the curve then follows them (it replaces handles typed)', disabled: !el.vertices.length && !el.start.element, onclick: async () => {
           const typed = el.mode === 'fixed' && [el.startHandle, el.endHandle, ...el.vertices.flatMap((v) => [v.handleIn, v.handleOut])].some(Boolean);

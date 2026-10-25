@@ -202,7 +202,11 @@ it.
 - **Line:** **Start** and **End** (attached: what to, and which vertex or edge, with **Attach to…**
   (the next click on the map chooses again; Esc cancels) and **×**, which detaches it: the end stays where it
   is; free: its position, and **Attach to…**); Length (the drawn line's, curves
-  included) with **Repeat along…** (§6); Curve (**Smooth**, **Straighten**); its vertices (latitude, longitude; the **Leg** from the place
+  included) with **Repeat along…** (§6); **Depth profile** (pressed: the depth along
+  the line, as the depth shading has it (GEBCO, cut to the coast), sampled at the grid's spacing, at
+  most 1,000 places; the shallowest and the deepest; a chart whose place pointed at shows on the map,
+  and the line pointed at on the map shows on the chart; its length along the seabed, a lower bound;
+  **CSV**); Curve (**Smooth**, **Straighten**); its vertices (latitude, longitude; the **Leg** from the place
   before, its length and bearing, typed: that vertex and those after it move together, the legs after
   it unchanged, an attached end staying attached; name, distance along;
   its bar: **Insert after** (halfway to the next), **Delete**, **Split** (the vertex becomes a point both

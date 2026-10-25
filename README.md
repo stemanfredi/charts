@@ -32,7 +32,8 @@ from soundings.
   - Circles are repeated along a line or an arc and connected to origins in trees
     or chains.
   - Everything is named, edited in small tables and dragged on the map, with
-    lengths, areas and totals.
+    lengths, areas and totals; a line also has its depth profile and its length
+    along the seabed.
   - Lines that run together can be drawn a few pixels apart (lengths stay real),
     and small outlines are shown enlarged.
   - Drawings stay in the browser, several of them, saved as you go and never sent
@@ -180,6 +181,8 @@ on-screen credits and the PNG list only the sources that are drawn.
   hidden layer makes no requests. GEBCO's depths and the seagrass come from this project's own
   bucket, `geodata.makaw.org`. A GIS export with Copernicus layers drawn
   also reads their datasets from Copernicus Marine's catalogue and stores.
+- Drawings stay in the browser. A line's depth profile, when opened, reads the
+  depth tiles along that line; nothing else of a drawing makes a request.
 - Coordinates typed into the search box are parsed in the page and never sent.
   Place names are sent to Photon as you type, along with the map centre rounded
   to 0.1°. The results list says so.

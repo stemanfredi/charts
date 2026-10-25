@@ -488,3 +488,9 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 @media (min-width: 1024px) {
   .panel.compact .tools2 .tsep { width: 100%; height: 1px; margin: 2px 0; align-self: auto; }
 }
+/* a line's depth profile (draw/panel.js profileBlock) */
+svg.profile { width: 100%; height: auto; display: block; background: #f6f8fa; border-radius: 6px; touch-action: none; }
+svg.profile .psurface { stroke: #9fb3c8; stroke-dasharray: 3 3; stroke-width: 1; }
+svg.profile .pdepth { fill: none; stroke: #335f97; stroke-width: 1.5; stroke-linejoin: round; }
+svg.profile .pmax, svg.profile .pmin { fill: #335f97; }
+svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
