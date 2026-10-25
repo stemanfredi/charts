@@ -1277,9 +1277,7 @@ export function drawView(root, ctx) {
     if (!typing && (e.key === 'Delete' || (mac && e.metaKey && e.key === 'Backspace')) && drawing.sel.size) { e.preventDefault(); del([...drawing.sel]); return; }
     if (typing || mod || e.altKey || !ctx.isOpen()) return;
     const ids = shown().map((x) => x.el.id); // the tools' keys: app.js, from anywhere
-    if (e.key === 'Escape' && drawing.repointing) { drawing.cancelRepoint(); renderInspector(); }
-    else if (e.key === 'Escape') drawing.select([]); // with a tool on, Esc is the toolbox's (tools.js)
-    else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && ids.length && !e.target.closest('.ddivider')) {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && ids.length && !e.target.closest('.ddivider')) {
       e.preventDefault();
       const cur = ids.indexOf([...drawing.sel].at(-1));
       const next = cur < 0 ? (e.key === 'ArrowDown' ? 0 : ids.length - 1) : Math.max(0, Math.min(ids.length - 1, cur + (e.key === 'ArrowDown' ? 1 : -1)));

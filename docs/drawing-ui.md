@@ -4,7 +4,7 @@ How drawing and measuring look and behave. The file is in `drawing-format.md`.
 
 Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, `attach.js`,
 `drag.js`, `features.js` what the map draws and its handles, `generator.js` Distribute along and Connect,
-`clipboard.js`, `presets.js`, `place.js` what Point and Shape place), `site/tools.js` (the keys of what is being drawn),
+`clipboard.js`, `presets.js`, `place.js` what Point and Shape place),
 `site/keys.js`.
 
 ## 1. The rail and the panel

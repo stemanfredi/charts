@@ -181,7 +181,8 @@ development.
 | `site/style.css` | All styling. |
 | `site/catalog.js` | Menu items and their provenance, data sources, datasets. |
 | `site/style.js` | The map style built from the catalogue: sources, layers in draw order. |
-| `site/app.js` | Map setup, state and URL, panels, legends, graticule, credits; assembles the exports. |
+| `site/app.js` | Map setup, state and URL, panels, legends, graticule, credits; the PNG export; what the exports say (`snapshot`). |
+| `site/gis.js` | The GIS export: the zip of GIS data assembled from the view. |
 | `site/search.js` | Place search (Photon) and coordinates (never sent, complete or not). |
 | `site/png.js` | The PNG export's picture and text fields. |
 | `site/values.js` | Layers as data for the GIS export: Copernicus, GEBCO and EMODnet values from their Zarr stores. |
@@ -194,7 +195,7 @@ development.
 | `site/zip.js` | Zip writer (the browser's own deflate). |
 | `site/clip.js`, `site/clip-worker.js` | Elevation tiles cut to the OSM coastline, in a Web Worker. |
 | `site/geodesy.js` | Geodesics on WGS 84 (GeographicLib) for every measured and drawn length; a local planar frame about a point (`localFrame`). |
-| `site/tools.js`, `site/keys.js`, `site/fields.js`, `site/menu.js` | The keys of what is being drawn, every key, the fields, the rail's menus. |
+| `site/keys.js`, `site/fields.js`, `site/menu.js` | Every key, the fields, the rail's menus. |
 | `site/hosts.js` | Every host the page may reach: read by the catalogue and by `tools/deps.mjs` (the Content-Security-Policy). |
 | `site/draw/document.js`, `site/draw/check.js` | The drawing's model: points, lines, areas, labels, groups; the style cascade; operations; field checks. |
 | `site/draw/file.js` | The drawing's file: GeoJSON read (any) and written, with a report. |
@@ -251,10 +252,11 @@ down, not only that the code broke.
 The PNG and GIS exports say what the map shows, and only from one place:
 `snapshot()` in `site/app.js`, read at the moment of capture (the view, the time and
 depth as stated beside the coordinates, the credits, each layer drawn with its
-state). Each kind of data layer (`KINDS` in `site/app.js`) says how it is exported,
-with `record()` and `values()` (`null`: in the pictures only); the page checks
-on load that every kind has them and every catalogue item's kind exists, and
-the smoke test fails on the console error. The smoke test also exports one view
+state, its period, its day, what it draws). A kind of data layer (`KINDS` in
+`site/app.js`) whose values the export can read says so with `values()`; the
+others are in the pictures only. The page checks on load that every catalogue
+item's kind exists, and the smoke test fails on the console error. The GIS export
+itself is `site/gis.js`. The smoke test also exports one view
 per kind and compares the zip with the map: layers, time, depth, colours or
 arrows, the PNG's size, text fields and credits, the Copernicus values.
 

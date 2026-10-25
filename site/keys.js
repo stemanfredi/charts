@@ -1,7 +1,7 @@
 // Every key the page answers to, in one place: app.js dispatches the single keys from here (each
 // opens what it names, from anywhere), the tooltips say a tool's key, and About lists them all.
 // Keys acting on what is under way (finishing, taking back a point, deleting) are handled where it
-// is (tools.js, draw/panel.js), and listed here. show: the keys as About shows them, [x] a key cap.
+// is (draw/drawing.js, draw/panel.js), and listed here. show: the keys as About shows them, [x] a key cap.
 
 import { h } from './dom.js';
 
