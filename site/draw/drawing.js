@@ -9,7 +9,7 @@ import { norm360 as norm } from '../geo.js';
 import { serialise } from './file.js';
 import { DrawStore, settleGeometry } from './store.js';
 import { Saving } from './saving.js';
-import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR } from './layers.js';
+import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, FINGER } from './layers.js';
 import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures, ringOf } from './features.js';
 import { lineTrace, nearestAlong } from './lines.js';
 import { labelFeatures } from './labels.js';
@@ -24,8 +24,9 @@ import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, handleTo, moved } from '
 // ID (lines.js) keep one entry for it, not one for each move of the pointer
 const DRAFT_ID = '~draft';
 const SNAP = 12; // px: a click this close to a point is on it (Connect's origins)
-// snapping's reach, a handle's, and the legs long enough for a + halfway
-const SNAP_PX = SNAP_RADIUS, GRAB_PX = 5, MID_PX = 40;
+// with a finger (drawing-ui.md §1): snapping reaches farther, handles are grabbed farther, a + is
+// added only along longer legs
+const SNAP_PX = FINGER ? 16 : SNAP_RADIUS, GRAB_PX = FINGER ? 22 : 5, MID_PX = FINGER ? 80 : 40;
 // where a line's end being drawn is: a point's (its ID), an attached end's, a position
 const placeOfEnd = (doc, x) => (typeof x === 'string' ? doc.points.find((n) => n.id === x)?.position : Array.isArray(x) ? x : x?.position);
 export class Drawing extends DrawStore {

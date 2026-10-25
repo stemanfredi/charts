@@ -436,7 +436,8 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   /* a sheet from the bottom, as tall as its content up to 85% of the screen */
   .panel { z-index: 8; top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 85%; border-radius: 12px 12px 0 0; transition: transform .2s; }
   .panel.dragging { transition: none; }
-  .handle { display: block; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 88px; height: 22px; border: 0; background: none; cursor: grab; touch-action: none; }
+  .panel.half { max-height: 50%; }
+  .handle { display: block; position: absolute; z-index: 2; top: 0; left: 50%; transform: translateX(-50%); width: 88px; height: 22px; border: 0; background: none; cursor: grab; touch-action: none; }
   .handle::after { content: ""; position: absolute; left: 28px; right: 28px; top: 8px; height: 5px; border-radius: 3px; background: #c3ccd3; }
   .panel header { padding-top: 10px; }
   body.menu-open .legends { display: none; }
@@ -471,6 +472,17 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .subrail, .panel.compact .tools2 { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .subrail > button, .panel.compact .tools2 > button { flex: none; }
   .panel.compact .tools2 > button:not(.urbtn) { width: 56px; }
+}
+/* with a finger: Back, Delete, Duplicate, Snap (drawing-ui.md §1) */
+.touchbar { display: none; }
+@media (pointer: coarse) {
+  .touchbar:not([hidden]) { flex: none; display: flex; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .touchbar button { flex: 1 1 0; min-height: 44px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font-size: 13px; }
+  .touchbar button[hidden] { display: none; }
+  .touchbar button[aria-pressed="true"] { background: var(--magenta); border-color: var(--magenta); color: #fff; }
+}
+@media (pointer: coarse) and (min-width: 1024px) {
+  .panel.compact .touchbar:not([hidden]) { flex-direction: column; width: 64px; padding: 6px; border-bottom: 0; order: 1; }
 }
 /* the Tools panel's header: Undo, Redo, compact, then × (draw/panel.js placeControls) */
 .pactions { margin-left: auto; display: flex; align-items: center; gap: 4px; }

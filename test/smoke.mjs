@@ -857,6 +857,47 @@ try {
   check(!dw.errors.length, `drawing: no errors ${dw.errors.join(' | ')}`);
   await dw.close();
 
+  // ---- with a finger, on a phone (drawing-ui.md §1): the sheet's heights, the touch row, handles ----
+  const fctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const fp = await fctx.newPage();
+  fp.errors = [];
+  fp.on('pageerror', (e) => fp.errors.push(e.message));
+  await fp.goto(`${base}#v=11/40.2/12.1/0&on=chart,coastline&menu=draw`);
+  await fp.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
+  const sheet = () => fp.evaluate(() => { const c = document.querySelector('#panel').classList; return c.contains('compact') ? 'compact' : c.contains('half') ? 'half' : 'full'; });
+  await fp.evaluate(() => drawing.setVariant('shape', 'circle'));
+  const atTool = await sheet();
+  await fp.touchscreen.tap(195, 300); // the centre…
+  await fp.touchscreen.tap(195, 300); // …again: the default size
+  const placed = await fp.evaluate(() => drawing.doc.points.length);
+  await fp.click('.touchbar button:has-text("Snap")'); // off: placed exactly where tapped
+  await fp.touchscreen.tap(100, 250);
+  await fp.touchscreen.tap(100, 250);
+  const freeTap = await fp.evaluate(() => [drawing.snapOff, drawing.doc.points.length]);
+  await fp.click('.touchbar button:has-text("Back")'); // the tool ends: the sheet as it was
+  const afterBack = [await fp.evaluate(() => drawing.tool), await sheet()];
+  await fp.click('.cbtn'); // only the tools; a point selected on the map: the sheet to half
+  await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
+  const onSelect = await sheet();
+  const handles = await fp.evaluate(() => map.getLayoutProperty('draw-handle', 'icon-size'));
+  // a drag of the radius handle, then a second finger: everything back
+  const rBefore = await fp.evaluate(() => drawing.doc.points[0].parts[0].radius);
+  await fp.evaluate(async () => {
+    const { destination } = await import('./geodesy.js');
+    const x = drawing.doc.points[0], q = map.project(destination(x.position, 0, x.parts[0].radius)), box = map.getCanvasContainer(), r = box.getBoundingClientRect();
+    const ev = (type, id, dy = 0) => new PointerEvent(type, { pointerId: id, bubbles: true, button: 0, clientX: r.left + q.x, clientY: r.top + q.y - dy, pointerType: 'touch' });
+    box.dispatchEvent(ev('pointerdown', 1));
+    window.dispatchEvent(ev('pointermove', 1, 20));
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    box.dispatchEvent(ev('pointerdown', 2)); // a second finger
+    window.dispatchEvent(ev('pointerup', 1));
+  });
+  const after = await fp.evaluate(() => [drawing.doc.points[0].parts[0].radius, !!drawing.drag]);
+  check(atTool === 'compact' && placed === 1 && freeTap.join() === 'true,2' && afterBack.join() === ',full' && onSelect === 'half',
+    `finger: a tool makes the sheet compact; a circle placed by two taps; Snap off; Back ends the tool; a point selected on the map: half (${atTool}, ${placed}, ${freeTap}, ${afterBack}, ${onSelect})`);
+  check(handles === 1.75 && after[0] === rBefore && !after[1], `finger: handles drawn larger (${handles}); a second finger during a drag puts it back (${rBefore} → ${after[0]})`);
+  check(!fp.errors.length, `finger: no errors ${fp.errors.join(' | ')}`);
+  await fctx.close();
 } catch (err) {
   check(false, `smoke run crashed: ${err.message.split('\n').filter((l) => l.trim()).slice(0, 8).map((l) => l.trim()).join(' / ')} (${err.stack?.split('\n').find((l) => l.includes('smoke.mjs'))?.trim() ?? 'where unknown'})`);
 } finally {

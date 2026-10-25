@@ -316,6 +316,7 @@ const drawing = new Drawing(map, {
   onChange: (what) => {
     if (what === 'tool') renderDrawTool();
     // phones: something selected on the map while only the tools show: the sheet to half, for its fields
+    if (what === 'sel' && small() && compact.on && !drawing.tool && drawing.sel.size) setSheet('half');
     if (what === 'drag') return; // what is dragged shows its values on the map
     if (what === 'draft') return drawPanel.render('draft'); // the touch row's Done
     drawPanel.render(what);
@@ -1125,9 +1126,17 @@ $('#about .keys').replaceChildren(...keyList());
 $('#b-layers').title = `Layers (${openKey('layers')})`;
 $('#b-draw').title = `Tools: draw and measure: points, lines, shapes, labels, measurements (${openKey('draw')})`;
 
-// phones: the panel is a sheet as tall as its content; drag its handle down to close it
+// phones: the panel is a sheet, at one of three heights (drawing-ui.md §1): compact (the Tools
+// panel's tools only), half the screen, or full (as tall as its content, up to 85%). Its handle dragged
+// up or down moves one height; down from the lowest closes it. Layers has no compact height.
 const handle = h('div', { class: 'handle', 'aria-hidden': 'true' });
 panel.prepend(handle);
+const sheetOf = () => (compact.on && state.panel === 'draw' ? 'compact' : panel.classList.contains('half') ? 'half' : 'full');
+function setSheet(to) {
+  if (to === 'compact') return setCompact(true);
+  panel.classList.toggle('half', to === 'half');
+  if (compact.on) setCompact(false);
+}
 handle.addEventListener('pointerdown', (e) => {
   const y0 = e.clientY;
   handle.setPointerCapture(e.pointerId);
@@ -1137,7 +1146,9 @@ handle.addEventListener('pointerdown', (e) => {
     handle.removeEventListener('pointermove', move);
     panel.classList.remove('dragging');
     panel.style.transform = '';
-    if (ev.clientY - y0 > 80) setPanel(null);
+    const dy = ev.clientY - y0, at = sheetOf(), lowest = state.panel === 'draw' ? 'compact' : 'half';
+    if (dy > 60) { if (at === lowest) setPanel(null); else setSheet(at === 'full' ? 'half' : 'compact'); }
+    else if (dy < -40) setSheet(at === 'compact' ? 'half' : 'full');
   };
   handle.addEventListener('pointermove', move);
   handle.addEventListener('pointerup', up, { once: true });

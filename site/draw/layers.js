@@ -83,6 +83,9 @@ const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([p
     'line-offset': ['*', side, ['+', ['/', ['get', 'sw'], 2], 3, width / 2]] } })));
 // bottom to top: points' rings, areas, lines (guides, the others), outlines, the selection's
 // halos, symbols, handles, the selection's rings
+// a finger (a coarse pointer): handles drawn larger (14 px from 8), as drawing.js grabs them farther
+export const FINGER = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const HANDLE_SIZE = FINGER ? 1.75 : 1;
 export const DRAW_LAYERS = [
   fillLayer('ring', 'draw'), ...lineLayers('ring', 'draw'),
   fillLayer('polygon', 'draw'), ...lineLayers('polygon', 'draw'),
@@ -96,7 +99,7 @@ export const DRAW_LAYERS = [
     paint: { 'icon-color': ['get', 'sc'], 'icon-opacity': ['get', 'so'], 'icon-halo-color': '#ffffff', 'icon-halo-width': 1.5 } },
   // handles at the outline's key points: small squares, white with a dark edge
   { id: 'draw-handle', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'handle'],
-    layout: { 'icon-image': 'draw-handle', 'icon-size': 1, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
+    layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': '#ffffff', 'icon-halo-color': CASING, 'icon-halo-width': 1.5 } },
   // a selected shape's centre
   { id: 'draw-centremark', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'centremark'],
@@ -164,7 +167,7 @@ export const DRAW_LAYERS = [
     paint: { 'text-color': ['get', 'c'], 'text-halo-color': '#ffffff', 'text-halo-width': ['case', ['==', ['get', 'box'], 1], 0, 1.6],
       'icon-color': '#ffffff', 'icon-halo-color': ['get', 'c'], 'icon-halo-width': 1 } },
   { id: 'draw-lhandle', type: 'symbol', source: 'drawlabel', filter: ['==', ['get', 'kind'], 'lhandle'],
-    layout: { 'icon-image': 'draw-handle', 'icon-size': 1, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
+    layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': '#ffffff', 'icon-halo-color': CASING, 'icon-halo-width': 1.5 } },
   { id: 'draw-mark-point', type: 'circle', source: 'drawover', filter: ['all', ['in', ['get', 'kind'], ['literal', ['sel', 'hover']]], ['==', ['geometry-type'], 'Point']],
     paint: { 'circle-radius': 11, 'circle-color': CASING, 'circle-opacity': 0, 'circle-stroke-color': SEL, 'circle-stroke-width': ['match', ['get', 'kind'], 'sel', 3, 2], 'circle-stroke-opacity': ['match', ['get', 'kind'], 'sel', 1, 0.6] } },

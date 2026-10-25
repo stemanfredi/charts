@@ -131,6 +131,27 @@ export function drawView(root, ctx) {
   }
   placeControls(false);
   const subrail = h('div', { class: 'subrail', role: 'group', hidden: true });
+  // With a finger (drawing-ui.md §1): what keys and a mouse do on a computer, each shown when it
+  // applies. Back steps back one level (what is half drawn, else the tool, else the selection); Snap
+  // off places as Alt does.
+  const touchBtn = (text, title, run) => h('button', { type: 'button', title, onclick: run }, text);
+  const touch = {
+    done: touchBtn('Done', 'End the line or close the polygon being drawn (Enter, or a double-click)', () => drawing.finish()),
+    back: touchBtn('Back', 'Back one step: what is half drawn, else the tool, else the selection (Esc)', () => (drawing.tool ? drawing.escape() : drawing.select([]))),
+    del: touchBtn('Delete', 'Delete the selection (Delete)', () => del([...drawing.sel])),
+    dup: touchBtn('Duplicate', `A copy of the selection beside it (${MOD} D)`, () => drawing.duplicate()),
+    snap: h('button', { type: 'button', title: 'Snap to what is drawn; off: placed exactly where tapped (Alt)', onclick: () => { drawing.snapOff = !drawing.snapOff; renderTools(); } }, 'Snap'),
+  };
+  const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' }, Object.values(touch));
+  function renderTouch() {
+    const sel = drawing.sel.size > 0, tool = !!drawing.tool;
+    touch.done.hidden = !(['line', 'polygon'].includes(drawing.tool) && drawing.draft);
+    touch.back.hidden = !tool && !sel;
+    touch.del.hidden = touch.dup.hidden = !sel || tool;
+    touch.snap.hidden = !tool;
+    touch.snap.setAttribute('aria-pressed', String(!drawing.snapOff));
+    touchbar.hidden = Object.values(touch).every((b) => b.hidden);
+  }
   function renderSubrail() {
     const tool = drawing.button;
     const vs = variants(tool);
@@ -1237,7 +1258,7 @@ export function drawView(root, ctx) {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setSplit(listBox.offsetHeight + (e.key === 'ArrowUp' ? -24 : 24)); }
   });
 
-  root.append(toolsRow, subrail, listBox, divider, inspector, noteEl, fileInput); // fileInput: the rail's Import
+  root.append(toolsRow, touchbar, subrail, listBox, divider, inspector, noteEl, fileInput); // fileInput: the rail's Import
 
   // ---- keys, while the Tools panel is open -----------------------------------------------------
   window.addEventListener('keydown', (e) => {
@@ -1283,6 +1304,7 @@ export function drawView(root, ctx) {
     for (const b of toolBtns) b.setAttribute('aria-pressed', String(on === b.dataset.tool));
     undoBtn.disabled = !drawing.undos.length;
     redoBtn.disabled = !drawing.redos.length;
+    renderTouch();
     const c = ctx.compact();
     if (compactBtn.dataset.c !== String(c)) {
       compactBtn.dataset.c = String(c);
@@ -1297,7 +1319,7 @@ export function drawView(root, ctx) {
   return {
     render(what) {
       if (what === 'tool') return renderTools();
-      if (what === 'draft') return;
+      if (what === 'draft') return renderTouch();
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
         note(n ? `${n} element${n > 1 ? 's' : ''} selected` : 'Nothing lies entirely inside the rectangle');

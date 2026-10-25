@@ -34,6 +34,17 @@ column beside it; narrower, the tools and the kinds rows (each one line, scrolle
 phone). Compact, the tools hold everything, in groups set apart by dividers: the button back to the
 whole panel, the tools that make, Select, Undo and Redo.
 
+**On a phone** the panel is a sheet at one of three heights: compact, half the screen, or full (as
+tall as its content, up to 85 %). Its handle dragged up or down moves one height; down from the lowest
+closes it. Something selected on the map while only the tools show raises it to half. Zoom to and a
+place found are fitted to the part of the map the panel leaves free.
+
+**With a finger** (any screen): a row under the tools with **Done** (a line or polygon being drawn), **Back** (what is half drawn, else the
+tool, else the selection), **Delete** and **Duplicate** (with a selection), **Snap** (while a tool is
+on; off places exactly where tapped, as Alt). Handles are drawn at 14 px and grabbed within 22 px;
+snapping reaches 16 px; a + is added only along legs over 80 px; a second finger during a drag puts
+it back and lets the map pinch.
+
 ## 2. Tools
 
 The row: **Point** (P), **Line** (G), **Shape** (S), **Label** (T), **Measure** (M), then, after a
