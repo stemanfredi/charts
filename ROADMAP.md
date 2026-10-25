@@ -12,6 +12,37 @@ lists only what it does not do, or not well enough.
   surveyed, would remove those without touching real detail. None seen with GEBCO so far:
   only if one appears.
 
+## Land and mountains
+
+What walkers and climbers need from a map, against the open data that a keyless page can read
+(researched 2026-10-24). Coverage is by country: each layer says which.
+
+- **Next:**
+  - **Official topographic maps, slope classes and winter routes,** as overlays, by country:
+    swisstopo (maps, slopes over 30° in four classes, ski-touring routes, hiking trails; free with
+    attribution) and basemap.at (CC BY 4.0); IGN France (maps, slopes, winter routes) once the
+    licence of its own layers is read; Kartverket (CC BY 4.0, its zooms 12–20 for display only).
+  - **A line's profile on land:** ascent, descent and a walking time, from the elevation the
+    relief shading draws, beside the depth profile.
+  - **GPX in and out:** routes and tracks read as lines, the drawing's lines written as GPX.
+- **To research before deciding:**
+  - **Avalanche danger:** Euregio's bulletins (CAAML v6 JSON) and EAWS's warning regions
+    (GeoJSON), both readable from a page. Their licences are not read yet, and the data is
+    safety-critical: only with the bulletin's date always shown and a link to the official one.
+  - **Trail tiles from OpenStreetMap:** grades (`sac_scale`), trail visibility, via ferrata, huts,
+    drinking water and springs, which the base map's tiles leave out. A build like seagrass's,
+    much larger; Overpass cannot serve a public map.
+  - **Offline areas:** only from files published for download (this project's own builds,
+    providers' extracts or sheets), never by caching third-party tiles past their terms; browser
+    storage is best-effort and can be evicted.
+  - **Print with a grid:** a paper map at a set scale, with a coordinate grid.
+  - **Detailed elevation in Switzerland (swissALTI3D, 0.5 and 2 m, cloud-optimised GeoTIFF):**
+    its catalogue says "proprietary" where the open-data terms say free; to reconcile first. Swiss
+    grid: reprojected in the page or in a build.
+- **Not planned:** weather forecasts (open only as model files, GRIB or NetCDF, which need a
+  build and a server-like pipeline); hut availability and current route conditions (no open
+  source); OpenTopoMap (an intermediary).
+
 ## Parked
 
 - **Seabed habitats (EUSeaMap 2025, MSFD broad habitat types).** EMODnet Seabed Habitats' WMS
