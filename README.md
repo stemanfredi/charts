@@ -58,6 +58,7 @@ them from each provider, and each layer stays under its provider's licence.
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
 | EMODnet depth (Europe) | EMODnet Bathymetry (tiles; its values from its Zarr store, listed in EDITO's catalogue) | CC BY 4.0 |
 | Seabed substrate | EMODnet Geology | CC BY 4.0 |
+| Seagrass (Europe) | EMODnet Seabed Habitats, seagrass cover 2025, cut into tiles at `geodata.makaw.org` (`tools/seagrass.mjs`); its Caribbean part (CC BY-NC) left out | CC BY 4.0 |
 | Maritime zones | Marine Regions (Flanders Marine Institute, VLIZ): maritime boundaries and zones | CC BY 4.0; not for legal or navigational use |
 | Wrecks, cables, pipelines, offshore installations, wind farms, military and protected areas | EMODnet Human Activities (wrecks: UKHO) | CC BY 4.0 |
 | Vessel density | EMODnet Human Activities | EMODnet open data, attribution requested |
@@ -124,7 +125,7 @@ on-screen credits and the PNG list only the sources that are drawn.
 - A Content-Security-Policy limits the page to the pinned CDN packages and the
   provider hosts listed in `tools/deps.mjs`.
 - Tile requests necessarily tell each provider which area is being viewed. A
-  hidden layer makes no requests. GEBCO's depths come from this project's own
+  hidden layer makes no requests. GEBCO's depths and the seagrass come from this project's own
   bucket, `geodata.makaw.org`. A GIS export with Copernicus layers drawn
   also reads their datasets from Copernicus Marine's catalogue and stores.
 - Coordinates typed into the search box are parsed in the page and never sent.
@@ -188,6 +189,7 @@ development.
 | `site/geo.js`, `site/net.js`, `site/dom.js` | Web Mercator maths; how requests are made and shared; DOM helpers. |
 | `tools/deps.mjs` | Pins, hashes and checks the CDN dependencies. |
 | `tools/gebco.mjs` | GEBCO's depth grids as Zarr stores (download, build, verify), published at `geodata.makaw.org`. |
+| `tools/seagrass.mjs` | EMODnet's seagrass as vector tiles (download, build), published at `geodata.makaw.org`: its WMS takes a minute or more a tile. |
 | `test/` | Unit tests, browser tests, and the development server. |
 
 ## Development

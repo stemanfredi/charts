@@ -366,6 +366,13 @@ try {
   const ink = await dp.evaluate(() => [map.getPaintProperty('isobaths', 'line-color'), map.getStyle().layers.find((l) => l.id === 'depth').maxzoom]);
   check(Array.isArray(ink[0]) && ink[0][0] === 'step' && ink[0][3] === ink[1] && ink[0][4] === '#335f97', `isobaths: the shading's colours up to zoom ${ink[1]}, its deepest blue above (${JSON.stringify(ink[0]).slice(0, 80)})`);
   await dp.close();
+  // seagrass: its tiles from the bucket draw meadows off Liguria, with their legend; a tile with no
+  // seagrass (none stored) is empty, not an error
+  const sg = await open('#v=11/44.1/9.75/0&on=chart,coastline,seagrass,legend&menu=0');
+  const [sgDrawn, sgLegend] = await sg.evaluate(() => [map.queryRenderedFeatures({ layers: ['seagrass', 'seagrass-points'] }).length,
+    document.querySelector('#legends canvas[data-legend=seagrass]')?.getAttribute('aria-label') || '']);
+  check(sgDrawn > 0 && /Posidonia oceanica/.test(sgLegend) && !sg.errors.length, `seagrass: ${sgDrawn} features drawn, with its legend ${sg.errors.join(' | ')}`);
+  await sg.close();
   // Marine Regions' maritime limits load, with their legend (line types, from its WMS)
   const mz = await open('#v=6/40/16/0&on=chart,coastline,maritime,legend&menu=0');
   await mz.waitForFunction(() => /Median line/.test(document.querySelector('#legends canvas[data-legend=maritime]')?.getAttribute('aria-label') || ''), null, { timeout: 30000 }).catch(() => {});

@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEPTH_SOURCES, DEM_LAND, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEPTH_SOURCES, DEM_LAND, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
@@ -131,6 +131,20 @@ maplibregl.addProtocol('clip-sea', seaClip.protocol);
 maplibregl.addProtocol('clip-land', landClip.protocol);
 maplibregl.addProtocol('cmems', cmemsTile);
 maplibregl.addProtocol('gebco-tid', tidTile);
+// seagrass tiles (tools/seagrass.mjs) exist only where there is seagrass: its index lists them, and
+// a tile not listed is empty, asked of nobody (a 404 would be logged as an error)
+let seagrassIndex; // promise of zoom → Set of x · 2^z + y
+const seagrassTiles = () => (seagrassIndex ||= fetch(`${SEAGRASS}/index.json`, FETCH)
+  .then((r) => { if (!r.ok) throw new Error(`seagrass index: HTTP ${r.status}`); return r.json(); })
+  .then(({ tiles }) => Object.fromEntries(Object.entries(tiles).map(([z, xy]) => [z, new Set(xy.filter((_, k) => !(k % 2)).map((x, k) => x * 2 ** z + xy[2 * k + 1]))])))
+  .catch((e) => { seagrassIndex = null; throw e; }));
+maplibregl.addProtocol('seagrass', async ({ url }, ac) => {
+  const [z, x, y] = url.slice('seagrass://'.length).split('/').map(Number);
+  if (!(await seagrassTiles())[z]?.has(x * 2 ** z + y)) return { data: new ArrayBuffer(0) };
+  const r = await fetch(`${SEAGRASS}/${z}/${x}/${y}.pbf`, { ...FETCH, signal: ac.signal });
+  if (!r.ok) throw new Error(`seagrass: HTTP ${r.status}`);
+  return { data: await r.arrayBuffer() };
+});
 const contourOpts = { contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level', extent: 4096, buffer: 1 };
 const style = buildStyle({
   seaDemUrl: 'clip-sea://{z}/{x}/{y}',

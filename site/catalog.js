@@ -99,6 +99,18 @@ export const EMODNET_DTM = `${HOSTS.cloudferro}/emodnet/emodnet_bathymetry/14157
 // published on the project's data host: the sea's depths (gebco.js, clip.js); its type identifier grid beside it (tid.zarr)
 export const GEBCO = `${HOSTS.geodata}/gebco-2026/elevation.zarr`;
 export const GEBCO_TID = `${HOSTS.geodata}/gebco-2026/tid.zarr`;
+// EMODnet Seabed Habitats' seagrass (2025, Europe) as vector tiles, built by tools/seagrass.mjs and
+// published on the project's data host: its WMS takes a minute or more a tile. One layer, "seagrass": meadows (polygons)
+// and survey points, each of one class (property c)
+export const SEAGRASS = `${HOSTS.geodata}/seagrass-2025`;
+export const SEAGRASS_ZOOMS = [7, 13]; // the zooms its tiles exist at; above, the last magnified
+export const SEAGRASS_CLASSES = [
+  { c: 'posidonia', label: 'Posidonia oceanica', colour: '#1e6b3a' },
+  { c: 'matte', label: 'Dead Posidonia (matte)', colour: '#a08a5e' },
+  { c: 'cymodocea', label: 'Cymodocea', colour: '#8bc34a' },
+  { c: 'zostera', label: 'Zostera (eelgrass)', colour: '#1f9e8f' },
+  { c: 'other', label: 'Other or not named', colour: '#9aa36a' },
+];
 // where GEBCO's depths come from, by its type identifier codes (codes [from, to], inclusive); land
 // (0) and no data (127) are not drawn
 export const DEPTH_SOURCES = [
@@ -127,6 +139,7 @@ export const CLASS_LEGENDS = {
   // AIS positions per cell, as the World Bank's tile service colours them (its legend's swatches)
   worlddensity: () => [['< 100 k', '#1b0c42'], ['100–250 k', '#4c0c6b'], ['250–500 k', '#791c6e'], ['0.5–1 M', '#a62d61'], ['1–5 M', '#cf4447'],
     ['5–10 M', '#ee6925'], ['10–15 M', '#fc9b06'], ['15–25 M', '#f8d13c'], ['25–60 M', '#fdffa5']].map(([label, colour]) => ({ label, colour })),
+  seagrass: () => SEAGRASS_CLASSES.map(({ label, colour }) => ({ label, colour })),
   substrate: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${FOLK[variant]}`,
   // EMODnet draws each cable in the colour of who reported it (its WMS legend: telecom cables red,
   // with a centre line of that colour; power cables in greys)
@@ -310,6 +323,8 @@ export const ITEMS = [
   { id: 'substrate', group: 'sea', label: 'Seabed substrate (Europe)', opacity: 0.8, kind: 'classes',
     variants: { folk5: 'Folk 5 classes', folk7: 'Folk 7 classes' },
     info: { src: 'EMODnet Geology seabed substrate (WMS)', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: '1:250 000, European seas; what the seabed is made of (mud, sand, coarse sediment, mixed, rock), in Folk classes. Compiled from national surveys: varies by country', url: 'https://emodnet.ec.europa.eu/en/geology' } },
+  { id: 'seagrass', group: 'sea', label: 'Seagrass (Europe)', opacity: 0.8, minzoom: SEAGRASS_ZOOMS[0], kind: 'classes', legendSub: 'meadows; dots: where surveys found it',
+    info: { src: 'EMODnet Seabed Habitats, seagrass cover (Essential Ocean Variable), 2025: maps of meadows and survey points from national agencies, OSPAR and research, cut into tiles at geodata.makaw.org (tools/seagrass.mjs)', lic: 'EMODnet open data, CC BY 4.0: attribution required (its Caribbean part, CC BY-NC, is left out)', res: 'European seas, from zoom 7; as mapped by each survey, so complete in some places (French and Italian coasts) and absent in others. The species from each map\'s own habitat names. Anchoring on Posidonia oceanica is banned or restricted in much of the Mediterranean: check the local rules', url: 'https://emodnet.ec.europa.eu/en/seabed-habitats' } },
   { id: 'traffic', group: 'shipping', label: 'Vessel density (Europe)', opacity: 0.85, kind: 'density',
     variants: DENSITY.traffic.types,
     info: { src: 'EMODnet Human Activities vessel density (Cogea), from AIS bought from CLS, ORBCOMM and vesseltracker.com', lic: 'EMODnet open data, no access constraints; attribution requested', res: '1 km grid, annual averages of hours per km² per month, 2017–2024. EU and neighbouring seas only. 2024 is incomplete (satellite AIS lost from June). Not real time', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },

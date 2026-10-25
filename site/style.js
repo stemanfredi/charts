@@ -1,7 +1,7 @@
 // The map's style, from the catalogue: every source, and every layer in draw order. A layer belongs
 // to a menu item through metadata.item; layers of a hidden item are set to visibility:none, and
 // MapLibre requests no tiles for a source whose layers are all hidden.
-import { DEM_SEA, DEM_LAND, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, OVERLAY_FAINT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M } from './catalog.js';
+import { DEM_SEA, DEM_LAND, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, OVERLAY_FAINT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
 import { HOSTS } from './hosts.js';
 
 const C = {
@@ -28,6 +28,8 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     omt: { type: 'vector', url: OMT_TILEJSON, attribution: ATTR_OSM },
     'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: ATTR_GEBCO },
     dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
+    seagrass: { type: 'vector', tiles: ['seagrass://{z}/{x}/{y}'], minzoom: SEAGRASS_ZOOMS[0], maxzoom: SEAGRASS_ZOOMS[1], bounds: [-50, 25, 45, 72],
+      attribution: '<a href="https://emodnet.ec.europa.eu/en/seabed-habitats">EMODnet Seabed Habitats</a>' },
     isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: 12, attribution: ATTR_GEBCO }, // 512 px tiles: z12 is cut with the z12 coastline
     contours: { type: 'vector', tiles: [contourUrl], maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
     eox16: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2016 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2016), CC BY 4.0',
@@ -94,6 +96,7 @@ export function depthRamp(stops) {
 // the isobaths drawn from each zoom where lines are added (catalog.js ISOBATHS), one layer each
 // (filters can't use zoom): [minzoom, maxzoom, depths]
 const ISOBATH_RANGES = ISOBATH_ZOOMS.map(([z, ds], k, a) => [z, a[k + 1]?.[0] ?? 24, ds]);
+const SEAGRASS_COLOUR = ['match', ['get', 'c'], ...SEAGRASS_CLASSES.flatMap(({ c, colour }) => [c, colour]), SEAGRASS_CLASSES.at(-1).colour];
 const DEPTH = ['abs', ['get', 'ele']];
 const isobathFilter = (depths) => ['all', ['<', ['get', 'ele'], 0], ['in', DEPTH, ['literal', depths]]];
 const MAJOR = ['in', DEPTH, ['literal', DEPTH_LEVELS.filter(isMajorIsobath)]];
@@ -139,6 +142,14 @@ function layers() {
     // colours, then the layers that can draw arrows (currents, then wind), whose arrows go over them
     ...Object.keys(CMEMS).sort((a, b) => ARROWS_LAST(a) - ARROWS_LAST(b)).map((id) => raster(`cmems-${id}`, id)),
     raster('traffic', 'traffic'), raster('routes', 'routes'), ...overlayLayers(['worlddensity']),
+    // seagrass: meadows as fills, a thin edge of their colour once they are large enough to need
+    // one; survey points as dots from zoom 10, where they no longer merge into smudges
+    { id: 'seagrass', type: 'fill', source: 'seagrass', 'source-layer': 'seagrass', ...m('seagrass'),
+      filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': SEAGRASS_COLOUR, 'fill-outline-color': SEAGRASS_COLOUR } },
+    { id: 'seagrass-points', type: 'circle', source: 'seagrass', 'source-layer': 'seagrass', minzoom: 10, ...m('seagrass'),
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: { 'circle-color': SEAGRASS_COLOUR, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 15, 3.5],
+        'circle-stroke-color': '#ffffff', 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 0, 13, 0.6] } },
 
     // drawn at every zoom: above the DEM's zoom 12 the lines are magnified, not refined; above every
     // picture that colours the sea, under what stands in it (piers, zones, cables, wrecks, seamarks).
@@ -258,6 +269,6 @@ export function buildStyle(opts) {
 
 // Paint property that an item's opacity slider drives, per layer type.
 export const OPACITY_PROP = {
-  raster: 'raster-opacity', fill: 'fill-opacity', line: 'line-opacity', symbol: 'text-opacity',
+  raster: 'raster-opacity', fill: 'fill-opacity', line: 'line-opacity', symbol: 'text-opacity', circle: 'circle-opacity',
   'color-relief': 'color-relief-opacity', hillshade: 'hillshade-exaggeration',
 };
