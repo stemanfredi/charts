@@ -5,7 +5,7 @@ const clippers = {};
 self.onmessage = async ({ data }) => {
   if (data.init) {
     const o = data.init;
-    clippers[o.mode] = clipper({ ...o, onStale: () => self.postMessage({ stale: o.mode }) });
+    clippers[o.mode] = clipper(o);
     return;
   }
   try {

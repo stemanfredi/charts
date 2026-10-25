@@ -145,9 +145,7 @@ const urlUnits = readHash();
 const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: false, cacheSize: 64 };
 const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA.max });
 const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND.max });
-// a water body classified after some of its tiles were drawn: redraw the depth shading
-const reloadDepth = () => map.getSource('dem-sea')?.setTiles(['clip-sea://{z}/{x}/{y}']);
-const seaClip = workerClipper({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON, onStale: reloadDepth });
+const seaClip = workerClipper({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON });
 const landClip = workerClipper({ template: DEM_TILES, native: DEM_LAND.native, mode: 'land', omtTileJson: OMT_TILEJSON });
 for (const [dem, clip] of [[seaDem, seaClip], [landDem, landClip]]) {
   dem.manager.getTile = clip.getTile;

@@ -44,8 +44,6 @@ try {
   });
   const metres = (z, x, y) => page.evaluate(([a, b, c]) => window.metres(a, b, c), [z, x, y]);
   const shaded = (z, x, y) => page.evaluate(([a, b, c]) => window.shaded(a, b, c), [z, x, y]);
-  // after a first round, water bodies classified while tiles were cut are settled: ask again
-  const settle = async (fn) => { await fn(); await page.waitForTimeout(1000); return fn(); };
 
   // ---- seams: no bend in the depth slope at the edge between two tiles -----------------------
   // the bend at a column: how much the slope changes there, |v(x+1) − 2v(x) + v(x−1)|, along each
@@ -53,7 +51,7 @@ try {
   // elsewhere in the same tiles (the Canale di Corsica bends were 4–8× that)
   for (const [name, lon, lat, z] of [['Canale di Corsica', 9.84375, 43.1, 10], ['Canale di Corsica', 9.84375, 43.1, 9], ['Ligurian slope', 8.4375, 43.8, 10]]) {
     const t = at(lon + 1e-6, lat, z); // the tile east of the edge
-    const [L, R] = await settle(() => Promise.all([metres(z, t.x - 1, t.y), metres(z, t.x, t.y)]));
+    const [L, R] = await Promise.all([metres(z, t.x - 1, t.y), metres(z, t.x, t.y)]);
     const v = (x, j) => (x < 256 ? L[j * 256 + x] : R[j * 256 + x - 256]); // the two tiles as one 512 px row
     const bend = (x, j) => Math.abs(v(x + 1, j) - 2 * v(x, j) + v(x - 1, j));
     const mean = (cols) => { let s = 0, n = 0; for (let j = 0; j < 256; j++) for (const x of cols) { const b = bend(x, j); if (Number.isFinite(b)) { s += b; n++; } } return n > 100 ? s / n : NaN; };
@@ -64,7 +62,7 @@ try {
   // ---- zooms: a tile agrees with the four of the next zoom it covers -------------------------
   for (const [name, lon, lat, z] of [['Elba', 10.2, 42.8, 9], ['Gulf of Taranto', 17.2, 40.0, 7], ['Gulf of Taranto', 17.2, 40.0, 8], ['Gulf of Panama', -78.6, 8.4, 8]]) {
     const t = at(lon, lat, z);
-    const [P, ...C] = await settle(() => Promise.all([metres(z, t.x, t.y), ...[0, 1].flatMap((dy) => [0, 1].map((dx) => metres(z + 1, 2 * t.x + dx, 2 * t.y + dy)))]));
+    const [P, ...C] = await Promise.all([metres(z, t.x, t.y), ...[0, 1].flatMap((dy) => [0, 1].map((dx) => metres(z + 1, 2 * t.x + dx, 2 * t.y + dy)))]);
     // beyond the children's range by more than 20 m or half their depth: a dry block, a false pit.
     // Within it, the zooms differ by design: each fills pits up to the depths it draws
     let bad = 0, n = 0, worst = '';
@@ -92,7 +90,7 @@ try {
 
   // ---- probe points --------------------------------------------------------------------------
   const probe = async (lon, lat, z, r = 0) => { // the values within r pixels of the point
-    const t = at(lon, lat, z), v = await settle(() => shaded(z, t.x, t.y)), out = [];
+    const t = at(lon, lat, z), v = await shaded(z, t.x, t.y), out = [];
     for (let j = Math.max(0, t.j - r); j <= Math.min(255, t.j + r); j++) for (let i = Math.max(0, t.i - r); i <= Math.min(255, t.i + r); i++) out.push(v[j * 256 + i]);
     return out;
   };

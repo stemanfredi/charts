@@ -43,7 +43,6 @@ const SEA_LEVEL_WATER_M = 8;
 // (the sea, or a DATUMS water body), FLAT inland water at sea level, LAKE no depth source
 const DEPTH = 1, FLAT = 2, LAKE = 3;
 const waterLevel = new Map(); // OSM id → DEPTH, FLAT or LAKE
-const decidedListeners = new Set(); // notified with the id when a water body is classified
 // land value in the shaded sea tiles (contours still get +1 m): pulls the tint edge back to the
 // water pixels, so it never covers the shore line; the sliver it leaves shows the water fill,
 // which app.js colours like the shallowest band while depth shading is on
@@ -199,14 +198,12 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
 // zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
 // at z show at map zoom z → OMT z (omtOffset 0). levelAt(px, py) is the DEM height above the
 // local surface (sea level, or a DATUMS surface); inDatum(px, py) says whether that is a datum.
-// Returns the mask and the ids of water bodies drawn before they could be classified.
 async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
   const oz = Math.max(0, Math.min(z - omtOffset, OMT_MAXZOOM)), d = z - oz;
   const ox = x >> d, oy = y >> d;
   const layer = await omtLayer(ctx.omtTemplate, oz, ox, oy, signal);
   const c = new OffscreenCanvas(SIZE, SIZE), g = c.getContext('2d');
   const k = (SIZE * 2 ** d) / layer.extent, sx = (x - (ox << d)) * SIZE, sy = (y - (oy << d)) * SIZE;
-  const pending = [];
   const classify = async (f) => {
     if (f.id && waterLevel.has(f.id)) return waterLevel.get(f.id); // decided once: every tile agrees
     let vals = [];
@@ -221,16 +218,13 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
       const a = await ancestorShore(ctx, f.id, oz, ox, oy).catch(() => null);
       if (a) ({ vals, datum } = a);
     }
-    if (vals.length < 10) { // still undecided: provisional, redrawn once decided
-      if (f.id) pending.push(f.id);
-      return LAKE;
-    }
+    if (vals.length < 10) return LAKE; // still undecided (no shore here nor in any ancestor): a lake, not remembered
     vals.sort((a, b) => a - b);
     const atSea = vals[vals.length >> 2] <= SEA_LEVEL_WATER_M && vals[(3 * vals.length) >> 2] >= -SEA_LEVEL_WATER_M;
     // inland water at a DATUMS surface is that water body (OSM tiles carry the Caspian as
     // `lake` at some zooms): real depths from its surface, not the flat lagoon class
     const v = !atSea ? LAKE : datum * 2 > vals.length ? DEPTH : FLAT;
-    if (f.id) { waterLevel.set(f.id, v); for (const fn of decidedListeners) fn(f.id); }
+    if (f.id) waterLevel.set(f.id, v);
     return v;
   };
   // painted as colour channels: LAKE blue, FLAT green, DEPTH red, each over the ones before
@@ -251,7 +245,7 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
   }
   const px = g.getImageData(0, 0, SIZE, SIZE).data, mask = new Uint8Array(SIZE * SIZE);
   for (let i = 0; i < mask.length; i++) mask[i] = px[i * 4] > 127 ? DEPTH : px[i * 4 + 1] > 127 ? FLAT : px[i * 4 + 2] > 127 ? LAKE : 0;
-  return { mask, pending };
+  return mask;
 }
 
 // Terrarium tile at zoom ≤ native, decoded to metres (row-major SIZE × SIZE)
@@ -447,9 +441,7 @@ function seaDem(template, z, x, y) {
 // Clipped elevation for one DEM tile, in metres (row-major 256 × 256), up to any zoom.
 // Shared by the map's raster-dem layers (protocol) and maplibre-contour (getTile +
 // decodeImage), so each tile is computed once and never round-trips through PNG.
-// onStale(): called (at most every 300 ms) when tiles already handed out are out of date,
-// because a water body they drew provisionally has now been classified.
-export function clipper({ template, native, mode, omtTileJson, onStale }) {
+export function clipper({ template, native, mode, omtTileJson }) {
   // the OpenMapTiles tile URL, fetched once; a failure is retried on the next tile
   const once = {};
   const omtTemplate = () => memo(once, 'omt', () => fetchOk(omtTileJson).then((r) => r.json()).then((tj) => tj.tiles[0]));
@@ -457,16 +449,6 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
   // a DEM tile's elevation in metres as the data has it (no clean-up): the sea's from GEBCO, the
   // land's from Terrarium; also what inland water is classified from
   const raw = (z, x, y) => (mode === 'sea' ? seaMetres(template, z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y)));
-  const waiting = new Map(); // water body id → cache keys of tiles drawn before it was classified
-  let staleTimer = 0;
-  decidedListeners.add((id) => {
-    const keys = waiting.get(id);
-    if (!keys) return;
-    waiting.delete(id);
-    for (const key of keys) cache.delete(key);
-    clearTimeout(staleTimer);
-    staleTimer = setTimeout(() => onStale?.(), 300);
-  });
   // shared by several requesters, so no single requester's abort signal is passed down
   const elevation = (z, x, y, omtOffset = 1) => {
     const key = `${z}/${x}/${y}/${omtOffset}`;
@@ -502,9 +484,8 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
       return 0;
     };
     const demAt = (px, py) => at(Math.floor(gx + px * step), Math.floor(gy + py * step));
-    const { mask, pending } = await seaMask({ omtTemplate, raw, native }, z, x, y,
+    const mask = await seaMask({ omtTemplate, raw, native }, z, x, y,
       (px, py) => demAt(px, py) - surface(px, py), (px, py) => surface(px, py) !== 0, omtOffset);
-    for (const id of pending) (waiting.get(id) || waiting.set(id, new Set()).get(id)).add(key);
     const out = new Float32Array(SIZE * SIZE);
     for (let j = 0; j < SIZE; j++) {
       const v = gy + (j + 0.5) * step - 0.5, j0 = Math.floor(v), fj = v - j0;
@@ -566,12 +547,11 @@ export function clipper({ template, native, mode, omtTileJson, onStale }) {
 // worker the map stays responsive. Tiles come back transferred, not copied.
 const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
 let worker = null, seq = 0;
-const replies = new Map(), staleHandlers = {};
+const replies = new Map();
 function clipWorker() {
   if (worker) return worker;
   worker = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = ({ data }) => {
-    if (data.stale) { staleHandlers[data.stale]?.(); return; }
     const r = replies.get(data.seq);
     replies.delete(data.seq);
     if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);
@@ -587,8 +567,7 @@ const ask = (msg, signal) => new Promise((resolve, reject) => {
 });
 
 // MapLibre protocol handler and maplibre-contour hooks for one clipper (mode 'sea' or 'land')
-export function workerClipper({ template, native, mode, omtTileJson, onStale }) {
-  staleHandlers[mode] = onStale;
+export function workerClipper({ template, native, mode, omtTileJson }) {
   clipWorker().postMessage({ init: { template, native, mode, omtTileJson } });
   return {
     protocol: async (params, abortController) => {
