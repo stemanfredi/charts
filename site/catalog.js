@@ -141,8 +141,6 @@ export const CLASS_LEGENDS = {
     ['5–10 M', '#ee6925'], ['10–15 M', '#fc9b06'], ['15–25 M', '#f8d13c'], ['25–60 M', '#fdffa5']].map(([label, colour]) => ({ label, colour })),
   seagrass: () => SEAGRASS_CLASSES.map(({ label, colour }) => ({ label, colour })),
   substrate: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${FOLK[variant]}`,
-  // EMODnet draws each cable in the colour of who reported it (its WMS legend: telecom cables red,
-  // with a centre line of that colour; power cables in greys)
   // EMODnet Human Activities' own legends (GetLegendGraphic): a layer drawn from several (areas and
   // points) has the classes of each, once
   wrecks: () => haLegend('wwshipwrecks'),
@@ -154,6 +152,8 @@ export const CLASS_LEGENDS = {
   // Marine Regions: the limits from its legend (line types, dashed as drawn); the zones as its fills
   maritime: (variant) => (variant === 'zones' ? MR_ZONES.map(([, label, fill]) => ({ label, colour: `${fill}55` })) // as drawn: its 80%, at half
     : `${MR_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=eez_boundaries`),
+  // EMODnet draws each cable in the colour of who reported it (its WMS legend: telecom cables red,
+  // with a centre line of that colour; power cables in greys)
   cables: (variant) => (variant === 'power'
     ? [['Norway (NVE)', '#1e1e1e'], ['Netherlands', '#666666'], ['France (SHOM)', '#999999'], ['Germany (BSH)', '#000000']].map(([label, colour]) => ({ label, colour, line: true }))
     : [['Germany (BSH)', '#00dc00'], ['Spain (CICA)', '#e6e600'], ['Malta', '#ff78ff'], ['Netherlands', '#fafafa'], ['France (SHOM)', '#00e6e6'],
@@ -168,7 +168,6 @@ export const GIBS = {
   terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
   viirs: { label: 'True colour · VIIRS NOAA-20', layer: 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
 };
-// (sea surface temperature and chlorophyll come from Copernicus: gap-free, with Mediterranean detail)
 export function gibsTiles(key, date) {
   const g = GIBS[key];
   return [`${HOSTS.gibs}/wmts/epsg3857/best/${g.layer}/default/${date}/GoogleMapsCompatible_Level${g.level}/{z}/{y}/{x}.${g.ext}`];
@@ -279,6 +278,8 @@ export function storedVariables(part) {
 export const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
 
 // depths offered for the 3D variables, metres below the surface (0: the model's top level)
+// an item's variants from its datasets: key → label (the menu's and the link's)
+const labelsOf = (vs) => Object.fromEntries(Object.entries(vs).map(([k, v]) => [k, v.label]));
 export const CMEMS_DEPTHS = [0, 10, 20, 50, 100, 200, 500, 1000];
 // ---- menu -------------------------------------------------------------------
 // exclusive: items in the group behave as radio buttons.
@@ -368,30 +369,36 @@ export const ITEMS = [
 
   // Copernicus Marine: one hour for all, forecasts about 9 days ahead (cmems.js)
   { id: 'waves', group: 'data', section: 'Sea state', label: 'Waves', opacity: 0.85, kind: 'cmems',
-    variants: Object.fromEntries(Object.entries(CMEMS.waves).map(([k, v]) => [k, v.label])),
+    variants: labelsOf(CMEMS.waves),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_WAV_001_027'), src: 'Copernicus Marine Service: Mediterranean wave forecast (MEDSEA_ANALYSISFORECAST_WAV_006_017) over the global one (GLOBAL_ANALYSISFORECAST_WAV_001_027)', res: 'Mediterranean 4.2 km, hourly; elsewhere 1/12° (~9 km), every 3 hours. Model analysis and forecast, about 9 days ahead. Not for navigation' } },
   { id: 'currents', group: 'data', section: 'Sea state', label: 'Currents', opacity: 0.85, kind: 'cmems',
+    variants: labelsOf(CMEMS.currents),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global surface currents (GLOBAL_ANALYSISFORECAST_PHY_001_024, with tides and wave drift)', res: 'Surface, hourly. Mediterranean 4.2 km (with tides); elsewhere 1/12° (~9 km). Arrows show the direction the water flows. Model forecast, about 9 days ahead' } },
   { id: 'wind', group: 'data', section: 'Sea state', label: 'Wind', opacity: 0.85, kind: 'cmems',
+    variants: labelsOf(CMEMS.wind),
     info: { ...COPERNICUS, url: product('WIND_GLO_PHY_L4_NRT_012_004'), src: 'Copernicus Marine Service: global ocean wind from satellite scatterometers, blended with a weather model (WIND_GLO_PHY_L4_NRT_012_004)', res: '0.125° (~14 km), hourly, 10 m above the sea. An observation, not a forecast: published about a day late. The time shown goes no later than its latest observation. Arrows show where the wind blows to' } },
 
   { id: 'temperature', group: 'data', section: 'Water column', label: 'Temperature', opacity: 0.85, kind: 'cmems',
     variants: Object.fromEntries(Object.entries(CMEMS.temperature).map(([k, v]) => [k, v.label === 'Temperature' ? 'At the depth chosen' : 'At the seabed'])),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Potential temperature, daily means. Mediterranean 4.2 km, 141 levels; elsewhere 1/12° (~9 km), 50 levels: each at its level nearest the depth chosen. Model analysis and forecast, about 9 days ahead' } },
   { id: 'salinity', group: 'data', section: 'Water column', label: 'Salinity', opacity: 0.85, kind: 'cmems',
+    variants: labelsOf(CMEMS.salinity),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Practical salinity (PSU), daily means, at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 1/12° (~9 km). Model analysis and forecast' } },
   { id: 'mld', group: 'data', section: 'Water column', label: 'Mixed layer depth', opacity: 0.85, kind: 'cmems',
+    variants: labelsOf(CMEMS.mld),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Depth of the well-mixed surface layer (density criterion), daily means. Shallow in summer, deep in winter. Mediterranean 4.2 km; elsewhere 1/12°. Model analysis and forecast' } },
 
   { id: 'sst', group: 'data', section: 'Satellite', label: 'Sea surface temperature', opacity: 0.85, kind: 'cmems',
     variants: { measured: 'Measured', anomaly: 'Anomaly (Mediterranean)' },
     info: { ...COPERNICUS, url: product('SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001'), src: 'Copernicus Marine Service: satellite sea surface temperature, Mediterranean (SST_MED_SST_L4_NRT_OBSERVATIONS_010_004) over the global OSTIA analysis (SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001)', res: 'Daily, gap-filled from several satellites. Mediterranean 1/16° (~4 km); elsewhere 0.05° (~5 km). Anomaly: against the 1991–2020 climatology of the day, Mediterranean only (marine heatwaves show in red). The time shown goes no later than its latest day' } },
   { id: 'chl', group: 'data', section: 'Satellite', label: 'Chlorophyll', opacity: 0.85, kind: 'cmems',
+    variants: labelsOf(CMEMS.chl),
     info: { ...COPERNICUS, url: product('OCEANCOLOUR_GLO_BGC_L4_NRT_009_102'), src: 'Copernicus Marine Service: ocean colour, gap-free, Mediterranean (OCEANCOLOUR_MED_BGC_L4_NRT_009_142) over the global one (OCEANCOLOUR_GLO_BGC_L4_NRT_009_102)', res: 'Chlorophyll-a, daily, cloud gaps filled. Mediterranean 1 km; elsewhere 4 km. Logarithmic colours. Only the last two weeks or so are kept. The time shown goes no later than its latest day' } },
   { id: 'sla', group: 'data', section: 'Satellite', label: 'Sea level anomaly', opacity: 0.85, kind: 'cmems',
+    variants: labelsOf(CMEMS.sla),
     info: { ...COPERNICUS, url: product('SEALEVEL_GLO_PHY_L4_NRT_008_046'), src: 'Copernicus Marine Service: satellite altimetry, all missions merged (SEALEVEL_GLO_PHY_L4_NRT_008_046)', res: 'Sea surface height above its 1993–2012 mean, daily, 0.125° (~14 km). Eddies and large-scale highs and lows; tides and storm surge removed. The time shown goes no later than its latest day' } },
   { id: 'bgc', group: 'data', section: 'Water column', label: 'Water quality', opacity: 0.85, kind: 'cmems',
-    variants: Object.fromEntries(Object.entries(CMEMS.bgc).map(([k, v]) => [k, v.label])),
+    variants: labelsOf(CMEMS.bgc),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_BGC_001_028'), src: 'Copernicus Marine Service: Mediterranean biogeochemistry forecast (MEDSEA_ANALYSISFORECAST_BGC_006_014) over the global one (GLOBAL_ANALYSISFORECAST_BGC_001_028)', res: 'Daily means at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 0.25° (~28 km). Nitrate in logarithmic colours. Model analysis and forecast, about 9 days ahead' } },
 
   { id: 'gibs', group: 'data', section: 'Satellite', label: 'NASA daily', opacity: 0.9, kind: 'gibs',

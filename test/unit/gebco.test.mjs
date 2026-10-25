@@ -55,7 +55,7 @@ test('mean2 and mode2: 2 × 2 means; the most common code, on a tie the higher',
 test('build: a synthetic world → both stores, every cell and every level as zarr.js reads them', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'gebco-'));
   try {
-    const n = 600, rows = 2 * n, cols = 4 * n; // 1200 × 2400 cells: chunk rows of 512, edge chunks
+    const n = 300, rows = 2 * n, cols = 4 * n; // 600 × 1200 cells: more than one chunk of 512 each way, with edge chunks
     const elev = (r, c) => ((r * 7 + c * 13) % 2001) - 1000; // a ramp through 0: real 0 m cells
     const codes = [0, 11, 12, 41, 70];
     const tid = (r, c) => codes[(r * 3 + c * 5 + ((r * c) % 7)) % 5];

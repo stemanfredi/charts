@@ -3,7 +3,7 @@
 // regional one over it; the datasets' time ranges, read from their own capabilities; legends.
 import { CMEMS, cmemsStyle, cmemsTileUrl, cmemsLegendUrl, cmemsCapsUrl } from './catalog.js';
 import { mercator, tileBounds, CIRC } from './geo.js';
-import { FETCH, memo } from './net.js';
+import { memo, fetchOk } from './net.js';
 // regional datasets (by product name: MEDSEA_…, SST_MED_…, OCEANCOLOUR_MED_…): drawn only within
 // their area, a union of boxes [west, south, east, north], and not asked for a tile outside it. The
 // Mediterranean products' own box (18°W–36°E, 30–46°N) also holds part of the Atlantic, the Bay of
@@ -13,10 +13,6 @@ import { FETCH, memo } from './net.js';
 const REGIONS = [{ name: 'Mediterranean', test: /^MEDSEA_|_MED_/, area: [[-5.6, 30.1, 36.3, 40.9], [-1, 40.9, 27, 46]] }];
 export const regionOf = (part) => REGIONS.find((r) => r.test.test(part.split('/')[0])) || null;
 
-async function ok(r) {
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r;
-}
 
 // ---- what a dataset's own capabilities say: its time steps, its depth levels ------------------
 // ISO 8601 duration (P1D, PT1H, PT900S, PT10800S, PT15M) → milliseconds
@@ -63,7 +59,7 @@ export const nearestLevel = (levels, depth) => (levels.length ? levels.reduce((a
 // (timeDomain, depthLevels)
 const domains = Object.create(null);
 export function domainOf(part) {
-  return memo(domains, part, () => fetch(cmemsCapsUrl(part), FETCH).then(ok).then((r) => r.text())
+  return memo(domains, part, () => fetchOk(cmemsCapsUrl(part)).then((r) => r.text())
     .then((xml) => {
       const variable = part.split('/')[2], time = timeDomain(xml, variable);
       if (!time.length) throw new Error(`no time steps for ${part}`);
@@ -98,7 +94,7 @@ export async function cmemsTile({ url }, abortController) {
   const images = await Promise.all(v.parts.map(async (part, i) => {
     if (times[i] === null || !inArea(part, z, x, y)) return null; // no data at this hour, or not here
     const when = times[i] === undefined ? new Date(t) : new Date(times[i]); // range unknown: ask anyway
-    const r = await fetch(cmemsTileUrl(part, style, when.toISOString(), z, x, y, levels[i]), { ...FETCH, signal: abortController?.signal }).then(ok);
+    const r = await fetchOk(cmemsTileUrl(part, style, when.toISOString(), z, x, y, levels[i]), { signal: abortController?.signal });
     return createImageBitmap(await r.blob());
   }));
   const c = new OffscreenCanvas(512, 512), g = c.getContext('2d');
@@ -124,7 +120,7 @@ export async function cmemsTile({ url }, abortController) {
 const legends = Object.create(null);
 export function cmemsLegend(item, variant) {
   const v = CMEMS[item][variant], url = cmemsLegendUrl(v.parts[0], cmemsStyle(v));
-  return memo(legends, url, () => fetch(url, FETCH).then(ok).then((r) => r.json())
+  return memo(legends, url, () => fetchOk(url).then((r) => r.json())
     .then(({ continuous: c }) => {
       const f = (x) => (v.log ? Math.log10(x) : x + (v.offset || 0));
       const cols = c.cmap.colorMap, lo = f(c.valueMin), step = (f(c.valueMax) - lo) / cols.length;

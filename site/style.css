@@ -20,7 +20,6 @@ body { font: 13px/1.4 var(--font); color: var(--ink); background: #f1ebdc; overf
 /* a newer version published (app.js): said at the top, with Reload */
 .update { position: absolute; z-index: 10; top: 64px; left: 16px; right: 16px; max-width: 360px; margin: 0 auto; padding: 8px 14px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); text-align: center; }
-.update[hidden] { display: none; }
 /* a button read as a link (About's Reload) */
 .linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
 #map { position: absolute; inset: 0; }
@@ -30,7 +29,7 @@ button { cursor: pointer; }
 svg { flex: none; }
 
 /* Layout: the map's edges hold what you read (legends, credits and the scale at the bottom);
-   the right edge holds what you use (Layers, Measure, Link, PNG; zoom and compass lower down).
+   the right edge holds what you use (Layers, Tools, Import, Export, About; zoom and compass lower down).
    The panel opens to the left of that column, so its buttons never move. */
 .rail, .zoom, .panel { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 
@@ -45,7 +44,7 @@ svg { flex: none; }
 .rail button[aria-expanded="true"] { background: #e3edf4; color: var(--accent); }
 .rail button.active { background: var(--magenta); color: #fff; } /* a measuring tool is in use */
 .rail button[aria-busy="true"] { cursor: progress; color: var(--accent); } /* an export is being made */
-/* a rail button's menu (Share): beside the column, its items acting at once */
+/* a rail button's menu (Export): beside the column, its items acting at once */
 .railmenu { position: absolute; right: calc(100% + 8px); width: max-content; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; display: flex; flex-direction: column; gap: 2px; }
 .rail .railmenu button { flex-direction: row; justify-content: flex-start; gap: 10px; height: auto; min-height: var(--row); padding: 0 12px 0 8px; font-size: 13px; }
 .zoom { z-index: 6; right: 10px; bottom: calc(var(--status-h) + 10px); width: var(--rail); display: flex; flex-direction: column; padding: 2px; gap: 2px; }
@@ -78,7 +77,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .x { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; width: 44px; height: 44px; border-radius: 6px; color: var(--soft); flex: none; }
 .x:hover { background: var(--line2); color: var(--ink); }
 #menu { overflow-y: auto; flex: 0 1 auto; min-height: 0; padding-bottom: 6px; overscroll-behavior: contain; }
-.view { overflow-y: auto; flex: 0 1 auto; min-height: 0; padding: 10px 12px; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
 
 #menu details { border-bottom: 1px solid var(--line2); }
 #menu summary {
@@ -128,7 +126,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .more:hover { background: var(--line2); color: var(--ink); }
 .more[aria-expanded="true"] { background: var(--line2); color: var(--accent); }
 .controls { display: grid; gap: 6px; padding: 0 8px 8px 0; }
-.controls select, .controls input[type=number], .controls input.dist {
+.controls select {
   width: 100%; min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; background: #fff;
 }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -137,7 +135,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
 
 .opacity { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
-.opacity input.dist { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--ink); }
 .opacity span { flex: none; min-width: 52px; }
 .opacity input[type=range] { flex: 1; height: var(--row); accent-color: var(--accent); margin: 0; }
 .info { margin: 0 8px 8px 0; padding: 6px 8px; background: #f6f8fa; border-left: 2px solid var(--accent); font-size: 12px; color: var(--soft); }
@@ -146,25 +143,8 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .info b { color: var(--ink); font-weight: 600; }
 .info a { color: var(--accent); }
 
-.view > .item { padding: 0 0 0 4px; } /* Measure: a switch line, as in Layers */
-.view h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 4px 4px 0; }
 .action { border: 0; background: none; border-radius: 6px; min-height: 44px; padding: 0 10px; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; }
 .action:hover { background: var(--line2); }
-.tools3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.tools3 button { border: 1px solid var(--line); background: #fff; border-radius: 8px; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; }
-.tools3 button:hover { border-color: var(--accent); }
-.tools3 button[aria-pressed="true"] { background: var(--magenta); border-color: var(--magenta); color: #fff; }
-/* Measure's list is the Draw list's (listrow.js); its header holds Select area, its details the
-   selected measurement's values */
-.mlist { flex: none; max-height: 40vh; padding: 0; }
-.mlist .dname { font-family: var(--mono); font-size: 12px; }
-.mhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.mdetails { display: grid; gap: 6px; }
-.mdetails:empty { display: none; }
-.mvalues { margin: 0 4px; font-family: var(--mono); font-size: 12px; }
-.mlegs { margin: 0; padding-left: 28px; font-family: var(--mono); font-size: 12px; color: var(--soft); }
-.selarea { display: inline-flex; align-items: center; gap: 4px; flex: none; }
-.selarea svg { width: 16px; height: 16px; }
 /* the selection as chips: a click on one selects it alone, its × takes it out */
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; background: #f6f8fa; max-width: 100%; }
@@ -190,7 +170,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .tools2 .urbtn:disabled:hover { border-color: var(--line); }
 /* a tool's variants (its sub-rail): icons, the one chosen pressed */
 .subrail { flex: none; display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: #f7f9fb; }
-.subrail[hidden] { display: none; }
 .subrail button { min-width: 34px; min-height: 36px; border: 1px solid var(--line); background: #fff; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
 .subrail button:hover { border-color: var(--accent); }
 .subrail button[aria-pressed="true"] { background: var(--magenta); border-color: var(--magenta); color: #fff; }
@@ -202,7 +181,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .tools2 button:hover { border-color: var(--accent); }
 .tools2 button[aria-pressed="true"] { background: var(--magenta); border-color: var(--magenta); color: #fff; }
 .dlistbox { flex: none; height: var(--dlist-h); min-height: 80px; display: flex; flex-direction: column; }
-.dfilter[hidden] { display: none; }
 .dfilter { flex: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 12px; }
 .dfilter input { flex: 1 1 140px; min-width: 0; min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; }
 .dlist { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; overscroll-behavior: contain; }
@@ -291,15 +269,10 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 button.small.link { border-color: transparent; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.small.link:hover { border-color: var(--line); }
 .fcheck.small { font-size: 11.5px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
-/* a line's points, a path's distances along, the drawing's totals */
+/* the drawing's totals */
 .vtable { width: 100%; border-collapse: collapse; font-size: 12px; }
 .vtable th { font-weight: 400; font-size: 10.5px; color: var(--soft); text-align: left; padding: 0 2px; }
 .vtable td { padding: 1px 2px; vertical-align: middle; }
-.vtable td.num { font-family: var(--mono); font-size: 11px; color: var(--soft); white-space: nowrap; text-align: right; }
-.vtable input.coord { width: 100%; min-width: 0; }
-.vtable td input { width: 100%; }
-.vtable tr.vnode td { background: #f6f8fa; }
-.vtable tr.vhandles td { padding-bottom: 4px; }
 .vtable.totals td { padding: 3px 4px; border-top: 1px solid var(--line2); }
 .vtable.totals tr.all td { font-weight: 600; }
 /* a list grid (docs/drawing-ui.md §5): fixed columns; the first ones kept in place while it
@@ -326,8 +299,6 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid .fcheck { justify-content: center; padding: 0; min-width: var(--row); }
 .lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; }
 .fhandles { display: flex; gap: 10px; }
-.frange { flex: 1; display: flex; align-items: center; gap: 8px; }
-.frange input[type=range] { flex: 1; height: var(--row); accent-color: var(--accent); margin: 0; }
 .fhandle { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
 .fhandle input.num { width: 72px; }
 .origins { max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; }
@@ -489,7 +460,6 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 @media (pointer: coarse) {
   .touchbar:not([hidden]) { flex: none; display: flex; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
   .touchbar button { flex: 1 1 0; min-height: 44px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font-size: 13px; }
-  .touchbar button[hidden] { display: none; }
   .touchbar button[aria-pressed="true"] { background: var(--magenta); border-color: var(--magenta); color: #fff; }
 }
 @media (pointer: coarse) and (min-width: 1024px) {
@@ -497,7 +467,6 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 }
 /* the Tools panel's header: Undo, Redo, compact, then × (draw/panel.js placeControls) */
 .pactions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.pactions[hidden] { display: none; }
 .pactions:not([hidden]) + .x { margin-left: 0; }
 .pactions button { width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); background: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .pactions button:hover { border-color: var(--accent); }

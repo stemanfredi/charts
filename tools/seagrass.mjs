@@ -14,6 +14,7 @@
 // and points, property c (catalog.js SEAGRASS_CLASSES). Cut a zoom-5 region at a time (geojson-vt,
 // then vt-pbf), so that memory holds one region's features, not Europe's.
 import { openSync, readSync, closeSync, mkdirSync, writeFileSync, existsSync, statSync, createWriteStream } from 'node:fs';
+import { tileXY } from '../site/geo.js';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Readable } from 'node:stream';
@@ -78,8 +79,8 @@ function* shapes(path) {
 }
 
 // ---- tiles -------------------------------------------------------------------------------------
-const tileX = (lon, z) => Math.floor(((lon + 180) / 360) * 2 ** z);
-const tileY = (lat, z) => { const s = Math.sin((Math.max(-85, Math.min(85, lat)) * Math.PI) / 180); return Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 2 ** z); };
+const tileX = (lon, z) => Math.floor(tileXY(lon, 0, z).x);
+const tileY = (lat, z) => Math.floor(tileXY(0, Math.max(-85, Math.min(85, lat)), z).y);
 
 // a shapefile's polygons are rings, outer ones clockwise and holes anticlockwise: GeoJSON wants
 // each outer ring followed by its holes, so a polygon of several outer rings becomes several

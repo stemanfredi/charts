@@ -528,7 +528,7 @@ export class Drawing extends DrawStore {
     const u = this.units(), b = this.bearings(), sh = this.draftShape();
     // what is being dragged: its values while it moves, whether or not it shows them
     const dragged = this.drag?.moved && this.drag.id && find(this.doc, this.drag.id);
-    if (dragged && dragged.kind !== 'label' && dragged.kind !== 'group' && !lookOf(this.doc, dragged.kind, dragged.el).text.values) {
+    if (dragged && dragged.kind !== 'label' && dragged.kind !== 'group' && !lookOf(this.doc, dragged.el).text.values) {
       const shows = (x) => ({ ...x, look: { ...x.look, text: { ...x.look.text, values: true } } });
       const list = KIND[dragged.kind].list, doc = { ...this.doc, [list]: this.doc[list].map((x) => (x === dragged.el ? shows(x) : x)) };
       return valueFeatures(doc, u, b).filter((f) => f.properties.id === dragged.el.id);

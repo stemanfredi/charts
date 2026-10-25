@@ -5,14 +5,12 @@
 // curve's, the sum over close samples of it. Pure: no map, no DOM.
 
 import { densify, inverse, destination } from '../geodesy.js';
-import { mercator, unmercator, D2R, nearestOnSegment } from '../geo.js';
+import { mercator, unmercator, D2R, nearestOnSegment, unrollTo as near } from '../geo.js';
 import { isShown, groupsOf, roundParts } from './document.js';
 
 const TOL = 1e-4; // a curve is sampled finer until its length changes by less than this, relative
 const MAX_SAMPLES = 4096;
 
-// longitude of q moved by whole turns to be continuous with p's
-const near = (p, q) => [q[0] + 360 * Math.round((p[0] - q[0]) / 360), q[1]];
 // the projection's scale (Mercator metres per ground metre) at a latitude
 const scale = (lat) => 1 / Math.cos(lat * D2R);
 

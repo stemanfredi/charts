@@ -5,16 +5,15 @@ import { CMEMS, cmemsStacUrl, storedVariables, EMODNET_DTM, GEBCO, GEBCO_TID } f
 import { partTimes, partLevels, regionOf } from './cmems.js';
 import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
 import { geotiff } from './geotiff.js';
-import { FETCH, memo } from './net.js';
+import { FETCH, memo, fetchBytes } from './net.js';
 
 // a store's file, or null where the store says 403 or 404: a public bucket answers 403, not 404, for
 // a file it does not hold, so either means a chunk not stored (all land, or a time no longer kept).
 // A store that is not public fails at its metadata (zarr.js openStore), not with empty rasters.
-async function fetchBytes(url) {
-  const r = await fetch(url, FETCH);
-  if (r.status === 403 || r.status === 404) return null;
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return new Uint8Array(await r.arrayBuffer());
+// One raster record of the export: the cells' grid (cellsOf) as a GeoTIFF of planes, EPSG:4326
+function rasterOf(cells, key, { title, description, names, units, planes, bands }) {
+  const w = cells.cols.length, h = cells.rows.length, transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
+  return { key, file: `${key}.tif`, w, h, transform, names, units, title, description, data: geotiff(planes, w, h, transform, { crs: 4326, bands }) };
 }
 
 const stores = Object.create(null); // part (or EMODNET_DTM) → promise of its store and coordinates
@@ -43,12 +42,10 @@ export async function cmemsValues(id, at, box) {
     const names = storedVariables(part), units = names.map((n) => store.meta(n).attrs.units || '');
     const planes = await Promise.all(names.map((n) => readCells(store, n, ti, zi, cells)));
     const region = regionOf(part)?.name || (v.parts.length > 1 ? 'Global' : ''), key = `raster/${id}${region ? `-${region.toLowerCase()}` : ''}`;
-    const w = cells.cols.length, h = cells.rows.length;
-    const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
     const when = new Date(ts[ti]).toISOString(), level = elevation ? +Math.abs(elevation[zi]).toFixed(2) : null;
     const description = `${part.split('/').slice(0, 2).join(' / ')}: ${names.join(', ')} (${[...new Set(units)].join(', ')}) at ${when}${level != null ? `, ${level} m deep` : ''}; its own grid, EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN`;
-    return { key, file: `${key}.tif`, w, h, transform, names, units, title: `${v.label}${region ? `, ${region}` : ''}: values`, description,
-      data: geotiff(planes, w, h, transform, { crs: 4326, bands: names.map((n, k) => ({ description: `${n}, ${when}${level != null ? `, ${level} m` : ''}`, unit: units[k] })) }) };
+    return rasterOf(cells, key, { title: `${v.label}${region ? `, ${region}` : ''}: values`, description, names, units, planes,
+      bands: names.map((n, k) => ({ description: `${n}, ${when}${level != null ? `, ${level} m` : ''}`, unit: units[k] })) });
   }))).filter(Boolean);
 }
 
@@ -65,11 +62,9 @@ export async function emodnetValues(box) {
   if (!cells.rows.length) return [];
   const blocks = new Set(cells.rows.map((r) => Math.floor(r / m.chunks[0]))).size * new Set(cells.cols.map((c) => Math.floor(c / m.chunks[1]))).size;
   if (blocks > 16) throw new Error(`${blocks} chunks of about 2 MB for this view: zoom in to export them`);
-  const w = cells.cols.length, h = cells.rows.length, key = 'raster/emodnet-depth';
-  const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
   const description = `EMODnet Bathymetry DTM 2024: elevation (m, negative below the sea surface; vertical reference lowest astronomical tide), its own grid (1/16 arc-minute), EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN. Not for navigation`;
-  return [{ key, file: `${key}.tif`, w, h, transform, names: ['elevation'], units: ['m'], title: 'EMODnet depth: values', description,
-    data: geotiff([await readCells(store, 'elevation', 0, 0, cells)], w, h, transform, { crs: 4326, bands: [{ description: 'elevation, EMODnet DTM 2024', unit: 'm' }] }) }];
+  return [rasterOf(cells, 'raster/emodnet-depth', { title: 'EMODnet depth: values', description, names: ['elevation'], units: ['m'],
+    planes: [await readCells(store, 'elevation', 0, 0, cells)], bands: [{ description: 'elevation, EMODnet DTM 2024', unit: 'm' }] })];
 }
 
 // raster/gebco-depth.tif: GEBCO's elevation over the view's bounding box, in its own grid, at the
@@ -94,11 +89,8 @@ export async function gebcoValues(box, variable = 'elevation') {
     if (!cells.rows.length) return [];
     const blocks = new Set(cells.rows.map((r) => Math.floor(r / m.chunks[0]))).size * new Set(cells.cols.map((c) => Math.floor(c / m.chunks[1]))).size;
     if (blocks > 16 || cells.step > 1) continue;
-    const w = cells.cols.length, h = cells.rows.length, key = g.key;
-    const transform = [cells.dlon, 0, cells.west - cells.dlon / 2, 0, -cells.dlat, cells.north + cells.dlat / 2];
     const grid = !k ? 'its own grid (15″ cells)' : variable === 'tid' ? `level ${k} of its grid (the most common code of ${2 ** k} × ${2 ** k} of its 15″ cells)` : `level ${k} of its grid (means of ${2 ** k} × ${2 ** k} of its 15″ cells)`;
     const description = `GEBCO 2026 Grid (GEBCO Compilation Group): ${g.what(grid)}, EPSG:4326, over the view's bounding box. No data: NaN. Not for navigation`;
-    return [{ key, file: `${key}.tif`, w, h, transform, names: [variable], units: [g.unit], title: g.title, description,
-      data: geotiff([await readCells(store, name, 0, 0, cells)], w, h, transform, { crs: 4326, bands: [{ description: g.band, unit: g.unit }] }) }];
+    return [rasterOf(cells, g.key, { title: g.title, description, names: [variable], units: [g.unit], planes: [await readCells(store, name, 0, 0, cells)], bands: [{ description: g.band, unit: g.unit }] })];
   }
 }

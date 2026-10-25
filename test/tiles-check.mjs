@@ -9,6 +9,7 @@
 import { chromium } from 'playwright-core';
 import { serve, chromeOptions } from './serve.mjs';
 import { NO_DEPTH_M } from '../site/catalog.js';
+import { tileXY } from '../site/geo.js';
 
 const server = await serve();
 const browser = await chromium.launch(chromeOptions());
@@ -18,7 +19,7 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); i
 
 // tile z/x/y holding lon/lat, and the pixel in it
 function at(lon, lat, z) {
-  const n = 2 ** z, X = ((lon + 180) / 360) * n, Y = ((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n;
+  const { x: X, y: Y } = tileXY(lon, lat, z);
   return { z, x: Math.floor(X), y: Math.floor(Y), i: Math.floor((X % 1) * 256), j: Math.floor((Y % 1) * 256) };
 }
 

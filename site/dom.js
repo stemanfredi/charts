@@ -1,6 +1,9 @@
-// The page's two DOM helpers: an element by selector, and an element built with its attributes,
-// handlers (on…) and children.
+// The page's DOM helpers: an element by selector, an element built with its attributes, handlers
+// (on…) and children, and whether a key pressed goes to a field.
 export const $ = (sel, el = document) => el.querySelector(sel);
+// whether el (a key's target) is a field taking text: a box ticked, a colour or a slider is not,
+// so the keys stay the page's
+export const typing = (el) => !!el?.closest?.('input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]), select, textarea');
 export const h = (tag, attrs = {}, ...kids) => {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {

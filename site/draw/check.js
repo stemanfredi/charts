@@ -3,11 +3,10 @@
 // (file.js). Pure: no map, no DOM.
 
 import { MAX_LAT, norm360 } from '../geo.js';
-import { DEFAULT_STYLE, MAX_OFFSET, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, PART_KINDS, isoNow } from './document.js';
+import { DEFAULT_STYLE, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, PART_KINDS, isoNow } from './document.js';
 
 export const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const COLOUR = /^#[0-9a-fA-F]{6}$/;
-const MAX_MIN_SIZE = 200;
 export const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 export const fin = (x) => typeof x === 'number' && Number.isFinite(x);
 
@@ -57,16 +56,12 @@ export function position(p, c, what) {
   // a longitude past ±180 (placed on a copy of the world beside the first): the same place, brought back
   return [Math.abs(p[0]) > 180 ? norm360(p[0] + 180) - 180 : p[0], p[1]];
 }
-export function angle(a, c, what, required) {
-  if (!fin(a)) { if (required) c.skip(`${what}: not a number`); return 0; }
+export function angle(a, c, what) {
+  if (!fin(a)) return 0;
   if (a >= 0 && a < 360) return a;
   const n = norm360(a);
   if (n !== a) c.warn(`${what} ${a} read as ${n}`);
   return n;
-}
-export function dist(d, c, what) {
-  if (!fin(d) || d <= 0) c.skip(`${what}: not a distance above 0`);
-  return d;
 }
 // a minimum display size in px: 0 to MAX_MIN_SIZE, or null (not valid: warned)
 export function minSize(v, c, what) {
@@ -112,7 +107,7 @@ export function ownStyle(s, c, fill) {
     if (Object.keys(v).length) out[key] = v;
   };
   const check = (key) => (f, v) => (f === 'color' ? colour(v, undefined, c, `${key} colour`) : f === 'dash' ? (DASHES.includes(v) ? v : (c.warn(`unknown dash "${String(v).slice(0, 20)}", ignored`), undefined))
-    : clamp(v, f === 'width' ? 0.5 : 0, f === 'width' ? 20 : 1, undefined, c, `${key} ${f}`));
+    : clamp(v, f === 'width' ? STROKE_WIDTH[0] : 0, f === 'width' ? STROKE_WIDTH[1] : 1, undefined, c, `${key} ${f}`));
   if (fill) part('fill', DEFAULT_STYLE.fill, check('fill'));
   else if (s.fill !== undefined) c.warn('fill: a line has none; ignored');
   part('stroke', DEFAULT_STYLE.stroke, check('stroke'));
@@ -174,7 +169,7 @@ export function readView(v, known, c) {
     try { view.center = position(v.center, c, 'center'); } catch (e) { if (!(e instanceof Skip)) throw e; c.warn(`${e.message}; ignored`); }
   }
   if (v.zoom !== undefined) view.zoom = fin(v.zoom) ? Math.min(24, Math.max(0, v.zoom)) : (c.warn('zoom: not a number, ignored'), null);
-  if (v.bearing !== undefined) view.bearing = angle(v.bearing, c, 'bearing', false);
+  if (v.bearing !== undefined) view.bearing = angle(v.bearing, c, 'bearing');
   if (v.bearings !== undefined) view.bearings = flag(v.bearings, c, 'bearings');
   if (v.units !== undefined) view.units = v.units === 'nm' || v.units === 'km' ? v.units : (c.warn(`unknown units "${String(v.units).slice(0, 10)}", km used`), 'km');
   if (Array.isArray(v.layers)) {

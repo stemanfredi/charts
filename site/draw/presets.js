@@ -19,7 +19,7 @@ export function savePresets(list) {
 // own), its minimum display size when it or its group has one
 export function presetOf(doc, p, name) {
   const m = minSizeOf(doc, p);
-  return { name, point: structuredClone({ symbol: p.symbol, parts: p.parts, look: { ...styleOf(doc, 'point', p), ...(m.own ? { minSize: m.px } : {}) } }) };
+  return { name, point: structuredClone({ symbol: p.symbol, parts: p.parts, look: { ...styleOf(doc, p), ...(m.own ? { minSize: m.px } : {}) } }) };
 }
 // the presets as a file, and back (what is not a preset left out); null: not a presets file
 export const presetsFile = (list) => `${JSON.stringify({ format: PRESETS_FORMAT, presets: list }, null, 2)}\n`;

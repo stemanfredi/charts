@@ -8,7 +8,7 @@
   "homepage": "https://charts.makaw.org",
   "repository": { "type": "git", "url": "git+https://github.com/stemanfredi/charts.git" },
   "scripts": {
-    "test": "node --test \"test/unit/*.test.mjs\"",
+    "test": "node --import ./test/unit/setup.mjs --test \"test/unit/*.test.mjs\"",
     "lint": "eslint .",
     "check": "node tools/deps.mjs --check",
     "smoke": "node test/smoke.mjs",

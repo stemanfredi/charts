@@ -1,11 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
-const { anchorAt, labelText, labelValues, TOKENS, leaderFrom, labelFeatures, removeKeepingLabels } = await import('../../site/draw/labels.js');
+const { labelText, labelValues, TOKENS, leaderFrom, labelFeatures } = await import('../../site/draw/labels.js');
+const { resolve: anchorAt } = await import('../../site/draw/attach.js');
 const { lineRef, targetPosition, refreshAttached, splitKeeping } = await import('../../site/draw/attach.js');
-const { emptyDoc, addPoint, addShape, addArea, addLine, addLabel, makeGroup, centroid, setLook, labelColour, LOOK_FIELDS, makePart } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addShape, addArea, addLine, addLabel, makeGroup, centroid, setLook, labelColour, LOOK_FIELDS, makePart, remove } = await import('../../site/draw/document.js');
 const { drawFeatures, exportFeatures } = await import('../../site/draw/features.js');
 const { lineTrace, nearestAlong } = await import('../../site/draw/lines.js');
 const { inverse, destination } = await import('../../site/geodesy.js');
@@ -147,7 +146,7 @@ test('deleting what a label points at leaves the label free, where it pointed; a
   withLabel(doc, 'l1', { element: 'a' });
   withLabel(doc, 'l2', on(doc, 15000));
   withLabel(doc, 'l3', on(doc, 4000));
-  removeKeepingLabels(doc, ['a']);
+  remove(doc, ['a']);
   assert.deepEqual(doc.labels[0].anchor, { position: [12, 40], element: null });
   assert.deepEqual(doc.lines[0].start, { position: [12, 40], element: null }); // the line stays, its end free
   const was = anchorAt(doc, doc.labels[1].anchor).position;
@@ -163,7 +162,7 @@ test('deleting what a label points at leaves the label free, where it pointed; a
   assert.deepEqual([l3.element, l3.edge], ['s', 0]);
   near(l3.at, 0.4, 1e-6, 'on the first part, where it was');
   near(anchorAt(doc, l3).along, 4000, 0.01, 'from its start');
-  removeKeepingLabels(doc, ['l3']);
+  remove(doc, ['l3']);
   assert.deepEqual(doc.labels.map((x) => x.id), ['l1', 'l2']);
 });
 
@@ -172,10 +171,10 @@ test('deleting a group: with its members, their labels are left free; without, t
   withLabel(doc, 'l1', { element: 'q' });
   withLabel(doc, 'l2', { element: 'h' });
   const g = makeGroup(doc, ['q']), g2 = makeGroup(doc, ['h']);
-  removeKeepingLabels(doc, [g.id]);
+  remove(doc, [g.id]);
   assert.ok(doc.areas.some((x) => x.id === 'q'));
   assert.deepEqual(doc.labels[0].anchor, { position: centroid(AREA), element: 'q' });
-  removeKeepingLabels(doc, [g2.id], true);
+  remove(doc, [g2.id], true);
   assert.ok(!doc.points.some((x) => x.id === 'h'));
   assert.deepEqual(doc.labels[1].anchor, { position: [12.5, 40.5], element: null });
 });

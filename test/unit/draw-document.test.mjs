@@ -1,9 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
-globalThis.window ??= { addEventListener() {} };
 const d = await import('../../site/draw/document.js');
 const { parse, serialise, toFile } = await import('../../site/draw/file.js');
 const { refreshAttached, lineRef, resolve } = await import('../../site/draw/attach.js');
@@ -90,8 +87,8 @@ test('a minimal file: defaults everywhere', () => {
   assert.deepEqual(doc.look, {});
   assert.deepEqual(doc.points[0], { id: 'n1', name: '', properties: [], groupId: null, visible: true, guide: false,
     position: [12, 41], bearing: 0, symbol: 'none', parts: [], look: {} });
-  assert.deepEqual(styleOf(doc, 'point', doc.points[0]), DEFAULT_STYLE); // no look of its own: the default
-  assert.deepEqual(d.lookOf(doc, 'point', doc.points[0]), d.DEFAULT_LOOK);
+  assert.deepEqual(styleOf(doc, doc.points[0]), DEFAULT_STYLE); // no look of its own: the default
+  assert.deepEqual(d.lookOf(doc, doc.points[0]), d.DEFAULT_LOOK);
 });
 
 test('round trip: a drawing made by the operations survives its file unchanged, and the file is stable', () => {
@@ -240,7 +237,7 @@ test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () =>
     F('s3', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: true } }),
   ]));
   const [p1, p2, p3] = doc.points, [s1, s2, s3] = doc.lines;
-  assert.deepEqual([p1.symbol, p1.bearing, p1.look.minSize, p1.look.text, d.lookOf(doc, 'point', p1).text.name], ['none', 270, undefined, undefined, false]); // not valid: left out, the drawing's applies
+  assert.deepEqual([p1.symbol, p1.bearing, p1.look.minSize, p1.look.text, d.lookOf(doc, p1).text.name], ['none', 270, undefined, undefined, false]); // not valid: left out, the drawing's applies
   assert.deepEqual(p1.parts.map((x) => [x.kind, x.radius, x.strokeDash, x.fill, x.shown]), [['circle', 100, null, true, true], ['circle', 200, null, true, true], ['circle', 300, null, true, true]]); // a sector of 360° or more: a circle
   assert.ok(!('aperture' in p1.parts[2]));
   assert.deepEqual([p1.look.fill, p1.look.stroke], [undefined, { color: '#ff0000', width: 20, opacity: 1 }]); // the bad colour and dash dropped: the group's, else the defaults
@@ -310,7 +307,7 @@ test('any GeoJSON: Multi geometries split, holes dropped, foreign points diamond
   assert.equal(doc.areas.length, 3);
   assert.deepEqual(doc.areas[0].points, [[0, 0], [2, 0], [2, 2], [0, 2]]); // the ring open, its outer edge only
   assert.deepEqual(doc.areas[2].look, { fill: { color: '#0000ff', opacity: 0.4 } });
-  assert.ok(doc.areas.every((x) => !x.guide && !d.lookOf(doc, 'area', x).text.values));
+  assert.ok(doc.areas.every((x) => !x.guide && !d.lookOf(doc, x).text.values));
   // a bare Feature, and a bare geometry
   assert.deepEqual(read(F('one', 'Point', [3, 4])).doc.points.map((p) => [p.id, p.position]), [['one', [3, 4]]]);
   assert.deepEqual(read({ type: 'LineString', coordinates: [[0, 0], [1, 1]] }).doc.lines[0].end.position, [1, 1]);
@@ -365,7 +362,7 @@ test('labels: on an element, along a line, on a vertex, or free; checked; writte
   assert.deepEqual(doc.labels.map((x) => x.id), ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l8', 'l9', 'l10']);
   assert.deepEqual(skippedIds(report), ['l7']);
   const [l1, l2, l3, l4, l5, l6, l8, l9, l10] = doc.labels;
-  const text = (a) => d.lookOf(doc, 'label', a).text;
+  const text = (a) => d.lookOf(doc, a).text;
   assert.deepEqual([l1.leader, l1.offset, l1.look, l1.anchor], ['dot', [10, -20], { text: { size: 'large', color: '#aa0000', background: 'box' } }, { position: [12, 40], element: 'a' }]);
   assert.deepEqual([l2.anchor.element, l2.anchor.edge, l2.anchor.at, l2.text, l2.leader, l2.look, text(l2).background], ['s', 0, 0.123456789, '', 'arrow', {}, 'halo']);
   assert.deepEqual(l2.anchor.position, resolve(doc, l2.anchor).position); // where it points
@@ -397,10 +394,10 @@ test('groups in the file: a member\'s parts are its own (none when missing); a g
   const [m, own, none, lost] = doc.points;
   const g = doc.groups[0];
   assert.deepEqual(g.look, { fill: { color: '#ff0000' }, offset: 3 }); // what it sets; the rest from the defaults
-  assert.deepEqual(styleOf(doc, 'group', g), { fill: { color: '#ff0000', opacity: DEFAULT_STYLE.fill.opacity }, stroke: DEFAULT_STYLE.stroke });
+  assert.deepEqual(styleOf(doc, g), { fill: { color: '#ff0000', opacity: DEFAULT_STYLE.fill.opacity }, stroke: DEFAULT_STYLE.stroke });
   assert.ok(!('parts' in g) && !('radii' in g) && !('aperture' in g));
   assert.equal(offsetOf(doc, m), 3);
-  assert.equal(styleOf(doc, 'point', m).fill.color, '#ff0000');
+  assert.equal(styleOf(doc, m).fill.color, '#ff0000');
   assert.deepEqual([m.parts, m.symbol, d.pointKind(m)], [[], 'none', 'point']);
   assert.deepEqual([own.parts.map((x) => [x.kind, x.radius, x.aperture]), own.symbol, d.pointKind(own)], [[['sector', 1, 90]], 'none', 'sector']);
   assert.deepEqual([none.parts, none.symbol], [[], 'none']);
@@ -436,7 +433,7 @@ test('minimum display size: the drawing\'s value and a point\'s own, read, check
   assert.deepEqual(doc.points.map((p) => d.minSizeOf(doc, p)), [{ px: 20, own: false }, { px: 0, own: true }, { px: 20, own: false }, { px: 200, own: true }]);
   warned(report, /look minSize: not a number of pixels/);
   const plain = read(collection([], { view: {} })).doc;
-  assert.equal(d.lookOf(plain, 'drawing', plain).minSize, 12); // the default
+  assert.equal(d.lookOf(plain, plain).minSize, 12); // the default
   const f = toFile(doc);
   assert.deepEqual(f.features.map((x) => x.properties.charts.look?.minSize), [undefined, 0, undefined, 200]);
   assert.deepEqual(f.charts.look, { minSize: 20 });
@@ -593,7 +590,7 @@ test('attached ends follow their point; a point gone leaves them free where they
   a.position = [0, 0.5];
   refreshAttached(doc);
   assert.deepEqual(s.start, { position: [0, 0.5], element: a.id });
-  assert.deepEqual(dependents(doc, [b.id]), { all: new Set([b.id]) }); // lines do not go with a point
+  assert.deepEqual(dependents(doc, [b.id]), new Set([b.id])); // lines do not go with a point
   assert.deepEqual([...remove(doc, [b.id])], [b.id]);
   assert.deepEqual(doc.lines.map((x) => x.id), [s.id, t.id]);
   assert.deepEqual([s.end, t.start], [{ position: [1, 0], element: null }, { position: [1, 0], element: null }]);
@@ -626,11 +623,11 @@ test('measurements: guides showing their values (a line, an area, a point with i
   const a = addArea(doc, [[12, 44], [13, 44], [12.5, 45]], m());
   assert.ok([r1, c, a].every((x) => isMeasurement(doc, x)));
   assert.ok(!isMeasurement(doc, addPoint(doc, [0, 0], { look: { text: { values: true } } })) && !isMeasurement(doc, addPoint(doc, [0, 0], { guide: true })));
-  assert.deepEqual(styleOf(doc, 'line', r1), d.MEASURE_STYLE); // drawn as while it was measured
+  assert.deepEqual(styleOf(doc, r1), d.MEASURE_STYLE); // drawn as while it was measured
   r1.look.stroke = { color: '#000000' };
-  assert.deepEqual(styleOf(doc, 'line', r1).stroke, { ...d.MEASURE_STYLE.stroke, color: '#000000' });
+  assert.deepEqual(styleOf(doc, r1).stroke, { ...d.MEASURE_STYLE.stroke, color: '#000000' });
   r1.look.text.values = false; // a guide not showing its values: faint, dashed
-  assert.deepEqual(styleOf(doc, 'line', r1).stroke, { ...GUIDE_STYLE.stroke, color: '#000000' });
+  assert.deepEqual(styleOf(doc, r1).stroke, { ...GUIDE_STYLE.stroke, color: '#000000' });
   r1.look.text.values = true;
   assert.equal(nextName(doc, 'line', 'Distance'), 'Distance 2');
   assert.deepEqual(again(doc).doc, doc);
@@ -666,18 +663,18 @@ test('groups: made from a selection, members take the group\'s style; their part
   assert.deepEqual([a.parts[0].kind, b.parts[0].aperture, b.bearing, s.look.offset, offsetOf(doc, s)], ['circle', 45, 20, undefined, 0]);
   assert.deepEqual([a.look, h.look, s.look], [{}, {}, {}]); // they take the group's look (their own fill, stroke and Offset go)
   g.look.fill.color = '#abcdef';
-  assert.equal(styleOf(doc, 'point', h).fill.color, '#abcdef');
+  assert.equal(styleOf(doc, h).fill.color, '#abcdef');
   h.look.fill = { color: '#ff0000' }; // its own, over the group's
-  assert.equal(styleOf(doc, 'point', h).fill.color, '#ff0000');
+  assert.equal(styleOf(doc, h).fill.color, '#ff0000');
   a.parts[0].radius = 800; // a member's part: its own alone
   assert.equal(b.parts[0].radius, 1000);
   setGroup(doc, a.id, null);
   assert.deepEqual([a.parts.map((x) => x.radius), a.parts[0].kind], [[800], 'circle']);
-  assert.equal(styleOf(doc, 'point', a).fill.color, '#abcdef'); // the look kept, its own now
+  assert.equal(styleOf(doc, a).fill.color, '#abcdef'); // the look kept, its own now
   g.look.offset = 8;
-  const was = styleOf(doc, 'line', s).stroke;
+  const was = styleOf(doc, s).stroke;
   setGroup(doc, s.id, null);
-  assert.deepEqual([s.look, styleOf(doc, 'line', s).stroke], [{ offset: 8 }, was]); // what differed made its own; the rest as it was
+  assert.deepEqual([s.look, styleOf(doc, s).stroke], [{ offset: 8 }, was]); // what differed made its own; the rest as it was
   setGroup(doc, j.id, null);
   assert.deepEqual(j.parts, []);
   assert.deepEqual(again(doc).doc, doc);
@@ -718,8 +715,8 @@ test('delete a group: members ungrouped, keeping their own parts, or deleted wit
   const s = addLine(doc, a.id, [], c.id);
   const g = makeGroup(doc, [c.id, b.id]);
   Object.assign(c.parts[0], { kind: 'sector', radius: 50, aperture: 30 });
-  assert.deepEqual(dependents(doc, [g.id]).all, new Set([g.id]));
-  assert.deepEqual(dependents(doc, [g.id], true).all, new Set([g.id, b.id, c.id]));
+  assert.deepEqual(dependents(doc, [g.id]), new Set([g.id]));
+  assert.deepEqual(dependents(doc, [g.id], true), new Set([g.id, b.id, c.id]));
   const kept = structuredClone(doc);
   remove(kept, [g.id]);
   const [kb, kc] = [b.id, c.id].map((id) => kept.points.find((p) => p.id === id));
@@ -740,9 +737,9 @@ test('delete a group: members ungrouped keep the group\'s style and colour as th
   const l = addLabel(doc, { element: a.id });
   const g = makeGroup(doc, [a.id, s.id, l.id]);
   g.look = { fill: { color: '#abcdef' }, stroke: { color: '#123456' } };
-  const before = [styleOf(doc, 'point', a), styleOf(doc, 'line', s).stroke, d.labelColour(doc, l)];
+  const before = [styleOf(doc, a), styleOf(doc, s).stroke, d.labelColour(doc, l)];
   remove(doc, [g.id]);
-  assert.deepEqual([styleOf(doc, 'point', a), styleOf(doc, 'line', s).stroke, d.labelColour(doc, l)], before);
+  assert.deepEqual([styleOf(doc, a), styleOf(doc, s).stroke, d.labelColour(doc, l)], before);
 });
 
 test('nested groups: a group of members of a group is a subgroup of it; looks, Offset and visibility come down the chain', () => {
@@ -756,9 +753,9 @@ test('nested groups: a group of members of a group is a subgroup of it; looks, O
   assert.equal(sub.groupId, top.id, 'in the group its members were in');
   assert.deepEqual([a.groupId, s.groupId, b.groupId], [sub.id, sub.id, top.id]);
   assert.deepEqual(d.groupsOf(doc, a).map((g) => g.id), [sub.id, top.id]);
-  assert.equal(styleOf(doc, 'point', a).fill.color, '#111111', 'from the group above');
+  assert.equal(styleOf(doc, a).fill.color, '#111111', 'from the group above');
   sub.look = { fill: { color: '#222222' } };
-  assert.deepEqual([styleOf(doc, 'point', a).fill.color, styleOf(doc, 'line', s).stroke.width, styleOf(doc, 'point', b).fill.color], ['#222222', 3, '#111111']);
+  assert.deepEqual([styleOf(doc, a).fill.color, styleOf(doc, s).stroke.width, styleOf(doc, b).fill.color], ['#222222', 3, '#111111']);
   assert.equal(offsetOf(doc, s), 5);
   sub.look.offset = 0; // off here, whatever is above
   assert.equal(offsetOf(doc, s), 0);
@@ -785,14 +782,14 @@ test('nested groups: deleting a group alone puts what was in it in the group abo
   const sub = makeGroup(doc, [a.id]);
   sub.look = { fill: { color: '#444444' } };
   const inner = makeGroup(doc, [a.id]);
-  const before = styleOf(doc, 'point', a);
-  assert.deepEqual(dependents(doc, [top.id], true).all, new Set([top.id, a.id, b.id, sub.id, inner.id]));
+  const before = styleOf(doc, a);
+  assert.deepEqual(dependents(doc, [top.id], true), new Set([top.id, a.id, b.id, sub.id, inner.id]));
   const kept = structuredClone(doc);
   remove(kept, [sub.id]);
   const [ka, ki] = [kept.points.find((p) => p.id === a.id), kept.groups.find((g) => g.id === inner.id)];
   assert.equal(ki.groupId, top.id, 'its subgroup now in the group above');
   assert.equal(ka.groupId, inner.id);
-  assert.deepEqual(styleOf(kept, 'point', ka), before, 'looking the same');
+  assert.deepEqual(styleOf(kept, ka), before, 'looking the same');
   remove(doc, [top.id], true);
   assert.deepEqual([doc.points.length, doc.groups.length], [0, 0]);
 });
@@ -806,7 +803,7 @@ test('nested groups in the file: the parent kept; one missing or making a loop p
   assert.ok(by.x === null || by.y === null, 'a loop broken');
   warned(report, /group nowhere not found; now at the top/);
   warned(report, /in a group inside itself; now at the top/);
-  assert.equal(styleOf(doc, 'point', doc.points[0]).stroke.color, '#ff0000', 'from two groups up');
+  assert.equal(styleOf(doc, doc.points[0]).stroke.color, '#ff0000', 'from two groups up');
   assert.equal(toFile(doc).charts.groups.find((g) => g.id === 'c').groupId, 'b');
   assert.deepEqual(again(doc).doc, doc);
 });
@@ -817,14 +814,14 @@ test('the look: the drawing\'s defaults, then groups, then its own; a measuremen
   const m = addLine(doc, [0, 0], [], [1, 1], { guide: true, look: { text: { values: true } } });
   const s = addLine(doc, a.id, [], b.id);
   doc.look = { text: { name: true }, offset: 4, minSize: 20 };
-  assert.deepEqual([d.lookOf(doc, 'point', a).text.name, d.lookOf(doc, 'line', m).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [true, false, 4, { px: 20, own: false }]);
+  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, m).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [true, false, 4, { px: 20, own: false }]);
   const g = makeGroup(doc, [a.id, s.id]);
   d.setLook(g, 'text.name', false);
   d.setLook(g, 'offset', 0);
   d.setLook(g, 'minSize', 8);
-  assert.deepEqual([d.lookOf(doc, 'point', a).text.name, d.lookOf(doc, 'point', b).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [false, true, 0, { px: 8, own: true }]);
+  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, b).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [false, true, 0, { px: 8, own: true }]);
   d.setLook(a, 'text.name', true); // its own, over the group's
-  assert.equal(d.lookOf(doc, 'point', a).text.name, true);
+  assert.equal(d.lookOf(doc, a).text.name, true);
   d.setLook(a, 'text.name', undefined); // taken back
   assert.deepEqual(a.look, {});
   const f = toFile(doc);

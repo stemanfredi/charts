@@ -1,9 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
-globalThis.window ??= { addEventListener() {} };
 const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, centroid, remove, makePart, removePart } = await import('../../site/draw/document.js');
 const { targetPosition, resolve, refreshAttached, reattach, insertCorner, removeCorner, addVertex, removeVertex, splitKeeping, attachTo, verticesOf, partName, refNear } = await import('../../site/draw/attach.js');
 const { snapAt, stepped, neighbours } = await import('../../site/draw/snap.js');

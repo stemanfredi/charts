@@ -1,13 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 // the browser's storage and events, as the page has them
 const data = new Map();
 globalThis.localStorage = { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, String(v)), removeItem: (k) => data.delete(k) };
-globalThis.window ??= { addEventListener() {} };
-globalThis.document ??= { addEventListener() {}, visibilityState: 'visible' };
 const { DrawStore } = await import('../../site/draw/store.js');
 const { Saving, savedView } = await import('../../site/draw/saving.js');
 const { emptyDoc, addPoint } = await import('../../site/draw/document.js');

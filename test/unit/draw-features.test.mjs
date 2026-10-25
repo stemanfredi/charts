@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 const drawgeo = await import('../../site/draw/features.js');
 const { drawParts, drawFeatures, exportFeatures, valueFeatures, flatten, boundsOf, enlargement, shapeOf, zoomDependent, perimeterOf, GEOMETRY } = drawgeo;
 const { emptyDoc, addPoint, addDot, addShape, addArea, addLine, addLabel, makeGroup, makePart } = await import('../../site/draw/document.js');

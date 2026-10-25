@@ -2,7 +2,7 @@
 // features.js and labels.js make their features), the symbols as signed distance fields, and which
 // layers a click hits, a press grabs, the PNG export hides.
 
-export const SEL = '#ffd43b', CASING = '#1f2c36'; // the selection's highlight: yellow on a dark casing, seen on sea, land and satellite
+const SEL = '#ffd43b', CASING = '#1f2c36'; // the selection's highlight: yellow on a dark casing, seen on sea, land and satellite
 
 // the symbols and the label box, added to the map once its style is loaded
 export function addIcons(map) {

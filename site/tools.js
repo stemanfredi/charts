@@ -5,6 +5,8 @@
 //
 // The owner: { tool (its tool on, or null), finish(), undoPoint(), escape(), finishesOnDoubleClick() }.
 
+import { typing } from './dom.js';
+
 export class Toolbox {
   constructor(map, idle = () => {}) {
     // a right click, not a right drag (which rotates the map)
@@ -19,7 +21,7 @@ export class Toolbox {
     // focused button is that button's own click
     window.addEventListener('keydown', (e) => {
       const o = this.active();
-      if (!o || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, select, textarea') || document.querySelector('dialog[open]')) return;
+      if (!o || e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || document.querySelector('dialog[open]')) return;
       if (e.key === 'Enter' && !e.target.closest('button')) { e.preventDefault(); o.owner.finish(); }
       else if (e.key === 'Backspace') { e.preventDefault(); o.owner.undoPoint(); }
       else if (e.key === 'Escape') { e.stopImmediatePropagation(); o.owner.escape(); } // not also the panel's (clearing the selection)

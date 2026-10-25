@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistribution, editDistribution, connect, unconnect, reconnect, refreshGenerated, COPY_RADIUS,
   distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, MAX_COPIES, MAX_AUTO_TREE } = await import('../../site/draw/generator.js');
 const { emptyDoc, addPoint, addLine, makePart, find, remove } = await import('../../site/draw/document.js');

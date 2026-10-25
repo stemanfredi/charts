@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 const { profileOf, samplesOf, zoomFor, profileCsv, GRID, MAX_SAMPLES } = await import('../../site/draw/profile.js');
 const { emptyDoc, addLine } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');

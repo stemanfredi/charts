@@ -3,7 +3,7 @@
 // and a measured one are the same number. Lines are densified geodesics, so what you see is the path the numbers
 // describe. Positions are [lon, lat], distances metres, azimuths degrees clockwise from true north.
 
-import { norm360 } from './geo.js';
+import { norm360, unrollTo } from './geo.js';
 
 // GeographicLib is a classic script on the page (window.geodesic); tests set globalThis.geodesic
 export const G = globalThis.geodesic.Geodesic.WGS84;
@@ -55,10 +55,7 @@ export function densify(p, q, step = 20000) {
   }
   return out;
 }
-function unrollFrom(ref, pts) {
-  // keep longitudes continuous across the antimeridian
-  return pts.map(([x, y]) => [x + 360 * Math.round((ref[0] - x) / 360), y]);
-}
+const unrollFrom = (ref, pts) => pts.map((p) => unrollTo(ref, p)); // longitudes continuous across the antimeridian
 // the densified geodesic polyline through pts (closed: back to the first)
 export function pathOf(pts, closed, step) {
   const ring = closed ? [...pts, pts[0]] : pts;

@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 const { DrawStore } = await import('../../site/draw/store.js');
 const { addPoint, addLine, addLabel, makeGroup, lookOf } = await import('../../site/draw/document.js');
 
@@ -79,7 +77,7 @@ test('what no longer exists leaves the selection and the hover; deleting a point
   s.change((doc) => { a = addPoint(doc, [14, 44]); b = addPoint(doc, [14.1, 44]); ln = addLine(doc, a.id, [], b.id); });
   s.select([a.id, ln.id]);
   s.setHover(a.id);
-  assert.deepEqual([...s.dependents([a.id]).all], [a.id], 'the line is not taken with it');
+  assert.deepEqual([...s.dependents([a.id])], [a.id], 'the line is not taken with it');
   s.remove([a.id]);
   assert.deepEqual([...s.sel], [ln.id]);
   assert.equal(s.hover, null);
@@ -99,8 +97,8 @@ test('deleting a group: its members with it, or kept ungrouped; a label on what 
     g = makeGroup(doc, [p.id, q.id]);
     lab = addLabel(doc, { position: [14, 44], element: p.id });
   });
-  assert.deepEqual([...s.dependents([g.id], true).all].sort(), [g.id, p.id, q.id].sort());
-  assert.deepEqual([...s.dependents([g.id], false).all], [g.id]);
+  assert.deepEqual([...s.dependents([g.id], true)].sort(), [g.id, p.id, q.id].sort());
+  assert.deepEqual([...s.dependents([g.id], false)], [g.id]);
   s.remove([g.id]);
   assert.deepEqual(s.doc.points.map((x) => [x.id, x.groupId]), [[p.id, null], [q.id, null]]);
   s.undo();
@@ -118,7 +116,7 @@ test('adopt: another document, its display settings, nothing selected, undo afre
   other.look = { minSize: 20 }; // the drawing's look: with its document
   s.adopt(other);
   assert.equal(s.doc, other);
-  assert.equal(lookOf(s.doc, 'drawing', s.doc).minSize, 20);
+  assert.equal(lookOf(s.doc, s.doc).minSize, 20);
   assert.equal(s.sel.size, 0);
   assert.equal(s.undos.length, 0);
   assert.ok(s.isEmpty());

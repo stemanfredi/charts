@@ -3,10 +3,9 @@
 // DOM (the tests run it in Node). The map's side (drawing.js) extends it and is told of each change:
 // changed() (the document), selectionChanged(), hoverChanged().
 
-import { emptyDoc, touch, find, elements, dependents } from './document.js';
+import { emptyDoc, touch, find, elements, dependents, remove } from './document.js';
 import { refreshAttached } from './attach.js';
 import { refreshAuto } from './lines.js';
-import { removeKeepingLabels } from './labels.js';
 import { refreshGenerated, reconnectWithout } from './generator.js';
 
 const UNDO_STEPS = 100, UNDO_BYTES = 20e6;
@@ -94,7 +93,7 @@ export class DrawStore {
   // what deleting ids takes with it (to ask first), and the deletion: one undo step
   dependents(ids, withMembers) { return dependents(this.doc, ids, withMembers); }
   // a delete: one undo step; a connection that lost a root made again with those left
-  remove(ids, withMembers = false) { this.change((doc) => reconnectWithout(doc, removeKeepingLabels(doc, ids, withMembers))); }
+  remove(ids, withMembers = false) { this.change((doc) => reconnectWithout(doc, remove(doc, ids, withMembers))); }
   // A whole other document (read back, opened, New): its display settings with it, nothing selected,
   // undo starting again.
   adopt(doc) {

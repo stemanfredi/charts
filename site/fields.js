@@ -1,4 +1,4 @@
-// The panels' fields (Draw, Measure, Layers). A field applies on Enter or when it loses focus, never
+// The panels' fields (Tools, Layers). A field applies on Enter or when it loses focus, never
 // on each key; a value it cannot read stays marked, is not applied, and note() says why; Esc puts
 // back what it showed and leaves it. A read gives the value to apply, or undefined: not valid (null
 // is a value: "none", "the default").
@@ -94,6 +94,21 @@ export function fields({ note, units }) {
     return Number.isFinite(v) && (!whole || Number.isInteger(v)) && (above ? v > min : v >= min) && v <= max ? v : undefined;
   }, put, { 'aria-label': aria, class: 'angle', inputmode: whole ? 'numeric' : 'decimal', nudge: (t, up, big) => stepped(t, up, big, min), bad: bad || `${whole ? 'a whole number' : 'a number'} ${above ? 'above' : 'from'} ${min}${max < Infinity ? ` to ${max}` : ''}${empty ? ', or empty' : ''}`, ...attrs });
   return { field, text, dist, angle, coord, position, number };
+}
+
+// A choice among options ([[value, text]]) as a <select>: value the one chosen (null: "mixed", a
+// disabled first option), pick(value) on a change; attrs on the select (title, class…)
+export function select(aria, options, value, pick, attrs = {}) {
+  return h('select', { 'aria-label': aria, ...attrs, onchange: (e) => pick(e.target.value) },
+    value === null ? h('option', { value: '', selected: true, disabled: true }, 'mixed') : null,
+    options.map(([v, text]) => h('option', { value: v, selected: value !== null && String(v) === String(value) }, text)));
+}
+// A box with its text after it: value true, false or null ("mixed": shown indeterminate), put(checked)
+// on a change; attrs on the box (aria-label, title…), title also on the label (its tooltip)
+export function check(text, value, put, attrs = {}) {
+  const box = h('input', { type: 'checkbox', checked: value === true, ...attrs, onchange: (e) => put(e.target.checked) });
+  box.indeterminate = value === null;
+  return h('label', { class: 'fcheck', title: attrs.title }, box, text);
 }
 
 // A choice between a few values, as pressed buttons (a segmented control). options: [[value, label

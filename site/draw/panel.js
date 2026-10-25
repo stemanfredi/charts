@@ -3,11 +3,13 @@
 // selected, the drawing itself) and edits it with fields. Fields apply on Enter or when they lose
 // focus, one undo step each.
 
-import { h } from '../dom.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, removePart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, straighten, isMeasurement, MAX_RADIUS, offsetOf } from './document.js';
+import { h, typing as typingIn } from '../dom.js';
+import { FINGER } from './layers.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, removePart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef } from './attach.js';
-import { anchorAt, labelText, labelValues, TOKENS } from './labels.js';
+import { labelText, labelValues, TOKENS } from './labels.js';
+import { resolve as anchorAt } from './attach.js';
 import { OUTLINES, OUTLINE_NAME, outlineOf, isVehicle } from './outlines.js';
 import { lineTrace, totals, applySmooth, nearestAlong } from './lines.js';
 import { profileCsv } from './profile.js';
@@ -18,10 +20,9 @@ import { boundsOf, drawable, perimeterOf } from './features.js';
 import { fmtDist, fmtArea, fmtBrg, inverse, areaOf, pathOf, destination } from '../geodesy.js';
 import { moved } from './drag.js';
 import { norm360 } from '../geo.js';
-import { fields, choice } from '../fields.js';
+import { fields, choice, select, check } from '../fields.js';
 import { keyOf, mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetsFile, readPresets } from './presets.js';
-import { elementRow } from '../listrow.js';
 import { listGrid } from './grid.js';
 import { rowsText, placesOf, placesAfterPaste } from './paste.js';
 
@@ -111,7 +112,7 @@ export function drawView(root, ctx) {
     if (!on || vs.length < 2) return press(tool);
     choose(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
   }
-  const toolBtns = Object.entries(TOOLS).map(([k, [text, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', title: `${title} (${keyOf('draw', k)})`,
+  const toolBtns = Object.entries(TOOLS).map(([k, [text, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', title: `${title} (${keyOf(k)})`,
     onclick: (e) => press(k, e) }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k])),
   k === 'measure' ? [h('span', { class: 'long' }, text), h('span', { class: 'short' }, 'Meas.')] : text)); // the compact column's label: short
   const undoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Undo', title: `Undo (${MOD} Z)`, onclick: () => drawing.undo() }, icon('M9 14 4 9l5-5', 'M4 9h10a6 6 0 0 1 0 12h-3'));
@@ -246,6 +247,18 @@ export function drawView(root, ctx) {
     return k > 1 ? `shown ×${k < 10 ? k.toFixed(1) : Math.round(k)}` : '';
   }
 
+  // one row of the list: shown or not, its kind, its name, a short value, delete; selected by a click
+  // (Ctrl/⌘: adds or removes), outlined on the map while the pointer is over it
+  function elementRow({ id, icon, kindIcon, title, name, value = '', visible, selected }, on, more = {}) {
+    return h('li', { class: `drow${selected ? ' sel' : ''}${visible ? '' : ' dim'}${more.classes ? ` ${more.classes}` : ''}`, 'data-id': id,
+      onpointerenter: () => on.hover(id), onpointerleave: () => on.hover(null) },
+    h('label', { class: 'dvis', title: 'Show on the map' }, h('input', { type: 'checkbox', checked: visible, 'aria-label': `Show ${name}`, onchange: (e) => on.visible(e.target.checked) })),
+    more.fold || null,
+    h('span', { class: 'kind', title }, icon(...kindIcon)),
+    h('button', { type: 'button', class: 'dname', title: `Select (${MOD}: add or remove)`, onclick: (e) => on.select(e), ...more.name }, name),
+    h('span', { class: 'val' }, value),
+    h('button', { type: 'button', class: 'x', 'aria-label': `Delete ${name}`, title: 'Delete', onclick: () => on.remove() }, '×'));
+  }
   function rowOf({ kind, el, depth = 0 }) {
     const id = el.id;
     const fold = kind === 'group' ? h('button', { type: 'button', class: 'dfold', 'aria-expanded': String(!folded.has(id)), 'aria-label': `Show the members of ${label(kind, el)}`,
@@ -308,7 +321,7 @@ export function drawView(root, ctx) {
     }
     const what = ids.length === 1 ? label(find(doc, ids[0]).kind, find(doc, ids[0]).el) : `${ids.length} elements`;
     // lines attached to a point deleted stay, their ends free where they were
-    const gone = drawing.dependents(ids, withMembers).all;
+    const gone = drawing.dependents(ids, withMembers);
     const freed = doc.lines.filter((s) => !gone.has(s.id) && [s.start, s.end].some((e) => e.element && gone.has(e.element))).length;
     drawing.remove(ids, withMembers);
     note(`Deleted ${what}${freed ? `; ${plural(freed, 'line')} attached to it now end${freed === 1 ? 's' : ''} where ${freed === 1 ? 'it' : 'they'} did` : ''}`, true);
@@ -365,7 +378,7 @@ export function drawView(root, ctx) {
   const row = (text, ...kids) => {
     kids = kids.flat().filter(Boolean);
     const last = isX(kids.at(-1)) ? kids.pop() : null;
-    if (!text && kids.length && kids.every((k) => k.tagName === 'BUTTON')) return h('div', { class: 'frow factions' }, ...kids, last);
+    if (!text && kids.length && kids.every((k) => k.tagName === 'BUTTON')) return h('div', { class: 'frow' }, ...kids, last);
     return h('div', { class: 'frow vrow' }, h('span', { class: 'flabel' }, text), h('div', { class: 'vcell' }, ...kids), h('span', { class: 'vlast' }, last));
   };
   // two fields read as one value, side by side (a pair, §2), sep between them
@@ -385,57 +398,47 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     const has = (x, f) => (x.kind === 'drawing' || LOOK_FIELDS[x.kind].includes(f)) && (f !== 'minSize' || x.kind !== 'point' || !!mainOutline(x.el));
     const shown = (f) => (!fields || fields.includes(f)) && xs.some((x) => has(x, f));
-    const looks = xs.map((x) => (x.kind === 'label' ? { ...lookOf(doc, 'label', x.el), text: { ...lookOf(doc, 'label', x.el).text, color: labelColour(doc, x.el) } } : lookOf(doc, x.kind, x.el)));
+    const looks = xs.map((x) => (x.kind === 'label' ? { ...lookOf(doc, x.el), text: { ...lookOf(doc, x.el).text, color: labelColour(doc, x.el) } } : lookOf(doc, x.el)));
     const same = (f) => { const vs = xs.map((x, i) => (has(x, f) ? lookField(looks[i], f) : undefined)).filter((v) => v !== undefined); return vs.every((v) => v === vs[0]) ? vs[0] : null; };
     const target = (d, x) => (x.kind === 'drawing' ? d : find(d, x.el.id).el);
     // live: shown as it changes (a colour being picked), the undo step made when it is set
     const put = (f, v, live = false) => (live ? drawing.preview : drawing.change).call(drawing, (d) => { for (const x of xs) if (has(x, f)) setLook(target(d, x), f, v); });
     const above = xs.some((x) => x.el.groupId) ? 'the group\'s' : xs.some((x) => x.kind === 'drawing') ? 'the default' : 'the drawing\'s';
     const back = (...fs) => (xs.some((x) => fs.some((f) => has(x, f) && lookField(x.el.look, f) !== undefined))
-      ? h('button', { type: 'button', class: 'x reset', title: `Back to ${above}`, 'aria-label': `${fs[0]} back to ${above}`,
+      ? h('button', { type: 'button', class: 'x', title: `Back to ${above}`, 'aria-label': `${fs[0]} back to ${above}`,
         onclick: () => drawing.change((d) => { for (const x of xs) for (const f of fs) if (has(x, f)) setLook(target(d, x), f, undefined); }) }, '↺') : null);
     const mixed = (v) => (v === null ? h('span', { class: 'mixed' }, 'mixed') : null);
     const colour = (f, aria) => {
       const v = same(f);
       return [h('input', { type: 'color', value: v ?? lookField(looks[0], f) ?? '#000000', 'aria-label': aria, oninput: (e) => put(f, e.target.value, true), onchange: (e) => put(f, e.target.value) }), mixed(v)];
     };
-    const num = (f, aria, lo, hi, step) => {
-      const v = same(f);
-      return h('input', { type: 'number', min: lo, max: hi, step, value: v ?? '', placeholder: v === null ? 'mixed' : '', 'aria-label': aria, class: 'num',
-        onchange: (e) => { const n = +e.target.value; if (e.target.value !== '' && n >= lo && n <= hi) put(f, n); } });
-    };
-    const check = (f, text, title) => {
-      const v = same(f), box = h('input', { type: 'checkbox', checked: v === true, 'aria-label': text, title, onchange: (e) => put(f, e.target.checked) });
-      box.indeterminate = v === null;
-      return row(text, h('label', { class: 'fcheck' }, box), back(f));
-    };
-    const dashSelect = () => h('select', { 'aria-label': 'Dash', onchange: (e) => put('stroke.dash', e.target.value) },
-      dash === null ? h('option', { value: '', selected: true, disabled: true }, 'mixed') : null,
-      DASHES.map((d) => h('option', { value: d, selected: d === dash }, d)));
+    const num = (f, aria, lo, hi) => F.number(() => same(f), (v) => put(f, v), aria, { min: lo, max: hi, placeholder: 'mixed', bad: `a number from ${lo} to ${hi}` });
+    const tick = (f, text, title) => row(text, check('', same(f), (v) => put(f, v), { 'aria-label': text, title }), back(f));
+    const dashSelect = () => select('Dash', DASHES.map((d) => [d, d]), dash, (v) => put('stroke.dash', v));
     // Fill and Stroke: a small matrix when both are there (the same columns, two rows); a line's stroke
     // alone: two rows of pairs (§2: no one-row matrix)
     const both = shown('fill.color') && shown('stroke.color');
     const matrix = () => h('table', { class: 'lmatrix' },
       h('thead', {}, h('tr', {}, h('th'), h('th', {}, 'Colour'), h('th', {}, 'Opacity'), h('th', {}, 'Width'), h('th', {}, 'Dash'), h('th'))),
       h('tbody', {},
-        h('tr', {}, h('th', {}, 'Fill'), h('td', {}, ...colour('fill.color', 'Fill colour')), h('td', {}, num('fill.opacity', 'Fill opacity', 0, 1, 0.05)), h('td'), h('td'), h('td', {}, back('fill.color', 'fill.opacity'))),
-        h('tr', {}, h('th', {}, 'Stroke'), h('td', {}, ...colour('stroke.color', 'Stroke colour')), h('td', {}, num('stroke.opacity', 'Stroke opacity', 0, 1, 0.05)),
-          h('td', {}, num('stroke.width', 'Stroke width (px)', 0.5, 20, 0.5)), h('td', {}, dashSelect()), h('td', {}, back('stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash')))));
+        h('tr', {}, h('th', {}, 'Fill'), h('td', {}, ...colour('fill.color', 'Fill colour')), h('td', {}, num('fill.opacity', 'Fill opacity', 0, 1)), h('td'), h('td'), h('td', {}, back('fill.color', 'fill.opacity'))),
+        h('tr', {}, h('th', {}, 'Stroke'), h('td', {}, ...colour('stroke.color', 'Stroke colour')), h('td', {}, num('stroke.opacity', 'Stroke opacity', 0, 1)),
+          h('td', {}, num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH)), h('td', {}, dashSelect()), h('td', {}, back('stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash')))));
     const group = xs.length === 1 && (xs[0].kind === 'group' || xs[0].kind === 'drawing');
     const dash = same('stroke.dash');
     return h('div', { class: 'fblock' }, h('h3', {}, title),
       both ? matrix() : null,
-      !both && shown('stroke.color') ? row('Stroke', pair(colour('stroke.color', 'Stroke colour'), '·', num('stroke.opacity', 'Stroke opacity', 0, 1, 0.05)), back('stroke.color', 'stroke.opacity')) : null,
-      !both && shown('stroke.width') ? row('Width', pair([num('stroke.width', 'Stroke width (px)', 0.5, 20, 0.5), h('span', { class: 'funit' }, 'px')], '·', dashSelect()), back('stroke.width', 'stroke.dash')) : null,
+      !both && shown('stroke.color') ? row('Stroke', pair(colour('stroke.color', 'Stroke colour'), '·', num('stroke.opacity', 'Stroke opacity', 0, 1)), back('stroke.color', 'stroke.opacity')) : null,
+      !both && shown('stroke.width') ? row('Width', pair([num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH), h('span', { class: 'funit' }, 'px')], '·', dashSelect()), back('stroke.width', 'stroke.dash')) : null,
       shown('text.size') ? row('Text size', segOf('Text size', [['small', 'S', 'Small'], ['medium', 'M', 'Medium'], ['large', 'L', 'Large']], same('text.size'), (v) => put('text.size', v)), back('text.size')) : null,
       shown('text.color') ? row('Text colour', pair(colour('text.color', 'Text colour'), 'on',
         segOf('Background', [['halo', 'Halo', 'A white halo round the letters'], ['box', 'Box', 'A white box with a border in the text\'s colour']], same('text.background'), (v) => put('text.background', v))),
       back('text.color', 'text.background')) : null,
-      shown('text.name') ? check('text.name', group || xs.length > 1 ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
-      shown('text.values') ? check('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
-      shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -50, max: 50, placeholder: 'mixed', bad: 'pixels from −50 to 50',
+      shown('text.name') ? tick('text.name', group || xs.length > 1 ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
+      shown('text.values') ? tick('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
+      shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -MAX_OFFSET, max: MAX_OFFSET, placeholder: 'mixed', bad: `pixels from −${MAX_OFFSET} to ${MAX_OFFSET}`,
         title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as QGIS offsets a line: display only, lengths stay real' }), h('span', { class: 'funit' }, 'px'), back('offset')) : null,
-      shown('minSize') ? row('Min. size', F.number(() => same('minSize'), (v) => put('minSize', v), 'Minimum size (px)', { max: 200, placeholder: 'mixed', bad: 'pixels from 0 to 200',
+      shown('minSize') ? row('Min. size', F.number(() => same('minSize'), (v) => put('minSize', v), 'Minimum size (px)', { max: MAX_MIN_SIZE, placeholder: 'mixed', bad: `pixels from 0 to ${MAX_MIN_SIZE}`,
         title: 'Shapes shorter than this on screen are drawn enlarged, their outline dotted (0: always real size; a vehicle: twice the drawing\'s)' }), h('span', { class: 'funit' }, 'px'), back('minSize')) : null,
       ...extra);
   }
@@ -445,15 +448,11 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     const gs = ids.map((id) => find(doc, id)?.el.groupId ?? null), same = gs.every((g) => g === gs[0]) ? gs[0] : undefined;
     const fits = doc.groups.filter((g) => ids.every((id) => canHold(doc, g.id, id)));
-    return row('Group', h('select', { 'aria-label': 'Group', onchange: (e) => {
-      const gid = e.target.value || null;
+    return row('Group', select('Group', [['', 'none'], ...fits.map((g) => [g.id, groupPath(g)]), ['+', 'New group…']], same === undefined ? null : same ?? '', (v) => {
+      const gid = v || null;
       if (gid === '+') { let g; drawing.change((d) => { g = makeGroup(d, ids); }); drawing.select([g.id]); return; }
       drawing.change((d) => { for (const id of ids) setGroup(d, id, gid); });
-    } },
-    same === undefined ? h('option', { value: '', selected: true, disabled: true }, 'mixed') : null,
-    h('option', { value: '', selected: same === null }, 'none'),
-    fits.map((g) => h('option', { value: g.id, selected: same === g.id }, groupPath(g))),
-    h('option', { value: '+' }, 'New group…')));
+    }));
   }
 
   // its data, near the foot: its properties, keys and values of the user's own (a description, a
@@ -473,7 +472,7 @@ export function drawView(root, ctx) {
     const addKey = field(() => '', (t) => (t.trim() ? t : undefined), (v) => { dataOpen.add(id); put((ps) => ps.push({ key: v, value: '' })); }, { 'aria-label': 'Add a key', placeholder: 'add a key…', bad: 'a key cannot be empty' });
     return h('div', { class: 'fblock' },
       h('h3', {}, toggle, h('span', { class: 'hbtns' },
-        matchMedia('(pointer: coarse)').matches ? h('button', { type: 'button', class: 'small', title: 'A property: a key and a value', onclick: () => { dataOpen.add(id); put((p) => p.push({ key: 'key', value: '' })); } }, '+') : null,
+        FINGER ? h('button', { type: 'button', class: 'small', title: 'A property: a key and a value', onclick: () => { dataOpen.add(id); put((p) => p.push({ key: 'key', value: '' })); } }, '+') : null,
         open && el.properties.length ? copyBtn(() => [['Key', 'Value'], now(id).properties.map((p) => [p.key, p.value])]) : null)),
       !open && preset ? h('p', { class: 'note' }, `from preset ${preset.value}`) : null,
       open ? listGrid({ name: `${id}:data`,
@@ -499,10 +498,9 @@ export function drawView(root, ctx) {
     const el = now(id);
     // Guide (supporting geometry: faint, out of the totals): a measurement is a guide showing its
     // values; unticking Guide makes it part of the drawing
-    const flags = ['point', 'line', 'area'].includes(kind) ? [
-      h('label', { class: 'fcheck', title: 'Supporting geometry: drawn faint and dashed, left out of the totals' }, h('input', { type: 'checkbox', checked: el.guide, onchange: (e) => set(id, (x) => { x.guide = e.target.checked; }) }), 'Guide')] : [];
+    const flags = ['point', 'line', 'area'].includes(kind) ? [check('Guide', el.guide, (v) => set(id, (x) => { x.guide = v; }), { title: 'Supporting geometry: drawn faint and dashed, left out of the totals' })] : [];
     return [dataBlock(id), h('div', { class: 'frow fend' }, ...flags,
-      h('label', { class: 'fcheck' }, h('input', { type: 'checkbox', checked: el.visible, onchange: (e) => set(id, (x) => { x.visible = e.target.checked; }) }), 'Visible'),
+      check('Visible', el.visible, (v) => set(id, (x) => { x.visible = v; })),
       h('button', { type: 'button', class: 'danger', onclick: () => del([id]) }, `Delete ${kindTitle(kind, el).toLowerCase()}`))];
   };
 
@@ -513,16 +511,14 @@ export function drawView(root, ctx) {
     const el = now(id), u = ctx.units();
     const fits = (m) => drawable(now(id), m);
     const at = (i, fn) => drawing.change((d) => { fn(find(d, id).el.parts[i]); reattach(d, id); }); // part i as it is now; what points at its corners stays where it was
-    const pointStroke = styleOf(drawing.doc, 'point', el).stroke.color;
+    const pointStroke = styleOf(drawing.doc, el).stroke.color;
     // a part as another kind, its reach kept: a round one's radius, an outline's half length
     const asKind = (part, kind) => {
       const reach = part.radius ?? part.length / 2;
       const next = makePart(kind, ROUND.includes(kind) ? { radius: reach, aperture: part.aperture } : { length: 2 * reach, width: part.width ?? reach });
       return { ...next, fill: part.fill, shown: part.shown, name: part.name, strokeColor: part.strokeColor, strokeDash: part.strokeDash };
     };
-    const coarse = matchMedia('(pointer: coarse)').matches;
-    const adder = (aria, text) => h('select', { 'aria-label': aria, title: 'A circle, a sector or an outline about the point, to scale', onchange: (e) => { const k = e.target.value; if (k) set(id, (x) => addPart(x, k)); } },
-      h('option', { value: '', selected: true }, text), PART_KINDS.map((k) => h('option', { value: k }, PART_NAME[k])));
+    const adder = (aria, text) => select(aria, [['', text], ...PART_KINDS.map((k) => [k, PART_NAME[k]])], '', (k) => { if (k) set(id, (x) => addPart(x, k)); }, { title: 'A circle, a sector or an outline about the point, to scale' });
     const strokeOf = (part, i) => {
       const own = part.strokeColor || part.strokeDash;
       const swatch = h('span', { class: 'swatch' });
@@ -536,19 +532,17 @@ export function drawView(root, ctx) {
           h('label', {}, 'Colour ', h('input', { type: 'color', value: part.strokeColor || pointStroke,
             oninput: (e) => drawing.preview((d) => { find(d, id).el.parts[i].strokeColor = e.target.value; }), // seen as it is picked
             onchange: (e) => at(i, (y) => { y.strokeColor = e.target.value; }) })),
-          h('label', {}, 'Dash ', h('select', { onchange: (e) => at(i, (y) => { y.strokeDash = e.target.value || null; }) },
-            h('option', { value: '', selected: !part.strokeDash }, 'as the point'), DASHES.map((d) => h('option', { value: d, selected: d === part.strokeDash }, d)))),
+          h('label', {}, 'Dash ', select(`Part ${i + 1} dash`, [['', 'as the point'], ...DASHES.map((d) => [d, d])], part.strokeDash ?? '', (v) => at(i, (y) => { y.strokeDash = v || null; }))),
           h('button', { type: 'button', class: 'small', onclick: () => at(i, (y) => { y.strokeColor = null; y.strokeDash = null; }) }, 'Use the point\'s')));
     };
-    const box = (i, key, aria) => h('label', { class: 'fcheck' }, h('input', { type: 'checkbox', checked: el.parts[i][key], 'aria-label': `Part ${i + 1} ${aria}`, onchange: (e) => at(i, (y) => { y[key] = e.target.checked; }) }));
+    const box = (i, key, aria) => check('', el.parts[i][key], (v) => at(i, (y) => { y[key] = v; }), { 'aria-label': `Part ${i + 1} ${aria}` });
     const dist = (i, key, aria) => distField(() => now(id).parts[i][key], (m) => at(i, (y) => { y[key] = m; }), aria, (m) => (m >= MAX_RADIUS || (key === 'radius' && !fits(m)) ? 'too large' : null));
     // its size, a pair: a round part's radius (a sector's aperture beside it), an outline's length × width
     const size = (part, i) => (part.radius
       ? (part.kind === 'sector' ? pair(dist(i, 'radius', `Part ${i + 1} radius`), '·', angleField(() => now(id).parts[i].aperture, (v) => at(i, (y) => { y.aperture = v; }), `Part ${i + 1} aperture (degrees): centred on the bearing`, 0, 360, false)) : dist(i, 'radius', `Part ${i + 1} radius`))
       : Object.assign(pair(dist(i, 'length', `Part ${i + 1} length`), '×', dist(i, 'width', `Part ${i + 1} ${WIDTH_NAME[part.kind] || 'width'}`)),
         { title: `Its area: ${fmtArea(areaOf(outlineOf(el.position, el.bearing, part.length, part.width, part.kind).ring), u)}` }));
-    const kind = (part, i) => h('select', { 'aria-label': `Part ${i + 1} kind`, onchange: (e) => drawing.change((d) => { const x = find(d, id).el; x.parts[i] = asKind(x.parts[i], e.target.value); reattach(d, id); }) },
-      PART_KINDS.map((k) => h('option', { value: k, selected: k === part.kind }, PART_NAME[k])));
+    const kind = (part, i) => select(`Part ${i + 1} kind`, PART_KINDS.map((k) => [k, PART_NAME[k]]), part.kind, (v) => drawing.change((d) => { const x = find(d, id).el; x.parts[i] = asKind(x.parts[i], v); reattach(d, id); }));
     const removeAt = (i) => drawing.change((d) => { removePart(find(d, id).el, i); reattach(d, id); });
     const table = listGrid({ name: `${id}:parts`,
       columns: [{ head: '', width: 22, frozen: true, cls: 'num' }, { head: 'Kind', width: 108, frozen: true }, { head: 'Size', width: 176, title: 'A radius (a sector: and its aperture), or a length × a width' },
@@ -561,7 +555,7 @@ export function drawView(root, ctx) {
       keys: { remove: removeAt } });
     const far = el.parts.find((part) => part.radius && !fits(part.radius));
     return h('div', { class: 'fblock' },
-      h('h3', {}, `Parts (${el.parts.length})`, h('span', { class: 'hbtns' }, coarse ? adder('Add a part (heading)', '+') : null, copyBtn(() => [['#', 'Kind', 'Radius m', 'Aperture °', 'Length m', 'Width m', 'Fill', 'Shown', 'Name'],
+      h('h3', {}, `Parts (${el.parts.length})`, h('span', { class: 'hbtns' }, FINGER ? adder('Add a part (heading)', '+') : null, copyBtn(() => [['#', 'Kind', 'Radius m', 'Aperture °', 'Length m', 'Width m', 'Fill', 'Shown', 'Name'],
         now(id).parts.map((q, i) => [i + 1, q.kind, q.radius ?? '', q.aperture ?? '', q.length ?? '', q.width ?? '', q.fill ? 'yes' : 'no', q.shown ? 'yes' : 'no', q.name])]))),
       table,
       far ? h('p', { class: 'note warn' }, `Not drawn: a circle of ${fmtDist(far.radius, u)} there reaches a pole.`) : null,
@@ -893,8 +887,6 @@ export function drawView(root, ctx) {
     for (const x of xs) counts[x.kind] = (counts[x.kind] || 0) + 1;
     const vis = xs.every((x) => x.el.visible) ? true : xs.every((x) => !x.el.visible) ? false : null;
     const ids = xs.map((x) => x.el.id), members = ids;
-    const box = h('input', { type: 'checkbox', checked: vis === true, onchange: (e) => drawing.change((doc) => { for (const id of ids) find(doc, id).el.visible = e.target.checked; }) });
-    box.indeterminate = vis === null;
     const pointIds = xs.filter((x) => x.kind === 'point').map((x) => x.el.id);
     const makeG = () => { let g; drawing.change((doc) => { g = makeGroup(doc, members); }); drawing.select([g.id]); };
     // two points: how far apart, and the bearing from the first to the second
@@ -910,7 +902,7 @@ export function drawView(root, ctx) {
     groupRow(members),
     xs.some((x) => x.kind === 'label') ? leaderRow(xs.filter((x) => x.kind === 'label')) : null,
     lookBlock(xs),
-    h('div', { class: 'frow fend' }, h('label', { class: 'fcheck' }, box, 'Visible'),
+    h('div', { class: 'frow fend' }, check('Visible', vis, (v) => drawing.change((doc) => { for (const id of ids) find(doc, id).el.visible = v; })),
       h('button', { type: 'button', class: 'danger', onclick: () => del(ids) }, 'Delete all'))];
   }
 
@@ -1078,26 +1070,20 @@ export function drawView(root, ctx) {
     return [h('div', { class: 'fhead' }, h('h2', {}, editing ? 'Edit, distributed along ' : 'Distribute along ', label(along.kind, along.el))),
       h('p', { class: 'note' }, arc ? `Copies round one of its parts, clockwise (${closed ? 'the whole of it, a circle from its bearing' : 'a sector\'s arc, from one end to the other'}); they follow it when it moves, turns or changes (one moved by hand stops following).`
         : 'Copies along this line, which they then follow when it is edited (one moved by hand stops following).'),
-      arc && along.el.parts.length > 1 ? row('Part', h('select', { 'aria-label': 'Part', onchange: (e) => { arr.part = +e.target.value; redo(); } },
-        along.el.parts.map((part, i) => h('option', { value: i, selected: i === (arr.part ?? followedPart(along.el)) }, `${i + 1} · ${PART_NAME[part.kind]}${part.name ? ` ${part.name}` : ''}`)))) : null,
+      arc && along.el.parts.length > 1 ? row('Part', select('Part', along.el.parts.map((part, i) => [i, `${i + 1} · ${PART_NAME[part.kind]}${part.name ? ` ${part.name}` : ''}`]), arr.part ?? followedPart(along.el), (v) => { arr.part = +v; redo(); })) : null,
       row('By', pair(segOf('Points by', [['spacing', 'Spacing'], ['count', 'Count']], arr.by, (v) => { arr.by = v; redo(); }), '',
         arr.by === 'spacing' ? dist('spacing', 'Spacing', false) : F.number(() => arr.count, (v) => { arr.count = v; redo(); }, 'Count', { whole: true, above: true, max: MAX_COPIES }))),
       arrayCapped() ? h('p', { class: 'note warn' }, `At most ${MAX_COPIES.toLocaleString('en')} copies: the spacing would give more`) : null,
       closed ? null : row('Margins', pair(dist('startMargin', 'Start margin', true), '·', dist('endMargin', 'End margin', true))),
-      row('Offset', pair(dist('offset', 'Offset', true), '', h('select', { 'aria-label': 'Side', onchange: (e) => { arr.side = e.target.value; redo(); } },
-        [['left', arc ? 'Out' : 'Left'], ['right', arc ? 'In' : 'Right'], ['alternate', 'Alternate']].map(([v, t]) => h('option', { value: v, selected: arr.side === v }, t))))),
-      row('Copy', h('select', { 'aria-label': 'Copy', title: 'What each copy is: a built-in kind, or a preset of yours', onchange: (e) => choose(e.target.value) },
-        Object.keys(BUILT_IN).map((k) => h('option', { value: k, selected: arr.preset === k }, builtInName(k))),
-        mine.map((x) => h('option', { value: `preset:${x.name}`, selected: arr.preset === `preset:${x.name}` }, x.name)))),
+      row('Offset', pair(dist('offset', 'Offset', true), '', select('Side', [['left', arc ? 'Out' : 'Left'], ['right', arc ? 'In' : 'Right'], ['alternate', 'Alternate']], arr.side, (v) => { arr.side = v; redo(); }))),
+      row('Copy', select('Copy', [...Object.keys(BUILT_IN).map((k) => [k, builtInName(k)]), ...mine.map((x) => [`preset:${x.name}`, x.name])], arr.preset, choose, { title: 'What each copy is: a built-in kind, or a preset of yours' })),
       arr.copy ? row('Radius', h('span', { class: 'fvalue', title: 'The preset\'s own size' }, fmtDist(reach, ctx.units())))
         : row('Radius', F.dist(() => arr.radius, (m) => { arr.radius = m; redo(); }, 'Radius', { check: (m) => (m >= MAX_RADIUS ? 'too large' : null), title: arr.preset === 'circle' ? 'Each circle\'s, whatever the spacing' : 'Its largest part\'s reach, whatever the spacing' })),
       arr.preset === 'circle' ? row('Sector', segOf('Sector', [[null, 'None', 'circles'], ...[90, 180, 270].map((a) => [a, `${a}°`, arc ? 'facing outwards' : 'facing away from the line'])], arr.aperture, (v) => { arr.aperture = v; redo(); })) : null,
-      editing ? null : row('In group', h('select', { 'aria-label': 'Group', title: 'Where its own group goes', onchange: (e) => { arr.groupId = e.target.value || null; } },
-        h('option', { value: '', selected: !arr.groupId }, 'none (at the top)'), doc.groups.map((g) => h('option', { value: g.id, selected: arr.groupId === g.id }, groupPath(g))))),
+      editing ? null : row('In group', select('Group', [['', 'none (at the top)'], ...doc.groups.map((g) => [g.id, groupPath(g)])], arr.groupId ?? '', (v) => { arr.groupId = v || null; }, { title: 'Where its own group goes' })),
       h('p', { class: 'note fsummary' }, points.length ? `${copies(points.length)}.` : `No copy fits: ${arc ? 'the part' : 'the line'} is shorter than the margins, or the spacing too long.`),
       differs ? h('p', { class: 'note warn' }, `Another number of points (${editing.points.length} now): they are made anew${was ? ', and connected again' : ''}. Changes made to those by hand are lost; Undo brings them back.`) : null,
-      h('div', { class: 'fblock' }, h('h3', {}, h('label', { class: 'fcheck', title: 'Straight lines from roots to the points, attached to them: Tree, through a hub (which then follows its points); Chain, point to point. The points are cut into groups along the line, each to the root it is cheapest from.' },
-        h('input', { type: 'checkbox', checked: arr.connect, onchange: (e) => { arr.connect = e.target.checked; redo(); } }), 'Connect to roots')),
+      h('div', { class: 'fblock' }, h('h3', {}, check('Connect to roots', arr.connect, (v) => { arr.connect = v; redo(); }, { title: 'Straight lines from roots to the points, attached to them: Tree, through a hub (which then follows its points); Chain, point to point. The points are cut into groups along the line, each to the root it is cheapest from.' })),
       arr.connect ? connectRows(c) : null,
       was && arr.connect && !sameConnection(was) ? h('p', { class: 'note warn' }, 'Its lines and hubs are made again. Changes made to those by hand are lost; Undo brings them back.') : null,
       was && !arr.connect ? h('p', { class: 'note warn' }, 'Its lines and hubs go (its roots stay).') : null),
@@ -1149,8 +1135,7 @@ export function drawView(root, ctx) {
     const groupName = (gid) => (gid ? groupPath(drawing.doc.groups.find((g) => g.id === gid)) : 'Not grouped');
     const keys = [...new Set(elements(drawing.doc).flatMap((x) => x.el.properties.map((p) => p.key)))].sort((a, b) => a.localeCompare(b));
     if (totalsBy && !keys.includes(totalsBy)) { totalsBy = ''; computeFacts(); } // its key gone
-    const by = h('select', { 'aria-label': 'Totals by', onchange: (e) => { totalsBy = e.target.value; computeFacts(); renderInspector(); } },
-      h('option', { value: '', selected: !totalsBy }, 'group'), keys.map((k) => h('option', { value: k, selected: totalsBy === k }, k)));
+    const by = select('Totals by', [['', 'group'], ...keys.map((k) => [k, k])], totalsBy || '', (v) => { totalsBy = v; computeFacts(); renderInspector(); });
     const rows = totalsBy ? [...fx().totals.values].sort(([a], [b]) => (!a) - (!b) || a.localeCompare(b)).map(([v, b]) => [v ? `“${v}”` : `No ${totalsBy}`, b])
       : t.groups.size > 1 ? [...t.groups].map(([gid, b]) => [groupName(gid), b]) : [];
     const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look.offset != null); // where Offset is set on an element or a group
@@ -1159,7 +1144,7 @@ export function drawView(root, ctx) {
       drawingsBlock(),
       lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'offset', 'minSize'], 'Display', [
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
-        row('Bearings', h('label', { class: 'fcheck', title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }, h('input', { type: 'checkbox', checked: ctx.display.bearings, onchange: (e) => ctx.setDisplay({ bearings: e.target.checked }) }), 'beside lengths'))]),
+        row('Bearings', check('beside lengths', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }))]),
       n ? h('div', { class: 'fblock' }, h('h3', {}, 'Totals'),
         keys.length ? row('By', by) : null,
         h('table', { class: 'vtable totals' }, h('tbody', {},
@@ -1215,8 +1200,6 @@ export function drawView(root, ctx) {
     drawing.saving.add();
     note('New drawing');
   }
-  const dialog = h('dialog', { class: 'dreport', 'aria-labelledby': 'dreport-title' });
-  document.body.append(dialog);
   async function importFile(f) {
     const text = await f.text(), presets = readPresets(text);
     // a file of presets: added to the user's (one of the same name replaced)
@@ -1234,17 +1217,17 @@ export function drawView(root, ctx) {
     const measured = doc ? elements(doc).filter((x) => isMeasurement(doc, x.el)).length : 0;
     if (measured) counts.push(plural(measured, 'measurement'));
     const replaced = doc?.view ? ['its view and layers'] : [];
-    dialog.replaceChildren(...[
-      h('h2', { id: 'dreport-title' }, doc ? `Import ${f.name}` : 'Not imported'),
+    askDialog.replaceChildren(...[
+      h('h2', { id: 'dask-title' }, doc ? `Import ${f.name}` : 'Not imported'),
       doc ? h('p', {}, counts.length ? `It holds ${counts.join(', ')}.` : 'It holds no elements.', replaced.length ? ` ${replaced.join(' and ').replace(/^i/, 'I')} will replace the current ones.` : '') : h('p', {}, report.refused),
       report.skipped.length ? [h('h3', {}, `Skipped (${report.skipped.length})`), list(report.skipped.map((s) => `${s.kind}${s.id ? ` ${s.id}` : ''}: ${s.reason}`))] : null,
       report.warnings.length ? [h('h3', {}, `Warnings (${report.warnings.length})`), list(report.warnings)] : null,
       h('div', { class: 'fbuttons' },
-        doc ? h('button', { type: 'button', class: 'done', onclick: () => { dialog.close(); ctx.onImport(doc, report); } }, 'Import') : null,
-        h('button', { type: 'button', onclick: () => dialog.close() }, doc ? 'Cancel' : 'Close')),
+        doc ? h('button', { type: 'button', class: 'done', onclick: () => { askDialog.close(); ctx.onImport(doc, report); } }, 'Import') : null,
+        h('button', { type: 'button', onclick: () => askDialog.close() }, doc ? 'Cancel' : 'Close')),
       doc ? h('p', { class: 'note' }, 'It is added to the drawings in this browser and opened; this one stays in the list.') : null,
     ].flat().filter(Boolean));
-    dialog.showModal();
+    askDialog.showModal();
   }
 
   // ---- the divider between list and inspector ----------------------------------------------------
@@ -1271,8 +1254,8 @@ export function drawView(root, ctx) {
   // ---- keys, while the Tools panel is open -----------------------------------------------------
   window.addEventListener('keydown', (e) => {
     // while the Tools panel is open
-    if (!ctx.isOpen() || dialog.open || document.querySelector('dialog[open]')) return;
-    const typing = e.target.closest('input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]), select, textarea'); // a box ticked is no typing: the keys stay the drawing's
+    if (!ctx.isOpen() || document.querySelector('dialog[open]')) return;
+    const typing = typingIn(e.target); // a box ticked is no typing: the keys stay the drawing's
     const mod = e.ctrlKey || e.metaKey;
     if (mod && !e.altKey && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
       if (typing) return; // the field's own undo
@@ -1345,6 +1328,7 @@ export function drawView(root, ctx) {
       else renderList();
       renderInspector();
       if (form && what === 'doc') formPreview(); // the form's preview follows the drawing (an undo, its line edited)
+      if (what === 'doc') for (const id of profiles.keys()) if (!find(drawing.doc, id)) { profiles.delete(id); profileShown.delete(id); } // a line gone: its profile too
       if (what === 'sel' && drawing.sel.size) list.querySelector(`[data-id="${CSS.escape([...drawing.sel].at(-1))}"]`)?.scrollIntoView({ block: 'nearest' });
       renderTools();
     },

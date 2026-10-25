@@ -10,9 +10,9 @@
 import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET,
   emptyDoc, newId } from './document.js';
 import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, handle, ownStyle, look, parts, readView } from './check.js';
-import { anchorAt } from './labels.js';
+import { resolve as anchorAt } from './attach.js';
 import { targetPosition } from './attach.js';
-import { columnsOf } from './features.js';
+import { columnsOf } from './document.js';
 
 const SIDES = ['left', 'right', 'alternate'];
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
@@ -232,7 +232,7 @@ function refIn(v) {
 // each kind's reader: (coordinates, properties, the app's own, the element so far, ctx, state) → element
 const READ = {
   point(coords, props, mine, x, c, { foreign }) {
-    const p = { ...x, position: coord(coords, c, 'position'), bearing: mine.bearing === undefined ? 0 : angle(mine.bearing, c, 'bearing', false) };
+    const p = { ...x, position: coord(coords, c, 'position'), bearing: mine.bearing === undefined ? 0 : angle(mine.bearing, c, 'bearing') };
     p.parts = parts(mine.parts, c);
     const dflt = foreign ? 'diamond' : 'none'; // a point from another tool: a diamond, to be seen
     p.symbol = SYMBOLS.includes(mine.symbol) ? mine.symbol : (mine.symbol !== undefined && c.warn(`unknown symbol "${String(mine.symbol).slice(0, 20)}", default used`), dflt);

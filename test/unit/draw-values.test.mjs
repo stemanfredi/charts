@@ -1,9 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
 // on the page GeographicLib is a classic script on window; here the same pinned package
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 const { fmtDist, inverse, areaOf, pathOf } = await import('../../site/geodesy.js');
 const { emptyDoc, addLine, addArea, addPoint, makePart, isMeasurement } = await import('../../site/draw/document.js');
 const { valueFeatures } = await import('../../site/draw/features.js');

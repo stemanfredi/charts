@@ -31,7 +31,7 @@ function takeFocus(name, from) {
 // paste(row, text) rather than into the cell) }]; rows: [{ cells: [node], cls, sub (a node on a row of its own
 // under it, across the columns past the frozen ones) }]; add: the cells of the empty last row (typing
 // in it adds one), or null; actions(i): { label, buttons } for row i, or null; keys: { insert(i),
-// remove(i) }; extra: nodes after the bar.
+// remove(i) }.
 export function listGrid({ name, columns, rows, add = null, actions = () => null, keys = {}, paste = null }) {
   const st = stateOf(name);
   if (st.current != null && st.current >= rows.length) st.current = null;

@@ -23,14 +23,13 @@
 import { inverse, destination, localFrame as frame } from '../geodesy.js';
 import { norm360 } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
-import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label } from './document.js';
+import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label, remove } from './document.js';
 import { outlineOf } from './outlines.js';
 import { BUILT_IN, scaled } from './place.js';
 
 // a drawing's rules of each kind
 export const distributions = (doc) => doc.rules.filter((r) => r.kind === 'distribute');
 export const connections = (doc) => doc.rules.filter((r) => r.kind === 'connect');
-import { removeKeepingLabels } from './labels.js';
 
 // ---- placing points along a line ---------------------------------------------------------------------
 
@@ -308,7 +307,7 @@ export function editDistribution(doc, id, params) {
   }
   const old = new Set(a.points.map((x) => x.pointId));
   const built = connections(doc).filter((c) => c.pointIds.some((n) => old.has(n))).map((c) => unconnect(doc, c.id, true));
-  removeKeepingLabels(doc, [...old].filter((n) => byId.has(n)));
+  remove(doc, [...old].filter((n) => byId.has(n)));
   place(doc, a, points);
   const made = a.points.map((x) => x.pointId);
   for (const c of built) connect(doc, { ...c, pointIds: [...c.pointIds.filter((n) => !old.has(n)), ...made] });
@@ -384,7 +383,7 @@ export function unconnect(doc, id, keepGroup = false) {
   if (!c) return null;
   const keep = new Set([...c.roots.map((r) => r.id), ...c.pointIds]);
   const live = new Set([...doc.points, ...doc.lines].map((x) => x.id));
-  removeKeepingLabels(doc, c.created.filter((x) => !keep.has(x) && live.has(x)));
+  remove(doc, c.created.filter((x) => !keep.has(x) && live.has(x)));
   doc.rules = doc.rules.filter((x) => x !== c);
   if (!keepGroup && !doc.groups.some((g) => g.groupId === c.groupId) && ![...doc.points, ...doc.lines, ...doc.areas, ...doc.labels].some((x) => x.groupId === c.groupId)) {
     doc.groups = doc.groups.filter((g) => g.id !== c.groupId);

@@ -9,12 +9,11 @@ import { inverse, destination } from '../geodesy.js';
 import { nearestOnSegment } from '../geo.js';
 import { verticesOf } from './attach.js';
 import { anchorsOf, lineTrace } from './lines.js';
-import { isShown } from './document.js';
+import { isShown, KIND } from './document.js';
 
 export const RADIUS = 6; // px
 export const STEP = 15; // degrees: Shift's steps
 
-const KINDS = { point: 'points', line: 'lines', area: 'areas' };
 // where the screen segments a–b and c–d cross, strictly inside both, or null
 function crossing(a, b, c, d) {
   const den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0]);
@@ -42,8 +41,8 @@ export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius =
     const A = px(a), B = px(b), n = nearestOnSegment(A, B, p);
     if (n.d <= radius) edges.push({ d: n.d, A, B, q: n.q, t: n.t, to, id });
   };
-  for (const kind of Object.keys(KINDS)) {
-    for (const el of doc[KINDS[kind]]) {
+  for (const kind of ['point', 'line', 'area']) { // what has positions to snap to
+    for (const el of doc[KIND[kind].list]) {
       if (!want(el)) continue;
       if (kind === 'point') vertex(el.position, { element: el.id });
       // the corners and sides of an area, of each of a point's shown outline parts (named by its place)

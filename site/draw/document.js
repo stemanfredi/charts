@@ -21,6 +21,8 @@ export { MAX_LAT }; // the map's limit
 // 0 turns it off. The drawing's value, unless a shape has its own.
 export const MIN_DISPLAY_SIZE = 12;
 export const MAX_OFFSET = 50; // px: Offset's reach either side of a line
+export const MAX_MIN_SIZE = 200; // px: the largest minimum display size
+export const STROKE_WIDTH = [0.5, 20]; // px: a stroke's width, least and most
 export const DEFAULT_STYLE = Object.freeze({
   fill: Object.freeze({ color: '#e8590c', opacity: 0.15 }),
   stroke: Object.freeze({ color: '#e8590c', opacity: 1, width: 1.5, dash: 'solid' }),
@@ -131,10 +133,11 @@ export function label(kind, el) {
   const at = placeOf(kind, el);
   return at ? `${KIND[kind].name} · ${at[1].toFixed(4)}, ${at[0].toFixed(4)}` : `${KIND[kind].name} ${el.id}`;
 }
-// "Point 4": the next free number among the kind's names (base: another word than the kind's)
+// "Point 4": the next free number among the kind's names (base: another word than the kind's); a bare
+// "Base" counts as 1
 export function nextName(doc, kind, base = KIND[kind].name) {
-  const re = new RegExp(`^${base} (\\d+)$`);
-  const used = doc[LIST[kind]].map((e) => re.exec(e.name)).filter(Boolean).map((m) => +m[1]);
+  const re = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: (\\d+))?$`);
+  const used = doc[LIST[kind]].map((e) => re.exec(e.name)).filter(Boolean).map((m) => (m[1] ? +m[1] : 1));
   return `${base} ${used.length ? Math.max(...used) + 1 : 1}`;
 }
 // What kind of point it is, for its name and icon: its largest outline's kind; else, by its round
@@ -169,22 +172,22 @@ function layered(looks) {
 // The look an element (or a group; or the drawing, kind 'drawing': its defaults) is drawn with, every field: its own, else its group's, else that
 // group's group's, and so on, else a guide's (faint, dashed) or a measurement's (a guide showing its
 // values: as while it is measured), else the drawing's, else the defaults.
-export function lookOf(doc, kind, el) {
+export function lookOf(doc, el) {
   const own = [...groupsOf(doc, el).reverse(), el].map((x) => x.look), under = [DEFAULT_LOOK, doc.look];
-  const role = !['point', 'line', 'area'].includes(kind) || !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE;
+  const role = !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE; // only points, lines and areas are guides
   return layered([...under, role, ...own]);
 }
 // its fill and stroke
-export const styleOf = (doc, kind, el) => { const l = lookOf(doc, kind, el); return { fill: l.fill, stroke: l.stroke }; };
+export const styleOf = (doc, el) => { const l = lookOf(doc, el); return { fill: l.fill, stroke: l.stroke }; };
 // a measurement: a guide showing its values (what Measure's tools make)
-export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, 'point', el).text.values;
+export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.values;
 // a label's colour: its own (or its groups'), else its group's stroke colour, else the default
 export function labelColour(doc, a) {
   const g = groupOf(doc, a);
-  return lookOf(doc, 'label', a).text.color ?? (g ? styleOf(doc, 'group', g).stroke.color : LABEL_STYLE.color);
+  return lookOf(doc, a).text.color ?? (g ? styleOf(doc, g).stroke.color : LABEL_STYLE.color);
 }
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
-export const offsetOf = (doc, el) => lookOf(doc, 'line', el).offset;
+export const offsetOf = (doc, el) => lookOf(doc, el).offset;
 // A point's minimum display size: { px, own } (own: set on it or a group it is in, not the drawing's,
 // so a vehicle does not double it)
 export function minSizeOf(doc, p) {
@@ -269,17 +272,17 @@ export function addLabel(doc, anchor) {
 
 // What deleting the elements ids takes with it: everything in a group, when withMembers (otherwise
 // its members and subgroups go to the group above it). Lines attached to a point deleted stay, their
-// ends free where they were. { all }.
+// ends free where they were; labels on it too. A Set of IDs.
 export function dependents(doc, ids, withMembers = false) {
   const all = new Set(ids);
   if (withMembers) for (const { el } of elements(doc)) if (groupsOf(doc, el).some((g) => all.has(g.id))) all.add(el.id);
-  return { all };
+  return all;
 }
 // Delete ids and what goes with them (dependents); the members and subgroups of a deleted group go to
 // the group above it (or none), unless withMembers, keeping their look. Ends attached to what goes
-// become free.
+// become free, as do labels pointing at it (where they pointed).
 export function remove(doc, ids, withMembers = false) {
-  const { all } = dependents(doc, ids, withMembers);
+  const all = dependents(doc, ids, withMembers);
   // where each one staying in a deleted group goes, and the look it keeps, read while the group is
   // still there
   const moves = [];
@@ -292,7 +295,9 @@ export function remove(doc, ids, withMembers = false) {
     m.el.groupId = m.groupId;
     keepLook(doc, m.kind, m.el, m.before);
   }
-  for (const s of doc.lines) for (const key of ['start', 'end']) if (s[key].element && all.has(s[key].element)) s[key] = { position: [...s[key].position], element: null };
+  const freed = (r) => ({ position: [...r.position], element: null });
+  for (const s of doc.lines) for (const key of ['start', 'end']) if (s[key].element && all.has(s[key].element)) s[key] = freed(s[key]);
+  for (const a of doc.labels) if (a.anchor.element && all.has(a.anchor.element)) a.anchor = freed(a.anchor);
   return all;
 }
 
@@ -341,7 +346,7 @@ export function makeGroup(doc, ids) {
   const g = { ...base(doc, 'group', idsOf(doc)), groupId: parent?.id ?? null };
   doc.groups.push(g);
   if (model) { // what the model is drawn with that the group would not be
-    const want = styleOf(doc, 'point', model.el), has = styleOf(doc, 'group', g);
+    const want = styleOf(doc, model.el), has = styleOf(doc, g);
     for (const f of STYLE_FIELDS) if (lookField(want, f) !== lookField(has, f)) setLook(g, f, lookField(want, f));
   }
   for (const x of xs) setGroup(doc, x.el.id, g.id);
@@ -360,7 +365,7 @@ export const LOOK_FIELDS = {
 };
 // what an element is drawn with now (a label's colour as drawn)
 function lookNow(doc, kind, el) {
-  const l = lookOf(doc, kind, el);
+  const l = lookOf(doc, el);
   return kind === 'label' ? { ...l, text: { ...l.text, color: labelColour(doc, el) } } : l;
 }
 // After a move, an element keeps its look: each field it is no longer given as it was becomes its own
@@ -381,4 +386,24 @@ export function setGroup(doc, id, gid) {
   x.el.groupId = gid;
   if (gid) for (const f of GIVEN) setLook(x.el, f, undefined);
   else keepLook(doc, x.kind, x.el, before);
+}
+
+// ---- the user's properties as columns -----------------------------------------------------------------
+
+// keys the GIS export uses itself: a property so keyed is written p_<key>
+export const RESERVED = ['kind', 'id', 'name', 'outline', 'group', 'guide', 'text', 'anchor', 'along_m', 'length_m', 'width_m', 'radius_m', 'area_m2', 'perimeter_m', 'bearing_deg', 'aperture_deg', 'part_name', 'filled'];
+// the user's properties as columns, in their order: a key that collides with a field (reserved) gets
+// p_, a repeated key _2, _3…; changed: whether a key had to be changed
+// The user's properties ([{ key, value }]) as columns: one each, in order; a key the export uses (reserved)
+// prefixed p_, a repeated one numbered. { out, changed (a key had to be renamed) }
+export function columnsOf(props, reserved = RESERVED) {
+  const out = Object.create(null); // no prototype: a key named __proto__ is a column too
+  let changed = false;
+  for (const { key, value } of props) {
+    let k = reserved.includes(key) ? `p_${key}` : key;
+    if (Object.hasOwn(out, k)) { let i = 2; while (Object.hasOwn(out, `${k}_${i}`)) i++; k = `${k}_${i}`; } // hasOwn: a key named toString is a column like any other
+    if (k !== key) changed = true;
+    out[k] = value;
+  }
+  return { out, changed };
 }

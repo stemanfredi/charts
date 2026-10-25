@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 const { OUTLINES, OUTLINE_NAME, unitOutline, outlineOf, isVehicle } = await import('../../site/draw/outlines.js');
 const { OUTLINES: DOC_OUTLINES, makePart } = await import('../../site/draw/document.js');
 const { enlargement } = await import('../../site/draw/features.js');

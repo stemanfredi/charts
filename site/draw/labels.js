@@ -4,17 +4,14 @@
 // gives the projection (view.project, view.unproject) and the size of a text (view.measure). Pure
 // otherwise: no map, no DOM.
 
-import { isShown, label, labelColour, lookOf, remove, dependents, followedPart } from './document.js';
-import { resolve, verticesOf, freeRef } from './attach.js';
+import { isShown, label, labelColour, lookOf, followedPart } from './document.js';
+import { resolve, verticesOf } from './attach.js';
 import { fmtDist, fmtArea, fmtBrg, areaOf, pathOf, perimeterOf } from '../geodesy.js';
 
 export const SIZE_PX = { small: 11, medium: 13, large: 16 };
 const PAD = { halo: 3, box: 6 }; // px around the text a leader stops short of (a box's padding and border)
 
 
-// Where a label points (its anchor: a reference, attach.js): { position, element ({ kind, el } or
-// null), length (of its line), along, edge ({ length, bearing }) }, or null when it is gone.
-export const anchorAt = (doc, anchor) => resolve(doc, anchor);
 
 // The live values a label can show of what it points at, each as text, or undefined where it does not
 // apply: name; length (its line's, or the side it is on); along (from its line's start); bearing (of
@@ -22,7 +19,7 @@ export const anchorAt = (doc, anchor) => resolve(doc, anchor);
 // outline's).
 export const TOKENS = ['name', 'length', 'along', 'bearing', 'radius', 'area', 'perimeter'];
 export function labelValues(doc, anchor, units = 'km') {
-  const at = anchorAt(doc, anchor), x = at?.element;
+  const at = resolve(doc, anchor), x = at?.element;
   if (!x) return {};
   const ring = x.kind === 'area' || x.kind === 'point' ? verticesOf(x, anchor.part) : null; // a point's: its outline part (pointed at, else its largest)
   const round = x.kind === 'point' ? x.el.parts[followedPart(x.el)] : null; // its filled circle, else its first
@@ -63,10 +60,10 @@ export function labelFeatures(doc, view, sel = new Set(), hover = null, units = 
   const pt = (properties, coordinates) => out.push({ type: 'Feature', properties, geometry: { type: 'Point', coordinates } });
   for (const a of doc.labels) {
     if (!isShown(doc, a)) continue;
-    const at = anchorAt(doc, a.anchor);
+    const at = resolve(doc, a.anchor);
     if (!at || (at.element && !isShown(doc, at.element.el))) continue; // a hidden element's label is hidden with it
     const text = labelText(doc, a, units);
-    const lt = lookOf(doc, 'label', a).text, px = SIZE_PX[lt.size], c = labelColour(doc, a), mark = sel.has(a.id) ? 'sel' : hover === a.id ? 'hover' : '';
+    const lt = lookOf(doc, a).text, px = SIZE_PX[lt.size], c = labelColour(doc, a), mark = sel.has(a.id) ? 'sel' : hover === a.id ? 'hover' : '';
     const p = view.project(at.position), t = [p[0] + a.offset[0], p[1] + a.offset[1]];
     if (text.trim()) pt({ id: a.id, kind: 'label', text, px, c, box: lt.background === 'box' ? 1 : 0, mark }, view.unproject(t));
     if (a.leader !== 'none') {
@@ -82,11 +79,3 @@ export function labelFeatures(doc, view, sel = new Set(), hover = null, units = 
   return out;
 }
 
-// ---- keeping anchors as elements change ------------------------------------------------------
-
-// Delete ids (document.js remove) keeping the labels on what goes: each becomes free, where it pointed.
-export function removeKeepingLabels(doc, ids, withMembers = false) {
-  const { all } = dependents(doc, ids, withMembers);
-  for (const a of doc.labels) if (!all.has(a.id) && a.anchor.element && all.has(a.anchor.element)) a.anchor = freeRef(a.anchor);
-  return remove(doc, ids, withMembers);
-}

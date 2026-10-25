@@ -12,31 +12,19 @@
 //               coloured by its group (catalog.js DEPTH_SOURCES), a MapLibre tile handler
 //   tidAt       the code of the cell at a point (the depth on a click)
 import { openStore } from './zarr.js';
-import { latOf } from './geo.js';
-import { FETCH, memo } from './net.js';
+import { latOf, TILE } from './geo.js';
+import { memo, fetchBytes, lru } from './net.js';
 import { GEBCO, GEBCO_TID, DEPTH_SOURCES } from './catalog.js';
 
-const SIZE = 256, CELL = 15 / 3600, LEVELS = 7, KEEP = 96; // KEEP: chunks kept (512 kB each at most): a zoomed-out view's, and its neighbours'
+const SIZE = TILE, CELL = 15 / 3600, LEVELS = 7, KEEP = 96; // KEEP: chunks kept (512 kB each at most): a zoomed-out view's, and its neighbours'
 
 // the level for tiles of zoom z: the coarsest whose cells are no larger than the tile's pixels
-export const levelFor = (z) => Math.max(0, Math.min(LEVELS - 1, Math.floor(Math.log2(360 / (SIZE * 2 ** z) / CELL))));
+const levelFor = (z) => Math.max(0, Math.min(LEVELS - 1, Math.floor(Math.log2(360 / (SIZE * 2 ** z) / CELL))));
 
 const stores = Object.create(null);
-const store = (url) => memo(stores, url, () => openStore(url, async (u) => {
-  const r = await fetch(u, FETCH);
-  if (r.status === 404 || r.status === 403) return null; // a chunk not stored: the fill value
-  if (!r.ok) throw new Error(`GEBCO: HTTP ${r.status}`);
-  return new Uint8Array(await r.arrayBuffer());
-}));
+const store = (url) => memo(stores, url, () => openStore(url, fetchBytes)); // a chunk not stored: null, the fill value
 
-const chunks = new Map(); // `store level/row.col` → promise of the chunk's cells, the latest last
-function chunk(s, name, key, idx) {
-  if (chunks.has(key)) { const c = chunks.get(key); chunks.delete(key); chunks.set(key, c); return c; }
-  const c = s.chunk(name, idx).catch((e) => { chunks.delete(key); throw e; });
-  chunks.set(key, c);
-  if (chunks.size > KEEP) chunks.delete(chunks.keys().next().value);
-  return c;
-}
+const chunks = lru(KEEP); // `store level/row.col` → promise of the chunk's cells
 
 // a grid's values at the pixel centres of 256 px Web Mercator tile z/x/y, row-major, north up:
 // smoothly interpolated (a cubic B-spline), or each pixel its cell's own value (nearest: codes)
@@ -53,7 +41,7 @@ async function gridTile(url, variable, z, x, y, nearest) {
   const need = new Map(), chunkCols = new Set();
   for (let c = c0; c <= c1; c++) chunkCols.add(Math.floor(wrap(c) / CW)); // a tile spans a few hundred cells at most
   for (let cr = Math.floor(r0 / CH); cr <= Math.floor(r1 / CH); cr++) {
-    for (const cc of chunkCols) { const key = `${url} ${k}/${cr}.${cc}`; need.set(key, chunk(s, name, key, [cr, cc])); }
+    for (const cc of chunkCols) { const key = `${url} ${k}/${cr}.${cc}`; need.set(key, chunks(key, () => s.chunk(name, [cr, cc]))); }
   }
   const got = new Map(await Promise.all([...need].map(async ([key, p]) => [key, await p])));
   // the cells around the tile as one block (rows r0…r1, columns c0…c1, wrapped and clamped), copied
@@ -120,6 +108,6 @@ export async function tidTile({ url }) {
 export async function tidAt(lon, lat) {
   const s = await store(GEBCO_TID), name = '0/tid', meta = s.meta(name), [H, W] = meta.shape, [CH, CW] = meta.chunks;
   const r = Math.min(H - 1, Math.max(0, Math.floor((90 - lat) / CELL))), c = ((Math.floor((lon + 180) / CELL) % W) + W) % W;
-  const cells = await chunk(s, name, `${GEBCO_TID} 0/${Math.floor(r / CH)}.${Math.floor(c / CW)}`, [Math.floor(r / CH), Math.floor(c / CW)]);
+  const cells = await chunks(`${GEBCO_TID} 0/${Math.floor(r / CH)}.${Math.floor(c / CW)}`, () => s.chunk(name, [Math.floor(r / CH), Math.floor(c / CW)]));
   return cells[(r % CH) * CW + (c % CW)];
 }

@@ -5,7 +5,7 @@
 // elements as the document does, in this browser (local storage), so they paste into another drawing
 // too. Pure, but for the storage (guarded).
 
-import { find, elements, membersOf, newId, idsOf, KIND } from './document.js';
+import { find, elements, membersOf, newId, idsOf, KIND, nextName } from './document.js';
 
 const KEY = 'charts.clipboard';
 const clone = (x) => structuredClone(x);
@@ -42,13 +42,8 @@ export function centreOf(clip) {
 }
 // "Point 4" → "Point"; a name with no number of its own is its own base
 const baseOf = (name) => /^(.*\S) \d+$/.exec(name)?.[1] ?? name;
-// the next free name on base: "Base 5" after the highest; "Base 2" when only "Base" is there
-function nameOn(doc, kind, base) {
-  if (!base) return '';
-  const re = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: (\\d+))?$`);
-  const used = doc[KIND[kind].list].map((e) => re.exec(e.name)).filter(Boolean).map((m) => (m[1] ? +m[1] : 1));
-  return used.length ? `${base} ${Math.max(...used) + 1}` : `${base} 1`;
-}
+// the next free name on base (document.js nextName), or '' for a name that was empty
+const nameOn = (doc, kind, base) => (base ? nextName(doc, kind, base) : '');
 
 // The clipboard pasted into doc, each position moved by mv(position): the new elements, in order.
 export function paste(doc, clip, mv) {

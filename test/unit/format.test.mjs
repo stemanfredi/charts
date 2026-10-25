@@ -28,7 +28,6 @@ test('niceLen: 1/2/5 steps not above the input', () => {
   assert.deepEqual([0.7, 1, 3, 19, 20, 49, 999, 1234].map(niceLen), [0.5, 1, 2, 10, 20, 20, 500, 1000]);
 });
 
-
 test('parseLatLon: decimal, DM, DMS, hemispheres before or after, either order', () => {
   const near = (r, lat, lon) => assert.ok(r && Math.abs(r.lat - lat) < 1e-9 && Math.abs(r.lon - lon) < 1e-9, JSON.stringify(r));
   near(parseLatLon('35.898, 14.513'), 35.898, 14.513);

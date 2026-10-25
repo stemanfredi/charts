@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
 const { radiusTo, bearingTo, sectorEdgeTo, resizeRect, handleTo, moved, rotateHandle } = await import('../../site/draw/drag.js');
 const { inverse, destination, rectangle } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');

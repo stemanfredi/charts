@@ -3,7 +3,7 @@
 // angles degrees true.
 
 import { inverse, destination, localFrame } from '../geodesy.js';
-import { mercator, unmercator, D2R, norm360 as norm } from '../geo.js';
+import { mercator, unmercator, D2R, norm360 as norm, unrollTo } from '../geo.js';
 
 
 // a radius: the pointer's distance from the centre
@@ -49,7 +49,7 @@ export function resizeRect(shape, corners, i, p, { keep = false, aboutCentre = f
 // A Bézier handle from a pointer: metres east and north of its anchor, as the projection draws it
 // (the inverse of lines.js: Mercator offsets times cos latitude at the anchor)
 export function handleTo(anchor, p) {
-  const A = mercator(anchor), P = mercator([p[0] + 360 * Math.round((anchor[0] - p[0]) / 360), p[1]]), c = Math.cos(anchor[1] * D2R);
+  const A = mercator(anchor), P = mercator(unrollTo(anchor, p)), c = Math.cos(anchor[1] * D2R);
   return [+((P[0] - A[0]) * c).toFixed(3), +((P[1] - A[1]) * c).toFixed(3)];
 }
 

@@ -16,8 +16,8 @@
 import { NO_DEPTH_M, DEPTH_LEVELS, levelsFor } from './catalog.js';
 import { HOSTS } from './hosts.js';
 import { gebcoTile } from './gebco.js';
-import { latOf, tileBounds } from './geo.js';
-import { FETCH, memo } from './net.js';
+import { latOf, tileBounds, TILE } from './geo.js';
+import { FETCH, memo, fetchOk, lru } from './net.js';
 
 const OMT_MAXZOOM = 14;
 // Every tile is cut, at every zoom: each shortcut tried (deep ocean, low zooms) left a hole
@@ -48,7 +48,7 @@ const waterLevel = new Map(); // OSM id → DEPTH, FLAT or LAKE
 // water pixels, so it never covers the shore line; the sliver it leaves shows the water fill,
 // which app.js colours like the shallowest band while depth shading is on
 const LAND_SHADE_M = 500;
-const SIZE = 256;
+const SIZE = TILE;
 
 // ---- minimal Mapbox Vector Tile reader: just the `water` polygons ----------------
 function reader(buf) {
@@ -122,32 +122,14 @@ function waterLayer(buf) {
   return { extent: 4096, features: [] };
 }
 
-// ---- small LRU of promises (tiles shared by neighbouring requests) ----------------
-function lru(max) {
-  const m = new Map();
-  const get = (key, make) => {
-    if (m.has(key)) { const v = m.get(key); m.delete(key); m.set(key, v); return v; }
-    const v = make().catch((e) => { m.delete(key); throw e; });
-    m.set(key, v);
-    if (m.size > max) m.delete(m.keys().next().value);
-    return v;
-  };
-  get.delete = (key) => m.delete(key);
-  return get;
-}
+// small LRUs of promises (net.js lru): tiles shared by neighbouring requests
 const omtCache = lru(48), demCache = lru(128); // the sea reads each DEM tile with its 8 neighbours
 
-async function fetchOk(url, signal) {
-  const r = await fetch(url, { ...FETCH, signal });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r;
-}
-
 // the `water` layer of OpenMapTiles tile oz/ox/oy (cached)
-function omtLayer(omtTemplate, oz, ox, oy, signal) {
+function omtLayer(omtTemplate, oz, ox, oy) {
   return omtCache(`${oz}/${ox}/${oy}`, async () => {
     const url = (await omtTemplate()).replace('{z}', oz).replace('{x}', ox).replace('{y}', oy);
-    const r = await fetch(url, { ...FETCH, signal });
+    const r = await fetch(url, FETCH);
     if (r.status === 204 || r.status === 404) return { extent: 4096, features: [] }; // empty tile
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return waterLayer(new Uint8Array(await r.arrayBuffer()));
@@ -199,10 +181,10 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
 // zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
 // at z show at map zoom z → OMT z (omtOffset 0). levelAt(px, py) is the DEM height above the
 // local surface (sea level, or a DATUMS surface); inDatum(px, py) says whether that is a datum.
-async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
+async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset) {
   const oz = Math.max(0, Math.min(z - omtOffset, OMT_MAXZOOM)), d = z - oz;
   const ox = x >> d, oy = y >> d;
-  const layer = await omtLayer(ctx.omtTemplate, oz, ox, oy, signal);
+  const layer = await omtLayer(ctx.omtTemplate, oz, ox, oy);
   const c = new OffscreenCanvas(SIZE, SIZE), g = c.getContext('2d');
   const k = (SIZE * 2 ** d) / layer.extent, sx = (x - (ox << d)) * SIZE, sy = (y - (oy << d)) * SIZE;
   const classify = async (f) => {
@@ -250,9 +232,9 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset, signal) {
 }
 
 // Terrarium tile at zoom ≤ native, decoded to metres (row-major SIZE × SIZE)
-function demMetres(url, signal) {
+function demMetres(url) {
   return demCache(url, async () => {
-    const img = await createImageBitmap(await (await fetchOk(url, signal)).blob());
+    const img = await createImageBitmap(await (await fetchOk(url)).blob());
     if (img.width !== SIZE || img.height !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
     const g = new OffscreenCanvas(SIZE, SIZE).getContext('2d', { willReadFrequently: true });
     g.drawImage(img, 0, 0);
@@ -456,7 +438,7 @@ export function clipper({ template, native, mode, omtTileJson }) {
   // a DEM tile's elevation in metres as the data has it (no clean-up): the sea's from GEBCO, the
   // land's from Terrarium; also what inland water is classified from
   const raw = (z, x, y) => (mode === 'sea' ? seaMetres(template, z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y)));
-  // shared by several requesters, so no single requester's abort signal is passed down
+  // shared by several requesters, so no single requester's abort signal reaches a fetch
   const elevation = (z, x, y, omtOffset = 1) => {
     const key = `${z}/${x}/${y}/${omtOffset}`;
     return cache(key, async () => {

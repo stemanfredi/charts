@@ -1,9 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-globalThis.geodesic = createRequire(import.meta.url)('geographiclib-geodesic');
-globalThis.window ??= { addEventListener() {} };
 const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals, smooth, applySmooth, refreshAuto } = await import('../../site/draw/lines.js');
 const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, makeGroup, splitLine, remove, makePart } = await import('../../site/draw/document.js');
 const { settleGeometry } = await import('../../site/draw/store.js');
