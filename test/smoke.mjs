@@ -57,7 +57,7 @@ await section('the default view and the menu', async () => {
   check(p.errors.length === 0, `default view loads without errors ${p.errors.join(' | ')}`);
   check(await p.evaluate(() => map.getStyle().layers.length > 30), 'style has its layers');
   const broken = await p.evaluate(() => [...document.querySelectorAll('.item.error')].map((r) => `${r.querySelector('label').textContent} (${r.title})`));
-  check(broken.length === 0, `no source marked failing ${broken.join(', ')}`);
+  check(broken.length === 0, `no source marked failing ${broken.join(', ')}`, true);
   check(referred.size === 0, `no request to a tile host carries a Referer ${[...referred].join(', ')}`);
 
   // menu: a row's switch turns its layer on; the base cards swap chart and satellite
@@ -68,7 +68,7 @@ await section('the default view and the menu', async () => {
   await p.waitForTimeout(1500);
   const credits = await p.evaluate(() => document.querySelector('.credits-text')?.textContent || '');
   const live = await p.evaluate(async () => (await (await fetch('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=json')).json()).copyrightText);
-  check(credits.includes('Powered by Esri') && credits.includes(live), `Esri credits: "Powered by Esri" and the service's own text (${live})`);
+  check(credits.includes('Powered by Esri') && credits.includes(live), `Esri credits: "Powered by Esri" and the service's own text (${live})`, true);
   // the base map's credit first, so a line cut at its end ("…") never cuts it
   await p.click('.basecard[data-base=chart]');
   await p.waitForTimeout(500);
@@ -133,7 +133,7 @@ await section('NASA true colour', async () => {
   const [tcTiles, tcHash, rowsOn, tcNotes] = await tc.evaluate(() => [map.getSource('gibs-terra').tiles[0], location.hash, document.querySelector('#when').hidden ? 'hidden' : 'shown',
     document.querySelectorAll('.item .note:not([hidden])').length]);
   const tcDay = /\/(\d{4}-\d{2}-\d{2})\//.exec(tcTiles)?.[1] || '', tcT = /t=([\d-]+T\d\d)/.exec(tcHash)?.[1] || '';
-  check(rowsOn === 'shown' && tcDay && tcT.startsWith(tcDay) && tcDay <= new Date().toISOString().slice(0, 10) && !tcNotes, `NASA true colour: the tiles are of the day shown, no later than today, no note (${tcDay}, t=${tcT})`);
+  check(rowsOn === 'shown' && tcDay && tcT.startsWith(tcDay) && tcDay <= new Date().toISOString().slice(0, 10) && !tcNotes, `NASA true colour: the tiles are of the day shown, no later than today, no note (${tcDay}, t=${tcT})`, true);
   await tc.close();
 });
 
@@ -164,16 +164,16 @@ await section('search', async () => {
   await sp.waitForSelector('#results li[role=option]', { timeout: 15000 }).catch(() => {});
   await sp.keyboard.press('Enter');
   await sp.waitForTimeout(2500);
-  check((await near(35.9, 14.51, 0.05)) && photonCalls > 0, 'a place name is found (Photon) and the map goes there');
-  check(sp.errors.length === 0, `search without errors ${sp.errors.join(' | ')}`);
+  check((await near(35.9, 14.51, 0.05)) && photonCalls > 0, 'a place name is found (Photon) and the map goes there', true);
+  check(sp.errors.length === 0, `search without errors ${sp.errors.join(' | ')}`, true);
   await sp.close();
 });
 
 await section('vessel density', async () => {
   // vessel density (EMODnet, off by default): loads, has a legend, type and year change the tiles
   const tr = await open('#v=7/37.5/14/0&on=chart,coastline,traffic,legend&menu=1&g=shipping');
-  check(tr.errors.length === 0 && !(await tr.evaluate(() => document.querySelector('#i-traffic').closest('.item').classList.contains('error'))), `vessel density loads ${tr.errors.join(' | ')}`);
-  check(await tr.evaluate(() => !!document.querySelector('#legends canvas[data-legend=traffic]')), 'vessel density legend shown');
+  check(tr.errors.length === 0 && !(await tr.evaluate(() => document.querySelector('#i-traffic').closest('.item').classList.contains('error'))), `vessel density loads ${tr.errors.join(' | ')}`, true);
+  check(await tr.evaluate(() => !!document.querySelector('#legends canvas[data-legend=traffic]')), 'vessel density legend shown', true);
   await tr.selectOption('.item:has(#i-traffic) select.variant', 't10');
   await tr.selectOption('.item:has(#i-traffic) select.period', '2019');
   await tr.waitForTimeout(500); // the URL is written 250 ms after a change
@@ -187,14 +187,14 @@ await section('vessel density', async () => {
 await section('route density', async () => {
   // route density (EMSA, monthly): newest month by default, month and type change the tiles
   const rt = await open('#v=7/37.5/14/0&on=chart,coastline,routes,legend&menu=1&g=shipping');
-  check(rt.errors.length === 0 && !(await rt.evaluate(() => document.querySelector('#i-routes').closest('.item').classList.contains('error'))), `route density loads ${rt.errors.join(' | ')}`);
+  check(rt.errors.length === 0 && !(await rt.evaluate(() => document.querySelector('#i-routes').closest('.item').classList.contains('error'))), `route density loads ${rt.errors.join(' | ')}`, true);
   await rt.selectOption('.item:has(#i-routes) select.variant', 't04');
   await rt.selectOption('.item:has(#i-routes) select.period', '2025-11');
   await rt.waitForTimeout(500);
   const rtiles = await rt.evaluate(() => map.getSource('routes').tiles[0]);
   check(/routedensity_04&/.test(rtiles) && /time=2025-11-01T/.test(rtiles) && /per=[^&]*routes:2025-11/.test(await rt.evaluate(() => location.hash)), 'route density month and type in tiles and link');
-  check(await rt.evaluate(() => !!document.querySelector('#legends canvas[data-legend=routes]')), 'route density legend shown');
-  check((await rt.evaluate(() => document.querySelector('.item:has(#i-routes) select.period').selectedOptions[0].text)) === 'Nov 2025', 'months labelled as "Nov 2025"');
+  check(await rt.evaluate(() => !!document.querySelector('#legends canvas[data-legend=routes]')), 'route density legend shown', true);
+  check((await rt.evaluate(() => document.querySelector('.item:has(#i-routes) select.period').selectedOptions[0].text)) === 'Nov 2025', 'months labelled as "Nov 2025"', true);
   await rt.close();
 });
 
@@ -203,17 +203,17 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   const cm = await open('#v=6/40/14/0&col=waves:height&arr=currents:surface&on=chart,coastline,legend&menu=1&g=data');
   await cm.waitForFunction(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2, null, { timeout: 30000 }).catch(() => {});
   const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('.name').textContent} (${r.title})`));
-  check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`);
+  check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`, true);
   const [cmPicks, cmLink] = await cm.evaluate(() => [[...document.querySelectorAll('.pick select')].map((s) => s.value).join(' '), location.hash]);
   check(cmPicks === 'waves:height currents:surface' && /col=waves:height/.test(cmLink) && /arr=currents:surface/.test(cmLink) && !/on=[^&]*waves/.test(cmLink),
     `the link's entries are in the menus and stay in the link: colours, arrows ${cmPicks}`);
-  check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown');
+  check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown', true);
   // the time line at the panel's foot: a time picked there (local time) is drawn, read above the
   // legends and kept in the link; › steps an hour; Now goes back to now
   const ahead = await cm.evaluate(() => { const d = new Date(Date.now() + 864e5); d.setMinutes(0, 0, 0); return d.getTime(); });
   const aLocal = await cm.evaluate((t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }, ahead);
   const [minMax, shownOn] = await cm.evaluate(() => [[document.querySelector('#when input').min, document.querySelector('#when input').max], !document.querySelector('#shown').hidden]);
-  check(shownOn && minMax[0] > '2020' && minMax[1] > minMax[0] && !minMax[1].startsWith('2099'), `the field holds the dates the layers have (${minMax.join(' to ')})`);
+  check(shownOn && minMax[0] > '2020' && minMax[1] > minMax[0] && !minMax[1].startsWith('2099'), `the field holds the dates the layers have (${minMax.join(' to ')})`, true);
   await cm.fill('#when input', aLocal);
   await cm.waitForTimeout(1500);
   const [shownText, cmHash] = await cm.evaluate(() => [document.querySelector('#shown').textContent, location.hash]);
@@ -293,7 +293,7 @@ await section('water properties at a depth', async () => {
   await wp.waitForFunction(() => !!document.querySelector('#legends canvas[data-legend=temperature]')?.style.width, null, { timeout: 30000 }).catch(() => {});
   const [wpDepth, wpNotes, wpBroken] = await wp.evaluate(() => [document.querySelector('#when .depthsel select').value + ' ' + document.querySelector('#shown').textContent,
     document.querySelectorAll('.item .note:not([hidden])').length, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(/^100 .* · 100 m deep$/.test(wpDepth) && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set on the time line and shown as "100 m deep": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`);
+  check(/^100 .* · 100 m deep$/.test(wpDepth) && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set on the time line and shown as "100 m deep": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`, true);
   // the depth on a row of its own, under the time line, which keeps its width
   const [inW, below] = await wp.evaluate(() => { const i = document.querySelector('#when input').getBoundingClientRect(), d = document.querySelector('#when .depthsel').getBoundingClientRect(); return [i.width, d.top >= i.bottom]; });
   check(below && inW >= 150, `the depth sits under the time line, which keeps its width (${Math.round(inW)} px)`);
@@ -312,7 +312,7 @@ await section('a satellite observation', async () => {
       `${new Date(ms).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${new Date(ms).getUTCDate()} ${new Date(ms).toLocaleDateString([], { month: 'short', timeZone: 'UTC' })}`, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)];
   });
   check(obT && obWithin && (obShown === 'Today' || obShown === obDay) && !obBroken.length && !ob.errors.length,
-    `sea surface temperature: the time within its days, its day shown (t=${obT}, ${obShown}) ${obBroken.join(' ')} ${ob.errors.join(' | ')}`);
+    `sea surface temperature: the time within its days, its day shown (t=${obT}, ${obShown}) ${obBroken.join(' ')} ${ob.errors.join(' | ')}`, true);
   await ob.close();
 });
 
@@ -363,7 +363,7 @@ await section('the values of a Copernicus layer in the GIS export', async () => 
   const wave = (k) => vi.assets[k]?.bands?.[0];
   check(['raster/waves-global.tif', 'raster/waves-mediterranean.tif'].every((n) => ve.includes(n)) && wave('raster/waves-mediterranean')?.name === 'VHM0' && wave('raster/waves-mediterranean')?.unit === 'm'
     && vi.assets['raster/waves-mediterranean']['proj:code'] === 'EPSG:4326' && cv.errors.length === 0,
-    `GIS export: the waves' values as GeoTIFF, global and Mediterranean (${ve.filter((n) => n.startsWith('raster/')).join(', ')}) ${cv.errors.join(' | ')}`);
+    `GIS export: the waves' values as GeoTIFF, global and Mediterranean (${ve.filter((n) => n.startsWith('raster/')).join(', ')}) ${cv.errors.join(' | ')}`, true);
   await cv.close();
 });
 
@@ -407,7 +407,7 @@ await section('export parity', async () => {
     if (chart.width !== seen.canvas[0] || chart.height !== seen.canvas[1]) wrong.push(`chart.png ${chart.width}×${chart.height} ≠ map ${seen.canvas.join('×')}`);
     if (dataText && !chart.Description?.includes(dataText)) wrong.push(`chart.png says "${chart.Description}", not "${dataText}"`);
     if (chart.Copyright !== pr['chart:attribution']) wrong.push('chart.png and item.json credit differently');
-    check(!wrong.length && !pp.errors.length, `export parity, ${what}: ${wrong.join('; ') || `${layers.length} layers, ${pr.datetime}`} ${pp.errors.join(' | ')}`);
+    check(!wrong.length && !pp.errors.length, `export parity, ${what}: ${wrong.join('; ') || `${layers.length} layers, ${pr.datetime}`} ${pp.errors.join(' | ')}`, true);
     await pp.close();
   }
 });
@@ -421,7 +421,7 @@ await section('EMODnet and the depth sources', async () => {
   const [de] = await Promise.all([em.waitForEvent('download', { timeout: 120000 }), exportItem(em, 'zip')]);
   const emFiles = files(await readFile(await de.path())), emItem = JSON.parse(emFiles['item.json']);
   check(!emBroken.length && !em.errors.length && /Sand/.test(emClasses) && emFiles['raster/emodnet-depth.tif'] && emItem.assets['raster/emodnet-depth']?.bands?.[0]?.unit === 'm',
-    `EMODnet and World Bank layers load; substrate classes (${emClasses.slice(0, 60)}…); the depth values in the GIS export ${emBroken.join(', ')} ${em.errors.join(' | ')}`);
+    `EMODnet and World Bank layers load; substrate classes (${emClasses.slice(0, 60)}…); the depth values in the GIS export ${emBroken.join(', ')} ${em.errors.join(' | ')}`, true);
   // where GEBCO's depths come from: its layer draws, its codes go in the GIS export
   const src = emItem.assets['raster/gebco-source'];
   check(emFiles['raster/gebco-source.tif'] && /type identifier/.test(src?.description || '') && src?.['proj:code'] === 'EPSG:4326'
@@ -462,7 +462,7 @@ await section('maritime zones', async () => {
   const mz = await open('#v=6/40/16/0&on=chart,coastline,maritime,legend&menu=0');
   await mz.waitForFunction(() => /Median line/.test(document.querySelector('#legends canvas[data-legend=maritime]')?.getAttribute('aria-label') || ''), null, { timeout: 30000 }).catch(() => {});
   const [mzBroken, mzLegend] = await mz.evaluate(() => [[...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title), document.querySelector('#legends canvas[data-legend=maritime]')?.getAttribute('aria-label') || '']);
-  check(!mzBroken.length && !mz.errors.length && /Median line/.test(mzLegend), `maritime zones load, with their legend (${mzLegend.slice(0, 60)}…) ${mzBroken.join(', ')} ${mz.errors.join(' | ')}`);
+  check(!mzBroken.length && !mz.errors.length && /Median line/.test(mzLegend), `maritime zones load, with their legend (${mzLegend.slice(0, 60)}…) ${mzBroken.join(', ')} ${mz.errors.join(' | ')}`, true);
   await mz.close();
 });
 

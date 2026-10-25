@@ -44,8 +44,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # one retry each: a provider hiccup should not block a deploy, a real failure still does
+      # one retry each: a provider hiccup should not block a deploy, a real failure still does. On a push,
+      # what a provider served (tiles, legends, places found) is checked but not held against the page:
+      # said as warnings; the weekly run is strict, so a provider down for a week is a failed run (mailed)
       - run: npm run smoke || (sleep 60 && npm run smoke)
+        env:
+          STRICT: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
       - run: npm run ui || (sleep 60 && npm run ui)    # no overlaps, 44 px targets, 390/820/1280 px
       - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: npm run tiles-check     # known trouble spots: seams, zooms, lakes (live data, weekly)

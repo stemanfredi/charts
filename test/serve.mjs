@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../site/', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json' };
 
-// The browser tests' port: fixed, because the GEBCO bucket (geodata.makaw.org) answers only the
-// origins its CORS rule lists, and this is one of them; npm run serve keeps 8000.
+// The browser tests' port: fixed, because the data host (hosts.js geodata) answers only the origins
+// it allows, and http://127.0.0.1:8099 is one of them; npm run serve keeps 8000.
 export const TEST_PORT = 8099;
 export async function serve({ port = TEST_PORT, host = '127.0.0.1' } = {}) {
   const server = createServer(async (req, res) => {

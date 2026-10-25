@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // GEBCO's grids as Zarr stores for Charts: the grid itself repacked, the same cells and values,
-// north up, in square compressed chunks, with coarser levels. The stores are published at
-// geodata.makaw.org/gebco-2026/ (setup and upload: SETUP.md beside the data); site/zarr.js reads them.
+// north up, in square compressed chunks, with coarser levels. The stores are published as plain
+// files at geodata.makaw.org/gebco-2026/ (README: Hosting the data yourself); site/zarr.js reads them.
 //
 //   node tools/gebco.mjs download DIR                    the grids from CEDA into DIR (resumable)
 //   node tools/gebco.mjs build DIR elevation|tid         DIR/zarr/gebco-2026/<grid>.zarr

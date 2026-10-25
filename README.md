@@ -240,7 +240,19 @@ npm run deps        # newer library versions and newer density data periods
 ```
 
 The page itself needs no installation. Any static web server can host the
-`site/` folder. The browser tests use `/usr/bin/google-chrome` by default; set
+`site/` folder.
+
+### Hosting the data yourself
+
+GEBCO's depths and the seagrass tiles are read from `geodata.makaw.org`, named
+in `site/hosts.js`; a copy of the site reading its own data changes that one
+line. What that host must be: a static file server (any object storage with a
+public bucket does) that serves the folders the two tools build, `gebco-2026/`
+(two Zarr stores: small files, whole files fetched, no range requests) and
+`seagrass-2025/` (`{z}/{x}/{y}.pbf` and `index.json`), over HTTPS, with
+cross-origin reads allowed from the page's origin and, for the browser tests,
+from `http://127.0.0.1:8099`. The release is in each path, so the files can be
+cached as immutable. Nothing else: no listing, no function, no key. The browser tests use `/usr/bin/google-chrome` by default; set
 `CHROME=/path/to/chrome` to use another binary.
 
 The smoke test depends on the network by design, because the page depends on
@@ -264,8 +276,11 @@ arrows, the PNG's size, text fields and credits, the Copernicus values.
 
 `.github/workflows/ci.yml` runs the unit, lint, check, smoke and layout tests on
 pushes to `main` and on pull requests. When they pass, it deploys `main` to
-GitHub Pages; only `site/` is published. A scheduled run repeats the
-tests against the live providers and reports dependency and data updates as
+GitHub Pages; only `site/` is published. What a provider served (tiles, legends,
+places found) is checked on every run but held against the page only on the
+weekly one, which is strict (`STRICT=1`): a provider's outage shows as warnings
+on a push and does not hold up a deploy, and as a failed run, mailed, when it
+lasts a week. The scheduled run also reports dependency and data updates as
 notices. Pages must be enabled once in the repository settings, with
 *Source: GitHub Actions*.
 
