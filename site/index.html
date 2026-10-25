@@ -32,27 +32,36 @@
     </div>
   </div>
 
-  <!-- right edge: what the map shows and measuring (they switch one side panel, which opens to
-       the left of this column), then copy link, PNG and GIS, which act at once, and About; zoom and
-       compass lower down. The column never moves. -->
+  <!-- right edge: what the map shows, measuring and drawing (they switch one side panel, which opens
+       to the left of this column), then Import (a drawing's file), Export (a menu: the link, a picture,
+       GIS data, the drawing's file) and About; zoom, compass and the units lower down. The column
+       never moves. -->
   <nav id="rail" class="rail" aria-label="Map controls">
-    <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false" title="Layers (L)"><i data-icon="layers"></i><span>Layers</span></button>
-    <button type="button" id="b-measure" aria-controls="panel" aria-expanded="false" title="Measure: ruler (R), area (A), range ring (C)"><i data-icon="ruler"></i><span>Measure</span></button>
-    <button type="button" id="link" title="Copy a link to this exact view"><i data-icon="link"></i><span>Link</span></button>
-    <button type="button" id="png" title="Download the view as a picture"><i data-icon="png"></i><span>PNG</span></button>
-    <button type="button" id="zip" title="Download the view as GIS data"><i data-icon="zip"></i><span>GIS</span></button>
+    <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false"><i data-icon="layers"></i><span>Layers</span></button>
+    <button type="button" id="b-draw" aria-controls="panel" aria-expanded="false"><i data-icon="draw"></i><span>Tools</span></button>
+    <button type="button" id="import" title="Import a drawing's file, or any GeoJSON: added to the drawings in this browser and opened"><i data-icon="upload"></i><span>Import</span></button>
+    <button type="button" id="export" aria-haspopup="menu" aria-controls="export-menu" aria-expanded="false" title="Export this view: a link, a picture, GIS data, the drawing's file"><i data-icon="save"></i><span>Export</span></button>
+    <div id="export-menu" class="railmenu" role="menu" aria-label="Export" hidden>
+      <button type="button" role="menuitem" id="link" title="Copy a link to this exact view"><i data-icon="link"></i><span>Copy link</span></button>
+      <button type="button" role="menuitem" id="png" title="Download the view as a picture"><i data-icon="png"></i><span>Picture (PNG)</span></button>
+      <button type="button" role="menuitem" id="zip" title="Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF"><i data-icon="zip"></i><span>GIS data (ZIP)</span></button>
+      <button type="button" role="menuitem" id="save" title="Export the drawing, with the view and layers, as a GeoJSON file to share or keep"><i data-icon="file"></i><span>Drawing (GeoJSON)</span></button>
+      <button type="button" role="menuitem" id="savepresets" title="Export your presets (the Point and Shape tools' own) as a small file, to import them in another browser"><i data-icon="file"></i><span>Presets (JSON)</span></button>
+    </div>
     <button type="button" id="b-about" title="About: sources, privacy, keys"><i data-icon="info"></i><span>About</span></button>
   </nav>
   <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
     <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><i data-icon="plus"></i></button>
     <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><i data-icon="minus"></i></button>
     <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><i data-icon="compass"></i></button>
+    <button type="button" id="units" class="units" aria-label="Distance units">km</button>
   </div>
 
   <aside id="panel" class="panel" aria-labelledby="panel-title" hidden>
     <header>
       <h1 id="panel-title">Layers</h1>
       <span class="spin" aria-hidden="true"></span>
+      <span id="panel-actions" class="pactions" hidden></span>
       <button type="button" id="close" class="x" aria-label="Close panel" title="Close">×</button>
     </header>
     <!-- Layers: the map's settings for the layers that use them (the time shown, in local time, and
@@ -64,10 +73,10 @@
       </div>
       <div id="menu"></div>
     </div>
-    <div id="mview" class="view" hidden></div>
+    <!-- Draw: the tools, the list of the drawing's elements, and the inspector of what is selected -->
+    <div id="dview" class="dview" hidden></div>
   </aside>
 
-  <div id="mbar" class="mbar" role="status" hidden></div>
   <div id="legends" class="legends" aria-label="Legends"></div>
   <footer id="status" class="status"></footer>
 
@@ -76,11 +85,9 @@
     <p><b>Not for navigation.</b> Positions, depths and coastlines come from open datasets of varying accuracy; depths are a coarse elevation model, not soundings.</p>
     <p>Each layer's source, licence and resolution are behind its <b>ⓘ</b> in the Layers panel.</p>
     <p>Tile requests tell each provider which area you are viewing; a hidden layer makes none.</p>
+    <p>Drawings stay in this browser: saved here as you go, never sent anywhere. Export › Drawing (GeoJSON) writes one as a file, with the view, to share or keep it; links do not carry drawings. Labels are written with the map's own fonts, fetched in blocks of characters, never as text.</p>
     <h3>Keys</h3>
-    <ul class="keys">
-      <li><kbd>/</kbd> search · <kbd>L</kbd> layers</li><li><kbd>R</kbd> ruler · <kbd>A</kbd> area · <kbd>C</kbd> range ring</li>
-      <li><kbd>Enter</kbd> or double-click finishes · <kbd>Backspace</kbd> undoes · <kbd>Esc</kbd> cancels</li>
-    </ul>
+    <ul class="keys"></ul> <!-- keys.js -->
     <button type="button" class="action" data-close>Close</button>
   </dialog>
   <noscript>This chart needs JavaScript and WebGL.</noscript>

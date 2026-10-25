@@ -52,7 +52,13 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     // GEBCO's type identifier grid, coloured by gebco.js (gebco-tid://); level 0 from zoom 8, then magnified
     'gebco-tid': { type: 'raster', tileSize: 256, maxzoom: 10, tiles: ['gebco-tid://{z}/{x}/{y}'], attribution: '<a href="https://www.gebco.net">GEBCO 2026 Grid</a>' },
     graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-    measure: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    // the drawing (draw/drawing.js): what never depends on the zoom, what may, the marks (selection, the
+    // line being drawn)
+    draw: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    drawzoom: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    drawover: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    drawlabel: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // its labels, drawn again as the map moves
+    drawvalue: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // the values shown (lengths, areas, radii)
   };
   // tiles set by app.js once the hour is known (cmems:// is cmems.js's tile handler)
   for (const id of Object.keys(CMEMS)) {

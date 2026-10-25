@@ -14,6 +14,20 @@ const OVERLAYS = {
   search: '#search', rail: '#rail', zoom: '#zoom', panel: '#panel', legend: '#legends', status: '#status',
 };
 
+// a drawing as the app saves it (GeoJSON, version 1): a point with two sectors, a rectangle, a line
+// from and back to the point, a label along the line
+const DRAWING = JSON.stringify({ type: 'FeatureCollection', charts: { format: 'charts-drawing', version: 1 }, features: [
+  { type: 'Feature', id: 'n1', geometry: { type: 'Point', coordinates: [14, 44.5] }, properties: { name: 'Point 1', key: 'value',
+    charts: { kind: 'point', bearing: 45, parts: [{ kind: 'sector', radius: 20000, aperture: 90 }, { kind: 'sector', radius: 40000, aperture: 90, fill: false }] } } },
+  { type: 'Feature', id: 's1', geometry: { type: 'Point', coordinates: [13, 44] }, properties: { name: 'Rectangle 1',
+    charts: { kind: 'point', bearing: 30, parts: [{ kind: 'rectangle', length: 30000, width: 10000 }] } } },
+  { type: 'Feature', id: 'g1', geometry: { type: 'LineString', coordinates: [[14, 44.5], [14.5, 44.2], [14.2, 43.9], [14, 44.5]] }, properties: { name: 'Line 1',
+    charts: { kind: 'line', start: 'n1', end: 'n1', vertices: [{ name: 'a point' }, {}] } } },
+  { type: 'Feature', id: 'l1', geometry: { type: 'Point', coordinates: [14.2, 44.4] }, properties: { name: 'Label 1',
+    charts: { kind: 'label', text: '{name}\n{along}', anchor: { element: 'g1', edge: 0, at: 0.4 }, look: { text: { background: 'box' } } } } }] });
+// put where the app keeps its drawings (draw/saving.js): the list, the one open, its text
+const SEED = (d) => { localStorage.setItem('charts.drawings', JSON.stringify([{ id: 'ui', title: '', modified: '2026-10-24T00:00:00Z', size: d.length }])); localStorage.setItem('charts.drawings.current', 'ui'); localStorage.setItem('charts.drawing.ui', d); };
+
 const server = await serve();
 const browser = await chromium.launch(chromeOptions());
 const failures = [];
@@ -21,15 +35,23 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); i
 
 try {
   for (const [name, width, height, touch] of VIEWPORTS) {
-    for (const menu of [0, 1]) {
+    for (const menu of [0, 1, 'drawing', 'draw', 'line', 'label']) { // the Draw view four times: the drawing's inspector, a node's, a line's, a label's
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
+      // the Draw view with a drawing: a node with two parts (its inspector shown) and a shape
+      if (typeof menu === 'string') await page.addInitScript(SEED, DRAWING);
       // a zoomed-out view (scale note shown), four stacked legends (they once ran over the
       // credits), a measurement
-      await page.goto(`${server.url}#v=5/45/14/0&menu=${menu}&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend&m=r:12,44;13,44.5`);
+      await page.goto(`${server.url}#v=5/45/14/0&menu=${typeof menu === 'string' ? 'draw' : menu}&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
       await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
+      await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 44], [], [13, 44.5], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
+      if (menu === 'draw') await page.click('#dview .drow .dname');
+      if (menu === 'line') await page.click('#dview .drow:has(.kind[title=Line]) .dname');
+      if (menu === 'label') await page.click('#dview .drow:has(.kind[title=Label]) .dname');
+      // the inspector's text: no element printed as text ("[object …]")
+      if (typeof menu === 'string') check(!(await page.evaluate(() => document.querySelector('.dinspect').textContent.includes('[object'))), `${name}: the ${menu} inspector shows no "[object …]"`);
       await page.mouse.move(width / 2, height / 2); // shows the cursor readout
       await page.waitForTimeout(800);
-      if (process.env.UI_SHOTS) await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}-${menu ? 'menu' : 'map'}.png` });
+      if (process.env.UI_SHOTS) await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}-${typeof menu === 'string' ? menu : menu ? 'menu' : 'map'}.png` });
       const r = await page.evaluate(({ OVERLAYS }) => {
         const MIN = matchMedia('(pointer: coarse)').matches ? 44 : 36;
         const seen = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[hidden]') === null; };
@@ -68,7 +90,7 @@ try {
         }
         return { overlaps, offscreen, small: [...new Set(small)], MIN };
       }, { OVERLAYS });
-      const where = `${name} ${width}px, menu ${menu ? 'open' : 'closed'}`;
+      const where = `${name} ${width}px, ${typeof menu === 'string' ? `Draw view, ${{ drawing: 'the drawing', draw: 'a node', line: 'a line', label: 'a label' }[menu]}` : `menu ${menu ? 'open' : 'closed'}`}`;
       check(!r.overlaps.length, `${where}: no overlapping overlays ${r.overlaps.join(', ')}`);
       check(!r.offscreen.length, `${where}: nothing off screen ${r.offscreen.join(', ')}`);
       check(!r.small.length, `${where}: targets ≥ ${r.MIN} px ${r.small.join(', ')}`);

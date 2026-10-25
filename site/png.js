@@ -34,7 +34,7 @@ export function chartCanvas(src, s) {
   const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
   const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20;
   // where it is, and when the data is
-  const info = [s.at, `zoom ${s.zoom.toFixed(1)}`, 'Web Mercator', v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}% across the view` : '', s.timeText, s.depthText].filter(Boolean).join(' · ');
+  const info = [s.at, `zoom ${s.zoom.toFixed(1)}`, 'Web Mercator', v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}% across the view` : '', s.timeText, s.depthText, s.drawText].filter(Boolean).join(' · ');
   // a block of text on its backing, wrapped to width w, its bottom at y, from x (or to x, right):
   // its top
   const block = (text, colour, x, y, w, right = false) => {
@@ -89,7 +89,7 @@ export function chartCanvas(src, s) {
   g.restore();
   out.fields = {
     Title: `Charts · ${s.at}`,
-    Description: [`Centre ${s.at}`, `zoom ${s.zoom.toFixed(2)}`, `bearing ${Math.round(s.bearing)}°`, 'Web Mercator (EPSG:3857)', s.dataText, s.link].filter(Boolean).join(' · '),
+    Description: [`Centre ${s.at}`, `zoom ${s.zoom.toFixed(2)}`, `bearing ${Math.round(s.bearing)}°`, 'Web Mercator (EPSG:3857)', s.dataText, s.drawText, s.link].filter(Boolean).join(' · '),
     Copyright: s.credits,
     'Creation Time': s.when.toUTCString(),
     Software: 'Charts',

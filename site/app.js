@@ -6,14 +6,25 @@ import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses, wmsClasses } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, NOTE_AT, exportName } from './format.js';
-import { Measure, MEASURE_LAYERS, summary, measureFeatures } from './measure.js';
+import { Drawing } from './draw/drawing.js';
+import { DRAW_LAYERS } from './draw/layers.js';
+import { savedView } from './draw/saving.js';
+import { drawView } from './draw/panel.js';
+import { exportFeatures } from './draw/features.js';
+import { profileOf } from './draw/profile.js';
+import { lineTrace } from './draw/lines.js';
+import { isShown } from './draw/document.js';
 import { affine, worldFile, pamXml, stacItem } from './export.js';
-import { mercator } from './geo.js';
+import { mercator, norm360 } from './geo.js';
 import { FETCH, memo } from './net.js';
 import { gridFor, mosaic, gridTransform, geotiff } from './geotiff.js';
 import { zip } from './zip.js';
 import { viewFeatures } from './vector.js';
 import { $, h } from './dom.js';
+import { choice } from './fields.js';
+import { keyEntry, openKey, keyList } from './keys.js';
+import { Toolbox } from './tools.js';
+import { railMenu } from './menu.js';
 import { search } from './search.js';
 import { chartCanvas, chartPng, pngOf } from './png.js';
 import { cmemsValues, emodnetValues, gebcoValues } from './values.js';
@@ -45,7 +56,7 @@ const state = {
   panel: window.innerWidth >= 1200 ? 'layers' : null, // the side panel's view; open beside the map where it leaves room
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
-let measureState = '', measureBearings = false;
+let urlBearings = false;
 
 function readHash() {
   const q = new URLSearchParams(location.hash.slice(1));
@@ -69,15 +80,14 @@ function readHash() {
     const [k, val] = kv.split(':');
     if (DENSITY[k]?.periods.includes(val)) state.period[k] = val;
   }
-  if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => g === 'measure' || GROUPS.some((x) => x.id === g)));
-  if (q.has('menu')) state.panel = { 1: 'layers', measure: 'measure' }[q.get('menu')] || null; // menu=1: Layers
-  measureState = q.get('m') || '';
-  measureBearings = q.get('brg') === '1';
+  if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => GROUPS.some((x) => x.id === g)));
+  if (q.has('menu')) state.panel = { 1: 'layers', draw: 'draw' }[q.get('menu')] || null; // menu=1: Layers
+  urlBearings = q.get('brg') === '1';
   return q.get('u');
 }
 
 let hashTimer = 0;
-let ready = false; // until map load, the URL still holds state not yet applied (m=): leave it alone
+let ready = false; // until map load, the URL still holds state not yet applied: leave it alone
 function writeHash() {
   clearTimeout(hashTimer);
   if (ready) hashTimer = setTimeout(writeHashNow, 250);
@@ -98,15 +108,31 @@ function writeHashNow() {
   if (depthOn().length && state.depth) q.set('dz', state.depth);
   const per = Object.entries(state.period).filter(([id, v]) => state.on.has(id) && v !== DENSITY[id].defaultPeriod);
   if (per.length) q.set('per', per.map((kv) => kv.join(':')).join(','));
-  if (measure.units !== 'km') q.set('u', measure.units);
-  if (measure.bearings) q.set('brg', '1');
-  const m = measure.serialize();
-  if (m) q.set('m', m);
+  if (display.units !== 'km') q.set('u', display.units);
+  if (display.bearings) q.set('brg', '1');
   q.set('g', [...state.open].join(','));
-  q.set('menu', state.panel === 'measure' ? 'measure' : state.panel ? '1' : '0');
-  history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~')}`);
+  q.set('menu', state.panel === 'draw' ? 'draw' : state.panel ? '1' : '0');
+  drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
+  setHash(q);
 }
+// the address's state, its separators left readable
+const setHash = (q) => history.replaceState(null, '', `#${q.toString().replace(/%2C/g, ',').replace(/%2F/g, '/').replace(/%3A/g, ':').replace(/%3B/g, ';').replace(/%7E/g, '~').replace(/%21/g, '!')}`);
 
+// What the app offers, for checking a drawing file's view: layers with their variants and
+// periods, the ocean-data entries, the depths
+const KNOWN = {
+  layers: Object.fromEntries(ITEMS.filter((it) => it.group !== 'data').map((it) => [it.id, { variants: it.variants ? Object.keys(it.variants) : null, periods: DENSITY[it.id]?.periods || null }])),
+  data: {},
+  depths: CMEMS_DEPTHS,
+};
+for (const e of [...ENTRIES.colour, ...ENTRIES.arrows]) { const [id, v] = e.key.split(':'); (KNOWN.data[id] ||= []).includes(v) || KNOWN.data[id].push(v); }
+
+// The drawing's saved view comes back only when the address has none (docs/drawing-format.md §10):
+// written into the address before anything reads it, so the page loads once with it
+if (!new URLSearchParams(location.hash.slice(1)).has('v')) {
+  const v = savedView(KNOWN);
+  if (v?.center && v.zoom !== null) { const q = new URLSearchParams(location.hash.slice(1)); viewToAddress(v, q); setHash(q); }
+}
 const urlUnits = readHash();
 
 // ---- map --------------------------------------------------------------------
@@ -155,7 +181,7 @@ const style = buildStyle({
   date: state.date,
   density: Object.fromEntries(Object.keys(DENSITY).map((id) => [id, [state.variant[id], state.period[id]]])),
 });
-style.layers.push(...MEASURE_LAYERS);
+style.layers.push(...DRAW_LAYERS); // the drawing above the map, its values on top
 
 // MapLibre's worker from the pinned, hashed URL in index.html (tools/deps.mjs): a copy the browser
 // has checked against the hash, instead of MapLibre's own unchecked import from the CDN. The hash
@@ -185,7 +211,7 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 const small = () => window.innerWidth < 720;
 
-// ---- bottom row: credits; not for navigation, scale note, time shown, cursor position, double scale
+// ---- bottom row: credits; scale note, time shown, cursor position, double scale
 // The scale is double, as on OpenSeaMap: km above the line, nautical miles below. Credits are
 // always on screen (Esri: data attribution "always visible"; OSM likewise), on one line: what
 // does not fit ends in "…", and a tap on the line shows it all.
@@ -197,7 +223,6 @@ const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s
 // MapLibre writes nautical miles "nm" (the nanometre's symbol): NM, as on charts and in Measure
 const scaleUnits = () => { for (const el of scalesEl.children) el.textContent = el.textContent.replace(/\snm$/, '\u00a0NM'); };
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
-const nfnEl = h('div', { class: 'scalenote nfn' }, 'Not for navigation'); // on every screen (About says why)
 const creditsText = h('span', { class: 'credits-text' });
 const credits = h('div', { class: 'credits' }, creditsText);
 // a tap unfolds them only when they are cut ("…"), and folds them again; the hint says which
@@ -212,8 +237,9 @@ credits.addEventListener('click', (e) => {
   if (!e.target.closest('a') && (credits.classList.contains('open') || cut())) credits.classList.toggle('open');
   creditsHint();
 });
-// credits on the left; not for navigation, the scale note, time shown, cursor position and scale on the right
-statusEl.append(credits, h('div', { class: 'readout' }, nfnEl, scaleNoteEl, shownEl, posEl, scalesEl));
+// credits on the left; the scale note, time shown, cursor position and scale on the right (not for
+// navigation: About and the exports say it)
+statusEl.append(credits, h('div', { class: 'readout' }, scaleNoteEl, shownEl, posEl, scalesEl));
 // the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits
 new ResizeObserver(() => { document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`); snapLegends(); }).observe(statusEl);
 
@@ -229,9 +255,72 @@ function renderCompass() {
 }
 map.on('rotate', renderCompass);
 
-const measure = new Measure(map, (what) => { if (what === 'list') { renderMeasures(); writeHash(); } renderTools(); });
-if (urlUnits === 'nm') measure.units = 'nm';
-measure.bearings = measureBearings;
+// the keys and the one bar of what is being drawn (tools.js)
+const toolbox = new Toolbox(map, () => drawing.select([])); // a right-click with no tool on: nothing selected
+// the display's units and each leg's bearing beside its length (the switch beside the scale, the
+// drawing's inspector): the drawing's lengths and values, labels and exports follow them
+const display = { units: urlUnits === 'nm' ? 'nm' : 'km', bearings: urlBearings };
+// the Tools panel compact: only its tools (drawing-ui.md §1); auto: made so by a tool started
+const compact = { on: false, auto: false };
+function setDisplay(changes) {
+  Object.assign(display, changes);
+  renderUnits();
+  writeHash();
+  drawing.render();
+  drawing.renderLabels();
+  drawPanel.render('doc');
+}
+
+// ---- the drawing (draw/drawing.js, draw/document.js; its panel view: draw/panel.js) ---------------------
+const entryOf = (key) => { if (!key) return null; const [id, variant] = key.split(':'); return { id, variant: variant ?? null }; };
+// the map's view and layers, in the drawing file's terms (docs/drawing-format.md §4)
+function viewOf() {
+  const c = map.getCenter();
+  return {
+    center: [+c.lng.toFixed(7), +c.lat.toFixed(7)], zoom: map.getZoom(), bearing: norm360(map.getBearing()),
+    layers: [...state.on].filter((id) => byId[id].group !== 'data').map((id) => ({ id,
+      ...(byId[id].variants ? { variant: state.variant[id] } : {}), ...(id in state.opacity ? { opacity: state.opacity[id] } : {}), ...(DENSITY[id] ? { period: state.period[id] } : {}) })),
+    data: { colour: entryOf(state.colour), arrows: entryOf(state.arrows), time: new Date(state.time).toISOString().replace(/\.\d{3}Z$/, 'Z'), depth: state.depth },
+    units: display.units, bearings: display.bearings,
+  };
+}
+// Apply a file's view and measurements (either may be null: left as they are): as the address the
+// app writes, then a reload, so the app's own checked reading of the address applies them (no second
+// way of applying layers or measurements). The drawing is saved first: it comes back after the reload.
+function applyView(v) {
+  const q = new URLSearchParams(location.hash.slice(1));
+  viewToAddress(v, q);
+  q.set('menu', 'draw');
+  drawing.saving.now();
+  setHash(q);
+  location.reload();
+}
+function viewToAddress(v, q) {
+  const c = v.center || [map.getCenter().lng, map.getCenter().lat];
+  q.set('v', [(v.zoom ?? map.getZoom()).toFixed(2), c[1].toFixed(5), c[0].toFixed(5), Math.round(v.bearing > 180 ? v.bearing - 360 : v.bearing)].join('/'));
+  if (v.layers) {
+    q.set('on', v.layers.map((l) => l.id).join(','));
+    const kv = (key) => v.layers.filter((l) => l[key] !== undefined).map((l) => `${l.id}:${l[key]}`).join(',');
+    for (const [key, p] of [['variant', 'var'], ['opacity', 'op'], ['period', 'per']]) { const s = kv(key); if (s) q.set(p, s); else q.delete(p); }
+  }
+  if (v.data) {
+    for (const [slot, p] of [['colour', 'col'], ['arrows', 'arr']]) { const e = v.data[slot]; if (e) q.set(p, e.variant ? `${e.id}:${e.variant}` : e.id); else q.delete(p); }
+    if (v.data.time) q.set('t', v.data.time.slice(0, 13)); else q.delete('t');
+    if (v.data.depth) q.set('dz', v.data.depth); else q.delete('dz');
+  }
+  if (v.units === 'nm') q.set('u', 'nm'); else q.delete('u');
+  if (v.bearings) q.set('brg', '1'); else q.delete('brg');
+}
+const drawing = new Drawing(map, {
+  known: KNOWN, getView: viewOf, units: () => display.units, bearings: () => display.bearings, tools: toolbox,
+  onChange: (what) => {
+    if (what === 'tool') renderDrawTool();
+    // phones: something selected on the map while only the tools show: the sheet to half, for its fields
+    if (what === 'drag') return; // what is dragged shows its values on the map
+    if (what === 'draft') return drawPanel.render('draft'); // the touch row's Done
+    drawPanel.render(what);
+  },
+});
 
 // ---- applying the state to the map ------------------------------------------
 const layersOf = {};
@@ -705,6 +794,8 @@ const ICON = {
   link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
   png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
   zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
+  save: ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], // down into a tray (Export)
+  upload: ['M12 15V4', 'm7 9 5-5 5 5', 'M5 20h14'], // up out of a tray (Import; the drawing's file goes down into it)
   plus: ['M12 5v14M5 12h14'],
   minus: ['M5 12h14'],
   compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
@@ -712,17 +803,12 @@ const ICON = {
   ruler: ['M3 17 17 3l4 4L7 21z', 'm7 13 2 2M10 10l2 2M13 7l2 2'],
   area: ['m12 3 8 6-3 11H7L4 9z'],
   ring: ['M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M12 12h.01'],
+  // the tools: a pencil in front of a ruler, crossed; the ruler stops either side of the pencil
+  draw: ['M7 11 2 6l4-4 5 5', 'M13 17l5 5 4-4-5-5', 'm8 4-1.5 1.5M20 16l-1.5 1.5M18 14l-1.5 1.5', 'M16.5 2.5l5 5L9 20l-6.5 1.5L4 15z', 'm14 5 5 5'], // as long as the ruler
+  file: ['M6 3h8l4 4v14H6z', 'M14 3v4h4', 'M11 11.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z', 'M16 16.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z', 'm10.6 12.6 2.8 2.8'], // a page with two nodes joined (the drawing's file)
 };
 // the page's own buttons name their icon: <i data-icon="…">
 for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...ICON[el.dataset.icon]));
-// two or three mutually exclusive buttons (a segmented control)
-function seg(label, options, get, set) {
-  const el = h('div', { class: 'seg', role: 'group', 'aria-label': label },
-    Object.entries(options).map(([v, [text, title]]) => h('button', { type: 'button', 'data-v': v, title, onclick: () => set(v) }, text)));
-  el.render = () => { for (const b of el.children) b.setAttribute('aria-pressed', String(b.dataset.v === get())); };
-  return el;
-}
-
 // ---- layers panel -----------------------------------------------------------
 const menu = $('#menu');
 const rows = {};
@@ -756,7 +842,7 @@ function moreButton(label, info) {
 function controlsOf(it) {
   let variant = null;
   if (it.id === 'depth') {
-    variant = seg('Depth colours', { atlas: ['Darker = deeper', it.variants.atlas], nautical: ['Darker = shallower', it.variants.nautical] }, () => state.variant.depth, (v) => setVariant('depth', v));
+    variant = choice('Depth colours', [['atlas', 'Darker = deeper', it.variants.atlas], ['nautical', 'Darker = shallower', it.variants.nautical]], () => state.variant.depth, (v) => setVariant('depth', v));
     segs.push(variant);
   } else if (it.variants) {
     variant = h('select', { class: 'variant', 'aria-label': `${it.label} variant`, onchange: (e) => setVariant(it.id, e.target.value) },
@@ -924,57 +1010,57 @@ function renderStatus() {
   for (const slot in picks) mark(picks[slot].closest('li'), state[slot] ? itemStatus(state[slot].split(':')[0]) : null);
 }
 
-// ---- measure view (in the side panel): tools, units, saved measurements -----------------
-const TOOL = { ruler: ['Ruler', 'Distance and bearing (R)'], area: ['Area', 'Area and perimeter (A)'], ring: ['Ring', 'Range ring: centre, then radius (C)'] };
-const TIP = { ruler: 'Click to add points', area: 'Click to add corners', ring: 'Click the centre, then the edge' };
-const measureView = $('#mview');
-const toolBtns = Object.entries(TOOL).map(([k, [label, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', title,
-  onclick: () => { if (small()) setPanel(null); measure.tool === k ? measure.finish() : measure.start(k); } }, icon(...ICON[k]), label)); // phones: the sheet makes way for the map
-const unitSeg = seg('Distance units', { km: ['km · m', 'Kilometres and metres'], nm: ['Nautical miles', 'Nautical miles'] }, () => measure.units, (u) => measure.setUnits(u));
-const measureList = h('ul', { class: 'mlist' });
-// bearings beside each leg's length: off unless asked for (most measuring is distance)
-const brgSwitch = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: 'm-bearings', onchange: (e) => measure.setBearings(e.target.checked) });
-measureView.append(h('div', { class: 'tools3' }, toolBtns), h('h2', {}, 'Units'), unitSeg,
-  h('div', { class: 'item' }, h('div', { class: 'line' }, h('label', { class: 'name', for: 'm-bearings' }, 'Bearings (°T)'), brgSwitch)),
-  h('h2', {}, 'Measurements'), measureList,
-  h('p', { class: 'note' }, 'Geodesic on WGS 84; bearings true (°T).', h('span', { class: 'keys-hint' }, ' Double-click or Enter finishes; Backspace undoes; Esc cancels.')));
-function renderMeasures() {
-  const u = measure.units === 'nm' ? ['NM', 1852] : ['km', 1000];
-  measureList.replaceChildren(...measure.list.map((x) => h('li', { class: 'item' },
-    h('div', { class: 'line' },
-      h('input', { type: 'checkbox', checked: !x.hidden, id: `m-${x.id}`, 'aria-label': 'Show on the map', onchange: (e) => measure.setHidden(x.id, !e.target.checked) }),
-      h('label', { class: 'name', for: `m-${x.id}` }, summary(x, measure.units)),
-      h('button', { class: 'x', type: 'button', 'aria-label': 'Delete measurement', title: 'Delete', onclick: () => measure.remove(x.id) }, '×')),
-    x.kind === 'ring' ? h('div', { class: 'controls' }, h('label', { class: 'opacity' }, h('span', {}, `Radius (${u[0]})`),
-      h('input', { type: 'number', min: 0, step: 'any', value: +(x.r / u[1]).toFixed(3), onchange: (e) => measure.setRadius(x.id, +e.target.value * u[1]) }))) : null)));
-  if (!measure.list.length) measureList.append(h('li', { class: 'empty' }, 'None yet: pick a tool above.'));
-  unitSeg.render();
-  brgSwitch.checked = measure.bearings;
+// ---- the distance units for the whole app ----------------------------------------------------
+// the units the drawing's lengths and values, its labels and the exports use: one switch beside the scale
+const unitsBtn = $('#units');
+unitsBtn.addEventListener('click', () => setDisplay({ units: display.units === 'km' ? 'nm' : 'km' }));
+function renderUnits() {
+  const nm = display.units === 'nm';
+  unitsBtn.textContent = nm ? 'NM' : 'km';
+  unitsBtn.title = nm ? 'Distances in nautical miles: click for kilometres' : 'Distances in kilometres: click for nautical miles';
 }
 
-// ---- measuring bar: what is being drawn, the live value, Undo / Done / Cancel ------------------
-const mbar = $('#mbar');
-const mbarWhat = h('span', { class: 'what' }), mbarVal = h('span', { class: 'val' }), mbarTip = h('span', { class: 'tip' });
-mbar.append(mbarWhat, mbarVal, mbarTip,
-  h('button', { type: 'button', onclick: () => measure.undo(), title: 'Remove the last point (Backspace)' }, 'Undo'),
-  h('button', { type: 'button', class: 'done', onclick: () => measure.finish(), title: 'Finish (Enter, or double-click)' }, 'Done'),
-  h('button', { type: 'button', onclick: () => measure.cancel(), title: 'Discard (Esc)' }, 'Cancel'));
-function renderTools() {
-  for (const b of toolBtns) b.setAttribute('aria-pressed', String(measure.tool === b.dataset.tool));
-  $('#b-measure').classList.toggle('active', !!measure.tool);
-  mbar.hidden = !measure.tool;
-  if (!measure.tool) return;
-  const p = measure.preview();
-  mbarWhat.textContent = TOOL[measure.tool][0];
-  mbarVal.textContent = p.pts.length ? summary(p, measure.units).replace(/^\S+ /, '') : '';
-  mbarTip.textContent = TIP[measure.tool];
+// ---- the Draw view (draw/panel.js), and the bar while a placing tool is on --------------------
+const drawPanel = drawView($('#dview'), {
+  drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units, isOpen: () => state.panel === 'draw',
+  measureIcon: ICON.ruler, measureIcons: (k) => ICON[k], compact: () => compact.on, setCompact: (v) => setCompact(v), free: () => free(), header: $('#panel-actions'),
+  // an imported drawing added to the list and opened, with its view and layers; one of the list opened
+  // where it was drawn
+  onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
+  openDrawing: (id) => { const v = drawing.saving.open(id); if (v?.center) map.jumpTo({ center: v.center, zoom: v.zoom ?? map.getZoom(), bearing: v.bearing ?? 0 }); },
+  download: (text, name, type = 'application/geo+json') => download(new Blob([text], { type }), name),
+  profile: (trace) => profileFor(trace),
+});
+function renderDrawTool() {
+  $('#b-draw').classList.toggle('active', !!drawing.tool);
+  // a tool started makes the Tools panel compact, and it goes back when the tool ends (drawing-ui.md §1
+  // §6b); a label's text is typed in the inspector: the Label tool keeps it whole
+  const placing = drawing.tool && drawing.tool !== 'label';
+  if (placing && state.panel === 'draw' && !compact.on) setCompact(true, true);
+  else if (!placing && compact.auto) setCompact(false);
 }
+toolbox.add(drawing);
 
 // ---- side panel, link and PNG, about -----------------------------------------------------
 // One side panel; the Layers and Measure buttons switch what it shows, and the button of the
 // view already shown closes it. It keeps its place and size, so nothing overlaps.
 const panel = $('#panel'), panelTitle = $('#panel-title');
-const VIEWS = { layers: [$('#b-layers'), $('#lview'), 'Layers'], measure: [$('#b-measure'), measureView, 'Measure'] };
+const VIEWS = { layers: [$('#b-layers'), $('#lview'), 'Layers'], draw: [$('#b-draw'), $('#dview'), 'Tools'] };
+// The padding that keeps what the map is fitted to (Zoom to, a place found) in the part not under the
+// panel: on a phone above the sheet, elsewhere left of the panel; 60 px of margin all round. Only for
+// fitting: the map itself does not move when the panel opens or closes.
+function free(margin = 60) {
+  const p = { top: margin, right: margin, bottom: margin, left: margin };
+  if (panel.hidden) return p;
+  const r = panel.getBoundingClientRect();
+  if (small()) p.bottom += Math.max(0, innerHeight - r.top); else p.right += Math.max(0, innerWidth - r.left);
+  return p;
+}
+function setCompact(on, auto = false) {
+  Object.assign(compact, { on, auto: on && auto });
+  panel.classList.toggle('compact', on && state.panel === 'draw');
+  drawPanel.render('tool');
+}
 function setPanel(view) {
   state.panel = view;
   panel.hidden = !view;
@@ -984,15 +1070,26 @@ function setPanel(view) {
     if (v === view) panelTitle.textContent = title;
   }
   document.body.classList.toggle('menu-open', !!view); // phones: the legend makes way for the sheet
+  panel.classList.toggle('wide', view === 'draw'); // the Draw view: list and inspector need the room
+  panel.classList.toggle('compact', compact.on && view === 'draw');
+  $('#panel-actions').hidden = view !== 'draw'; // Undo, Redo, compact: the Tools panel's
+  if (view !== 'draw') { drawing.stop(); drawPanel.closed(); }
   writeHash();
 }
 for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => setPanel(state.panel === v ? null : v));
 $('#close').addEventListener('click', () => setPanel(null));
 
-// Link, PNG and GIS act at once (no menu): the link button says "Copied" for a moment
-$('#link').addEventListener('click', (e) => copyLink(e.currentTarget));
-$('#png').addEventListener('click', (e) => exportPng(e.currentTarget));
-$('#zip').addEventListener('click', (e) => exportZip(e.currentTarget));
+// Export: a menu of the view's link, a picture, GIS data and the drawing's file, each acting at once;
+// the Export button says how it went for a moment ("Copied", "Saving…", "Failed"). Import: a
+// drawing's file, or any GeoJSON (the drawing, with the view that a link cannot carry)
+const exportBtn = $('#export');
+railMenu(exportBtn, $('#export-menu'));
+$('#link').addEventListener('click', () => copyLink(exportBtn));
+$('#png').addEventListener('click', () => exportPng(exportBtn));
+$('#zip').addEventListener('click', () => exportZip(exportBtn));
+$('#save').addEventListener('click', () => drawPanel.save());
+$('#savepresets').addEventListener('click', () => drawPanel.savePresets());
+$('#import').addEventListener('click', () => drawPanel.open());
 async function copyLink(b) {
   writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
@@ -1010,15 +1107,23 @@ const about = $('#about');
 $('#b-about').addEventListener('click', () => about.showModal());
 about.querySelector('[data-close]').addEventListener('click', () => about.close());
 
-// keys: / search, L layers, R / A / C measuring tools (measure.js handles Esc while drawing)
-const TOOL_KEY = { r: 'ruler', a: 'area', c: 'ring' };
+// the single keys (keys.js), from anywhere: search, a panel, or a tool, which opens its panel
+// (tools.js handles the keys of what is being drawn; draw/panel.js the Tools panel's own)
 window.addEventListener('keydown', (e) => {
-  if (e.ctrlKey || e.metaKey || e.altKey || about.open || e.target.closest('input, select, textarea')) return;
-  const k = e.key.toLowerCase();
-  if (k === '/') { e.preventDefault(); q.focus(); }
-  else if (k === 'l') setPanel(state.panel === 'layers' ? null : 'layers');
-  else if (TOOL_KEY[k]) { if (small()) setPanel(null); measure.start(TOOL_KEY[k]); }
+  if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]') || e.target.closest('input, select, textarea')) return;
+  const k = keyEntry(e.key);
+  if (!k?.open && !k?.tool) return;
+  if (k.open === 'search') { e.preventDefault(); q.focus(); }
+  else if (k.open) setPanel(state.panel === k.open ? null : k.open);
+  else {
+    if (state.panel !== 'draw' && !small()) setPanel('draw'); // phones: the sheet makes way for the map
+    drawPanel.cycle(k.tool[1]); // on, or its next variant
+  }
 });
+// the tooltips and About say the keys
+$('#about .keys').replaceChildren(...keyList());
+$('#b-layers').title = `Layers (${openKey('layers')})`;
+$('#b-draw').title = `Tools: draw and measure: points, lines, shapes, labels, measurements (${openKey('draw')})`;
 
 // phones: the panel is a sheet as tall as its content; drag its handle down to close it
 const handle = h('div', { class: 'handle', 'aria-hidden': 'true' });
@@ -1038,19 +1143,42 @@ handle.addEventListener('pointerdown', (e) => {
   handle.addEventListener('pointerup', up, { once: true });
 });
 
-const q = search(map, maplibregl.Marker); // the search box: / goes to it
+const q = search(map, maplibregl.Marker, free); // the search box: / goes to it
 
 // ---- depth at a point: a click on the sea says its depth and where it comes from --------------
 // As the depth shading has it (the sea's clipped tile: GEBCO, cut to the OSM coastline, the
 // Caspian from its own surface), rounded towards shallower (16.6 m reads 16 m); while the depth
 // shading or the isobaths are on, and not while measuring (a click there adds a point)
 const depthPopup = new maplibregl.Popup({ className: 'depthpop', maxWidth: '240px', focusAfterOpen: false });
+// The depth profiles read (a line's Depth profile pressed), by trace: the GIS export's seabed lengths
+// come from these only, so that an export reads no depth tiles along lines nobody asked about
+const profiled = new Map(); // JSON of the trace's coordinates → promise of its profile
+function profileFor(trace) {
+  const key = JSON.stringify(trace.coords);
+  if (!profiled.has(key)) {
+    if (profiled.size > 64) profiled.delete(profiled.keys().next().value);
+    profiled.set(key, profileOf(trace, depthAt, DEM_SEA.max).catch((err) => { profiled.delete(key); throw err; }));
+  }
+  return profiled.get(key);
+}
+// The depth at p ([lng, lat]) as the depth shading has it, read at zoom z: metres, negative below the
+// sea surface; NaN on land, lakes, no data. A profile reads many places of few tiles: each tile once.
+const depthTiles = new Map();
+async function depthAt([lng, lat], z) {
+  const n = 2 ** z, X = ((((lng + 180) / 360) % 1) + 1) % 1 * n, s = Math.sin((lat * Math.PI) / 180), Y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
+  const key = `${z}/${Math.floor(X)}/${Math.floor(Y)}`;
+  if (!depthTiles.has(key)) {
+    if (depthTiles.size > 64) depthTiles.delete(depthTiles.keys().next().value);
+    depthTiles.set(key, seaClip.metres(z, Math.floor(X), Math.floor(Y)).catch((err) => { depthTiles.delete(key); throw err; }));
+  }
+  const m = await depthTiles.get(key);
+  return m[Math.floor((Y % 1) * 256) * 256 + Math.floor((X % 1) * 256)];
+}
 map.on('click', async (e) => {
-  if (measure.tool || !(state.on.has('depth') || state.on.has('isobaths'))) return;
-  const { lng, lat } = e.lngLat, z = Math.min(DEM_SEA.max, Math.floor(map.getZoom()) + 1), n = 2 ** z; // 256 px DEM tiles at z show at map zoom z − 1
-  const X = ((((lng + 180) / 360) % 1) + 1) % 1 * n, s = Math.sin((lat * Math.PI) / 180), Y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
-  const [m, code] = await Promise.all([seaClip.metres(z, Math.floor(X), Math.floor(Y)), tidAt(lng, lat).catch(() => null)]);
-  const v = m[Math.floor((Y % 1) * 256) * 256 + Math.floor((X % 1) * 256)];
+  if (drawing.tool || drawing.picking || drawing.repointing || !(state.on.has('depth') || state.on.has('isobaths'))) return;
+  if (drawing.hitAt(e.point).length) return; // a click on a drawing selects it
+  const { lng, lat } = e.lngLat, z = Math.min(DEM_SEA.max, Math.floor(map.getZoom()) + 1); // 256 px DEM tiles at z show at map zoom z − 1
+  const [v, code] = await Promise.all([depthAt([lng, lat], z), tidAt(lng, lat).catch(() => null)]);
   if (!Number.isFinite(v)) { depthPopup.remove(); return; } // land, a lake, inland water: no depth here
   const source = DEPTH_SOURCES.find(({ codes: [a, b] }) => code >= a && code <= b);
   // −1: shallower than 1 m, or sea the data calls dry (clip.js)
@@ -1129,11 +1257,12 @@ async function onFrame(b, fn, before = async () => {}) {
   const failed = (e) => { console.error('export failed:', e.message); done('Failed', `Export failed: ${e.message}`); };
   try { await before(); } catch (e) { failed(e); return; }
   const go = () => {
+    drawing.showMarks(false); // the selection's highlight is not part of the picture
     map.once('render', async () => {
       try {
         const left = await fn(map.getCanvas());
         done(left?.length ? 'Partial' : '', left?.length ? `Saved without ${left.join('; ')}` : '');
-      } catch (e) { failed(e); }
+      } catch (e) { failed(e); } finally { drawing.showMarks(true); }
     });
     map.triggerRepaint();
   };
@@ -1163,6 +1292,9 @@ function snapshot(src) {
     timeText: !timed ? '' : hr ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
       : new Date(t).toLocaleDateString([], { dateStyle: 'medium', timeZone: 'UTC' }),
     depthText: depth == null ? '' : depthWords(depth),
+    // drawn shapes too small to see, drawn enlarged: the picture says they are not to scale
+    drawText: [drawing.doc.points.some((pt) => isShown(drawing.doc, pt) && drawing.enlargement(pt) > 1) ? 'small shapes shown enlarged, not to scale' : '',
+      drawing.apart().length ? 'lines drawn apart or offset, not to scale' : ''].filter(Boolean).join(' · '),
     // for files read elsewhere: in UTC
     dataText: !timed ? '' : `data ${hr ? `at ${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `of ${dayOf(t)} (UTC)`}${depth == null ? '' : `, ${depthWords(depth)}`}`,
   };
@@ -1254,8 +1386,16 @@ function exportZip(b) {
     const values = (await Promise.all(layers.filter((l) => kindOf(l.id)?.values).map((l) => kindOf(l.id).values(l, box)
       .then((rs) => { l.assets.push(...rs.map((r) => r.key)); return rs; }, (e) => { console.warn(`${l.label} values:`, e.message); left.push(`${l.label} values (${e.message})`); return []; })))).flat();
     for (const l of layers) Object.assign(l, await kindOf(l.id)?.record(l)); // what each drew: period, day, time, depth
-    const measured = measureFeatures(measure.list);
-    if (measured.length) vectors.push({ key: 'vector/measurements', title: 'Measurements', file: 'vector/measurements.geojson', data: featureCollection('Measurements', measured), n: measured.length, how: 'whole, geodesic values in metres' });
+    // the drawing: its visible elements as drawn (radii and outlines as polygons), and its file, to import again
+    const drawn = exportFeatures(drawing.doc, display.units);
+    // a line's length along the seabed (profile.js; a lower bound, the grid's relief), where its depth
+    // profile was read as it is now drawn
+    await Promise.all(drawn.filter((x) => x.properties.kind === 'line').map(async (f) => {
+      const line = drawing.doc.lines.find((x) => x.id === f.properties.id), prof = profiled.get(JSON.stringify(lineTrace(drawing.doc, line).coords));
+      try { if (prof) f.properties.seabed_length_m = Math.round((await prof).seabed * 1000) / 1000; } catch { /* no depths: left out */ }
+    }));
+    if (drawn.length) vectors.push({ key: 'vector/drawings', title: 'Drawings', file: 'vector/drawings.geojson', data: featureCollection('Drawings', drawn), n: drawn.length, how: 'whole, geodesic values in metres' });
+    const drawingFile = drawing.isEmpty() ? null : drawing.text();
     const item = stacItem({
       id: name, title: `Chart · ${s.at}`, when, data: s.time, corners, zoom: s.zoom, bearing: s.bearing, layers,
       attribution: s.credits, link: s.link,
@@ -1268,6 +1408,7 @@ function exportZip(b) {
         ...Object.fromEntries(rasters.map((r) => [r.asset, { href: `./${r.file}`, type: 'image/tiff; application=geotiff', title: `${r.title}: DEM tiles of zoom ${r.grid.z}${r.grid.z > r.native ? `, upsampled from zoom ${r.native}` : ''}, over the view's bounding box`, description: r.description, roles: ['data'],
           'proj:code': 'EPSG:3857', 'proj:shape': [r.grid.h, r.grid.w], 'proj:transform': r.transform, bands: [{ data_type: 'float32', nodata: 'nan', unit: 'm' }] }])),
         ...Object.fromEntries(vectors.map((v) => [v.key, { href: `./${v.file}`, type: 'application/geo+json', title: `${v.title}: ${v.n} feature${v.n === 1 ? '' : 's'}, ${v.how}`, roles: ['data'] }])),
+        ...(drawingFile ? { drawing: { href: './drawing.geojson', type: 'application/geo+json', title: 'The drawing, editable: Charts, Import (GeoJSON, with what the app needs to edit it)', roles: ['data'] } } : {}),
         ...Object.fromEntries(values.map((r) => [r.key, { href: `./${r.file}`, type: 'image/tiff; application=geotiff', title: r.title, description: r.description, roles: ['data'],
           'proj:code': 'EPSG:4326', 'proj:shape': [r.h, r.w], 'proj:transform': r.transform, bands: r.names.map((n, k) => ({ name: n, data_type: 'float32', nodata: 'nan', unit: r.units[k] })) }])),
       },
@@ -1280,6 +1421,7 @@ function exportZip(b) {
       { name: 'map.png.aux.xml', data: pamXml() },
       { name: 'chart.png', data: chartFile },
       ...vectors.map((v) => ({ name: v.file, data: v.data })),
+      ...(drawingFile ? [{ name: 'drawing.geojson', data: drawingFile }] : []),
       ...rasters.map((r) => ({ name: r.file, data: r.data })),
       ...values.map((r) => ({ name: r.file, data: r.data })),
     ], when), `${name}.zip`);
@@ -1303,10 +1445,13 @@ map.on('load', () => {
   depthColours();
   labelPaint();
   creditEsri();
-  measure.load(measureState);
+  drawing.addIcons();
+  drawing.saving.restore(); // its view, if the address had none, is already in it
+  drawing.render();
+  drawPanel.render('doc');
   updateGraticule();
   renderMenu();
-  renderMeasures();
+  renderUnits();
   ready = true;
   setPanel(state.panel); // also writes the URL, now with everything applied
   scaleNote();
@@ -1321,3 +1466,4 @@ map.on('dataloading', () => document.body.classList.add('loading'));
 map.on('idle', () => document.body.classList.remove('loading'));
 window.addEventListener('hashchange', () => location.reload());
 window.map = map; // the browser tests drive the map through it; handy from the console too
+window.drawing = drawing; // likewise the drawing

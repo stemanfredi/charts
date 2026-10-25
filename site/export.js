@@ -2,7 +2,7 @@
 // the view's corners and the layers drawn; app.js reads those from the map.
 //   map.png + map.pgw + map.png.aux.xml   the map as drawn, georeferenced in Web Mercator
 //   item.json                             a STAC Item describing the view and every file
-// (vector/*.geojson come from vector.js, the measurements from measure.js, raster/*.tif from geotiff.js)
+// (vector/*.geojson come from vector.js, the drawing from draw/features.js, raster/*.tif from geotiff.js)
 // and the text fields of the PNG export (pngText).
 import { crc32 } from './zip.js';
 import { mercator } from './geo.js';
