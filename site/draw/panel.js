@@ -1158,6 +1158,8 @@ export function drawView(root, ctx) {
     const made = (k) => { const c = k && connections(doc).find((x) => x.groupId === k); return c ? ` (${c.pattern}, from ${c.roots.map((r) => label('point', now(r.id))).join(', ')})` : ''; };
     const keyName = (k) => (totalsBy ? (k ? `“${k}”` : `No ${totalsBy}`) : groupName(k) + made(k));
     const td = (x, cls = '') => h('td', { class: cls }, x), num = (x) => td(x, 'num');
+    // a row that acts (folds a group, selects an element): the whole row the target, by pointer or keys
+    const acts = (cls, title, fn, ...cells) => h('tr', { class: `${cls} acts`, role: 'button', tabindex: 0, title, onclick: fn, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } } }, ...cells);
     const sec = (title, ...heads) => h('tr', { class: 'sec' }, td(title), ...heads.map((x) => num(x)));
     const rows = [], copy = []; // copy: [section, group, name, count, length m, area m², perimeter m]
     const nameOf = (kind, id) => label(kind, find(doc, id).el);
@@ -1168,18 +1170,18 @@ export function drawView(root, ctx) {
       for (const r of lineRows) {
         const folded = totalsFolded.has(r.key), g = one ? '' : keyName(r.key);
         if (!one) {
-          rows.push(h('tr', { class: 'grp' }, td(h('button', { type: 'button', class: 'fold', 'aria-expanded': String(!folded), title: folded ? 'Show its lines' : 'Fold', onclick: () => { totalsFolded[folded ? 'delete' : 'add'](r.key); renderInspector(); } }, `${folded ? '▸' : '▾'} ${g}`)), num(plural(r.count, 'line')), num(fmtDist(r.length, u))));
+          rows.push(acts('grp', folded ? 'Show its lines' : 'Fold its lines', () => { totalsFolded[folded ? 'delete' : 'add'](r.key); renderInspector(); }, td(`${folded ? '▸' : '▾'} ${g}`), num(plural(r.count, 'line')), num(fmtDist(r.length, u))));
           copy.push(['Lines', g, '', r.count, r.length, '', '']);
         }
         for (const p of r.parts) { if (!folded) rows.push(h('tr', { class: one ? 'part top' : 'part' }, td(MADE_PART[p.part]), num(plural(p.count, 'line')), num(fmtDist(p.length, u)))); copy.push(['Lines', g, MADE_PART[p.part], p.count, p.length, '', '']); }
-        for (const l of r.lines) { if (!folded) rows.push(h('tr', { class: one ? 'item top' : 'item' }, td(link(l.id)), td(''), num(fmtDist(l.length, u)))); copy.push(['Lines', g, nameOf('line', l.id), 1, l.length, '', '']); }
+        for (const l of r.lines) { if (!folded) rows.push(acts(one ? 'item top' : 'item', 'Select it', () => drawing.select([l.id]), td(nameOf('line', l.id)), td(''), num(fmtDist(l.length, u)))); copy.push(['Lines', g, nameOf('line', l.id), 1, l.length, '', '']); }
       }
       rows.push(h('tr', { class: 'all' }, td('All lines'), num(plural(b.lines.count, 'line')), num(fmtDist(b.lines.length, u))));
       copy.push(['Lines', '', 'All lines', b.lines.count, b.lines.length, '', '']);
     }
     if (b.areas.count) {
       rows.push(sec('Areas', 'Area', 'Perimeter'));
-      for (const a of b.areas.rows) { rows.push(h('tr', { class: 'item top' }, td(link(a.id)), num(fmtArea(a.area, u)), num(fmtDist(a.perimeter, u)))); copy.push(['Areas', '', nameOf('area', a.id), 1, '', a.area, a.perimeter]); }
+      for (const a of b.areas.rows) { rows.push(acts('item top', 'Select it', () => drawing.select([a.id]), td(nameOf('area', a.id)), num(fmtArea(a.area, u)), num(fmtDist(a.perimeter, u)))); copy.push(['Areas', '', nameOf('area', a.id), 1, '', a.area, a.perimeter]); }
       rows.push(h('tr', { class: 'all' }, td('All areas'), num(fmtArea(b.areas.area, u)), num(fmtDist(b.areas.perimeter, u))));
       copy.push(['Areas', '', 'All areas', b.areas.count, '', b.areas.area, b.areas.perimeter]);
     }

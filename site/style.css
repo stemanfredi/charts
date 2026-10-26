@@ -279,10 +279,12 @@ button.small.link:hover { border-color: var(--line); }
 .vtable.totals tr.sec td { border-top: 0; padding-top: 10px; padding-bottom: 1px; font-size: 10.5px; color: var(--soft); text-transform: uppercase; letter-spacing: .04em; }
 .vtable.totals tr.sec:first-child td { padding-top: 2px; }
 .vtable.totals tr.grp td { font-weight: 600; }
-.vtable.totals tr.grp button.fold { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.vtable.totals tr.acts { cursor: pointer; }
+.vtable.totals tr.acts:hover td, .vtable.totals tr.acts:focus-visible td { background: var(--line2); }
+.vtable.totals tr.acts:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .vtable.totals tr.part td:first-child, .vtable.totals tr.item td:first-child { padding-left: 18px; color: var(--soft); }
+.vtable.totals tr.item.acts td:first-child { color: var(--accent); }
 .vtable.totals tr.top td:first-child { padding-left: 4px; }
-.vtable.totals tr.item td:first-child button.link { padding: 0; min-height: 0; line-height: inherit; font-size: inherit; }
 .vtable.totals tr.all td { font-weight: 600; border-top: 2px solid var(--line); }
 /* a list grid (docs/drawing-ui.md §5): fixed columns; the first ones kept in place while it
    scrolls sideways; the current row marked; its actions in the bar under it */

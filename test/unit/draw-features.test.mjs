@@ -106,14 +106,15 @@ test('selection and hover: a halo just outside, handles, a mark at the centre, n
   const f = drawFeatures(doc, new Set(['n', 'h', 's', 'gm']), 'm').features;
   const marks = f.filter((x) => ['sel', 'hover', 'handle'].includes(x.properties.kind));
   const halo = (id) => marks.filter((x) => x.properties.id === id && x.geometry.type === 'Polygon');
-  // one halo per point, at its largest shown round part (the second, 1 km; the third is hidden), with the stroke width to clear
-  assert.equal(halo('n').length, 1);
-  near(inverse([12, 41], halo('n')[0].geometry.coordinates[0][5]).s, 1000, 1e-3, 'the outermost shown circle');
-  assert.equal(halo('n')[0].properties.sw, 1.5);
-  assert.equal(halo('h')[0].properties.sw, 4); // a shape: round its outline
+  // several selected: no bands, dots (a point's centre; an outline's four corners); the hovered one a
+  // band at its largest shown round part, with the stroke width to clear
+  assert.deepEqual(['n', 'h', 's', 'gm'].map((id) => halo(id).length), [0, 0, 0, 0]);
   assert.equal(halo('m')[0].properties.kind, 'hover');
-  assert.equal(halo('gm').length, 1); // round its own circle, in a group too
-  assert.ok(turn(halo('n')[0].geometry.coordinates[0]) > 0, 'counter-clockwise');
+  assert.equal(halo('m')[0].properties.sw, 1.5);
+  near(inverse([12, 41], halo('m')[0].geometry.coordinates[0][5]).s, 100, 1e-3, 'round its circle');
+  assert.ok(turn(halo('m')[0].geometry.coordinates[0]) > 0, 'counter-clockwise');
+  const hovered = drawFeatures(doc, new Set(), 'n').features.filter((x) => x.properties.kind === 'hover' && x.geometry.type === 'Polygon');
+  near(inverse([12, 41], hovered[0].geometry.coordinates[0][5]).s, 1000, 1e-3, 'hovered: its outermost shown circle (the third is hidden)');
   // handles, each saying what dragging it does: four per shown circle (its cardinal points), one at
   // the middle of a sector's arc, a sector's two edges, an outline's corners and the middle of its
   // sides; none on hover. A part's handle refers to it by its place in the point's list
@@ -129,8 +130,8 @@ test('selection and hover: a halo just outside, handles, a mark at the centre, n
   assert.equal(marks.filter((x) => x.properties.id === 'm' && x.properties.kind === 'handle').length, 0); // hovered, not selected: no handles
   assert.deepEqual(handles('gm').map((x) => x.properties.role), ['radius', 'radius', 'radius', 'radius']); // a member's parts: its own
   assert.ok(gm.groupId);
-  // the ring round a selected or hovered point's centre; a shape has none: its outline's halo says it
-  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && x.properties.kind !== 'handle')), [['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel']]);
+  // the dot at a selected point's centre, the ring round a hovered one's; a shape's four corners
+  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && x.properties.kind !== 'handle')), [['h', 'sel'], ['h', 'sel'], ['h', 'sel'], ['h', 'sel'], ['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel']]); // outlines are drawn before the points' centres
   // the element's own features are unchanged by being selected
   assert.deepEqual(f.filter((x) => !marks.includes(x)), drawFeatures(doc).features);
 });
@@ -150,9 +151,10 @@ test('a selected outline: corners and a rotate stalk at its front; drawn enlarge
   const far = at(10);
   assert.equal(far.filter((x) => x.properties.kind === 'handle').length, 0);
   assert.equal(far.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Polygon').length, 0); // enlarged: only moved, nothing to drag, and still no band
-  // among several selected: the band, no handles
+  // among several selected: dots at the corners, no band, no handles
   const two = drawFeatures(doc, new Set([h.id, addShape(doc, [13, 40]).id]), null, { zoom: 20 }).features;
-  assert.equal(two.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Polygon').length, 2);
+  assert.equal(two.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Polygon').length, 0);
+  assert.equal(two.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Point').length, 8);
   assert.equal(two.filter((x) => x.properties.kind === 'handle').length, 0);
 });
 
@@ -379,7 +381,9 @@ test('lines: guides and the others drawn, a click target each, halos, handles by
   assert.deepEqual([s1.geometry.coordinates[0], s1.geometry.coordinates.at(-1)], [[12, 41], [12.2, 41]]);
   const guide = f.find((x) => x.properties.kind === 'guide').properties;
   assert.deepEqual([guide.dash, guide.sc, guide.sw], ['dashed', '#6b7a86', 3]); // a guide's look, its own width
-  assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'LineString')), [['s1', 'sel'], ['s2', 'sel']]);
+  assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'LineString')), [], 'two selected: no bands');
+  assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Point')), [['s1', 'sel'], ['s1', 'sel'], ['s1', 'sel'], ['s2', 'sel'], ['s2', 'sel']], 'dots at their ends and vertices');
+  assert.deepEqual(kindsOf(drawFeatures(doc, new Set(), 's1').features.filter((x) => x.properties.kind === 'hover' && x.geometry.type === 'LineString')), [['s1', 'hover']], 'hovered: the band');
   // handles: an attached end moves its point, a free end itself, a vertex itself
   const handles = (fs, id, kind = 'handle') => fs.filter((x) => x.properties.kind === kind && x.properties.id === id).map((x) => [x.properties.role, x.properties.ref]);
   const one = (id) => drawFeatures(doc, new Set([id])).features; // handles: one selected
