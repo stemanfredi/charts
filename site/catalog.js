@@ -3,15 +3,13 @@
 
 import { HOSTS } from './hosts.js';
 
+// the land's elevation (SRTM); the sea's depths are GEBCO's (gebco.js). Both cut to the OSM
+// coastline (clip.js), up to these zooms of 256 px tiles. Sea 13: depth shading shows up to map
+// zoom 13, and a tile at z shows at map zoom z − 1 and is cut with the OSM coastline of that zoom;
+// capped at 12, map zoom 12 was cut with the zoom-11 coastline, where small islands do not exist
+// yet, and they vanished under the tint. Land 12: the DEM's own last zoom
 export const DEM_TILES = `${HOSTS.terrain}/terrarium/{z}/{x}/{y}.png`;
-// Terrarium carries bathymetry only up to zoom 10: above that most seas read 0 m
-// (SRTM fills water with 0). `native` is the zoom read from the server, `max` the
-// zoom served after clipping to the OSM coastline (clip.js), upsampled in between.
-// sea max 13: depth shading shows up to map zoom 13, and a 256 px tile at z shows at map zoom
-// z − 1 and is cut with the OSM coastline of that zoom; capped at 12, map zoom 12 was cut with the
-// zoom-11 coastline, where small islands do not exist yet, and they vanished under the tint
-export const DEM_SEA = { native: 10, max: 13 };
-export const DEM_LAND = { native: 12, max: 12 }; // no upsampling: slopes of an upsampled DEM shade in facets
+export const DEM_SEA_MAX = 13, DEM_LAND_MAX = 12;
 export const OMT_TILEJSON = `${HOSTS.openfreemap}/planet`;
 
 // Shipping density from EMODnet Human Activities (WMS, keyless, CORS), on a 1 km grid over
@@ -316,7 +314,7 @@ export const ITEMS = [
 
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12, kind: 'gebco',
     variants: { atlas: 'Darker = deeper (atlas)', nautical: 'Darker = shallower (nautical chart)' },
-    info: { src: 'GEBCO 2026 Grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs); AWS Terrain Tiles (Terrarium) where it cannot be read', lic: 'GEBCO terms: free to use and redistribute, with attribution', res: 'GEBCO\'s cells of 15 arc-seconds (about 460 m), worldwide: about a quarter of the seabed from surveys, the rest interpolated or predicted from satellite gravity (in Europe, EMODnet depth is finer: its own layer). Cut to the OSM coastline, so land below sea level is never tinted; sea the DEM calls dry is shown as the shallowest class. Inland water is classified once per water body from the DEM at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://www.gebco.net' } },
+    info: { src: 'GEBCO 2026 Grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: 'GEBCO terms: free to use and redistribute, with attribution', res: 'GEBCO\'s cells of 15 arc-seconds (about 460 m), worldwide: about a quarter of the seabed from surveys, the rest interpolated or predicted from satellite gravity (in Europe, EMODnet depth is finer: its own layer). Cut to the OSM coastline, so land below sea level is never tinted; sea the grid calls dry is shown as the shallowest class. Inland water is classified once per water body from the grid at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://www.gebco.net' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 2,
     info: { src: 'Contoured in your browser from GEBCO 2026 (maplibre-contour)', lic: 'As GEBCO', res: 'At the depths nautical charts use, more of them as you zoom in: 3000 and 5000 m from zoom 2 (ridges, trenches, abyssal plains); 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: GEBCO\'s cells are about 460 m, many of them interpolated where there are no surveys. As coarse as the grid beneath: smoothed shapes, not surveyed soundings. Traced on the depths cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'depthsource', group: 'sea', label: 'Depth sources (GEBCO)', opacity: 0.6, kind: 'gebcotid', legendSub: 'where the depths come from',
@@ -430,8 +428,8 @@ export const DEPTH_SCHEMES = {
 // 5000 m: they outline ridges, trenches and abyssal plains, and none of them hugs a coast. None at 75 or 150 m: no decision
 // changes there, and on wide gentle shelves, where those lines would fall, the coarse model cannot
 // place them (an error of 10 m in depth on a 0.1% slope moves a line 10 km).
-// From it: what each zoom traces (isobathSteps, maplibre-contour in app.js), draws (style.js) and
-// cleans up in the DEM (levelsFor, clip.js). [depth m, from zoom]
+// From it: what each zoom traces (isobathSteps, maplibre-contour in app.js) and draws (style.js).
+// [depth m, from zoom]
 export const ISOBATHS = [
   [5, 10], [10, 8], [20, 6], [30, 8], [50, 6], [100, 6], [200, 4], [300, 8], [500, 6],
   [1000, 4], [1500, 8], [2000, 4], [2500, 8], [3000, 2], [5000, 2], ...[4000, 6000, 7000, 8000, 9000, 10000, 11000].map((d) => [d, 4]),
@@ -447,11 +445,6 @@ const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 export const isobathSteps = () => Object.fromEntries(ISOBATH_ZOOMS.map(([z, ds]) => [z, [ds.reduce(gcd)]]));
 // every depth an isobath is drawn at, at some zoom
 export const DEPTH_LEVELS = ISOBATHS.map(([d]) => d);
-// the depths drawn from DEM tiles of zoom z: the native zoom serves every map zoom above it
-export function levelsFor(z) {
-  if (z >= DEM_SEA.native) return DEPTH_LEVELS;
-  return (ISOBATH_ZOOMS.findLast(([z0]) => z0 <= z) || ISOBATH_ZOOMS[0])[1];
-}
 
 // water without depth data (lakes above sea level): never white, which reads as deep
 export const NO_DEPTH = '#dde3e7';

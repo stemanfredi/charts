@@ -86,7 +86,7 @@ them from each provider, and each layer stays under its provider's licence.
 |---|---|---|
 | Chart base, coastline, roads, buildings, names, boundaries | OpenStreetMap via OpenFreeMap (OpenMapTiles schema) | ODbL |
 | Satellite | Esri World Imagery, or EOX Sentinel-2 cloudless | Esri terms of use; EOX: CC BY 4.0 (2016) or CC BY-NC-SA 4.0 (2024, non-commercial) |
-| Depth shading, isobaths | GEBCO 2026 Grid (GEBCO Compilation Group), repacked as a Zarr store at `geodata.makaw.org` (`tools/gebco.mjs`); Terrarium where it cannot be read | Free to use and redistribute, with attribution |
+| Depth shading, isobaths | GEBCO 2026 Grid (GEBCO Compilation Group), repacked as a Zarr store at `geodata.makaw.org` (`tools/gebco.mjs`) | Free to use and redistribute, with attribution |
 | Depth sources (GEBCO) | GEBCO 2026 type identifier grid, at `geodata.makaw.org` | Free to use and redistribute, with attribution |
 | Relief shading, land contours | AWS Terrain Tiles (Terrarium) | Open data, with attribution per source |
 | Seamarks | OpenSeaMap | CC BY-SA 2.0 |
@@ -150,14 +150,12 @@ on-screen credits and the PNG list only the sources that are drawn.
   and relief shading never spills into the sea. Inland water is classified once
   per water body: water at sea level (lagoons, harbour basins), lakes without
   depth data, or seas with their own surface level, such as the Caspian.
-- **Honest depths.** The elevation model is coarse offshore and has defects
-  where its land and sea sources meet: false pits at the coast (and false
-  peaks on the land side), and bends at tile edges. Before contouring, small
-  enclosed pits are raised, which only ever makes water shallower; the seam
-  blur touches only a few pixels along tile edges; coastal land spikes are
-  clamped. Everywhere else the data is drawn as it is. Isobath spacing widens with depth and tightens with zoom. EMODnet and GEBCO
-  image layers are not used: their own land is baked into the picture and
-  cannot be cut away.
+- **Honest depths.** The depths are GEBCO's, drawn as they are: its whole-metre
+  cells sampled with a cubic spline at every zoom, no filter, no smoothing. The
+  land DEM has false peaks where its land and sea sources meet; those coastal
+  spikes are clamped, and everything else is drawn as it is. Isobath spacing
+  widens with depth and tightens with zoom. EMODnet and GEBCO image layers are
+  not used: their own land is baked into the picture and cannot be cut away.
 - **Geodesic measurement.** Distances, bearings, areas and rings use
   GeographicLib on WGS 84. Lines are drawn as densified geodesics, so the line
   on screen is the path the numbers describe. The map itself is Web Mercator,
@@ -235,7 +233,7 @@ npm run check       # index.html CDN block matches the pins, SRI hashes and CSP
 npm run smoke       # end-to-end in headless Chrome, against the live providers
 npm run ui          # layout at phone, tablet and desktop widths
 npm run tiles-check # elevation tiles of known trouble spots: seams, zooms, lakes
-npm run perf        # how long the depth layers take to draw, GEBCO against Terrarium
+npm run perf        # how long the depth layers take to draw
 npm run deps        # newer library versions and newer density data periods
 ```
 

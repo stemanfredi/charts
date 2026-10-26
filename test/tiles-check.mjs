@@ -1,11 +1,12 @@
 // npm run tiles-check: the elevation tiles of known trouble spots, cut by clip.js in headless Chrome
-// as the page does, checked for what each defect broke. Live data (Terrarium, OpenFreeMap), so not
+// as the page does, checked for what each defect broke. Live data (GEBCO, OpenFreeMap), so not
 // a deploy gate: CI runs it weekly, with the live smoke test.
-//   seams     no bend in the depth slope at a tile edge (Canale di Corsica)
-//   zooms     a tile agrees with the four of the next zoom it covers (Elba's pit, Taranto's dry
-//             blocks)
+//   seams     no bend in the depth slope at a tile edge (Canale di Corsica: each tile is splined
+//             from the same cells, so none by construction)
+//   zooms     a tile agrees with the four of the next zoom it covers (Elba, Taranto, Panama: the
+//             Terrarium DEM's false pit and dry blocks, before GEBCO)
 //   probes    places whose answer is known get it: lakes without depth, limans flat at sea level,
-//             Caspian depths, the Marciana Marina pit filled
+//             Caspian depths, no false pit in Marciana Marina's harbour
 import { start } from './browser.mjs';
 import { NO_DEPTH_M } from '../site/catalog.js';
 import { tileXY } from '../site/geo.js';
@@ -25,8 +26,8 @@ await section('the page and its clipper', async () => {
   // the page's own pipeline: the sea clipper in its worker, as the depth layers use it
   await page.evaluate(async () => {
     const { workerClipper } = await import('./clip.js');
-    const { DEM_TILES, DEM_SEA, OMT_TILEJSON } = await import('./catalog.js');
-    const sea = workerClipper({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON });
+    const { OMT_TILEJSON } = await import('./catalog.js');
+    const sea = workerClipper({ mode: 'sea', omtTileJson: OMT_TILEJSON });
     // metres where the tile shows depths (NaN elsewhere), as the GIS export takes them
     window.metres = async (z, x, y) => Array.from(await sea.metres(z, x, y));
     // every pixel as the depth shading gets it: depths, -1 flat, NO_DEPTH_M for lakes, land high
@@ -65,8 +66,8 @@ await section('zooms', async () => {
   for (const [name, lon, lat, z] of [['Elba', 10.2, 42.8, 9], ['Gulf of Taranto', 17.2, 40.0, 7], ['Gulf of Taranto', 17.2, 40.0, 8], ['Gulf of Panama', -78.6, 8.4, 8]]) {
     const t = at(lon, lat, z);
     const [P, ...C] = await Promise.all([metres(z, t.x, t.y), ...[0, 1].flatMap((dy) => [0, 1].map((dx) => metres(z + 1, 2 * t.x + dx, 2 * t.y + dy)))]);
-    // beyond the children's range by more than 20 m or half their depth: a dry block, a false pit.
-    // Within it, the zooms differ by design: each fills pits up to the depths it draws
+    // beyond the children's range by more than 20 m or half their depth: a dry block, a false pit
+    // (within it, the zooms differ a little: each reads the GEBCO level its pixels resolve)
     let bad = 0, n = 0, worst = '';
     for (let j = 0; j < 256; j++) {
       for (let i = 0; i < 256; i++) {
@@ -109,7 +110,7 @@ await section('probes', async () => {
   v = await probe(51.0, 41.5, 6);
   check(v[0] < -100, `Caspian: depths from its own surface, not a flat lake (${v[0].toFixed(0)} m)`);
   v = await probe(10.196, 42.807, 10, 3);
-  check(Math.min(...v) > -100, `Marciana Marina (Elba): the harbour's false pit is filled (deepest ${Math.min(...v).toFixed(0)} m)`);
+  check(Math.min(...v) > -100, `Marciana Marina (Elba): no false pit in the harbour (deepest ${Math.min(...v).toFixed(0)} m)`);
   v = await probe(17.3, 39.8, 7);
   check(v[0] < -100, `Gulf of Taranto: real depths, no 0 m blocks (${v[0].toFixed(0)} m)`);
 });

@@ -1,7 +1,7 @@
 // The map's style, from the catalogue: every source, and every layer in draw order. A layer belongs
 // to a menu item through metadata.item; layers of a hidden item are set to visibility:none, and
 // MapLibre requests no tiles for a source whose layers are all hidden.
-import { DEM_SEA, DEM_LAND, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, OVERLAY_FAINT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
+import { DEM_SEA_MAX, DEM_LAND_MAX, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, OVERLAY_FAINT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
 import { HOSTS } from './hosts.js';
 
 const C = {
@@ -26,12 +26,12 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
   const ATTR_GEBCO = '<a href="https://www.gebco.net">GEBCO 2026 Grid</a>'; // the sea's depths (gebco.js)
   const s = {
     omt: { type: 'vector', url: OMT_TILEJSON, attribution: ATTR_OSM },
-    'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA.max, attribution: `${ATTR_GEBCO} · ${ATTR_DEM}` }, // Terrain Tiles where GEBCO cannot be read
-    dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
+    'dem-sea': { type: 'raster-dem', tiles: [seaDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_SEA_MAX, attribution: ATTR_GEBCO },
+    dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND_MAX, attribution: ATTR_DEM },
     seagrass: { type: 'vector', tiles: ['seagrass://{z}/{x}/{y}'], minzoom: SEAGRASS_ZOOMS[0], maxzoom: SEAGRASS_ZOOMS[1], bounds: [-50, 25, 45, 72],
       attribution: '<a href="https://emodnet.ec.europa.eu/en/seabed-habitats">EMODnet Seabed Habitats</a>' },
     isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: 12, attribution: ATTR_GEBCO }, // 512 px tiles: z12 is cut with the z12 coastline
-    contours: { type: 'vector', tiles: [contourUrl], maxzoom: DEM_LAND.max, attribution: ATTR_DEM },
+    contours: { type: 'vector', tiles: [contourUrl], maxzoom: DEM_LAND_MAX, attribution: ATTR_DEM },
     eox16: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2016 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2016), CC BY 4.0',
       tiles: [`${HOSTS.eox}/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg`] },
     eox24: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2024 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2024), CC BY-NC-SA 4.0',

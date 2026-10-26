@@ -86,8 +86,8 @@ async function gridTile(url, variable, z, x, y, nearest) {
   return out;
 }
 
-// metres at the pixel centres of tile z/x/y; rejects if the store cannot be read (clip.js then
-// falls back to Terrarium)
+// metres at the pixel centres of tile z/x/y; rejects if the store cannot be read (the tile fails,
+// as any tile does: the map reports it)
 export const gebcoTile = (z, x, y) => gridTile(GEBCO, 'elevation', z, x, y, false);
 
 // MapLibre tile handler for gebco-tid://z/x/y: each cell coloured by the group of its code; land and

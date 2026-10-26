@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA, DEPTH_SOURCES, DEM_LAND, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
@@ -142,10 +142,10 @@ let gibsDay = dayOf(state.time); // NASA daily: the day its sources draw (gibs.s
 // Its own caches hold copies of those tiles (256 KB each): enough for a screen's contours and
 // their neighbours (a contour tile reads 3 × 3 DEM tiles), not hundreds (200 per source: 100 MB)
 const demOpts = { url: DEM_TILES, encoding: 'terrarium', worker: false, cacheSize: 64 };
-const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA.max });
-const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND.max });
-const seaClip = workerClipper({ template: DEM_TILES, native: DEM_SEA.native, mode: 'sea', omtTileJson: OMT_TILEJSON });
-const landClip = workerClipper({ template: DEM_TILES, native: DEM_LAND.native, mode: 'land', omtTileJson: OMT_TILEJSON });
+const seaDem = new mlcontour.DemSource({ ...demOpts, id: 'sea', maxzoom: DEM_SEA_MAX });
+const landDem = new mlcontour.DemSource({ ...demOpts, id: 'land', maxzoom: DEM_LAND_MAX });
+const seaClip = workerClipper({ mode: 'sea', omtTileJson: OMT_TILEJSON });
+const landClip = workerClipper({ template: DEM_TILES, mode: 'land', omtTileJson: OMT_TILEJSON });
 for (const [dem, clip] of [[seaDem, seaClip], [landDem, landClip]]) {
   dem.manager.getTile = clip.getTile;
   dem.manager.decodeImage = clip.decodeImage;
@@ -1200,7 +1200,7 @@ const depthPopup = new maplibregl.Popup({ className: 'depthpop', maxWidth: '240p
 // The depth profiles read (a line's Depth profile pressed), by trace: the GIS export's seabed lengths
 // come from these only, so that an export reads no depth tiles along lines nobody asked about
 const profiled = lru(64); // JSON of the trace's coordinates → promise of its profile
-const profileFor = (trace) => profiled(JSON.stringify(trace.coords), () => profileOf(trace, depthAt, DEM_SEA.max));
+const profileFor = (trace) => profiled(JSON.stringify(trace.coords), () => profileOf(trace, depthAt, DEM_SEA_MAX));
 // The depth at p ([lng, lat]) as the depth shading has it, read at zoom z: metres, negative below the
 // sea surface; NaN on land, lakes, no data. A profile reads many places of few tiles: each tile once.
 const depthTiles = lru(64);
@@ -1212,7 +1212,7 @@ async function depthAt([lng, lat], z) {
 map.on('click', async (e) => {
   if (drawing.tool || drawing.picking || drawing.repointing || !(state.on.has('depth') || state.on.has('isobaths'))) return;
   if (drawing.hitAt(e.point).length) return; // a click on a drawing selects it
-  const { lng, lat } = e.lngLat, z = Math.min(DEM_SEA.max, Math.floor(map.getZoom()) + 1); // 256 px DEM tiles at z show at map zoom z − 1
+  const { lng, lat } = e.lngLat, z = Math.min(DEM_SEA_MAX, Math.floor(map.getZoom()) + 1); // 256 px DEM tiles at z show at map zoom z − 1
   const [v, code] = await Promise.all([depthAt([lng, lat], z), tidAt(lng, lat).catch(() => null)]);
   if (!Number.isFinite(v)) { depthPopup.remove(); return; } // land, a lake, inland water: no depth here
   const source = DEPTH_SOURCES.find(({ codes: [a, b] }) => code >= a && code <= b);
