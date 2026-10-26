@@ -1,103 +1,103 @@
 # Roadmap
 
-What is known and not done yet. The app is the reference for what it does; this file
-lists only what it does not do, or not well enough.
+What is not done, and what has been decided about it. The page is the
+reference for what it does; what was learned on the way is in
+[docs/takeaways.md](docs/takeaways.md).
 
 ## Open
 
-- **Smoothing where GEBCO's depths are estimated.** The layer *Depth sources (GEBCO)* shows,
-  from GEBCO's type identifier grid, where depths are surveyed and where interpolated or
-  predicted. Interpolated areas of sparse data can still show patterns of the data's own grid
-  (as Terrarium's Gulf of Panama did): smoothing them there, and never where depths are
-  surveyed, would remove those without touching real detail. None seen with GEBCO so far:
-  only if one appears.
-- **Inland water decided from its whole shore.** A lake or lagoon is classified (at sea level,
-  or a lake with no depth) once, from the shore vertices in the first tile that asks, within an
-  8 m margin (clip.js). A big liman can so be flat at one zoom and a lake at another when the
-  page opens there first (Khadzhibey, Odesa: flat up to zoom 11, a lake at 12 and 13, 2026-10-26).
-  Tried: reading the whole shore from the finest OpenMapTiles zoom where the body fits in one tile
-  (an ancestor of every tile it touches, so every zoom agrees; it did). It cost data: more
-  ancestor tiles, and depth chunks finer than the view's for the heights, up to 2.7 MB more on
-  the north Caspian; and a river's banks are one polygon for a long way, whose one decision would
-  be wrong. Parked: it needs the heights read no finer than the view's, and rivers left per tile.
+- **Inland water decided from its whole shore**, so that a lake or lagoon is
+  the same at every zoom (the takeaway says what a version must do: read
+  heights no finer than the view's, leave rivers per tile).
+- **Smoothing where GEBCO's depths are estimated.** The *Depth sources* layer
+  shows where depths are surveyed and where interpolated or predicted.
+  Interpolated areas of sparse data can show the pattern of the data's own
+  grid; smoothing only there would remove it without touching real detail.
+  None seen so far: only if one appears.
 
 ## Land and mountains
 
-What walkers and climbers need from a map, against the open data that a keyless page can read
-(researched 2026-10-24). Coverage is by country: each layer says which.
+What walkers and climbers need from a map, against the open data a keyless
+page can read (researched 2026-10-24). Coverage is by country: each layer
+would say which.
 
-- **Next:**
-  - **Official topographic maps, slope classes and winter routes,** as overlays, by country:
-    swisstopo (maps, slopes over 30° in four classes, ski-touring routes, hiking trails; free with
-    attribution) and basemap.at (CC BY 4.0); IGN France (maps, slopes, winter routes) once the
-    licence of its own layers is read; Kartverket (CC BY 4.0, its zooms 12–20 for display only).
-  - **A line's profile on land:** ascent, descent and a walking time, from the elevation the
-    relief shading draws, beside the depth profile.
-  - **GPX in and out:** routes and tracks read as lines, the drawing's lines written as GPX.
-- **To research before deciding:**
-  - **Avalanche danger:** Euregio's bulletins (CAAML v6 JSON) and EAWS's warning regions
-    (GeoJSON), both readable from a page. Their licences are not read yet, and the data is
-    safety-critical: only with the bulletin's date always shown and a link to the official one.
-  - **Trail tiles from OpenStreetMap:** grades (`sac_scale`), trail visibility, via ferrata, huts,
-    drinking water and springs, which the base map's tiles leave out. A build like seagrass's,
-    much larger; Overpass cannot serve a public map.
-  - **Offline areas:** only from files published for download (this project's own builds,
-    providers' extracts or sheets), never by caching third-party tiles past their terms; browser
-    storage is best-effort and can be evicted.
-  - **Print with a grid:** a paper map at a set scale, with a coordinate grid.
-  - **Detailed elevation in Switzerland (swissALTI3D, 0.5 and 2 m, cloud-optimised GeoTIFF):**
-    its catalogue says "proprietary" where the open-data terms say free; to reconcile first. Swiss
-    grid: reprojected in the page or in a build.
-- **Not planned:** weather forecasts (open only as model files, GRIB or NetCDF, which need a
-  build and a server-like pipeline); hut availability and current route conditions (no open
-  source); OpenTopoMap (an intermediary).
+- **Next**
+  - Official topographic maps, slope classes and winter routes as overlays,
+    by country: swisstopo (maps, slopes over 30° in four classes, ski-touring
+    routes, hiking trails; free with attribution) and basemap.at (CC BY 4.0);
+    IGN France once the licence of its own layers is read; Kartverket (CC BY
+    4.0, zooms 12–20 for display only).
+  - A line's profile on land: ascent, descent and a walking time, from the
+    elevation the relief shading draws, beside the depth profile.
+  - GPX in and out: routes and tracks read as lines, the drawing's lines
+    written as GPX.
+- **To research before deciding**
+  - Avalanche danger: Euregio's bulletins (CAAML v6 JSON) and EAWS's warning
+    regions (GeoJSON), both readable from a page. Licences not read yet, and
+    the data is safety-critical: only with the bulletin's date always shown
+    and a link to the official one.
+  - Trail tiles from OpenStreetMap: grades, trail visibility, via ferrata,
+    huts, drinking water and springs, which the base map's tiles leave out. A
+    build like the seagrass one, much larger; Overpass cannot serve a public
+    map.
+  - Offline areas: only from files published for download (this project's
+    own builds, providers' extracts or sheets), never by caching third-party
+    tiles past their terms; browser storage is best-effort and can be evicted.
+  - Print with a grid: a paper map at a set scale, with a coordinate grid.
+  - Detailed elevation in Switzerland (swissALTI3D, 0.5 and 2 m,
+    cloud-optimised GeoTIFF): its catalogue says "proprietary" where the
+    open-data terms say free; to reconcile first. Swiss grid: reprojected in
+    the page or in a build.
+- **Not planned**: weather forecasts (open only as model files, GRIB or
+  NetCDF, which need a build and a server-like pipeline); hut availability and
+  current route conditions (no open source); OpenTopoMap (an intermediary).
 
-## Parked
+## Sea: ideas, each with what holds it back
 
-- **Seabed habitats (EUSeaMap 2025, MSFD broad habitat types).** EMODnet Seabed Habitats' WMS
-  (ows.emodnet-seabedhabitats.eu, CORS `*`, a clean JSON legend of about 30 classes) draws each
-  tile in 1–3 minutes or not at all, and its tile cache (WMTS) keeps nothing (2026-10-22): a live
-  layer would stay blank. The data is 2.4 million polygons: built into tiles and published with
-  geodata.makaw.org, as seagrass is, if seagrass shows that build to be worth it; or live, if
-  EMODnet speeds up its service.
-- **Draw: a drawing as a viewer page.** Export a standalone HTML page holding only the map and the
-  elements visible at that moment, with a box to show and hide them, and no editing: a way to show a
-  drawing to someone without the app, as a file (a link never carries a drawing). Only what is
-  visible goes in.
-- **Draw: counts and lengths as a spreadsheet.** One row per element (kind, name, group, its
-  properties, length, area), and a sheet of the totals the app already shows, by group or by any
-  property: XLSX written with the GIS export's ZIP writer (`site/zip.js`), or CSV.
-- **Draw: clip to sea.** A switch on a point and on an area, for the map only: radii, sectors and
-  areas drawn only where they cover the sea, cut at the coast the map draws (OSM sea polygons, as
-  depth shading's; lagoons and lakes classified as `clip.js` does); the inspector shows the whole
-  area and its part at sea; exports keep the whole shapes. The coast fetched for the element's box
-  at a zoom fit for its size, so the values do not change as the map zooms (coarse for large
-  circles). The geometry arrives after the map draws
-  (a cache, redrawn when ready), tile pieces must be unioned (polygon-clipping, lazy already), and the
-  sea polygon reader lives in the clipping worker; about a step's worth of work for a display nicety.
-- **Magnetic bearings.** Bearings are true (°T); magnetic ones need a model of the
-  declination by place and year (WMM).
-- **Detailed world vessel density, by vessel type.** The world layer is the World Bank's
-  own tiles: all vessels, coarse. Its data (World Bank and IMF, 2015–2021, 0.005°, CC BY
-  4.0: commercial, fishing, passenger, leisure, oil and gas) comes as GeoTIFFs only
-  (510 MB zip for all vessels, datacatalog.worldbank.org dataset 0037580): tiles would be built from
-  them and published with the site (z0–7 PNG, estimated 150–250 MB; PMTiles, a ~8 KB library, or
-  plain folders; files under 100 MB for GitHub Pages). EMODnet's own density (hours per km² per month
-  by ship type, 2017–2024) and EMSA's route density come as GeoTIFFs and OGC services too, CC BY 4.0
-  (emodnet.ec.europa.eu/en/human-activities); Global Fishing Watch has fishing effort behind a free
-  token; raw AIS for national waters: Marine Cadastre (US), the Danish Maritime Authority.
-- **GMTDS world density, monthly to 2024** (NGA, by MapLarge: WMS/WMTS at
-  gmtds.maplarge.com, keyless and readable from a page). Its terms conflict: CC BY 4.0
-  for authorised downloads, services by request, site terms forbidding public display.
-  Only with their written permission (gmtds@maplarge.com).
-- **NOAA charts (US waters).** NOAA's official chart service, as an overlay.
-- **Survey-grade depths in US waters (NOAA BlueTopo).** Depth files from surveys,
-  GeoTIFFs in local UTM projections: the page would need a reader and reprojection.
-- **The base map from OpenStreetMap's own vector tiles** (OSM Foundation, since 2025), instead
-  of OpenFreeMap: the same OSM data, another schema (no sea names), limited capacity.
-- **Place search from Nominatim** (OSM's own) instead of Photon: its usage policy rules out
-  search as you type.
-- **Tides.** No keyless worldwide source found; NOAA's (US only) refused an automated check.
-- **A wind forecast.** The wind layer is a satellite observation, a day late;
-  Copernicus Marine has no wind forecast, so wind over forecast waves is for past
-  hours only. Another keyless source would be needed.
+- **Seabed habitats (EUSeaMap 2025, MSFD broad habitat types).** EMODnet
+  Seabed Habitats' WMS draws a tile in minutes or not at all and its tile
+  cache keeps nothing (2026-10-22), so a live layer would stay blank. The
+  data is 2.4 million polygons: built into tiles and published like the
+  seagrass, if that build proves worth it, or live if the service speeds up.
+- **Detailed world vessel density, by vessel type.** The world layer is the
+  World Bank's own tiles: all vessels, coarse. Its data (World Bank and IMF,
+  2015–2021, 0.005°, CC BY 4.0, by vessel class) comes as GeoTIFFs only: tiles
+  would be built from them and published with the site (zooms 0–7, an
+  estimated 150–250 MB). EMODnet's density by ship type and EMSA's route
+  density come as GeoTIFFs and OGC services too (CC BY 4.0); Global Fishing
+  Watch has fishing effort behind a free token; raw AIS for national waters:
+  Marine Cadastre (US), the Danish Maritime Authority.
+- **GMTDS world density, monthly to 2024** (NGA, by MapLarge): keyless and
+  readable from a page, but its terms conflict (CC BY 4.0 for authorised
+  downloads, services by request, site terms forbidding public display).
+  Only with written permission.
+- **NOAA charts (US waters)** as an overlay; **survey-grade depths in US
+  waters (NOAA BlueTopo)**, GeoTIFFs in local UTM projections, which need a
+  reader and reprojection in the page.
+- **The base map from OpenStreetMap's own vector tiles** instead of
+  OpenFreeMap: the same data, another schema (no sea names), limited capacity.
+- **Place search from Nominatim** instead of Photon: its usage policy rules
+  out search as you type.
+- **Tides**: no keyless worldwide source found; NOAA's (US only) refused an
+  automated check.
+- **A wind forecast**: the wind layer is a satellite observation, a day late;
+  Copernicus Marine has no wind forecast. Another keyless source is needed.
+- **Magnetic bearings**: bearings are true; magnetic ones need a declination
+  model by place and year (WMM).
+
+## Drawing
+
+- **A drawing as a viewer page**: a standalone HTML file holding the map and
+  the elements visible at that moment, with a box to show and hide them and
+  no editing, to show a drawing to someone without the app (a link never
+  carries a drawing).
+- **Counts and lengths as a spreadsheet**: one row per element (kind, name,
+  group, properties, length, area) and a sheet of the totals the app already
+  shows, by group or by any property; XLSX with the zip writer, or CSV.
+- **Clip to sea**: a switch on a point and on an area, for the map only, so
+  radii, sectors and areas are drawn only where they cover the sea, cut at the
+  coast the map draws; the inspector would show the whole area and its part
+  at sea; exports keep the whole shapes. The coast must be fetched for the
+  element's box at a zoom fit for its size and unioned from tile pieces, and
+  the sea polygon reader lives in the clipping worker: a step's worth of work
+  for a display nicety.
