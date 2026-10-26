@@ -1154,7 +1154,9 @@ export function drawView(root, ctx) {
   const MADE_PART = { trunk: 'trunks, root → hub', branch: 'branches, hub → point', 'root link': 'root → first point', link: 'between points' };
   function totalsBlock(by, groupName) {
     const b = fx().breakdown, u = ctx.units(), doc = drawing.doc;
-    const keyName = (k) => (totalsBy ? (k ? `“${k}”` : `No ${totalsBy}`) : groupName(k));
+    // a group holding a connection: its pattern and roots beside the name (two are both "Connection")
+    const made = (k) => { const c = k && connections(doc).find((x) => x.groupId === k); return c ? ` (${c.pattern}, from ${c.roots.map((r) => label('point', now(r.id))).join(', ')})` : ''; };
+    const keyName = (k) => (totalsBy ? (k ? `“${k}”` : `No ${totalsBy}`) : groupName(k) + made(k));
     const td = (x, cls = '') => h('td', { class: cls }, x), num = (x) => td(x, 'num');
     const sec = (title, ...heads) => h('tr', { class: 'sec' }, td(title), ...heads.map((x) => num(x)));
     const rows = [], copy = []; // copy: [section, group, name, count, length m, area m², perimeter m]

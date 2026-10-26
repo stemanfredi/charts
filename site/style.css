@@ -282,7 +282,7 @@ button.small.link:hover { border-color: var(--line); }
 .vtable.totals tr.grp button.fold { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
 .vtable.totals tr.part td:first-child, .vtable.totals tr.item td:first-child { padding-left: 18px; color: var(--soft); }
 .vtable.totals tr.top td:first-child { padding-left: 4px; }
-.vtable.totals tr.item td:first-child button.link { padding: 0; }
+.vtable.totals tr.item td:first-child button.link { padding: 0; min-height: 0; line-height: inherit; font-size: inherit; }
 .vtable.totals tr.all td { font-weight: 600; border-top: 2px solid var(--line); }
 /* a list grid (docs/drawing-ui.md §5): fixed columns; the first ones kept in place while it
    scrolls sideways; the current row marked; its actions in the bar under it */
