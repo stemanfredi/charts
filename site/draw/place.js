@@ -4,7 +4,6 @@
 
 import { addPoint, nextName, idsOf, makePart, pointKind, reachOf, POINT_KIND_NAME, OUTLINES } from './document.js';
 import { OUTLINE_NAME } from './outlines.js';
-import { norm360 } from '../geo.js';
 
 // The built-in presets, by the Shape tool's kind: a circle of 1 km; rings at 1, 2 and 3 km (the first
 // filled); a sector of 1 km, 90° wide; an outline (a triangle equilateral, 100 m a side; the others
@@ -31,20 +30,21 @@ export function scaled(parts, d) {
 
 // What the Point or the Shape tool places at p, by the tool's kind: a built-in preset (Shape), a preset
 // of the user's ('preset:<name>'), else a symbol (Point). Each remembers its preset in the property
-// preset. size (the Shape tool's second click): { d (metres from the centre), azi }: a built-in's
-// largest part reaches d, every part scaled with it, facing azi; a preset of the user's keeps its size,
-// facing azi. Without it: the preset's own size, facing north.
-export function placeKind(doc, p, kind, presets, size = null) {
-  const taken = idsOf(doc), azi = size ? +norm360(size.azi).toFixed(4) : 0;
+// preset, and faces north: its bearing is set afterwards (the rotate handle, the inspector), so
+// that a shape does not swing while it is sized. d (the Shape tool's second click, metres from the
+// centre): a built-in's largest part reaches it, every part scaled with it; 0: its own size. A
+// preset of the user's keeps its size.
+export function placeKind(doc, p, kind, presets, d = 0) {
+  const taken = idsOf(doc);
   const mine = kind?.startsWith('preset:') && presets.find((x) => x.name === kind.slice(7));
   if (mine) {
-    return addPoint(doc, p, { ...structuredClone(mine.point), bearing: azi, name: nextName(doc, 'point', mine.name.replace(/[^\w ]+/g, '').trim() || 'Point'),
+    return addPoint(doc, p, { ...structuredClone(mine.point), bearing: 0, name: nextName(doc, 'point', mine.name.replace(/[^\w ]+/g, '').trim() || 'Point'),
       properties: [{ key: 'preset', value: mine.name }] }, taken);
   }
   const built = BUILT_IN[kind];
   if (!built) return addPoint(doc, p, { parts: [] }, taken); // a symbol
-  const parts = structuredClone(size?.d > 0 ? scaled(built.parts, size.d) : built.parts);
-  const el = addPoint(doc, p, { symbol: built.symbol, parts, bearing: azi, properties: [{ key: 'preset', value: builtInName(kind) }] }, taken);
+  const parts = structuredClone(d > 0 ? scaled(built.parts, d) : built.parts);
+  const el = addPoint(doc, p, { symbol: built.symbol, parts, bearing: 0, properties: [{ key: 'preset', value: builtInName(kind) }] }, taken);
   el.name = nameByLook(doc, el);
   return el;
 }

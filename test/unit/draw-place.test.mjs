@@ -33,26 +33,26 @@ test('a click of Point: a symbol; of Shape, with no size: the preset\'s own size
   assert.equal(BUILT_IN.circle.parts[0].radius, 1000);
 });
 
-test('the second click sizes it: the largest part reaches it, every other one with it, facing that way; a preset of the user\'s keeps its size', () => {
+test('the second click sizes it: the largest part reaches it, every other one with it, facing north; a preset of the user\'s keeps its size', () => {
   const doc = emptyDoc(0);
-  const c = placeKind(doc, C, 'circle', [], { d: 750, azi: 33 });
-  assert.deepEqual([c.parts.map((r) => r.radius), c.bearing], [[750], 33]);
-  const rings = placeKind(doc, C, 'rings', [], { d: 900, azi: 0 });
+  const c = placeKind(doc, C, 'circle', [], 750);
+  assert.deepEqual([c.parts.map((r) => r.radius), c.bearing], [[750], 0]);
+  const rings = placeKind(doc, C, 'rings', [], 900);
   assert.deepEqual(rings.parts.map((r) => [r.radius, r.fill]), [[300, true], [600, false], [900, false]]);
-  const sec = placeKind(doc, C, 'sector', [], { d: 400, azi: 370 });
-  assert.deepEqual([sec.parts, sec.bearing], [[makePart('sector', { radius: 400, aperture: 90 })], 10]);
-  const e = placeKind(doc, C, 'ellipse', [], { d: 200, azi: -45 });
-  assert.deepEqual([e.bearing, e.parts], [315, [makePart('ellipse', { length: 400, width: 200 })]]);
-  const rect = placeKind(doc, C, 'surface-vehicle', [], { d: 100, azi: 0 });
+  const sec = placeKind(doc, C, 'sector', [], 400);
+  assert.deepEqual([sec.parts, sec.bearing], [[makePart('sector', { radius: 400, aperture: 90 })], 0]);
+  const e = placeKind(doc, C, 'ellipse', [], 200);
+  assert.deepEqual([e.bearing, e.parts], [0, [makePart('ellipse', { length: 400, width: 200 })]]);
+  const rect = placeKind(doc, C, 'surface-vehicle', [], 100);
   assert.deepEqual([rect.parts[0].length, rect.parts[0].width, rect.properties], [200, 100, preset('Surface vehicle')]); // its own proportions
-  const t = placeKind(doc, C, 'triangle', [], { d: 100, azi: 90 });
+  const t = placeKind(doc, C, 'triangle', [], 100);
   near(t.parts[0].length, 200, 1e-3, 'twice d');
   near(t.parts[0].width, 400 / Math.sqrt(3), 1e-3, 'equilateral, whatever its size');
   const mine = { name: 'Mine', point: { symbol: 'square', parts: [makePart('rectangle', { length: 30, width: 10 }), { ...makePart('circle', { radius: 20 }), fill: false }], look: { fill: { color: '#00ff00' } } } };
-  const p = placeKind(doc, C, 'preset:Mine', [mine], { d: 5000, azi: 120 });
-  assert.deepEqual([p.bearing, p.parts, p.symbol, p.name, p.properties, p.look], [120, mine.point.parts, 'square', 'Mine 1', preset('Mine'), { fill: { color: '#00ff00' } }]);
+  const p = placeKind(doc, C, 'preset:Mine', [mine], 5000);
+  assert.deepEqual([p.bearing, p.parts, p.symbol, p.name, p.properties, p.look], [0, mine.point.parts, 'square', 'Mine 1', preset('Mine'), { fill: { color: '#00ff00' } }]);
   const q = placeKind(doc, C, 'preset:Mine', [mine]);
-  assert.deepEqual([q.bearing, q.parts, q.name], [0, mine.point.parts, 'Mine 2']); // without a size: facing north
+  assert.deepEqual([q.bearing, q.parts, q.name], [0, mine.point.parts, 'Mine 2']);
   p.parts[0].length = 1;
   assert.equal(mine.point.parts[0].length, 30, 'the preset untouched');
   // a preset not there: a symbol

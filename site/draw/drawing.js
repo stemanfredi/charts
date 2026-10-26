@@ -398,21 +398,23 @@ export class Drawing extends DrawStore {
   shapeClick(point, e) {
     if (!this.draft) {
       this.draft = { pts: [this.snapFor(point, e).position] };
+      if (!this.measuring && this.variant.shape?.startsWith('preset:')) return this.finishShape(null); // a preset of the user's has its size: one click
       this.renderMarks();
       return this.onChange('draft');
     }
     const c = this.map.project(this.draft.pts[0]);
     if (Math.hypot(c.x - point.x, c.y - point.y) <= SNAP_PX) return this.finishShape(null);
-    this.finishShape(this.snapFor(point, e, this.lastLeg()).position);
+    this.finishShape(this.snapFor(point, e).position);
   }
-  // the shape being drawn made, sized to q (null: the default size); the tool stays on for the next
+  // the shape being drawn made, sized to q (null: the default size), facing north; the tool stays on
+  // for the next
   finishShape(q) {
-    const c = this.draft.pts[0], g = q && inverse(c, q), size = g?.s > 0 ? { d: g.s, azi: g.azi } : null;
+    const c = this.draft.pts[0], d = q ? inverse(c, q).s : 0;
     this.draft = null;
     let el;
     this.change((doc) => {
-      el = this.measuring ? addPoint(doc, c, { ...measured(), name: nextName(doc, 'point', 'Ring'), symbol: 'none', parts: [makePart('circle', { radius: Math.round((size?.d ?? 1000) * 1000) / 1000 })] })
-        : placeKind(doc, c, this.variant.shape, this.presets, size);
+      el = this.measuring ? addPoint(doc, c, { ...measured(), name: nextName(doc, 'point', 'Ring'), symbol: 'none', parts: [makePart('circle', { radius: Math.round((d || 1000) * 1000) / 1000 })] })
+        : placeKind(doc, c, this.variant.shape, this.presets, d);
     });
     this.select([el.id]);
     this.onChange('draft');
@@ -423,7 +425,7 @@ export class Drawing extends DrawStore {
     if (this.tool !== 'shape' || !d || !q) return null;
     const g = inverse(d.pts[0], q), doc = { ...emptyDoc(0), points: [] };
     const el = this.measuring ? addPoint(doc, d.pts[0], { symbol: 'none', parts: [makePart('circle', { radius: g.s || 1 })] })
-      : placeKind(doc, d.pts[0], this.variant.shape, this.presets, g.s > 0 ? { d: g.s, azi: g.azi } : null);
+      : placeKind(doc, d.pts[0], this.variant.shape, this.presets, g.s);
     setLook(el, 'text.values', true);
     return { doc, el, centre: d.pts[0], to: q, size: g.s };
   }

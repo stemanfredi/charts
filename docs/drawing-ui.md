@@ -73,12 +73,13 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
 ### 2.1 Placing and drawing
 
 - **Point**: a click places one where it snaps, and selects it.
-- **Shape**, in two clicks: the centre, then its size, shown as the pointer moves. A built-in's
-  second click sets its largest part's reach, every part scaled with it: a circle's radius; rings'
-  outermost (the others at a third and two thirds of it); an outline's front (its bearing and half
-  its length, its width in proportion: 100 × 50; a triangle equilateral). A preset of the user's
-  keeps its size: the second click sets only its bearing. The second click on the first places the
-  default size, facing north. Shift: the bearing in 15° steps. Exact sizes are typed in the inspector.
+- **Shape**, in two clicks: the centre, then its size, shown as the pointer moves. It faces north:
+  its bearing is a second step (the rotate handle, or Bearing in the inspector), so that it does not
+  swing while it is sized. The second click sets its largest part's reach, every part scaled with
+  it: a circle's radius; rings' outermost (the others at a third and two thirds of it); an outline's
+  front (half its length, its width in proportion: 100 × 50; a triangle equilateral). The second
+  click on the first places the default size. A preset of the user's keeps its size: one click
+  places it. Exact sizes are typed in the inspector.
 - A tool's button pressed from the keyboard places a point, a shape (at its default size) or a label
   at the map's centre.
 - **Line**: the first click is its start; each click after adds a vertex. A click on something a line
