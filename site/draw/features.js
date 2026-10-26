@@ -216,7 +216,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
       if (symbol) base.push({ type: 'Feature', properties: { id: n.id, kind: 'symbol', symbol, sc: st.stroke.color, so: st.stroke.opacity }, geometry: p });
       if (named(n) && !mainOutline(n)) name(baseNames, n, p, st.stroke.color);
     }
-    mark(n.id, p);
+    if (!mainOutline(n)) mark(n.id, p); // the ring round a point's centre; a shape has its outline's halo
   }
   return { base: [...base, ...baseNames], zoom: [...zoomed, ...zoomNames], marks };
 }

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistribution, editDistribution, connect, unconnect, reconnect, refreshGenerated, COPY_RADIUS,
-  distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, MAX_COPIES, MAX_AUTO_TREE } = await import('../../site/draw/generator.js');
+  distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
 const { emptyDoc, addPoint, addLine, makePart, find, remove } = await import('../../site/draw/document.js');
 const { BUILT_IN, scaled } = await import('../../site/draw/place.js');
 const { lineTrace, nearestAlong, pointsAlong, totals } = await import('../../site/draw/lines.js');
@@ -108,14 +108,14 @@ test('weights: a root with a weight of 2 wins groups as if it were half as far',
   assert.deepEqual(pulled.unused, []);
 });
 
-test('auto group size: the cheapest cut, trees of up to MAX_AUTO_TREE; a chain of any length', () => {
+test('auto group size: the cheapest cut, trees of up to MAX_TREE; a chain of any length', () => {
   const pts = Array.from({ length: 8 }, (_, i) => [12 + i * 0.02, 40]);
   const auto = plan(pts, [R([12.07, 39.9])], 'auto');
   for (let c = 1; c <= 8; c++) assert.ok(auto.total <= plan(pts, [R([12.07, 39.9])], c).total + 1e-6, `group size ${c}`);
   assert.equal(typeof auto.groupSize, 'number', 'the largest group is reported');
   assert.equal(plan(pts, [R([11.9, 40])], 'auto', 'chain').groups.length, 1); // one root at an end: one chain
-  const many = Array.from({ length: MAX_AUTO_TREE + 5 }, (_, i) => [12 + i * 0.001, 40]);
-  assert.ok(plan(many, [R([12.01, 39.99])], 'auto').groups.every((g) => g.nodes.length <= MAX_AUTO_TREE));
+  const many = Array.from({ length: MAX_TREE + 5 }, (_, i) => [12 + i * 0.001, 40]);
+  assert.ok(plan(many, [R([12.01, 39.99])], 'auto').groups.every((g) => g.nodes.length <= MAX_TREE));
   assert.equal(plan(many, [R([11.99, 40])], 'auto', 'chain').groups.length, 1, 'a chain of any length');
 });
 
@@ -761,16 +761,18 @@ test('inflate: display only; a branch along the dominant direction straight, the
   assert.equal(connections(back)[0].inflate, 0.25);
 });
 
-test('plan: a root on a point with a shortest branch still plans (no NaN); a set tree is capped; ties are relative', async () => {
+test('plan: a root on a point with a shortest branch still plans (no NaN); a set tree is capped; a bad size is Auto; ties are relative', async () => {
   const { MAX_TREE } = await import('../../site/draw/generator.js');
   const pts = [[12, 40], [12.01, 40], [12.02, 40]];
   const p = plan(pts, [R([12.01, 40])], 3, 'tree', 200); // the root exactly on the middle point
   assert.ok(Number.isFinite(p.total) && p.groups.length >= 1, `a finite plan: ${JSON.stringify(p)}`);
   assert.ok(p.groups.every((g) => g.nodes.every((i) => inverse(pts[i], g.hub).s >= 200 - 1e-3)), 'every branch at least the shortest');
   const many = Array.from({ length: 200 }, (_, i) => [12 + i * 0.001, 40]);
-  const t0 = Date.now(), big = plan(many, [R([12.1, 39.9])], 1000, 'tree');
-  assert.ok(big.groups.every((g) => g.nodes.length <= MAX_TREE) && Date.now() - t0 < 5000, `a set tree is at most ${MAX_TREE} (${Math.max(...big.groups.map((g) => g.nodes.length))}, ${Date.now() - t0} ms)`);
-  // far from Greenwich, totals of 10⁷ m: an even cut still wins a tie
-  const far = Array.from({ length: 6 }, (_, i) => [100 + i * 0.5, -30]), even = plan(far, [R([101.25, -40])], 'auto', 'chain');
-  assert.ok(even.groups.every((g) => g.nodes.length <= 3) || even.groups.length === 1, `evenly cut or one chain (${even.groups.map((g) => g.nodes.length)})`);
+  const big = plan(many, [R([12.1, 39.9])], 1000, 'tree');
+  assert.ok(big.groups.every((g) => g.nodes.length <= MAX_TREE), `a set tree is at most ${MAX_TREE} (${Math.max(...big.groups.map((g) => g.nodes.length))})`);
+  for (const bad of [0, -3, 2.5, 'x']) assert.deepEqual(plan(pts, [R([12.01, 39.9])], bad, 'tree'), plan(pts, [R([12.01, 39.9])], 'auto', 'tree'), `a size of ${bad} is Auto`);
+  // a tie far from Greenwich (totals of 10⁷ m): two roots either side of six points in a row, the
+  // cut three and three, not one and five (the costs equal to rounding; the even cut wins)
+  const far = Array.from({ length: 6 }, (_, i) => [100 + i * 0.01, -30]), tie = plan(far, [R([99.99, -30]), R([100.06, -30])], 'auto', 'chain');
+  assert.deepEqual(tie.groups.map((g) => g.nodes.length), [3, 3]);
 });

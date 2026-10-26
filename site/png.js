@@ -23,13 +23,13 @@ export function chartCanvas(src, s) {
   g.font = '11px system-ui, sans-serif';
   g.textBaseline = 'alphabetic';
   // double scale bar at the centre latitude (Web Mercator scale varies with latitude), bottom
-  // right as on screen: km above a shared line, nautical miles below it
+  // right: km above a shared line, nautical miles below it (the screen shows one, the display's units)
   const lat = s.lat;
   const mpp = (CIRC * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** s.zoom);
   const bar = (unitM) => { const len = niceLen((120 * mpp) / unitM) * unitM; return { len, px: len / mpp }; };
   const km = bar(1), nm = bar(1852);
   const v = s.scaleVariation;
-  // as on screen: the bars say their lengths only; that the scale varies is said beside them
+  // the bars say their lengths only; that the scale varies is said beside them
   const kmText = km.len < 1000 ? `${+km.len.toPrecision(6)} m` : `${+(km.len / 1000).toPrecision(6)} km`;
   const nmText = `${+(nm.len / 1852).toPrecision(6)} NM`;
   const bw = Math.max(km.px, nm.px, g.measureText(kmText).width) + 20;

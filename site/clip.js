@@ -174,7 +174,7 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
   return null;
 }
 
-// Water mask for DEM tile z/x/y: 0 land, else DEPTH, FLAT or LAKE.
+// Water mask for elevation tile z/x/y: 0 land, else DEPTH, FLAT or LAKE.
 // It must use the OpenMapTiles tile the basemap shows at the same map zoom, or the two
 // coastlines differ where OSM is generalised: 256 px raster-dem tiles at z show at map
 // zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
@@ -196,8 +196,9 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset) {
         if (px >= 0 && py >= 0 && px < SIZE && py < SIZE) { vals.push(levelAt(px, py)); if (inDatum(px, py)) datum++; }
       }
     }
-    if (vals.length < 10 && f.id) { // little or no shore in this tile: read it at a lower zoom
-      const a = await ancestorShore(ctx, f.id, oz, ox, oy).catch(() => null);
+    if (vals.length < 10 && f.id) { // little or no shore in this tile: read it at a lower zoom (a read
+      // that fails fails the tile, which is asked again later, rather than a lake until the tile is dropped)
+      const a = await ancestorShore(ctx, f.id, oz, ox, oy);
       if (a) ({ vals, datum } = a);
     }
     if (vals.length < 10) return LAKE; // still undecided (no shore here nor in any ancestor): a lake, not remembered
@@ -370,6 +371,7 @@ function clipWorker() {
   worker = w;
   for (const init of inits) w.postMessage({ init });
   w.onmessage = ({ data }) => {
+    if (data.setup) { console.error(`clip worker, ${data.setup} set-up:`, data.error); return; } // every tile of that mode will fail: said once, here
     const r = replies.get(data.seq);
     replies.delete(data.seq);
     if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);

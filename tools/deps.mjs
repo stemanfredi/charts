@@ -11,7 +11,7 @@
 //                                  lists (newer library versions: npm outdated)
 //
 // To upgrade a library: change its version in package.json, npm install, --write, then test the page.
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { HOSTS, cspSource } from '../site/hosts.js';
 
@@ -75,7 +75,9 @@ export async function stale() {
 
 async function write() {
   await mkdir(VENDOR, { recursive: true });
-  for (const [name, bytes] of await wanted()) await writeFile(new URL(name, VENDOR), bytes);
+  const w = await wanted();
+  for (const name of await readdir(VENDOR)) if (!w.has(name)) await rm(new URL(name, VENDOR)); // a library renamed or dropped
+  for (const [name, bytes] of w) await writeFile(new URL(name, VENDOR), bytes);
   await writeFile(INDEX, indexWith(await readFile(INDEX, 'utf8')));
   console.log('site/vendor/ and the policy written');
 }

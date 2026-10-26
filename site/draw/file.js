@@ -13,12 +13,13 @@ import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ha
 import { resolve as anchorAt } from './attach.js';
 import { targetPosition } from './attach.js';
 import { columnsOf } from './document.js';
-import { MAX_TREE } from './generator.js';
+import { groupSizeOf } from './generator.js';
 
 const SIDES = ['left', 'right', 'alternate'];
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
 const MAX_POSITIONS = 100000; // positions in one line or area: more would stall the page at every change
 const MAX_FEATURES = 20000; // elements in one file: the rest are skipped (as many points stall the list)
+const MAX_TOTAL_POSITIONS = 1000000; // positions in a file's lines and areas together: more is refused
 // the properties a feature's own are written beside: a user's key that is one of these gets a p_
 const RESERVED = ['name', 'stroke', 'stroke-width', 'stroke-opacity', 'fill', 'fill-opacity', 'charts'];
 const GEOMETRIES = ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'];
@@ -114,7 +115,6 @@ function read(raw, app, known, now, report) {
   let over = 0;
   features.forEach((f, i) => {
     const fid = isObj(f) && (typeof f.id === 'string' || typeof f.id === 'number') ? String(f.id) : null;
-    if (doc.points.length + doc.lines.length + doc.areas.length + doc.labels.length >= MAX_FEATURES) { over++; return; }
     if (!isObj(f) || f.type !== 'Feature') { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'not a Feature' }); return; }
     const g = f.geometry;
     if (!isObj(g)) { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'no geometry' }); return; }
@@ -127,6 +127,7 @@ function read(raw, app, known, now, report) {
       : [g];
     if (!parts) { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'a geometry collection: not read' }); return; }
     parts.forEach((part, k) => {
+      if (doc.points.length + doc.lines.length + doc.areas.length + doc.labels.length >= MAX_FEATURES) { over++; return; } // a Multi geometry: each part an element
       const kind = mine?.kind === 'label' && part.type === 'Point' ? 'label' : { Point: 'point', LineString: 'line', Polygon: 'area' }[part.type];
       if (!kind) { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: `geometry ${String(part.type).slice(0, 20)}: not read` }); return; }
       const el = attempt(kind, fid, (c) => {
@@ -147,7 +148,9 @@ function read(raw, app, known, now, report) {
 
   // a line's end attached: the attachment wins, the end goes where what it is attached to is
   let moved = 0;
-  if (over) report.warnings.push(`${over} features past the first ${MAX_FEATURES}: skipped`);
+  if (over) report.warnings.push(`${over} past the first ${MAX_FEATURES} elements: skipped`);
+  const positions = doc.lines.reduce((a, s) => a + s.vertices.length + 2, 0) + doc.areas.reduce((a, x) => a + x.points.length, 0);
+  if (positions > MAX_TOTAL_POSITIONS) return { doc: null, report: { ...report, refused: `${positions.toLocaleString('en')} positions in its lines and areas: more than ${MAX_TOTAL_POSITIONS.toLocaleString('en')} would stall the page at every change` } };
   for (const { line, end, to } of ends) {
     const p = to.element !== line.id && targetPosition(doc, to);
     if (!p) { report.warnings.push(`line ${line.id}: its ${end} is attached to ${String(to.element).slice(0, 64)}, which is not here (or has no such vertex or edge); free`); continue; }
@@ -186,7 +189,7 @@ function read(raw, app, known, now, report) {
           points: Array.isArray(x.points) ? x.points.filter((f) => isObj(f) && ref(f.pointId) && fin(f.t) && pair(f.pos)).map((f) => ({ pointId: f.pointId, t: f.t, left: f.left === true, pos: [f.pos[0], f.pos[1]] })) : [] };
       }
       taken.add(x.id);
-      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', groupSize: Number.isInteger(x.groupSize) && x.groupSize > 0 ? (x.pattern === 'chain' ? x.groupSize : Math.min(x.groupSize, MAX_TREE)) : 'auto',
+      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', groupSize: groupSizeOf(x.groupSize, x.pattern === 'chain' ? 'chain' : 'tree'),
         minBranch: Number.isFinite(x.minBranch) && x.minBranch > 0 ? x.minBranch : 0, inflate: fin(x.inflate) && x.inflate > 0 ? Math.min(1, x.inflate) : 0, pointIds: idList(x.pointIds),
         roots: Array.isArray(x.roots) ? x.roots.filter((r) => isObj(r) && ref(r.id)).map((r) => ({ id: r.id, weight: fin(r.weight) && r.weight > 0 ? r.weight : 1 })) : [],
         hubs: Array.isArray(x.hubs) ? x.hubs.filter((b) => isObj(b) && ref(b.pointId) && ref(b.rootId) && Array.isArray(b.pointIds) && pair(b.pos))
@@ -397,7 +400,7 @@ export function toFile(doc) {
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),
         copy: a.copy && { symbol: a.copy.symbol, parts: a.copy.parts.map(partOut) },
         points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
-      : lean({ ...a, inflate: r3(a.inflate), roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: r3(r.weight) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
+      : lean({ ...a, inflate: r3(a.inflate), roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: +r.weight.toPrecision(6) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
   }, { meta: {}, view: null, look: {}, groups: [], rules: [] });
   return { type: 'FeatureCollection', charts: app, features: KINDS.filter((k) => k !== 'group').flatMap((k) => doc[KIND[k].list].map((el) => feature(doc, k, el))) };
 }

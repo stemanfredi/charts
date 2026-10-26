@@ -195,7 +195,7 @@ export class Drawing extends DrawStore {
   pointer(e) {
     this.lastPoint = e.point; // where a paste goes
     if (this.tool === 'line' || this.tool === 'polygon' || this.tool === 'sector' || (this.tool === 'shape' && this.draft)) {
-      const r = this.snapFor(e.point, e.originalEvent, this.lastLeg());
+      const r = this.snapFor(e.point, e.originalEvent, this.tool === 'shape' ? {} : this.lastLeg()); // a shape's size: Shift steps nothing, as on its click
       this.cursor = { point: e.point, p: r.position, snap: r };
       this.renderMarks();
       if (this.draft) this.onChange('draft');
@@ -394,7 +394,8 @@ export class Drawing extends DrawStore {
   }
   finishesOnDoubleClick() { return this.tool === 'line' || this.tool === 'polygon'; }
   // Shape (and Measure › ring), in two clicks: the centre; then the size, the pointer showing it (a
-  // circle's radius, an outline's front). A second click on the first: the default size, facing north.
+  // circle's radius, an outline's front). A second click on the first: the default size. Facing north
+  // always (the bearing is set afterwards); a preset of the user's, which has its size, in one click.
   shapeClick(point, e) {
     if (!this.draft) {
       this.draft = { pts: [this.snapFor(point, e).position] };

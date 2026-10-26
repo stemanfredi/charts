@@ -7,7 +7,7 @@
 // the connection's `inflate` (0: off, straight; 1: the most), on a quadratic Bézier in the map's
 // projection. A line edited by hand (a vertex added, a handle set) is drawn as it is.
 
-import { mercator, unmercator } from '../geo.js';
+import { mercator, unmercator, unrollTo } from '../geo.js';
 import { connections } from './generator.js';
 
 const STEPS = 12; // points along each curve
@@ -30,11 +30,11 @@ export function inflated(doc) {
     for (const b of c.hubs) {
       const H = mercator(b.pos);
       const branches = made.filter((s) => s.start.element === b.pointId && b.pointIds.includes(s.end.element));
-      const dirs = branches.map((s) => unit(sub(mercator(s.end.position), H))).filter(Boolean);
+      const dirs = branches.map((s) => unit(sub(mercator(unrollTo(b.pos, s.end.position)), H))).filter(Boolean); // unrolled to the hub: across ±180° too
       const D = dirs.length && unit(dirs.reduce((a, d) => [a[0] + d[0], a[1] + d[1]], [0, 0]));
       if (!D) continue;
       for (const s of branches) {
-        const T = mercator(s.end.position), v = sub(T, H), along = v[0] * D[0] + v[1] * D[1];
+        const T = mercator(unrollTo(b.pos, s.end.position)), v = sub(T, H), along = v[0] * D[0] + v[1] * D[1];
         const across = [v[0] - along * D[0], v[1] - along * D[1]]; // the part of the branch square to the dominant direction: how far off it heads
         if (0.5 * c.inflate * len(across) < 1) continue; // along it (a bow under a metre): straight
         const M = [(H[0] + T[0]) / 2, (H[1] + T[1]) / 2];
@@ -42,7 +42,7 @@ export function inflated(doc) {
       }
       const trunk = made.find((s) => s.end.element === b.pointId && s.start.element === b.rootId);
       if (!trunk) continue;
-      const R = mercator(trunk.start.position), v = sub(H, R), l = len(v), u = unit(v);
+      const R = mercator(unrollTo(b.pos, trunk.start.position)), v = sub(H, R), l = len(v), u = unit(v);
       const k = u ? 0.5 * c.inflate * Math.max(0, u[0] * D[0] + u[1] * D[1]) : 0; // only as far as the trunk heads the dominant way
       if (k > 1e-9) out.set(trunk.id, curve(R, [H[0] - k * l * D[0], H[1] - k * l * D[1]], H));
     }

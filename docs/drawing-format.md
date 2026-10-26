@@ -414,7 +414,7 @@ or point (or its part) is gone, or all of whose copies are, is dropped.
 |---|---|
 | `groupId` | its group ("Connection"), where its lines, hubs and new roots are: in the distribution's own group, or in the points' group for points placed by hand |
 | `pattern` | `"tree"`: root → hub → each point; `"chain"`: root → the nearer end point → the next … Anything else is read as `"tree"`. |
-| `groupSize` | points at most per tree or chain (an integer; a tree's at most 64), or `"auto"`: any size (a tree of up to 32) |
+| `groupSize` | points at most per tree or chain (an integer; a tree's at most 32), or `"auto"`: any size (a tree of up to 32) |
 | `minBranch` | a tree's shortest branch, metres (0 when absent): every hub at least this far from its points and from its root |
 | `inflate` | 0–1 (0 when absent): its trees drawn bowed, display only (§7 of the interface): each branch bowed away from its hub's dominant direction (the mean of its branches') by its angle from it, the trunk arriving along it; at 1, a branch square to it bows by a quarter of its length |
 | `roots` | the points the lines start from, each `{ "id", "weight" }`; `weight` above 0 (missing: 1, which is not written) |

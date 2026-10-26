@@ -125,8 +125,8 @@ test('selection and hover: a halo just outside, handles, a mark at the centre, n
   assert.equal(handles('m').length, 0);
   assert.deepEqual(handles('gm').map((x) => [x.properties.role, x.properties.ref]), [['radius', 0]]); // a member's parts: its own
   assert.ok(gm.groupId);
-  // the ring round a selected or hovered point's centre; a shape's centre is not marked: its outline's halo says it
-  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && x.properties.kind !== 'handle')), [['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel'], ['h', 'sel']]);
+  // the ring round a selected or hovered point's centre; a shape has none: its outline's halo says it
+  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && x.properties.kind !== 'handle')), [['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel']]);
   // the element's own features are unchanged by being selected
   assert.deepEqual(f.filter((x) => !marks.includes(x)), drawFeatures(doc).features);
 });

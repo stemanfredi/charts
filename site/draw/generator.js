@@ -53,7 +53,7 @@ export function alongTrace(doc, el, part = null) {
 // the element points go along (a line or a point), or null
 export const alongOf = (doc, id) => doc.lines.find((s) => s.id === id) ?? doc.points.find((n) => n.id === id) ?? null;
 
-// the most copies one repetition makes: more would hang the page (each is a point, drawn and followed)
+// the most copies one distribution makes: more would hang the page (each is a point, drawn and followed)
 export const MAX_COPIES = 2000;
 // The points' places along el (a line, or a point's arc): { points: [{ position, facing, t, left }],
 // length, capped (more than MAX_COPIES asked for: the first of them) }. facing: the azimuth away from
@@ -136,17 +136,20 @@ function route(nodes, root, pattern, minBranch = 0) {
   const b = hubFor(nodes, root, minBranch);
   return { hub: b, cost: inverse(root, b).s + nodes.reduce((a, n) => a + inverse(b, n).s, 0) };
 }
-// the largest tree Auto considers: each candidate group costs a hub, and every run of this many
-// points is a candidate; and the largest a Group size may set (the search grows with its square:
-// 400 points in trees of any size took 11 s). Chains cost nothing to size: any
-export const MAX_AUTO_TREE = 32, MAX_TREE = 64;
+// the largest tree, Auto's or a Group size's: each candidate group costs a hub, and every run of
+// this many points is a candidate (the search grows with its square: 400 points in trees of any
+// size took 11 s). Chains cost nothing to size: any
+export const MAX_TREE = 32;
+// a group size as the planner takes it: a whole number (a tree's at most MAX_TREE), else 'auto'
+export const groupSizeOf = (v, pattern) => (Number.isInteger(v) && v > 0 ? (pattern === 'chain' ? v : Math.min(v, MAX_TREE)) : 'auto');
+let lastPlan = null; // the last plan, by its inputs: the form previews it, then Connect makes it
 
 // The plan: the points (positions, in order) cut into groups of consecutive points, each joined to one
 // of the roots ([{ position, weight }]), the cut and the roots chosen together as the cheapest: the sum
 // over the groups of their length divided by its root's weight (dynamic programming over the order:
 // the best plan for the first i points ends with one group of up to groupSize points to one root). A
 // tie (points evenly along a line: every cut costs the same) goes to the plan whose largest group is
-// smallest. groupSize: a number, or 'auto' (a chain of any length; a tree of up to MAX_AUTO_TREE).
+// smallest. groupSize: a number, or 'auto' (a chain of any length; a tree of up to MAX_TREE).
 // minBranch: a tree's shortest branch (m).
 // The candidates are costed in one local planar frame (metres about the middle point: the choice
 // only needs their lengths against each other); the groups chosen are then routed on the ellipsoid.
@@ -155,8 +158,16 @@ export const MAX_AUTO_TREE = 32, MAX_TREE = 64;
 export function plan(points, roots, groupSize = 'auto', pattern = 'tree', minBranch = 0) {
   const n = points.length, R = roots.length;
   if (!n || !R) return { groups: [], unused: roots.map((_, i) => i), total: 0, groupSize };
+  const key = JSON.stringify([points, roots, groupSize, pattern, minBranch]);
+  if (lastPlan?.key === key) return structuredClone(lastPlan.value);
+  const value = planNow(points, roots, groupSizeOf(groupSize, pattern), pattern, minBranch);
+  lastPlan = { key, value: structuredClone(value) };
+  return value;
+}
+function planNow(points, roots, groupSize, pattern, minBranch) {
+  const n = points.length, R = roots.length;
   const chain = pattern === 'chain';
-  const k = Math.min(n, groupSize === 'auto' ? (chain ? n : MAX_AUTO_TREE) : chain ? groupSize : Math.min(groupSize, MAX_TREE));
+  const k = Math.min(n, groupSize === 'auto' ? (chain ? n : MAX_TREE) : groupSize);
   const weight = (r) => (roots[r].weight > 0 ? roots[r].weight : 1);
   const f = frame(points[n >> 1]), P = points.map(f.to), Q = roots.map((r) => f.to(r.position));
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -167,7 +178,7 @@ export function plan(points, roots, groupSize = 'auto', pattern = 'tree', minBra
   const cost = (j, i, r) => {
     if (chain) return Math.min(dist(Q[r], P[j]), dist(Q[r], P[i - 1])) + along[i - 1] - along[j];
     const nodes = P.slice(j, i), all = [...nodes, Q[r]];
-    let h = weiszfeld(all, 100, 0.01);
+    let h = weiszfeld(all, 30, 0.1); // a candidate's cost: within a metre is plenty (the groups chosen are routed exactly)
     for (let it = 0; minBranch > 0 && it < 100; it++) {
       const q = all.find((p) => dist(p, h) < minBranch - 1e-6);
       if (!q) break;
@@ -373,7 +384,7 @@ export function connect(doc, params) {
   const created = [...doc.points, ...doc.lines].map((x) => x.id).filter((id) => !before.has(id) && !keep.has(id));
   const minBranch = pattern === 'tree' && params.minBranch > 0 ? params.minBranch : 0;
   const inflate = pattern === 'tree' && params.inflate > 0 ? Math.min(1, params.inflate) : 0; // chains are never bowed
-  const connection = { id: params.id || newId(doc), kind: 'connect', groupId, pattern, groupSize: params.groupSize ?? 'auto', minBranch, inflate, roots, pointIds: nodes.map((n) => n.id), hubs, created };
+  const connection = { id: params.id || newId(doc), kind: 'connect', groupId, pattern, groupSize: groupSizeOf(params.groupSize, pattern), minBranch, inflate, roots, pointIds: nodes.map((n) => n.id), hubs, created };
   doc.rules.push(connection);
   return { connection, groups: p.groups.length, groupSize: p.groupSize, lines: doc.lines.filter((x) => created.includes(x.id)).length,
     unused: p.unused.map((i) => roots[i].id), total: p.total };

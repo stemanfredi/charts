@@ -165,7 +165,7 @@ await section('search', async () => {
   await sp.keyboard.press('Enter');
   await sp.waitForTimeout(2500);
   check((await near(35.9, 14.51, 0.05)) && photonCalls > 0, 'a place name is found (Photon) and the map goes there', true);
-  check(sp.errors.length === 0, `search without errors ${sp.errors.join(' | ')}`, true);
+  check(sp.errors.length === 0, `search without errors ${sp.errors.join(' | ')}`);
   await sp.close();
 });
 
@@ -194,7 +194,7 @@ await section('route density', async () => {
   const rtiles = await rt.evaluate(() => map.getSource('routes').tiles[0]);
   check(/routedensity_04&/.test(rtiles) && /time=2025-11-01T/.test(rtiles) && /per=[^&]*routes:2025-11/.test(await rt.evaluate(() => location.hash)), 'route density month and type in tiles and link');
   check(await rt.evaluate(() => !!document.querySelector('#legends canvas[data-legend=routes]')), 'route density legend shown', true);
-  check((await rt.evaluate(() => document.querySelector('.item:has(#i-routes) select.period').selectedOptions[0].text)) === 'Nov 2025', 'months labelled as "Nov 2025"', true);
+  check((await rt.evaluate(() => document.querySelector('.item:has(#i-routes) select.period').selectedOptions[0].text)) === 'Nov 2025', 'months labelled as "Nov 2025"');
   await rt.close();
 });
 
@@ -407,7 +407,7 @@ await section('export parity', async () => {
     if (chart.width !== seen.canvas[0] || chart.height !== seen.canvas[1]) wrong.push(`chart.png ${chart.width}×${chart.height} ≠ map ${seen.canvas.join('×')}`);
     if (dataText && !chart.Description?.includes(dataText)) wrong.push(`chart.png says "${chart.Description}", not "${dataText}"`);
     if (chart.Copyright !== pr['chart:attribution']) wrong.push('chart.png and item.json credit differently');
-    check(!wrong.length && !pp.errors.length, `export parity, ${what}: ${wrong.join('; ') || `${layers.length} layers, ${pr.datetime}`} ${pp.errors.join(' | ')}`, true);
+    check(!wrong.length && !pp.errors.length, `export parity, ${what}: ${wrong.join('; ') || `${layers.length} layers, ${pr.datetime}`} ${pp.errors.join(' | ')}`);
     await pp.close();
   }
 });

@@ -64,7 +64,7 @@ function readHash() {
   if (q.has('on')) state.on = new Set(q.get('on').split(',').filter((id) => byId[id]));
   for (const kv of (q.get('var') || '').split(',')) {
     const [k, val] = kv.split(':');
-    if (byId[k]?.variants?.[val]) state.variant[k] = val;
+    if (Object.hasOwn(byId[k]?.variants ?? {}, val)) state.variant[k] = val;
   }
   for (const kv of (q.get('op') || '').split(',')) {
     const [k, val] = kv.split(':');
@@ -997,6 +997,7 @@ unitsBtn.addEventListener('click', () => setDisplay({ units: display.units === '
 function renderUnits() {
   const nm = display.units === 'nm';
   unitsBtn.textContent = nm ? 'NM' : 'km';
+  unitsBtn.setAttribute('aria-label', nm ? 'Distance units: nautical miles' : 'Distance units: kilometres');
   unitsBtn.title = nm ? 'Distances in nautical miles: click for kilometres' : 'Distances in kilometres: click for nautical miles';
   scale.setUnit(nm ? 'nautical' : 'metric');
   scaleUnits();

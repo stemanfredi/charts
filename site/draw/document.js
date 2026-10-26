@@ -65,7 +65,7 @@ export const roundParts = (p) => p.parts.map((part, i) => ({ part, i })).filter(
 export const outlineParts = (p) => p.parts.map((part, i) => ({ part, i })).filter((x) => !isRound(x.part));
 // its largest outline ({ part, i }), or null: what its handles turn, what it is named by
 export const mainOutline = (p) => outlineParts(p).reduce((a, b) => (!a || reachOf(b.part) > reachOf(a.part) ? b : a), null);
-// the round part a repetition follows by default: the first filled, else the first; null: none
+// the round part a distribution follows by default: the first filled, else the first; null: none
 export const followedPart = (p) => { const r = roundParts(p); return (r.find((x) => x.part.fill) ?? r[0])?.i ?? null; };
 // The kinds of element: the document's list each lives in, and its name in the panel. In this order
 // (the file's, and the list's). How each is drawn, exported and moved: features.js; edited: panel.js.
