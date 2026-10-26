@@ -270,11 +270,12 @@ function groupFor(doc, name, parent) {
   doc.groups.push(g);
   return g;
 }
-// the distribution's copies made at places, into its Copies group: each facing away from what it follows
-function place(doc, a, points) {
+// the distribution's copies made at places, into its Copies group (or the group given): each facing
+// away from what it follows
+function place(doc, a, points, groupId = a.copiesId) {
   const taken = idsOf(doc), copy = copyOf(a);
   a.points = points.map((pt) => {
-    const n = addPoint(doc, pt.position, { groupId: a.copiesId, ...structuredClone(copy), bearing: +pt.facing.toFixed(4) }, taken);
+    const n = addPoint(doc, pt.position, { groupId, ...structuredClone(copy), bearing: +pt.facing.toFixed(4) }, taken);
     return { pointId: n.id, t: pt.t, left: pt.left, pos: [...n.position] };
   });
 }
@@ -322,8 +323,10 @@ export function editDistribution(doc, id, params) {
   }
   const old = new Set(a.points.map((x) => x.pointId));
   const built = connections(doc).filter((c) => c.pointIds.some((n) => old.has(n))).map((c) => unconnect(doc, c.id, true));
+  // its Copies deleted: the new copies go where the old ones were
+  const at = a.copiesId ?? byId.get([...old].find((n) => byId.has(n)))?.groupId ?? null;
   remove(doc, [...old].filter((n) => byId.has(n)));
-  place(doc, a, points);
+  place(doc, a, points, at);
   const made = a.points.map((x) => x.pointId);
   for (const c of built) connect(doc, { ...c, pointIds: [...c.pointIds.filter((n) => !old.has(n)), ...made] });
   return { distribution: a, remade: true };
@@ -444,9 +447,12 @@ const same = (a, b) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1
 // the same offset and side), each facing away from it again; each hub at the median of its points and
 // root again (its branches at least the connection's shortest). One moved by hand since (not where it
 // was last put) stops following. A distribution whose line or point (or its radius) or points are gone,
-// a connection whose points are gone, is dropped.
+// a connection whose points are gone, is dropped. A rule's group deleted (its members kept) is no
+// longer its: what it makes again goes where its own were.
 export function refreshGenerated(doc) {
   if (!doc.rules.length) return;
+  const groups = new Set(doc.groups.map((g) => g.id));
+  for (const r of doc.rules) for (const k of ['groupId', 'copiesId']) if (r[k] && !groups.has(r[k])) r[k] = null;
   const byId = new Map(doc.points.map((n) => [n.id, n]));
   doc.rules = doc.rules.filter((a) => {
     if (a.kind !== 'distribute') return true;

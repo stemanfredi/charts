@@ -386,6 +386,23 @@ test('a distribution follows its line; one moved by hand stops; Edit moves them,
   assert.equal(editDistribution(doc, 'nothing', {}), null);
 });
 
+test('a rule\'s group deleted, its members kept: the rule no longer points at it; Edit with another count makes the copies where the old ones were', () => {
+  const { doc, guide } = scene();
+  const { distribution: array, group } = makeDistribution(doc, { ...ARRAY, along: { element: guide.id }, offset: 0 });
+  const copies = array.copiesId;
+  remove(doc, [copies]);
+  settleGeometry(doc);
+  assert.equal(array.copiesId, null);
+  assert.ok(pointsOf(doc, array).every((n) => n.groupId === group.id), 'the copies in the group above');
+  assert.equal(editDistribution(doc, array.id, { count: 3, spacing: null }).remade, true);
+  assert.ok(pointsOf(doc, array).every((n) => n.groupId === group.id), 'the new copies where the old ones were');
+  remove(doc, [group.id]);
+  settleGeometry(doc);
+  assert.equal(array.groupId, null);
+  assert.ok(pointsOf(doc, array).every((n) => n.groupId === null));
+  assert.ok(!serialise(doc).includes(copies) && !serialise(doc).includes(group.id), 'no reference to a deleted group in the file');
+});
+
 test('settled: the lines attached to a distribution\'s points follow them when the line moves', () => {
   const { doc, guide, b, o1 } = scene();
   const { distribution: array } = makeDistribution(doc, { ...ARRAY, along: { element: guide.id } });
