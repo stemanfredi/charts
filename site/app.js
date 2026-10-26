@@ -459,8 +459,6 @@ async function creditEsri() {
 //   time(id)       'hour' or 'day' if it changes with the map's time; depth(id): drawn at the map's depth
 //   range(id)      promise of its datasets' spans, [[start, end]] in ms (null where not known)
 //   controls(it)   elements under its row; render(it, el) brings them up to date
-//   legend(id, el) draws its legend on the canvas el
-//                  the state as the view was captured (snapshot)
 //   values(it, box) promise of its values as GeoTIFF over [west, south, east, north], or null:
 //                  in the pictures only
 //   legend(id)     what its legend is now, or null: { key (drawn again only when it changes), ready

@@ -301,7 +301,6 @@ button.small.link:hover { border-color: var(--line); }
 .fhandles { display: flex; gap: 10px; }
 .fhandle { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
 .fhandle input.num { width: 72px; }
-.origins { max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; }
 .fsummary { color: var(--ink); background: #f6f8fa; border-radius: 6px; padding: 6px 8px; }
 .steps { margin: 0; padding-left: 22px; font-size: 12px; }
 details.along summary { cursor: pointer; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); min-height: var(--row); display: flex; align-items: center; }

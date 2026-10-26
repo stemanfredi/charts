@@ -397,7 +397,7 @@ export function toFile(doc) {
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),
         copy: a.copy && { symbol: a.copy.symbol, parts: a.copy.parts.map(partOut) },
         points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
-      : lean({ ...a, inflate: r3(a.inflate), roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { ...r })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
+      : lean({ ...a, inflate: r3(a.inflate), roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: r3(r.weight) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
   }, { meta: {}, view: null, look: {}, groups: [], rules: [] });
   return { type: 'FeatureCollection', charts: app, features: KINDS.filter((k) => k !== 'group').flatMap((k) => doc[KIND[k].list].map((el) => feature(doc, k, el))) };
 }

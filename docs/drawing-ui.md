@@ -101,8 +101,8 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
   values while it moves.
 - **Shift** turns the leg being drawn in 15° steps from the leg before (from north for the first, and
   for a sector's edges). **Alt** places freely: nothing snapped, nothing attached.
-- Esc or a right-click (not a right-drag) drops what is half drawn; else ends the tool; with no tool
-  on, clears the selection.
+- Esc or a right-click (not a right-drag) drops what is half drawn; else ends the tool; else cancels
+  **Attach to…** waiting for a click; else clears the selection (the Tools panel open or not).
 
 ### 2.2 Snapping and attaching
 
@@ -212,7 +212,7 @@ it.
   closing edge following; its bar: **Insert after** (halfway to the next), **Delete** (while more than
   three are left)).
 - **Line:** **Start** and **End** (attached: what to, and which vertex or edge, with **Attach to…**
-  (the next click on the map chooses again; Esc cancels) and **×**, which detaches it: the end stays where it
+  (the next click on the map chooses again; Esc or a right-click cancels) and **×**, which detaches it: the end stays where it
   is; free: its position, and **Attach to…**); Length (the drawn line's, curves
   included) with **Distribute along…** (§6); **Depth profile** (pressed: the depth along
   the line, as the depth shading has it (GEBCO, cut to the coast), sampled at the grid's spacing, at

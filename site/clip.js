@@ -10,7 +10,8 @@
 //               inland water at sea level (limans, lagoons, harbour basins) → −1 m
 //               flat (no depth, no isobaths); lakes above it → NO_DEPTH_M (grey)
 //   land tiles: sea → 0 m (no relief or contours in the water)
-// The depths are drawn as GEBCO has them: no filter, no smoothing.
+// The depths are drawn as GEBCO has them: no filter; the spline that samples its cells smooths
+// nothing larger than a cell (gebco.js).
 
 import { NO_DEPTH_M } from './catalog.js';
 import { HOSTS } from './hosts.js';
@@ -32,17 +33,17 @@ export const DATUMS = [
 ];
 const SEA_CLASSES = new Set(['ocean', 'dock']);
 // Inland water (OSM lagoons, limans, harbour basins, lakes) is classified once per water
-// body, from the DEM along its shoreline (its polygon's vertices, relative to any DATUMS
-// surface there), and remembered by OSM id so every tile agrees. It is at sea level when the
+// body, from the elevation along its shoreline (its polygon's vertices, relative to any DATUMS
+// surface there), and remembered by OSM id so every tile agrees (each clipper its own memory: the
+// sea's from GEBCO, the land's from the DEM). It is at sea level when the
 // shore both dips to within this of sea level somewhere (lower quartile ≤ +8 m: a raised lake's
 // does not) and rises to within it somewhere (upper quartile ≥ −8 m: the Dead Sea's, Galilee's,
-// Salton Sea's do not). SRTM shore values are noisy by several metres and OSM splits one liman
+// Salton Sea's do not). Shore values are noisy by several metres and OSM splits one liman
 // into several polygons, so the margin sits above that noise (Odesa limans: 0–7 m).
 const SEA_LEVEL_WATER_M = 8;
 // what a water body shows (also the values of the water mask, 0 being land): DEPTH real depths
 // (the sea, or a DATUMS water body), FLAT inland water at sea level, LAKE no depth source
 const DEPTH = 1, FLAT = 2, LAKE = 3;
-const waterLevel = new Map(); // OSM id → DEPTH, FLAT or LAKE
 // land value in the shaded sea tiles (contours still get +1 m): pulls the tint edge back to the
 // water pixels, so it never covers the shore line; the sliver it leaves shows the water fill,
 // which app.js colours like the shallowest band while depth shading is on
@@ -177,7 +178,7 @@ async function ancestorShore(ctx, id, oz, ox, oy) {
 // It must use the OpenMapTiles tile the basemap shows at the same map zoom, or the two
 // coastlines differ where OSM is generalised: 256 px raster-dem tiles at z show at map
 // zoom z−1 (with roundZoom off, see app.js) → OMT z−1 (omtOffset 1); 512 px contour tiles
-// at z show at map zoom z → OMT z (omtOffset 0). levelAt(px, py) is the DEM height above the
+// at z show at map zoom z → OMT z (omtOffset 0). levelAt(px, py) is the elevation above the
 // local surface (sea level, or a DATUMS surface); inDatum(px, py) says whether that is a datum.
 async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset) {
   const oz = Math.max(0, Math.min(z - omtOffset, OMT_MAXZOOM)), d = z - oz;
@@ -186,7 +187,7 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset) {
   const c = new OffscreenCanvas(SIZE, SIZE), g = c.getContext('2d');
   const k = (SIZE * 2 ** d) / layer.extent, sx = (x - (ox << d)) * SIZE, sy = (y - (oy << d)) * SIZE;
   const classify = async (f) => {
-    if (f.id && waterLevel.has(f.id)) return waterLevel.get(f.id); // decided once: every tile agrees
+    if (f.id && ctx.waterLevel.has(f.id)) return ctx.waterLevel.get(f.id); // decided once: every tile agrees
     let vals = [];
     let datum = 0;
     for (const r of f.rings) {
@@ -205,7 +206,7 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset) {
     // inland water at a DATUMS surface is that water body (OSM tiles carry the Caspian as
     // `lake` at some zooms): real depths from its surface, not the flat lagoon class
     const v = !atSea ? LAKE : datum * 2 > vals.length ? DEPTH : FLAT;
-    if (f.id) waterLevel.set(f.id, v);
+    if (f.id) ctx.waterLevel.set(f.id, v);
     return v;
   };
   // painted as colour channels: LAKE blue, FLAT green, DEPTH red, each over the ones before
@@ -231,13 +232,13 @@ async function seaMask(ctx, z, x, y, levelAt, inDatum, omtOffset) {
 
 // a Terrarium tile decoded to metres (row-major SIZE × SIZE)
 async function demMetres(url) {
-    const img = await createImageBitmap(await (await fetchOk(url)).blob());
-    if (img.width !== SIZE || img.height !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
-    const g = new OffscreenCanvas(SIZE, SIZE).getContext('2d', { willReadFrequently: true });
-    g.drawImage(img, 0, 0);
-    const px = g.getImageData(0, 0, SIZE, SIZE).data, e = new Float32Array(SIZE * SIZE);
-    for (let i = 0; i < e.length; i++) e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
-    return e;
+  const img = await createImageBitmap(await (await fetchOk(url)).blob());
+  if (img.width !== SIZE || img.height !== SIZE) throw new Error(`expected ${SIZE} px DEM tiles`);
+  const g = new OffscreenCanvas(SIZE, SIZE).getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0);
+  const px = g.getImageData(0, 0, SIZE, SIZE).data, e = new Float32Array(SIZE * SIZE);
+  for (let i = 0; i < e.length; i++) e[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 - 32768;
+  return e;
 }
 
 // The DEM's seam between its land and sea sources makes false peaks on the land side: at Elba, zoom 10 has
@@ -287,7 +288,7 @@ export function clipper({ template, mode, omtTileJson }) {
     if (typeof t !== 'string' || new URL(t).origin !== new URL(HOSTS.openfreemap).origin) throw new Error('the base map\'s TileJSON names tiles elsewhere');
     return t;
   }));
-  const rawCache = lru(128), cache = lru(128);
+  const rawCache = lru(128), cache = lru(128), waterLevel = new Map(); // waterLevel: OSM id → DEPTH, FLAT or LAKE
   // a tile's elevation in metres as the data has it (no mask): also what inland water is classified
   // from, at lower zooms too
   const raw = (z, x, y) => rawCache(`${z}/${x}/${y}`, () => (mode === 'sea' ? gebcoTile(z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y))));
@@ -304,7 +305,7 @@ export function clipper({ template, mode, omtTileJson }) {
       for (const [, b, h0] of datums) { const lo = lonAt(i), la = latAt(j); if (lo >= b[0] && lo <= b[2] && la >= b[1] && la <= b[3]) return h0; }
       return 0;
     };
-    const mask = await seaMask({ omtTemplate, raw }, z, x, y, // px, py: a shore vertex's place, fractional
+    const mask = await seaMask({ omtTemplate, raw, waterLevel }, z, x, y, // px, py: a shore vertex's place, fractional
       (px, py) => src[Math.floor(py) * SIZE + Math.floor(px)] - surface(px, py), (px, py) => surface(px, py) !== 0, omtOffset);
     const out = new Float32Array(SIZE * SIZE);
     for (let j = 0; j < SIZE; j++) {

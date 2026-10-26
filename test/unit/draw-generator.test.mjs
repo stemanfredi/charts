@@ -134,19 +134,19 @@ test('two roots: each group to the root nearer it, whatever the order the roots 
 });
 
 test('lines: the preview, root to hub to each point (tree), root then point to point (chain)', () => {
-  const pts = Array.from({ length: 6 }, (_, i) => [12 + i * 0.02, 40]), origins = [R([12.05, 39.9])];
-  const tree = plan(pts, origins, 3, 'tree');
-  const sl = lines(pts, origins, tree, 'tree');
+  const pts = Array.from({ length: 6 }, (_, i) => [12 + i * 0.02, 40]), rs = [R([12.05, 39.9])];
+  const tree = plan(pts, rs, 3, 'tree');
+  const sl = lines(pts, rs, tree, 'tree');
   assert.equal(sl.length, tree.groups.length + pts.length, 'a trunk per group, a branch per point off its hub (0 m where the hub is on it)');
-  assert.ok(tree.groups.every((g) => sl.some(([a, b]) => a === origins[0].position && b === g.hub)));
-  const chain = plan(pts, origins, 'auto', 'chain');
-  const cl = lines(pts, origins, chain, 'chain');
+  assert.ok(tree.groups.every((g) => sl.some(([a, b]) => a === rs[0].position && b === g.hub)));
+  const chain = plan(pts, rs, 'auto', 'chain');
+  const cl = lines(pts, rs, chain, 'chain');
   assert.equal(cl.length, pts.length, 'one line to each point');
-  assert.equal(cl[0][0], origins[0].position);
+  assert.equal(cl[0][0], rs[0].position);
   for (let i = 1; i < cl.length; i++) assert.equal(cl[i][0], cl[i - 1][1], 'joined end to end');
 });
 
-// a guide running east, two origins to the south-west and south-east
+// a guide running east, two rs to the south-west and south-east
 const scene = () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.4, 40]);
@@ -156,7 +156,7 @@ const scene = () => {
 };
 const ARRAY = { spacing: 3000, startMargin: 1000, endMargin: 1000, offset: 500, side: 'alternate', aperture: 180, groupId: null };
 const pointsOf = (doc, a) => a.points.map((x) => doc.points.find((n) => n.id === x.pointId));
-// the points a chain from an origin passes, in order (its lines attached end to end)
+// the points a chain from an root passes, in order (its lines attached end to end)
 const chainFrom = (doc, id) => {
   const out = [];
   for (let at = id, s; (s = doc.lines.find((x) => part(x) === 'chain' && x.start.element === at));) { out.push(s.end.element); at = s.end.element; }
@@ -207,7 +207,7 @@ test('distribution: points along the line in a group of its own, its Copies, eac
   assert.equal(makeDistribution(doc, { ...ARRAY, along: { element: guide.id }, groupId: 'nothing' }).group.groupId, null);
 });
 
-test('tree: straight lines origin → hub → points, attached at both ends, each saying its part, in a Connection group beside the copies\' Copies', () => {
+test('tree: straight lines root → hub → points, attached at both ends, each saying its part, in a Connection group beside the copies\' Copies', () => {
   const { doc, guide, o1 } = scene();
   const { distribution: array, group } = makeDistribution(doc, { ...ARRAY, along: { element: guide.id } });
   const ids = array.points.map((x) => x.pointId);
@@ -244,7 +244,7 @@ test('tree: straight lines origin → hub → points, attached at both ends, eac
   assert.deepEqual([r.connection.kind, r.connection.pattern, r.connection.groupSize, r.connection.roots, r.connection.pointIds], ['connect', 'tree', 3, roots(o1.id), ids]);
   const gt = totals(doc).groups.get(group.id); // the distribution's group (what is in its subgroups too): its circles, told apart from its hubs
   assert.deepEqual([gt.points, gt.ringed, gt.lines], [ids.length + hubs.length, ids.length, made.length]);
-  // undone: what it made goes, its points and origin stay
+  // undone: what it made goes, its points and root stay
   assert.equal(unconnect(doc, r.connection.id), r.connection);
   assert.deepEqual([doc.lines.length, connections(doc).length], [1, 0]);
   assert.ok(!doc.groups.some((g) => g.id === cg.id), 'its group gone, empty');
@@ -254,16 +254,16 @@ test('tree: straight lines origin → hub → points, attached at both ends, eac
 });
 
 test('tree: a hub on a point gives a branch of 0 m; the shortest branch set keeps the hub that far from its points and its root, and it keeps it as it follows', () => {
-  const pts = [[12, 40], [12.01, 40], [12.02, 40]], origin = [12.01, 39.9]; // the median: on the middle point
-  const at = plan(pts, [R(origin)], 3, 'tree');
+  const pts = [[12, 40], [12.01, 40], [12.02, 40]], root = [12.01, 39.9]; // the median: on the middle point
+  const at = plan(pts, [R(root)], 3, 'tree');
   assert.ok(inverse(pts[1], at.groups[0].hub).s < 1, 'the hub on the middle point');
-  const far = plan(pts, [R(origin)], 3, 'tree', 200);
+  const far = plan(pts, [R(root)], 3, 'tree', 200);
   const hub = far.groups[0].hub;
   assert.ok(pts.every((q) => inverse(q, hub).s >= 200 - 1e-3), 'every branch at least 200 m');
   assert.ok(inverse(hub, pts[1]).s < 210, 'not further off than needed');
-  assert.ok(inverse(origin, hub).s >= 200 - 1e-3, 'the trunk too');
+  assert.ok(inverse(root, hub).s >= 200 - 1e-3, 'the trunk too');
   // made: a hub of its own, a branch of 0 m to the point under it; with 200 m, none shorter
-  const doc = emptyDoc(0), ns = pts.map((q) => addPoint(doc, q)), o = addPoint(doc, origin);
+  const doc = emptyDoc(0), ns = pts.map((q) => addPoint(doc, q)), o = addPoint(doc, root);
   const r = connect(doc, { pointIds: ns.map((n) => n.id), roots: roots(o.id), pattern: 'tree', groupSize: 3 });
   const branches = () => doc.lines.filter((s) => part(s) === 'branch').map((s) => lineTrace(doc, s).length);
   assert.equal(branches().length, 3);
@@ -741,7 +741,7 @@ test('inflate: display only; a branch along the dominant direction straight, the
   const drawn = inflated(doc), line = (end) => doc.lines.find((s) => s.end.element === end);
   const mid = (c) => c[Math.floor(c.length / 2)];
   const up = drawn.get(line(ends[0].id).id), level = drawn.get(line(ends[1].id).id), down = drawn.get(line(ends[2].id).id);
-  assert.ok(up && down && !level, 'the branch along the mean direction stays straight: not drawn apart');
+  assert.ok(up && down && !level, 'the branch along the mean direction stays straight: not bowed');
   const hub = find(doc, r.connection.hubs[0].pointId).el;
   near(inverse(up[0], hub.position).s, 0, 1e-3, 'from the hub'); near(inverse(up.at(-1), ends[0].position).s, 0, 1e-3, 'to its end');
   assert.ok(mid(up)[1] > (hub.position[1] + ends[0].position[1]) / 2, 'the upper branch bows up, away from the middle');

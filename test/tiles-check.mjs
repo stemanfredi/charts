@@ -86,8 +86,8 @@ await section('zooms', async () => {
         if (lo - p > tol(lo) || p - hi > tol(hi)) { bad++; worst ||= `${p.toFixed(0)} m over ${lo.toFixed(0)} to ${hi.toFixed(0)} m`; }
       }
     }
-    // a block is the defect (Taranto's, before 0 and +1 m cells were holes: 2.3 % of the pixels);
-    // a few scattered cells reading 2–5 m inside one are left (by value they are low land)
+    // a block is the defect (Taranto's dry blocks in the Terrarium DEM were 2.3 % of the pixels);
+    // a few scattered cells may differ at the coast
     check(n > 1000 && bad <= n * 0.002, `zooms agree: ${name} zoom ${z} against ${z + 1} (${n} pixels, ${bad} apart${worst ? `, e.g. ${worst}` : ''})`);
   }
 

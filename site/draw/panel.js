@@ -437,7 +437,7 @@ export function drawView(root, ctx) {
       shown('text.name') ? tick('text.name', group || xs.length > 1 ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
       shown('text.values') ? tick('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
       shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -MAX_OFFSET, max: MAX_OFFSET, placeholder: 'mixed', bad: `pixels from −${MAX_OFFSET} to ${MAX_OFFSET}`,
-        title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as QGIS offsets a line: display only, lengths stay real' }), h('span', { class: 'funit' }, 'px'), back('offset')) : null,
+        title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as GIS tools offset a line: display only, lengths stay real' }), h('span', { class: 'funit' }, 'px'), back('offset')) : null,
       shown('minSize') ? row('Min. size', F.number(() => same('minSize'), (v) => put('minSize', v), 'Minimum size (px)', { max: MAX_MIN_SIZE, placeholder: 'mixed', bad: `pixels from 0 to ${MAX_MIN_SIZE}`,
         title: 'Shapes shorter than this on screen are drawn enlarged, their outline dotted (0: always real size; a vehicle: twice the drawing\'s)' }), h('span', { class: 'funit' }, 'px'), back('minSize')) : null,
       ...extra);
@@ -551,7 +551,7 @@ export function drawView(root, ctx) {
         field(() => part.name, (t) => t, (v) => at(i, (y) => { y.name = v; }), { 'aria-label': `Part ${i + 1} name`, placeholder: 'name' })],
       cls: part.radius && !fits(part.radius) ? 'warn' : null })),
       add: [null, adder('Add a part', 'add a part…'), null, null, null, null, null],
-      actions: (i) => ({ label: `Part ${i + 1}`, buttons: [act('Distribute along it…', 'Copies placed round this part; they follow it', () => openArray({ element: id, part: i })), act('Delete', 'Take this part away (Ctrl/⌘ Delete)', () => removeAt(i))] }),
+      actions: (i) => ({ label: `Part ${i + 1}`, buttons: [act('Distribute along it…', 'Copies placed round this part; they follow it', () => openDistribution({ element: id, part: i })), act('Delete', 'Take this part away (Ctrl/⌘ Delete)', () => removeAt(i))] }),
       keys: { remove: removeAt } });
     const far = el.parts.find((part) => part.radius && !fits(part.radius));
     return h('div', { class: 'fblock' },
@@ -575,7 +575,7 @@ export function drawView(root, ctx) {
       row('Symbol', segOf('Symbol (the same size on screen at every zoom)', SYMBOLS.map((sy) => [sy, sy === 'none' ? '∅' : icon(...SYMBOL_ICON[sy]), SYMBOL_TITLE[sy]]), el.symbol, (sy) => set(id, (x) => { x.symbol = sy; }))),
       partsBlock(id),
       el.parts.length ? row('', h('button', { type: 'button', class: 'small', title: 'Copies placed round one of its parts: a circle\'s whole round, a sector\'s arc, an outline; they follow it, and can be connected to roots',
-        onclick: () => openArray({ element: id, part: null }) }, 'Distribute along…')) : null,
+        onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…')) : null,
       changedByHand(drawing.doc, id) ? row('Parts', h('span', { class: 'fvalue' }, 'changed by hand, not its rule\'s'),
         h('button', { type: 'button', class: 'x reset', title: 'Back to the rule\'s', 'aria-label': 'Parts back to the rule\'s', onclick: () => drawing.change((d) => giveBack(d, id)) }, '↺')) : null];
     parts.push(lookBlock([item(id)]),
@@ -837,7 +837,7 @@ export function drawView(root, ctx) {
     return [...commonTop('line', id),
       ...[refRow('Start', id, 'start'), refRow('End', id, 'end')].flat(),
       row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u)),
-        h('button', { type: 'button', class: 'small', title: 'Copies placed along this line, every so far or so many, which then follow it; they can be connected to roots', onclick: () => openArray({ element: id, part: null }) }, 'Distribute along…')),
+        h('button', { type: 'button', class: 'small', title: 'Copies placed along this line, every so far or so many, which then follow it; they can be connected to roots', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…')),
       offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, an Offset it inherits. Its length is the real one.`) : null,
       drawing.inflatedIds().includes(id) ? h('p', { class: 'note' }, 'Drawn bowed, its connection\'s Inflate. Its length is the real one.') : null,
       profileBlock(id),
@@ -929,13 +929,13 @@ export function drawView(root, ctx) {
       title: 'Its trees drawn bowed: each branch away from the fan\'s middle direction, the trunk arriving along it. Display only: lengths stay real',
       oninput: (e) => { setInflate(+e.target.value / 100, true); pct.textContent = `${e.target.value} %`; }, onchange: (e) => setInflate(+e.target.value / 100) }), pct)) : null;
     return [row('Made by', h('span', { class: 'fvalue', title: text }, text),
-      h('button', { type: 'button', class: 'small', title: 'Its settings: the same number of copies moves them, another makes them anew', disabled: a && !along, onclick: () => (a ? openArray(a.along, a) : openConnect(c.pointIds, c)) }, 'Edit…')),
+      h('button', { type: 'button', class: 'small', title: 'Its settings: the same number of copies moves them, another makes them anew', disabled: a && !along, onclick: () => (a ? openDistribution(a.along, a) : openConnect(c.pointIds, c)) }, 'Edit…')),
     row('', h('button', { type: 'button', class: 'small', title: 'Everything it made', onclick: all }, 'Select all')), inflate];
   }
 
   // ---- the tools' forms (generator.js): Distribute along a line or an arc, connected to roots or not;
   // Connect, for points placed by hand ----------------------------------------------------------------
-  // form: { kind: 'array', along (a reference: the line, or the point), arrayId, connectionId } or
+  // form: { kind: 'distribute', along (a reference: the line, or the point), distributionId, connectionId } or
   // { kind: 'connect', pointIds, connectionId }
   // (an id: the one edited or made again, or null), and the selection it was opened with (another
   // closes it)
@@ -955,14 +955,14 @@ export function drawView(root, ctx) {
     formPreview();
     renderInspector();
   }
-  function openArray(along, a = null) {
+  function openDistribution(along, a = null) {
     const c = a && connectionOn(drawing.doc, a);
     arr.part = along.part ?? null; // a new one: the part followed by default
     if (a) Object.assign(arr, { by: a.count ? 'count' : 'spacing', spacing: a.spacing || arr.spacing, count: a.count || a.points.length, startMargin: a.startMargin, endMargin: a.endMargin,
       offset: a.offset, side: a.side, radius: a.radius, aperture: a.aperture, preset: a.preset ?? 'circle', copy: a.copy });
     arr.connect = !!c;
     Object.assign(con, fromConnection(c), { newRoots: [] });
-    openForm({ kind: 'array', along: { element: along.element, part: along.part ?? null }, arrayId: a?.id ?? null, connectionId: c?.id ?? null });
+    openForm({ kind: 'distribute', along: { element: along.element, part: along.part ?? null }, distributionId: a?.id ?? null, connectionId: c?.id ?? null });
   }
   function openConnect(pointIds, c = null) {
     Object.assign(con, fromConnection(c), { newRoots: [] });
@@ -976,7 +976,7 @@ export function drawView(root, ctx) {
   const arrayRun = () => distribute(drawing.doc, alongOf(drawing.doc, form.along.element), { ...arrParams(), part: arr.part });
   const arrayPoints = () => arrayRun().points, arrayCapped = () => arrayRun().capped;
   // the points being connected: the form's (Connect), or the distribution's being edited
-  const formPointIds = () => (form.kind === 'connect' ? form.pointIds : distributions(drawing.doc).find((a) => a.id === form.arrayId)?.points.map((x) => x.pointId) ?? []);
+  const formPointIds = () => (form.kind === 'connect' ? form.pointIds : distributions(drawing.doc).find((a) => a.id === form.distributionId)?.points.map((x) => x.pointId) ?? []);
   // the roots as the planner takes them, those gone or among the points dropped
   const rootsNow = () => {
     con.roots = con.roots.filter((r) => drawing.doc.points.some((n) => n.id === r.id) && !formPointIds().includes(r.id));
@@ -998,7 +998,7 @@ export function drawView(root, ctx) {
   // what the form would make, faint on the map: the points; the lines, the roots ringed
   function formPreview() {
     const c = connectPlan(), joined = form.kind === 'connect' || arr.connect;
-    drawing.setPreview(form.kind === 'array' ? c.positions : [], joined ? c.roots.map((r) => r.position) : [], c.plan ? lines(c.positions, c.roots, c.plan, con.pattern) : []);
+    drawing.setPreview(form.kind === 'distribute' ? c.positions : [], joined ? c.roots.map((r) => r.position) : [], c.plan ? lines(c.positions, c.roots, c.plan, con.pattern) : []);
   }
   // a setting changed: the preview and the form follow
   const formChanged = () => { drawing.setPicking(picks() ? pick : null); formPreview(); renderInspector(); };
@@ -1048,8 +1048,8 @@ export function drawView(root, ctx) {
     && c.roots.length === con.roots.length && c.roots.every((o) => con.roots.some((r) => r.id === o.id && r.weight === o.weight));
 
   // Distribute along a line or a point's arc, and its connection to roots: one form, one undo step
-  function arrayForm() {
-    const doc = drawing.doc, along = find(doc, form.along.element), editing = form.arrayId && distributions(doc).find((a) => a.id === form.arrayId);
+  function distributionForm() {
+    const doc = drawing.doc, along = find(doc, form.along.element), editing = form.distributionId && distributions(doc).find((a) => a.id === form.distributionId);
     const tr = alongTrace(doc, along.el, arr.part), closed = tr?.closed;
     const c = connectPlan(), points = c.positions, redo = formChanged;
     // a distance that may be 0 (margins, the offset), or must be above 0 (spacing)
@@ -1160,7 +1160,7 @@ export function drawView(root, ctx) {
     if (inspector.contains(document.activeElement)) document.activeElement.blur();
     const xs = drawing.selected();
     if (form && selKey() !== form.sel) closeForm();
-    const kids = form ? (form.kind === 'array' ? arrayForm() : connectForm()) : !xs.length ? drawingInspector()
+    const kids = form ? (form.kind === 'distribute' ? distributionForm() : connectForm()) : !xs.length ? drawingInspector()
       : xs.length > 1 ? severalInspector(xs)
         : { point: pointInspector, area: areaInspector, line: lineInspector, group: groupInspector, label: labelInspector }[xs[0].kind](xs[0].el.id);
     const top = inspector.scrollTop;

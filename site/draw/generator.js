@@ -379,7 +379,7 @@ export function connect(doc, params) {
     unused: p.unused.map((i) => roots[i].id), total: p.total };
 }
 
-// A connection undone: what it made that still exists goes (its points and origins stay), and its
+// A connection undone: what it made that still exists goes (its points and roots stay), and its
 // record; its group too when nothing is left in it, unless kept (to be made again). Returns the record,
 // or null.
 export function unconnect(doc, id, keepGroup = false) {

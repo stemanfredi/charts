@@ -151,7 +151,8 @@ on-screen credits and the PNG list only the sources that are drawn.
   per water body: water at sea level (lagoons, harbour basins), lakes without
   depth data, or seas with their own surface level, such as the Caspian.
 - **Honest depths.** The depths are GEBCO's, drawn as they are: its whole-metre
-  cells sampled with a cubic spline at every zoom, no filter, no smoothing. The
+  cells sampled with a cubic spline at every zoom, which smooths nothing larger
+  than a cell, and no filter. The
   land DEM has false peaks where its land and sea sources meet; those coastal
   spikes are clamped, and everything else is drawn as it is. Isobath spacing
   widens with depth and tightens with zoom. EMODnet and GEBCO image layers are
@@ -237,6 +238,9 @@ npm run perf        # how long the depth layers take to draw
 npm run deps        # newer density data periods (newer libraries: npm outdated)
 ```
 
+The browser tests use `/usr/bin/google-chrome` by default; set
+`CHROME=/path/to/chrome` to use another binary.
+
 The page itself needs no installation. Any static web server can host the
 `site/` folder.
 
@@ -250,10 +254,10 @@ public bucket does) that serves the folders the two tools build, `gebco-2026/`
 `seagrass-2025/` (`{z}/{x}/{y}.pbf` and `index.json`), over HTTPS, with
 cross-origin reads allowed from the page's origin and, for the browser tests,
 from `http://127.0.0.1:8099`. The page reads every file as bytes itself, so
-content types and encodings are not needed (nor is anything compressed on the
-wire). The release is in each path, so the files can be cached as immutable.
-Nothing else: no listing, no function, no key. The browser tests use `/usr/bin/google-chrome` by default; set
-`CHROME=/path/to/chrome` to use another binary.
+content types are not needed, and the files are stored as they are (the Zarr
+chunks are compressed inside; nothing else is). The release is in each path, so
+the files can be cached as immutable. Nothing else: no listing, no function, no
+key.
 
 The smoke test depends on the network by design, because the page depends on
 the providers. A failure can therefore mean that a provider changed or went
@@ -280,8 +284,8 @@ GitHub Pages; only `site/` is published. What a provider served (tiles, legends,
 places found) is checked on every run but held against the page only on the
 weekly one, which is strict (`STRICT=1`): a provider's outage shows as warnings
 on a push and does not hold up a deploy, and as a failed run, mailed, when it
-lasts a week. The scheduled run also lists newer library versions and reports
-newer density data. Pages must be enabled once in the repository settings, with
+lasts a week. The scheduled run also lists newer library versions in its log
+(`npm outdated`) and reports newer density data as a notice. Pages must be enabled once in the repository settings, with
 *Source: GitHub Actions*.
 
 ## Dependencies
@@ -294,7 +298,8 @@ fails if `site/vendor/` differs from what `package.json` says, or if the
 security policy in `site/index.html` differs from `site/hosts.js`.
 
 To upgrade, change the version in `package.json`, run `npm install` and
-`node tools/deps.mjs --write`, and test.
+`node tools/deps.mjs --write` (until then the unit test says `site/vendor/` is
+out of date), and test.
 
 The density periods offered in the menu are listed in `site/catalog.js`. When
 `npm run deps` reports newer data, extend the list there.

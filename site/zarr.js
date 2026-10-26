@@ -26,10 +26,19 @@ function lz4(src, dst) {
   return o;
 }
 
-// a zlib stream → its bytes, by the browser's own decompressor
+// a zlib stream → its bytes, by the browser's own decompressor; never more than `size` of them (a
+// small stream can say it holds anything)
 async function inflate(src, size) {
-  const out = new Uint8Array(await new Response(new Blob([src]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
-  if (out.length !== size) throw new Error('Blosc: a zlib stream decodes short');
+  const reader = new Blob([src]).stream().pipeThrough(new DecompressionStream('deflate')).getReader(), out = new Uint8Array(size);
+  let n = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (n + value.length > size) { reader.cancel(); throw new Error('Blosc: a zlib stream decodes long'); }
+    out.set(value, n);
+    n += value.length;
+  }
+  if (n !== size) throw new Error('Blosc: a zlib stream decodes short');
   return out;
 }
 
@@ -45,7 +54,7 @@ export async function unblosc(b, expected = null) {
   if (expected !== null && nbytes !== expected) throw new Error(`Blosc: ${nbytes} bytes where the chunk holds ${expected}`); // sizes from the header are only trusted against the store's metadata
   if (!blocksize || blocksize > nbytes) throw new Error('Blosc: block size out of range');
   const out = new Uint8Array(nbytes);
-  if (flags & 2) { out.set(b.subarray(16, 16 + nbytes)); return out; }
+  if (flags & 2) { if (b.length < 16 + nbytes) throw new Error('Blosc: a chunk stored as is is short'); out.set(b.subarray(16, 16 + nbytes)); return out; }
   if (flags & 4) throw new Error('Blosc: bit shuffle is not supported');
   const codec = flags >> 5;
   if (codec !== 1 && codec !== 3) throw new Error(`Blosc: compressor ${codec} is neither LZ4 nor zlib`);
@@ -56,6 +65,7 @@ export async function unblosc(b, expected = null) {
     for (let s = 0, p = v.getUint32(16 + 4 * k, true); s < streams; s++) {
       const cb = v.getInt32(p, true);
       p += 4;
+      if (cb < 0 || p + cb > b.length) throw new Error('Blosc: a stream runs past the chunk');
       const dst = tmp.subarray(s * part, (s + 1) * part);
       if (cb === part) dst.set(b.subarray(p, p + cb));
       else if (codec === 3) dst.set(await inflate(b.subarray(p, p + cb), part));
@@ -74,7 +84,7 @@ export async function unblosc(b, expected = null) {
 
 // ---- arrays ---------------------------------------------------------------------------------
 
-const TYPES = { '|i1': Int8Array, '<i2': Int16Array, '<i4': Int32Array, '<f4': Float32Array, '<f8': Float64Array };
+const TYPES = Object.assign(Object.create(null), { '|i1': Int8Array, '<i2': Int16Array, '<i4': Int32Array, '<f4': Float32Array, '<f8': Float64Array }); // no inherited names: the dtype is the store's
 // a chunk's bytes (Blosc, or none: the chunk is not stored, all fill) → promise of numbers of the
 // array's dtype
 export async function decode(meta, bytes) {

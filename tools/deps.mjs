@@ -45,7 +45,8 @@ const BLOCK = /(<!-- csp:start[^>]*-->)[\s\S]*?(<!-- csp:end -->)/;
 // what site/vendor/ should hold: name → the bytes in node_modules (the libraries and their licences)
 async function wanted() {
   const out = new Map();
-  for (const [pkg, file, name] of LIBRARIES) out.set(name, await readFile(new URL(`${pkg}/${file}`, MODULES)));
+  // without the source-map pointer: the maps are not shipped, and the browser's tools would ask for them
+  for (const [pkg, file, name] of LIBRARIES) out.set(name, Buffer.from((await readFile(new URL(`${pkg}/${file}`, MODULES), 'utf8')).replace(/\n\/[/*]# sourceMappingURL=\S+( \*\/)?\s*$/, '\n')));
   for (const pkg of new Set(LIBRARIES.map(([p]) => p))) {
     const licence = (await readdir(new URL(`${pkg}/`, MODULES))).find((f) => /^licen[cs]e/i.test(f));
     if (!licence) throw new Error(`${pkg}: no licence file in the package`);
@@ -65,6 +66,8 @@ export async function stale() {
     const have = await readFile(new URL(name, VENDOR)).catch(() => null);
     if (!have || !have.equals(bytes)) out.push(`site/vendor/${name}`);
   }
+  const w = await wanted();
+  for (const name of await readdir(VENDOR).catch(() => [])) if (!w.has(name)) out.push(`site/vendor/${name}: not a library of package.json's`);
   const html = await readFile(INDEX, 'utf8');
   if (indexWith(html) !== html) out.push('index.html: the Content-Security-Policy');
   return out;

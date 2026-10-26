@@ -646,7 +646,7 @@ await section('the drawing', async () => {
   const back = JSON.parse(await readFile(await dnet.path(), 'utf8'));
   check(featuresOf(back, 'line').length === 4 && featuresOf(back, 'point').length === 1 && back.charts.groups.length === 1 && featuresOf(back, 'line').filter((f) => own(f).start || own(f).end).length === 4,
     'drawing: exported whole, the lines\' ends attached to the point');
-  // points along a line, connected to one origin in the same form: one step, undone at once
+  // points along a line, connected to one root in the same form: one step, undone at once
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('g');
   await dw.mouse.click(150, 650);
@@ -664,7 +664,7 @@ await section('the drawing', async () => {
   await gsp.fill('2 km');
   await gsp.press('Enter');
   await dw.click('.dinspect label:has-text("Connect to roots") input');
-  await dw.mouse.click(420, 700); // the circle's centre: an origin (a click on a point uses it)
+  await dw.mouse.click(420, 700); // the circle's centre: a root (a click on a point uses it)
   const mb = dw.locator('input[aria-label="Shortest branch"]'); // Tree: each branch at least this long
   await mb.fill('300 m');
   await mb.press('Enter');

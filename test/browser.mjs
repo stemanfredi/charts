@@ -19,9 +19,15 @@ export async function start() {
   };
   // a part of a run on its own: an error thrown in it is one failure, and the next part runs
   const section = async (name, fn) => {
+    const had = new Set(browser.contexts().flatMap((c) => [c, ...c.pages()]));
     try { await fn(); } catch (err) {
       const where = err.stack?.split('\n').find((l) => /test\/\w+\.mjs/.test(l))?.trim();
       check(false, `${name} crashed: ${err.message.split('\n').filter((l) => l.trim()).slice(0, 6).map((l) => l.trim()).join(' / ')}${where ? ` (${where})` : ''}`);
+      // what it opened and did not close would go on drawing and fetching under the sections after it
+      for (const c of browser.contexts()) {
+        if (!had.has(c)) { await c.close().catch(() => {}); continue; }
+        for (const p of c.pages()) if (!had.has(p)) await p.close().catch(() => {});
+      }
     }
   };
   const finish = async () => {

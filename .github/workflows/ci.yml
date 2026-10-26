@@ -50,7 +50,7 @@ jobs:
       # said as warnings; the weekly run is strict, so a provider down for a week is a failed run (mailed)
       - run: npm run smoke || (sleep 60 && npm run smoke)
         env:
-          STRICT: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
+          STRICT: ${{ github.event_name == 'schedule' && '1' || '' }} # a run by hand is a redeploy: a provider's outage must not block it
       - run: npm run ui || (sleep 60 && npm run ui)    # no overlaps, 44 px targets, 390/820/1280 px
       - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: npm run tiles-check     # known trouble spots: seams, zooms, lakes (live data, weekly)
