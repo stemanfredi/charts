@@ -752,14 +752,14 @@ await section('the drawing', async () => {
     drawn: map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').length + map.querySourceFeatures('drawzoom').filter((f) => f.properties.id === x.id && f.properties.kind === 'shape').length }; });
   check(twoParts.kinds === 'surface-vehicle,circle' && twoParts.len === 100 && twoParts.preset === 'Rectangle' && twoParts.drawn >= 2,
     `parts: an outline's kind changed, its length kept; a circle added, both drawn; its preset remembered (${JSON.stringify(twoParts)})`);
-  // two clicks: the centre, then the front (the bearing and the length; the width in proportion)
+  // two clicks: the centre, then the reach (half the length; the width in proportion); facing north
   await dw.evaluate(() => { drawing.stop(); drawing.variant.shape = 'rectangle'; });
   await dw.keyboard.press('s');
   await dw.mouse.click(300, 500);
   await dw.mouse.move(360, 500, { steps: 3 });
   await dw.mouse.click(360, 500);
   const sized = await dw.evaluate(async () => { const { inverse } = await import('./geodesy.js'); const x = drawing.doc.points.at(-1), a = map.unproject([300, 500]), b = map.unproject([360, 500]); return [x.bearing, x.parts[0].length, x.parts[0].width, inverse([a.lng, a.lat], [b.lng, b.lat]).s]; });
-  check(Math.abs(sized[0] - 90) < 1 && Math.abs(sized[1] - 2 * sized[3]) < 2 && Math.abs(sized[2] - sized[1] / 2) < 1, `shapes in two clicks: a rectangle's front set by the second (${sized.map((v) => Math.round(v))})`);
+  check(sized[0] === 0 && Math.abs(sized[1] - 2 * sized[3]) < 2 && Math.abs(sized[2] - sized[1] / 2) < 1, `shapes in two clicks: a rectangle sized by the second, facing north (${sized.map((v) => Math.round(v))})`);
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('Escape');
   // attaching: a line drawn to a shape's corner ends attached there, and follows it when it turns
