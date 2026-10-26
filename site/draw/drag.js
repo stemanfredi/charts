@@ -46,6 +46,21 @@ export function resizeRect(shape, corners, i, p, { keep = false, aboutCentre = f
   return { center: f.from([(a * u[0] + c * n[0]) / 2, (a * u[1] + c * n[1]) / 2]), length, width };
 }
 
+// A rectangle with one side dragged to the pointer, the opposite side kept (aboutCentre: the centre
+// kept, both sides moving): side i runs from corner i to corner i + 1 (geodesy.rectangle's order:
+// 0 the right side, 1 the back, 2 the left, 3 the front). Returns { center, length, width }.
+export function resizeSide(shape, i, p, { aboutCentre = false } = {}) {
+  const f = localFrame(shape.center), v = f.to(p), b = shape.bearing * D2R;
+  const u = [Math.sin(b), Math.cos(b)], n = [Math.cos(b), -Math.sin(b)]; // along the bearing; across it, to the right
+  const a = v[0] * u[0] + v[1] * u[1], c = v[0] * n[0] + v[1] * n[1];
+  const along = i === 1 || i === 3, at = along ? a : c, half = (along ? shape.length : shape.width) / 2;
+  const sign = i === 0 || i === 3 ? 1 : -1; // the right side and the front lie at +half, the left and the back at −half
+  const size = Math.max(1, aboutCentre ? 2 * Math.abs(at) : sign * at + half);
+  const shift = aboutCentre ? 0 : (at - sign * half) / 2; // the centre: halfway between the kept side (at −sign · half) and the new one (at)
+  const d = along ? u : n, center = aboutCentre ? shape.center : f.from([shift * d[0], shift * d[1]]);
+  return along ? { center, length: size, width: shape.width } : { center, length: shape.length, width: size };
+}
+
 // A Bézier handle from a pointer: metres east and north of its anchor, as the projection draws it
 // (the inverse of lines.js: Mercator offsets times cos latitude at the anchor)
 export function handleTo(anchor, p) {

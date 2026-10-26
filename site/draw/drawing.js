@@ -2,7 +2,7 @@
 // layers of layers.js from features.js and labels.js, with the placing tools, clicks, hit testing,
 // dragging and the Select area tool; saved in this browser as it changes (saving.js).
 
-import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf } from './document.js';
+import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf, mainOutline } from './document.js';
 import { typing } from '../dom.js';
 import { outlineOf } from './outlines.js';
 import { placeKind, nameByLook } from './place.js';
@@ -19,7 +19,7 @@ import { inverse, rectangle, areaOf, pathOf, sector, circle } from '../geodesy.j
 import { snapAt, stepped, neighbours, positionsOf, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
 import { copyOf, paste, centreOf, keep, kept } from './clipboard.js';
-import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, handleTo, moved } from './drag.js';
+import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, resizeSide, handleTo, moved } from './drag.js';
 
 // the ID of the line being drawn, as measured for its values: always the same, so the traces cached by
 // ID (lines.js) keep one entry for it, not one for each move of the pointer
@@ -482,7 +482,9 @@ export class Drawing extends DrawStore {
     const sh = this.draftShape();
     if (sh) {
       const line = (coordinates) => ({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates } });
-      const { el } = sh, out = [line([sh.centre, sh.to])];
+      // the reach from the centre to the pointer: a radius, drawn as a guide for a round shape only (an
+      // outline faces north whatever the pointer's direction, so the line would say nothing)
+      const { el } = sh, out = mainOutline(el) ? [] : [line([sh.centre, sh.to])];
       for (const part of el.parts) out.push(line(part.radius ? ringOf(el, part) : outlineOf(el.position, el.bearing, part.length, part.width, part.kind).ring));
       return out;
     }
@@ -674,6 +676,13 @@ export class Drawing extends DrawStore {
         // an outline part's corner (ref "part:corner"); on a point with other parts, about its centre
         const [i, c] = String(d.ref).split(':').map(Number), s = shapeOf(el, i);
         const r = resizeRect(s, rectangle(s.center, s.bearing, s.length, s.width).corners, c, p, { keep: e.shiftKey, aboutCentre: e.altKey || el.parts.length > 1 });
+        el.position = r.center;
+        Object.assign(el.parts[i], { length: r.length, width: r.width });
+        return;
+      }
+      case 'side': { // an outline part's side (ref "part:side"), the opposite side kept; about the centre as a corner is
+        const [i, c] = String(d.ref).split(':').map(Number), s = shapeOf(el, i);
+        const r = resizeSide(s, c, p, { aboutCentre: e.altKey || el.parts.length > 1 });
         el.position = r.center;
         Object.assign(el.parts[i], { length: r.length, width: r.width });
         return;

@@ -60,11 +60,15 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 export function drawParts(doc, sel = new Set(), hover = null, display = {}, want = { base: true, zoom: true, marks: true }) {
   const base = [], zoomed = [], marks = [];
   const markOf = (id) => (!want.marks ? null : sel.has(id) ? 'sel' : hover === id ? 'hover' : null);
+  // The band round a shape or an area says "selected" only where its handles cannot: among several
+  // selected, or hovered. The one element selected shows its handles and its own edge, untouched (as
+  // the drawing tools do: the edge is what one aligns to). A line keeps its band: two dots say little.
   const mark = (id, geometry, props = {}) => {
     const kind = markOf(id);
-    if (kind) marks.push({ type: 'Feature', properties: { id, kind, ...props }, geometry });
+    if (kind && !(kind === 'sel' && sel.size === 1 && geometry.type === 'Polygon')) marks.push({ type: 'Feature', properties: { id, kind, ...props }, geometry });
     return kind;
   };
+  const midway = (a, b) => { const d = inverse(a, b); return destination(a, d.azi, d.s / 2); };
   // handles, thinned at the map's zoom: one at least HANDLE_GAP px from the last one kept, and the
   // last point always (a line of hundreds of points would be a chain of squares)
   const mpp = display.zoom == null ? 0 : metresPerPixel(display.zoom);
@@ -72,7 +76,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   // Each handle says what dragging it does: role and ref (a part's place in its point's list, an index, a point ID).
   // items: [{ p, role, ref, kind ('handle', 'mid', 'ctrl') }]; thin: a line's points thinned.
   const handles = (id, items, thin = false) => {
-    if (!sel.has(id)) return;
+    if (!sel.has(id) || sel.size !== 1) return; // the one element selected: among several, the bands say which, and a drag moves them all
     let last = null;
     items.forEach((h, i) => {
       const m = mercator(h.p);
@@ -104,8 +108,9 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     // its halo round its outermost round part (a point with an outline: round that); its parts dragged
     if (!mainOutline(n)) mark(n.id, { type: 'Polygon', coordinates: [ccw(outer.rg)] }, { sw: st.stroke.width });
     if (sel.has(n.id)) {
-      // each round part's radius dragged by its handle, named by its place in the list
-      const items = rounds.map(({ part, i }) => ({ p: destination(n.position, part.kind === 'sector' ? n.bearing : 0, part.radius), role: 'radius', ref: i }));
+      // each round part's radius dragged by its handles, named by its place in the list: a circle's at
+      // its four cardinal points, a sector's at the middle of its arc
+      const items = rounds.flatMap(({ part, i }) => (part.kind === 'sector' ? [n.bearing] : [0, 90, 180, 270]).map((az) => ({ p: destination(n.position, az, part.radius), role: 'radius', ref: i })));
       // a sector's ends: each moves alone; the stalk's end beyond the outermost arc's middle turns the
       // point (with an outline, the outline's stalk does)
       const sectors = rounds.filter(({ part }) => part.kind === 'sector');
@@ -146,11 +151,12 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
         ...lineProps(st.stroke, part.strokeColor || st.stroke.color, k > 1 ? 'dotted' : part.strokeDash || st.stroke.dash), ...(k > 1 ? { enlarged: k } : {}) }, geometry: { type: 'Polygon', coordinates: [o.ring] } });
       if (i === main.i) halo = o.ring;
       corners.push(...o.corners.map((p, c) => ({ p, role: 'corner', ref: `${i}:${c}` })));
+      corners.push(...o.corners.map((p, c) => ({ p: midway(p, o.corners[(c + 1) % 4]), role: 'side', ref: `${i}:${c}` }))); // the middle of each side: that side alone
     }
     if (want.zoom && named(n)) name(zoomNames, n, { type: 'Point', coordinates: n.position }, st.stroke.color, { ctr: 1 });
     if (mark(n.id, { type: 'Polygon', coordinates: [ccw(halo)] }, { sw: st.stroke.width }) && k === 1) {
-      // corners resize, the stalk's end (beyond the largest's front) rotates (outlines drawn enlarged
-      // are only moved)
+      // corners resize, a side's middle moves that side, the stalk's end (beyond the largest's front)
+      // rotates (outlines drawn enlarged are only moved)
       if (mpp && sel.has(n.id)) {
         const s0 = shapeOf(n, main.i), front = destination(s0.center, s0.bearing, s0.length / 2), tip = rotateHandle(s0, 24 * ground(s0.center[1]));
         marks.push({ type: 'Feature', properties: { id: n.id, kind: 'stalk' }, geometry: { type: 'LineString', coordinates: [front, tip] } });

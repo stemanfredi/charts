@@ -59,3 +59,22 @@ test('a Bézier handle in metres east and north; moving by the pointer; the rota
   near(inverse(C, r).s, 80, 1e-6, 'beyond the front edge');
   near(inverse(C, r).azi, 30, 1e-6, 'along the bearing');
 });
+
+test('resizeSide: a side dragged moves that side alone; with the centre kept, both', async () => {
+  const { resizeSide } = await import('../../site/draw/drag.js');
+  const { destination, inverse } = await import('../../site/geodesy.js');
+  const s = { center: [12, 40], bearing: 90, length: 1000, width: 400, outline: 'rectangle' };
+  const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
+  // the front (side 3) pulled 200 m further ahead (east, the bearing): 1200 long, the centre 100 m east, the width kept
+  let r = resizeSide(s, 3, destination(s.center, 90, 700));
+  near(r.length, 1200, 1e-3, 'length'); near(r.width, 400, 1e-9, 'width kept');
+  near(inverse(s.center, r.center).s, 100, 1e-3, 'the centre half-way'); near(inverse(s.center, r.center).azi, 90, 1e-3, 'eastward');
+  // the left side (2) pulled 100 m out: 500 wide, the centre 50 m to the left (north)
+  r = resizeSide(s, 2, destination(s.center, 0, 300));
+  near(r.width, 500, 1e-3, 'width'); near(r.length, 1000, 1e-9, 'length kept'); near(inverse(s.center, r.center).azi, 0, 1e-3, 'northward');
+  // about the centre: the back (1) pulled to 700 m behind doubles to 1400, the centre stays
+  r = resizeSide(s, 1, destination(s.center, 270, 700), { aboutCentre: true });
+  near(r.length, 1400, 1e-3, 'length about the centre'); assert.deepEqual(r.center, s.center);
+  // never under a metre
+  assert.ok(resizeSide(s, 0, destination(s.center, 0, 1000)).width >= 1);
+});
