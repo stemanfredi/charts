@@ -504,7 +504,7 @@ const KINDS = {
   gebco: {
     // the depth shading's legend: while the chart is under it, zoomed out (the shading ends at 13)
     legend: () => (state.on.has('chart') && map.getZoom() < 13 ? { key: state.variant.depth, paint: (el) => {
-      drawRamp(el, 'Depth shading', 'm · approximate (DEM)', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
+      drawRamp(el, 'Depth shading', 'm · GEBCO 2026', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
       return `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`;
     } } : null),
     values: (it, box) => gebcoValues(box),
