@@ -16,9 +16,10 @@ ctx.on('request', (r) => { const u = new URL(r.url()); if (u.origin !== new URL(
 // a page at hash, loaded, its errors collected (in: another context, a phone's)
 async function open(hash, inCtx = ctx) {
   const page = await inCtx.newPage();
-  page.errors = [];
+  page.errors = []; // the page's own: thrown errors, and what it logs as an error
+  page.providerErrors = []; // a provider's: a resource the browser could not load (an HTTP 500, a refused tile)
   page.on('pageerror', (e) => page.errors.push(e.message));
-  page.on('console', (m) => m.type() === 'error' && page.errors.push(m.text().slice(0, 200)));
+  page.on('console', (m) => m.type() === 'error' && (/Failed to load resource/.test(m.text()) ? page.providerErrors : page.errors).push(m.text().slice(0, 200)));
   await page.goto(base + hash);
   await page.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
   await page.waitForTimeout(1000);
@@ -311,8 +312,8 @@ await section('a satellite observation', async () => {
     return [t, ms <= new Date(document.querySelector('#when input').max).getTime(), document.querySelector('#shown').textContent,
       `${new Date(ms).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${new Date(ms).getUTCDate()} ${new Date(ms).toLocaleDateString([], { month: 'short', timeZone: 'UTC' })}`, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)];
   });
-  check(obT && obWithin && (obShown === 'Today' || obShown === obDay) && !obBroken.length && !ob.errors.length,
-    `sea surface temperature: the time within its days, its day shown (t=${obT}, ${obShown}) ${obBroken.join(' ')} ${ob.errors.join(' | ')}`, true);
+  check(obT && obWithin && (obShown === 'Today' || obShown === obDay) && !obBroken.length && !ob.errors.length && !ob.providerErrors.length,
+    `sea surface temperature: the time within its days, its day shown (t=${obT}, ${obShown}) ${obBroken.join(' ')} ${[...ob.errors, ...ob.providerErrors].slice(0, 3).join(' | ')}`, true);
   await ob.close();
 });
 
@@ -501,9 +502,9 @@ await section('the drawing', async () => {
   const bearing = dw.locator('input[aria-label^=Bearing]');
   await bearing.fill('-30');
   await bearing.press('Enter');
-  await dw.waitForTimeout(600);
-  let d = await saved();
+  let d; // saved a moment after the change: waited for, not timed (a slow runner saves later)
   const pt0 = () => own(featuresOf(d, 'point')[0] || { properties: {} });
+  for (let i = 0; i < 25 && pt0()?.bearing !== 330; i++) { await dw.waitForTimeout(200); d = await saved(); }
   check(d?.type === 'FeatureCollection' && featuresOf(d, 'point').length === 1 && pt0().parts?.[0].kind === 'sector' && pt0().parts[0].radius === 2778 && pt0().bearing === 330 && pt0().parts[0].aperture === 90,
     `drawing: a point placed, its radius (1.5 NM), bearing (−30° → 330°) and sector set in the inspector, saved as GeoJSON (${JSON.stringify(pt0())})`);
   // the inspector as tables: every value row one line high (nothing wraps); ↑ in a value field nudges it
