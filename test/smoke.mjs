@@ -66,13 +66,14 @@ await section('the default view and the menu', async () => {
   check((await visible(p, 'seamarks')) === 'visible', 'a layer row turns its layer on');
   await p.click('.basecard[data-base=sat]');
   check((await visible(p, 'esri')) === 'visible' && (await visible(p, 'water')) === 'none', 'satellite replaces the chart base');
-  await p.waitForTimeout(1500);
+  // the credits follow the base map a moment later (Esri's text is fetched): waited for, not timed
+  await p.waitForFunction(() => /^Powered by Esri/.test(document.querySelector('.credits-text')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
   const credits = await p.evaluate(() => document.querySelector('.credits-text')?.textContent || '');
   const live = await p.evaluate(async () => (await (await fetch('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?f=json')).json()).copyrightText);
   check(credits.includes('Powered by Esri') && credits.includes(live), `Esri credits: "Powered by Esri" and the service's own text (${live})`, true);
   // the base map's credit first, so a line cut at its end ("…") never cuts it
   await p.click('.basecard[data-base=chart]');
-  await p.waitForTimeout(500);
+  await p.waitForFunction(() => /^© OpenStreetMap/.test(document.querySelector('.credits-text')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
   const chartCredits = await p.evaluate(() => document.querySelector('.credits-text').textContent);
   check(credits.startsWith('Powered by Esri') && chartCredits.startsWith('© OpenStreetMap'), `the base map's credit first (${credits.slice(0, 30)}… / ${chartCredits.slice(0, 30)}…)`);
   await p.close();
