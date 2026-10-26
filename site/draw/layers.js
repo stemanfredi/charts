@@ -104,10 +104,6 @@ export const DRAW_LAYERS = [
   { id: 'draw-handle', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'handle'],
     layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': '#ffffff', 'icon-halo-color': CASING, 'icon-halo-width': 1.5 } },
-  // a selected shape's centre
-  { id: 'draw-centremark', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'centremark'],
-    layout: { 'icon-image': 'draw-centre', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': CASING, 'icon-halo-color': '#ffffff', 'icon-halo-width': 1.5 } },
   // the forms' previews: the points a distribution would make (faint diamonds), Connect's roots (rings) and lines
   { id: 'draw-ghostline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'ghostline'],
     paint: { 'line-color': '#e8590c', 'line-opacity': 0.75, 'line-width': 2, 'line-dasharray': [3, 2] } },
@@ -183,7 +179,7 @@ export const DRAW_LAYERS = [
 ];
 // what a click can hit, topmost first (drawing-ui.md §5): symbols, outlines, lines, areas, rings
 export const HIT_LAYERS = DRAW_LAYERS.filter((l) => /^draw-(symbol|shape|polygon|path|guide|linehit|ring|label-text)/.test(l.id)).map((l) => l.id).reverse();
-export const MARK_LAYERS = DRAW_LAYERS.filter((l) => /^draw-(mark|handle|stalk|ctrl|mid|lhandle|centremark)/.test(l.id)).map((l) => l.id);
+export const MARK_LAYERS = DRAW_LAYERS.filter((l) => /^draw-(mark|handle|stalk|ctrl|mid|lhandle)/.test(l.id)).map((l) => l.id);
 // what a press can grab, and the cursor over each
 export const HANDLE_LAYERS = ['draw-ctrl', 'draw-handle', 'draw-mid', 'draw-lhandle'];
 export const CURSOR = { move: 'move', point: 'grab', end: 'grab', vertex: 'grab', mid: 'copy', ctrl: 'grab', radius: 'ew-resize', aperture: 'ew-resize', corner: 'nwse-resize', rotate: 'crosshair', anchor: 'grab', ppoint: 'grab', pmid: 'copy' };

@@ -300,9 +300,8 @@ one end to the other, an outline's ring.
 ## 7. On the map
 
 - **Selection:** a yellow band just outside an element (a point's outermost round part, or its largest outline),
-  on both sides of a line, clear of its stroke; a ring round a point's centre; a selected shape's
-  centre marked (where lines attach to it). Hovering a row shows the same, lighter. Selecting never
-  moves the map; Zoom to does.
+  on both sides of a line, clear of its stroke; a ring round a point's centre. Hovering a row shows
+  the same, lighter. Selecting never moves the map; Zoom to does.
 - **Clicks:** with no tool on, a click selects the topmost element; the same place again, the next
   one down. Shift or Ctrl/⌘-click adds or removes.
 - **Dragging** (select first): a selected element moves, or several together; labels alone move their

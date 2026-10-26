@@ -217,8 +217,6 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
       if (named(n) && !mainOutline(n)) name(baseNames, n, p, st.stroke.color);
     }
     mark(n.id, p);
-    // a shape's centre (where lines attach to it), shown while it is selected
-    if (mainOutline(n) && n.symbol === 'none' && sel.has(n.id)) marks.push({ type: 'Feature', properties: { id: n.id, kind: 'centremark' }, geometry: p });
   }
   return { base: [...base, ...baseNames], zoom: [...zoomed, ...zoomNames], marks };
 }

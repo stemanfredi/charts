@@ -104,7 +104,7 @@ test('selection and hover: a halo just outside, handles, a mark at the centre, n
   Object.assign(h, { id: 'h', look: { stroke: { width: 4 } } });
   Object.assign(h.parts[0], { length: 10, width: 5 });
   const f = drawFeatures(doc, new Set(['n', 'h', 's', 'gm']), 'm').features;
-  const marks = f.filter((x) => ['sel', 'hover', 'handle', 'centremark'].includes(x.properties.kind));
+  const marks = f.filter((x) => ['sel', 'hover', 'handle'].includes(x.properties.kind));
   const halo = (id) => marks.filter((x) => x.properties.id === id && x.geometry.type === 'Polygon');
   // one halo per point, at its largest shown round part (the second, 1 km; the third is hidden), with the stroke width to clear
   assert.equal(halo('n').length, 1);
@@ -125,10 +125,8 @@ test('selection and hover: a halo just outside, handles, a mark at the centre, n
   assert.equal(handles('m').length, 0);
   assert.deepEqual(handles('gm').map((x) => [x.properties.role, x.properties.ref]), [['radius', 0]]); // a member's parts: its own
   assert.ok(gm.groupId);
-  // the centre mark of a selected or hovered point
-  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && !['handle', 'centremark'].includes(x.properties.kind))), [['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel'], ['h', 'sel']]);
-  // a selected shape with no symbol: its centre marked (where lines attach)
-  assert.deepEqual(kindsOf(marks.filter((x) => x.properties.kind === 'centremark')), [['h', 'centremark']]);
+  // the ring round a selected or hovered point's centre; a shape's centre is not marked: its outline's halo says it
+  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && x.properties.kind !== 'handle')), [['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel'], ['h', 'sel']]);
   // the element's own features are unchanged by being selected
   assert.deepEqual(f.filter((x) => !marks.includes(x)), drawFeatures(doc).features);
 });
