@@ -269,12 +269,21 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 button.small.link { border-color: transparent; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.small.link:hover { border-color: var(--line); }
 .fcheck.small { font-size: 11.5px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
-/* the drawing's totals */
+/* the drawing's totals: sections (Lines, Areas, Points), a group's row with its lines under it,
+   a connection's lines summed by what they are, each section's total */
 .vtable { width: 100%; border-collapse: collapse; font-size: 12px; }
 .vtable th { font-weight: 400; font-size: 10.5px; color: var(--soft); text-align: left; padding: 0 2px; }
 .vtable td { padding: 1px 2px; vertical-align: middle; }
 .vtable.totals td { padding: 3px 4px; border-top: 1px solid var(--line2); }
-.vtable.totals tr.all td { font-weight: 600; }
+.vtable.totals td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.vtable.totals tr.sec td { border-top: 0; padding-top: 10px; padding-bottom: 1px; font-size: 10.5px; color: var(--soft); text-transform: uppercase; letter-spacing: .04em; }
+.vtable.totals tr.sec:first-child td { padding-top: 2px; }
+.vtable.totals tr.grp td { font-weight: 600; }
+.vtable.totals tr.grp button.fold { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.vtable.totals tr.part td:first-child, .vtable.totals tr.item td:first-child { padding-left: 18px; color: var(--soft); }
+.vtable.totals tr.top td:first-child { padding-left: 4px; }
+.vtable.totals tr.item td:first-child button.link { padding: 0; }
+.vtable.totals tr.all td { font-weight: 600; border-top: 2px solid var(--line); }
 /* a list grid (docs/drawing-ui.md §5): fixed columns; the first ones kept in place while it
    scrolls sideways; the current row marked; its actions in the bar under it */
 .lgridbox { display: flex; flex-direction: column; gap: 4px; }

@@ -241,8 +241,14 @@ it.
 - **The drawing** (nothing selected): Title, Description, Author; **Drawings in this browser** (§10);
   **Display**, the drawing's look, which every element takes unless it or a group sets its own:
   Names on the map, Offset (and where Offset is set otherwise, each a link), Min. size; then Bearings beside lengths, for values shown;
-  **Totals** (all, then **By** group or by any property key the drawing uses, one row per value and one
-  for those without it; guides left out; hidden ones counted and said so).
+  **Totals**, a table in three sections: **Lines** by group (or **By** any property key the drawing
+  uses, one row per value and one for those without it), each line listed under its group with its
+  length, but for the lines a connection made, which are summed by what they are (a tree's trunks,
+  root → hub, and branches, hub → point; a chain's root → first point links and its links between
+  points); a group's row folds its lines; then **Areas** (area and perimeter each, and in all) and
+  **Points** (by kind). A name selects the element. **Copy** gives every row tab-separated, in
+  metres, for a spreadsheet. Guides and measurements are left out; hidden elements are counted and
+  said so.
 
 ## 6. Distribute along and Connect: rules
 

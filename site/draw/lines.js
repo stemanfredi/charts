@@ -4,9 +4,9 @@
 // Mercator), its handles ground metres [east, north] at their anchor. Lengths are always geodesic: a
 // curve's, the sum over close samples of it. Pure: no map, no DOM.
 
-import { densify, inverse, destination } from '../geodesy.js';
+import { densify, inverse, destination, areaOf, pathOf, perimeterOf } from '../geodesy.js';
 import { mercator, unmercator, D2R, nearestOnSegment, unrollTo as near } from '../geo.js';
-import { isShown, groupsOf, roundParts } from './document.js';
+import { isShown, groupsOf, roundParts, pointKind } from './document.js';
 
 const TOL = 1e-4; // a curve is sampled finer until its length changes by less than this, relative
 const MAX_SAMPLES = 4096;
@@ -128,6 +128,64 @@ export function totals(doc, by = null) {
   for (const p of doc.points) if (!p.guide) each(p, (b) => { b.points++; if (roundParts(p).length) b.ringed++; });
   for (const g of doc.areas) if (!g.guide) each(g, (b) => { b.areas++; });
   return { lines, groups, values, all };
+}
+
+// The lines a connection made, by what each is: 'trunk' (root → hub), 'branch' (hub → point), 'root
+// link' (a chain's, root → its first point), 'link' (a chain's, point → point); by line ID
+function connectionParts(doc) {
+  const out = new Map();
+  for (const c of doc.rules) {
+    if (c.kind !== 'connect') continue;
+    const roots = new Set(c.roots.map((r) => r.id));
+    for (const id of c.created) {
+      const s = doc.lines.find((x) => x.id === id);
+      if (!s) continue;
+      const part = s.properties.find((p) => p.key === 'part')?.value;
+      if (part === 'trunk' || part === 'branch') out.set(id, { connection: c, part });
+      else if (part === 'chain') out.set(id, { connection: c, part: roots.has(s.start.element) ? 'root link' : 'link' });
+    }
+  }
+  return out;
+}
+export const PART_ORDER = ['trunk', 'branch', 'root link', 'link'];
+
+// The drawing's lengths and counts laid out for the Totals view (docs/drawing-ui.md §5): the lines
+// by group (or by the values of property `by`), each line listed under its group but for those a
+// connection made, which are summed by what they are (trunks and branches; a chain's root links and
+// the links between points); the areas; the points by kind. Guides are left out; hidden elements are
+// counted, and said. Pure: no formatting, no names (the panel puts those).
+//   { lines: { rows: [{ key, lines: [{ id, length }], parts: [{ part, count, length }], count, length, hidden }],
+//              count, length, hidden }, areas: { rows: [{ id, area, perimeter }], count, area, perimeter, hidden },
+//     points: { count, hidden, kinds: Map kind → count (by a property: its value → count) } }
+export function breakdown(doc, by = null) {
+  const keyOf = (el) => (by ? el.properties.find((p) => p.key === by)?.value ?? '' : groupsOf(doc, el)[0]?.id ?? '');
+  const made = connectionParts(doc), rows = new Map();
+  const rowOf = (key) => { if (!rows.has(key)) rows.set(key, { key, lines: [], parts: new Map(), count: 0, length: 0, hidden: false }); return rows.get(key); };
+  const lines = { count: 0, length: 0, hidden: false };
+  for (const s of doc.lines) {
+    if (s.guide) continue;
+    const len = lineTrace(doc, s).length, r = rowOf(keyOf(s)), m = made.get(s.id);
+    if (m) { const p = r.parts.get(m.part) || { part: m.part, count: 0, length: 0 }; p.count++; p.length += len; r.parts.set(m.part, p); } else r.lines.push({ id: s.id, length: len });
+    r.count++; r.length += len; lines.count++; lines.length += len;
+    if (!isShown(doc, s)) r.hidden = lines.hidden = true;
+  }
+  const areas = { rows: [], count: 0, area: 0, perimeter: 0, hidden: false };
+  for (const g of doc.areas) {
+    if (g.guide) continue;
+    const area = areaOf(pathOf(g.points, true)), perimeter = perimeterOf(g.points);
+    areas.rows.push({ id: g.id, area, perimeter });
+    areas.count++; areas.area += area; areas.perimeter += perimeter;
+    if (!isShown(doc, g)) areas.hidden = true;
+  }
+  const points = { count: 0, hidden: false, kinds: new Map() }; // kinds: by kind, or by the property's values
+  for (const p of doc.points) {
+    if (p.guide) continue;
+    const k = by ? keyOf(p) : pointKind(p);
+    points.kinds.set(k, (points.kinds.get(k) || 0) + 1);
+    points.count++;
+    if (!isShown(doc, p)) points.hidden = true;
+  }
+  return { lines: { ...lines, rows: [...rows.values()].map((r) => ({ ...r, parts: [...r.parts.values()].sort((a, b) => PART_ORDER.indexOf(a.part) - PART_ORDER.indexOf(b.part)) })) }, areas, points };
 }
 
 // ---- Smooth: handles for a line through its vertices (mode "auto") ----------------------------

@@ -858,7 +858,7 @@ await section('the drawing', async () => {
   await dw.evaluate(() => drawing.select([]));
   await dw.selectOption('.dinspect select[aria-label="Totals by"]', 'kind');
   const byKind = await dw.evaluate(() => [...document.querySelectorAll('.dinspect .vtable.totals td:first-child')].map((td) => td.textContent));
-  check(byKind.includes('“x”') && byKind.includes('No kind'), `drawing: a property added in Data, the totals by its key (${byKind.join(', ')})`);
+  check(byKind.some((t) => t.endsWith('“x”')) && byKind.some((t) => t.endsWith('No kind')), `drawing: a property added in Data, the totals by its key (${byKind.join(', ')})`);
   const pointed = await dw.evaluate(async () => { const { resolve } = await import('./draw/attach.js'); return resolve(drawing.doc, drawing.doc.labels[0].anchor).position; });
   await dw.evaluate((id) => drawing.remove([id]), nid);
   const freed = await dw.evaluate(() => drawing.doc.labels[0]?.anchor);

@@ -221,3 +221,42 @@ test('totals: a group counts everything in it, its subgroups\' too', () => {
   assert.equal(t.groups.get(top.id).length, t.groups.get(sub.id).length);
   assert.ok(!t.groups.has(''), 'nothing outside a group');
 });
+
+test('breakdown: lines by group with each listed, a connection\'s summed by what they are; areas; points by kind', async () => {
+  const { breakdown } = await import('../../site/draw/lines.js');
+  const { connect } = await import('../../site/draw/generator.js');
+  const doc = emptyDoc(0);
+  const a = addLine(doc, [12, 40], [], [12.1, 40], { name: 'A' });
+  addLine(doc, [12, 40.2], [], [12.1, 40.2], { visible: false });
+  addLine(doc, [12, 40.4], [], [12.1, 40.4], { guide: true });
+  const g = makeGroup(doc, [a.id]);
+  addArea(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
+  addPoint(doc, [13, 40]); addPoint(doc, [13, 40], { parts: [makePart('circle', { radius: 100 })] }); addPoint(doc, [13, 40], { parts: [makePart('rectangle', { length: 10, width: 5 })] });
+  // a tree of three points from one root, and a chain of two from another
+  const pts = [[14, 40], [14.01, 40], [14.02, 40]].map((q) => addPoint(doc, q)), root = addPoint(doc, [14.01, 39.9]);
+  connect(doc, { pointIds: pts.map((p) => p.id), roots: [{ id: root.id, weight: 1 }], pattern: 'tree', groupSize: 3 });
+  const cs = [[15, 40], [15.01, 40]].map((q) => addPoint(doc, q)), r2 = addPoint(doc, [15, 39.9]);
+  connect(doc, { pointIds: cs.map((p) => p.id), roots: [{ id: r2.id, weight: 1 }], pattern: 'chain', groupSize: 'auto' });
+  const t = breakdown(doc);
+  assert.equal(t.lines.count, 2 + 4 + 2, 'the guide left out; the tree\'s trunk and three branches; the chain\'s two links');
+  assert.equal(t.lines.hidden, true);
+  const own = t.lines.rows.find((r) => r.key === g.id);
+  assert.deepEqual(own.lines.map((l) => l.id), [a.id]);
+  near(own.length, lineTrace(doc, a).length, 1e-9, 'the group\'s length');
+  const tree = t.lines.rows.find((r) => r.parts.some((p) => p.part === 'trunk'));
+  assert.deepEqual(tree.parts.map((p) => [p.part, p.count]), [['trunk', 1], ['branch', 3]]);
+  assert.equal(tree.lines.length, 0, 'a connection\'s lines are summed, not listed');
+  const chain = t.lines.rows.find((r) => r.parts.some((p) => p.part === 'root link'));
+  assert.deepEqual(chain.parts.map((p) => [p.part, p.count]), [['root link', 1], ['link', 1]]);
+  assert.equal(t.lines.rows.find((r) => r.key === '').lines.length, 1, 'the ungrouped hidden line, listed');
+  assert.deepEqual([t.areas.count, t.areas.rows.length], [1, 1]);
+  assert.ok(t.areas.area > 0 && t.areas.perimeter > 0);
+  // by a property: the connection's lines fall under their part's value
+  const byPart = breakdown(doc, 'part');
+  assert.deepEqual([...byPart.lines.rows].map((r) => r.key).sort(), ['', 'branch', 'chain', 'trunk']);
+  // points by kind: the one rectangle; every point counted (the connections' hubs and roots too)
+  assert.equal(t.points.kinds.get('rectangle'), 1);
+  assert.equal([...t.points.kinds.values()].reduce((x, y) => x + y, 0), t.points.count);
+  assert.deepEqual([...byPart.points.kinds.keys()], [''], 'by a property: points by its values');
+  assert.equal(t.points.count, doc.points.length);
+});
