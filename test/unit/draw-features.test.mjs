@@ -415,7 +415,9 @@ test('lines with an Offset: drawn on their real geometry, the offset carried for
   const of = (id, kind) => f.filter((x) => x.properties.id === id && x.properties.kind === kind);
   assert.deepEqual(of('s1', 'path').map((x) => x.properties.off), [-3]);
   assert.deepEqual(of('s1', 'linehit').map((x) => x.properties.off), [-3]);
-  assert.deepEqual(of('s1', 'sel').map((x) => x.properties.off), [-3]);
+  assert.deepEqual(of('s1', 'sel').map((x) => x.properties.off), [], 'one selected: no band');
+  assert.deepEqual(drawFeatures(doc, new Set(['s1']), 's1', { zoom: 12 }).features.filter((x) => x.properties.id === 's1' && x.properties.kind === 'hover').map((x) => x.properties.off), [], 'selected and hovered: still none');
+  assert.deepEqual(drawFeatures(doc, new Set(), 's1', { zoom: 12 }).features.filter((x) => x.properties.id === 's1' && x.properties.kind === 'hover').map((x) => x.properties.off), [-3], 'hovered: the band, offset with the line');
   assert.deepEqual(of('s2', 'path').map((x) => x.properties.off), [0]);
   assert.deepEqual(f.filter((x) => x.properties.kind === 'path').map((x) => x.geometry.coordinates), [lineTrace(doc, doc.lines[0]).coords, lineTrace(doc, doc.lines[1]).coords]);
   assert.ok(exportFeatures(doc).filter((x) => x.properties.kind === 'line').every((x) => !('off' in x.properties)));

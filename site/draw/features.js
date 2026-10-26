@@ -60,12 +60,12 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 export function drawParts(doc, sel = new Set(), hover = null, display = {}, want = { base: true, zoom: true, marks: true }) {
   const base = [], zoomed = [], marks = [];
   const markOf = (id) => (!want.marks ? null : sel.has(id) ? 'sel' : hover === id ? 'hover' : null);
-  // The band round a shape or an area says "selected" only where its handles cannot: among several
-  // selected, or hovered. The one element selected shows its handles and its own edge, untouched (as
-  // the drawing tools do: the edge is what one aligns to). A line keeps its band: two dots say little.
+  // The band along an element says "selected" only where its handles cannot: among several selected,
+  // or hovered. The one element selected shows its handles and its own stroke, untouched (as the
+  // drawing tools do: the edge is what one aligns to); a point a small white dot at its centre.
   const mark = (id, geometry, props = {}) => {
     const kind = markOf(id);
-    if (kind && !(kind === 'sel' && sel.size === 1 && geometry.type === 'Polygon')) marks.push({ type: 'Feature', properties: { id, kind, ...props }, geometry });
+    if (kind && !(kind === 'sel' && sel.size === 1 && geometry.type !== 'Point')) marks.push({ type: 'Feature', properties: { id, kind, ...props }, geometry });
     return kind;
   };
   const midway = (a, b) => { const d = inverse(a, b); return destination(a, d.azi, d.s / 2); };

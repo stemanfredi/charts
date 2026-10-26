@@ -306,11 +306,11 @@ one end to the other, an outline's ring.
 
 ## 7. On the map
 
-- **Selection:** the one element selected shows its handles, its own edge untouched (what one aligns
-  to); a line also a yellow band on both sides, clear of its stroke; a point a ring round its centre.
-  Among several selected, each shape and area shows a yellow band just outside it (a point's
-  outermost round part, or its largest outline) instead of handles. Hovering a row shows the band,
-  lighter. Selecting never moves the map; Zoom to does.
+- **Selection:** the one element selected shows its handles, its own stroke untouched (what one
+  aligns to); a point a small white dot at its centre. Among several selected, each shows a yellow
+  band instead of handles: just outside a shape or an area (a point's outermost round part, or its
+  largest outline), on both sides of a line, a ring round a point's centre. Hovering a row shows the
+  band, lighter. Selecting never moves the map; Zoom to does.
 - **Clicks:** with no tool on, a click selects the topmost element; the same place again, the next
   one down. Shift or Ctrl/⌘-click adds or removes.
 - **Dragging** (select first): a selected element moves, or several together; labels alone move their
