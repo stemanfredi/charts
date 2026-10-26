@@ -1,6 +1,6 @@
 # Test on pushes to main and on pull requests; publish main to GitHub Pages when tests pass.
 # Weekly: the same tests against the live tile providers (the page depends on them) plus a
-# report of newer CDN library versions. Repo setting needed once: Pages → Source: GitHub Actions.
+# report of newer library versions and data. Repo setting needed once: Pages → Source: GitHub Actions.
 # Actions are pinned to commits (tag in the comment); bump them deliberately.
 name: ci
 
@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  test:                              # offline + CDN: fast and deterministic
+  test:                              # offline: fast and deterministic
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,11 +26,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm test                # unit tests, offline
+      - run: npm test                # unit tests, offline (site/vendor/ and the policy up to date too)
       - run: npm run lint            # ESLint's recommended rules
-      - run: npm run check           # index.html CDN block matches pins, hashes and CSP
       - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: npm run deps            # newer library versions show as notices
+        run: npm outdated || true    # newer library versions, in the log
+      - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: npm run deps            # newer density data shows as a notice
 
   browser:                           # headless Chrome against the live tile providers
     runs-on: ubuntu-latest

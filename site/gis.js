@@ -11,7 +11,7 @@ import { exportFeatures } from './draw/features.js';
 import { lineTrace } from './draw/lines.js';
 import { mercator } from './geo.js';
 import { memo } from './net.js';
-import { $, h } from './dom.js';
+import { h } from './dom.js';
 import { chartCanvas, chartPng, pngOf } from './png.js';
 
 // deps: map, layersOf (item → its style layers), kindOf (item → its kind, with values()), drawing,
@@ -53,12 +53,10 @@ export function gisExport({ map, layersOf, kindOf, drawing, display, profiled, c
   ];
   const featureCollection = (name, features) => `${JSON.stringify({ type: 'FeatureCollection', name, features })}\n`;
 
-  // polygon-clipping (vector.js) loads on the first ZIP export, not with the page: a script from
-  // the pinned URL in index.html, checked by the browser against its hash (tools/deps.mjs)
+  // polygon-clipping (vector.js) loads on the first ZIP export, not with the page (site/vendor/)
   const libs = {};
   const polygonClipping = () => memo(libs, 'polygon-clipping', () => new Promise((resolve, reject) => {
-    const el = $('#polygon-clipping'), { content: src, dataset: { integrity } } = el;
-    document.head.append(h('script', { src, integrity, crossorigin: 'anonymous', onload: () => resolve(globalThis.polygonClipping),
+    document.head.append(h('script', { src: 'vendor/polygon-clipping.umd.min.js', onload: () => resolve(globalThis.polygonClipping),
       onerror: (e) => { e.target.remove(); reject(new Error('polygon-clipping did not load')); } }));
   }));
   function exportZip(b) {

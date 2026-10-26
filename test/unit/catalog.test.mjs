@@ -1,10 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
 import { buildStyle, SEA_PICTURES } from '../../site/style.js';
 import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
-import { PINS, CSP_HOSTS } from '../../tools/deps.mjs';
+import { stale, CSP_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });
 const NO_LAYERS = new Set(['legend']); // items that drive the page, not style layers
@@ -63,11 +62,8 @@ test('depth schemes: ascending depths; atlas darkens with depth, nautical lighte
   assert.ok(L('nautical').every((v, i, a) => i === 0 || v > a[i - 1]), 'nautical must get lighter with depth');
 });
 
-test('libraries the unit tests take from npm are the versions the page loads', async () => {
-  const { devDependencies: dev } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url)));
-  const pinned = PINS.filter((p) => p.name in dev);
-  assert.deepEqual(pinned.map((p) => p.name).sort(), ['geographiclib-geodesic', 'polygon-clipping']);
-  for (const p of pinned) assert.equal(dev[p.name], p.version, `${p.name}: package.json and tools/deps.mjs PINS`);
+test('site/vendor/ holds the libraries at package.json\'s versions, and the policy names the hosts', async () => {
+  assert.deepEqual(await stale(), [], 'run node tools/deps.mjs --write');
 });
 
 test('density datasets: "all types" first, codes map to WMS layers and times, sensible defaults', async () => {

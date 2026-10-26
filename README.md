@@ -123,9 +123,9 @@ on-screen credits and the PNG list only the sources that are drawn.
 
 - No request sends a `Referer` header, including requests from MapLibre's and
   the clipping worker's threads.
-- A Content-Security-Policy limits the page to the pinned CDN packages and the
-  provider hosts listed in `site/hosts.js`. The libraries come from jsDelivr,
-  which sees each visit as any CDN does.
+- A Content-Security-Policy limits the page to its own files and the provider
+  hosts listed in `site/hosts.js`. The libraries are the page's own files: no
+  CDN sees a visit.
 - Tile requests necessarily tell each provider which area is being viewed. A
   hidden layer makes no requests. GEBCO's depths and the seagrass come from this project's own
   bucket, `geodata.makaw.org`. A GIS export with Copernicus layers drawn
@@ -174,7 +174,8 @@ development.
 
 | Path | Responsibility |
 |---|---|
-| `site/index.html` | Page shell. The CDN block is generated; see *Dependencies*. |
+| `site/index.html` | Page shell. The security policy in it is generated; see *Dependencies*. |
+| `site/vendor/` | The libraries, copied from npm with their licences; see *Dependencies*. |
 | `site/manifest.webmanifest`, `site/icon.svg` | The page installed as an app; its icon (the PNGs are drawn from the SVG). |
 | `site/style.css` | All styling. |
 | `site/catalog.js` | Menu items and their provenance, data sources, datasets. |
@@ -213,7 +214,7 @@ development.
 | `site/legend.js` | Legend drawing. |
 | `site/format.js` | Pure formatting and parsing helpers. |
 | `site/geo.js`, `site/net.js`, `site/dom.js` | Web Mercator maths and small geometry helpers (`D2R`, `norm360`, `nearestOnSegment`); how requests are made and shared; DOM helpers. |
-| `tools/deps.mjs` | Pins, hashes and checks the CDN dependencies. |
+| `tools/deps.mjs` | Copies the libraries into `site/vendor/`, writes the security policy, reports newer data. |
 | `tools/gebco.mjs` | GEBCO's depth grids as Zarr stores (download, build, verify), published at `geodata.makaw.org`. |
 | `tools/seagrass.mjs` | EMODnet's seagrass as vector tiles (download, build), published at `geodata.makaw.org`: its WMS takes a minute or more a tile. |
 | `test/` | Unit tests; the browser tests (`browser.mjs`: what they share: the site served, Chrome, sections that fail on their own) and the development server. |
@@ -229,12 +230,11 @@ npm ci              # development dependencies (test tooling only)
 npm run serve       # http://127.0.0.1:8000, site/ only, caching off (--host 0.0.0.0 for a phone)
 npm test            # unit tests, offline
 npm run lint        # ESLint's recommended rules
-npm run check       # index.html CDN block matches the pins, SRI hashes and CSP
 npm run smoke       # end-to-end in headless Chrome, against the live providers
 npm run ui          # layout at phone, tablet and desktop widths
 npm run tiles-check # elevation tiles of known trouble spots: seams, zooms, lakes
 npm run perf        # how long the depth layers take to draw
-npm run deps        # newer library versions and newer density data periods
+npm run deps        # newer density data periods (newer libraries: npm outdated)
 ```
 
 The page itself needs no installation. Any static web server can host the
@@ -280,25 +280,21 @@ GitHub Pages; only `site/` is published. What a provider served (tiles, legends,
 places found) is checked on every run but held against the page only on the
 weekly one, which is strict (`STRICT=1`): a provider's outage shows as warnings
 on a push and does not hold up a deploy, and as a failed run, mailed, when it
-lasts a week. The scheduled run also reports dependency and data updates as
-notices. Pages must be enabled once in the repository settings, with
+lasts a week. The scheduled run also lists newer library versions and reports
+newer density data. Pages must be enabled once in the repository settings, with
 *Source: GitHub Actions*.
 
 ## Dependencies
 
-MapLibre GL JS, maplibre-contour, GeographicLib and polygon-clipping load from jsDelivr at pinned
-versions with Subresource Integrity. MapLibre's worker script is pinned and
-verified too: the page checks its hash and gives MapLibre the verified copy.
-polygon-clipping loads only on the first GIS export, from its pinned URL with
-its hash. The pins are listed in `PINS` in `tools/deps.mjs`. The unit tests take
-GeographicLib and polygon-clipping from npm; a test fails if those versions
-differ from the pins.
+MapLibre GL JS, maplibre-contour, GeographicLib and polygon-clipping are the
+page's own files, in `site/vendor/`, copied from npm at the versions in
+`package.json` with their licences (`node tools/deps.mjs --write`); no CDN is
+involved. polygon-clipping loads only on the first GIS export. A unit test
+fails if `site/vendor/` differs from what `package.json` says, or if the
+security policy in `site/index.html` differs from `site/hosts.js`.
 
-To upgrade, change a version in `PINS`, run `node tools/deps.mjs --write`, and
-test. The script refetches the files and rewrites the generated block in
-`site/index.html`, including the import map's hash in the CSP. Do not edit that
-block by hand: `npm run check` fails if it differs from what the script would
-produce.
+To upgrade, change the version in `package.json`, run `npm install` and
+`node tools/deps.mjs --write`, and test.
 
 The density periods offered in the menu are listed in `site/catalog.js`. When
 `npm run deps` reports newer data, extend the list there.
@@ -316,5 +312,6 @@ last working version, with notes on reviving it, is the tag
 
 ## Licence
 
-The code is licensed under GPL-3.0-or-later; see `LICENSE`. Map data and
-imagery are under their providers' licences, listed in *Data sources*.
+The code is licensed under GPL-3.0-or-later; see `LICENSE`. The libraries in
+`site/vendor/` keep their own licences (BSD and MIT), copied beside them. Map
+data and imagery are under their providers' licences, listed in *Data sources*.

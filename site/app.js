@@ -1,5 +1,5 @@
-import * as maplibregl from 'maplibre-gl';
-import mlcontour from 'maplibre-contour';
+import * as maplibregl from './vendor/maplibre-gl.mjs';
+import mlcontour from './vendor/maplibre-contour.mjs';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
@@ -180,23 +180,6 @@ const style = buildStyle({
   density: Object.fromEntries(Object.keys(DENSITY).map((id) => [id, [state.variant[id], state.period[id]]])),
 });
 style.layers.push(...DRAW_LAYERS, ...LOCATION_LAYERS); // the drawing above the map, its values on top; the device's location over all
-
-// MapLibre's worker from the pinned, hashed URL in index.html (tools/deps.mjs): a copy the browser
-// has checked against the hash, instead of MapLibre's own unchecked import from the CDN. The hash
-// is checked here, not by fetch(): Firefox does not hand a fetch with `integrity` the preloaded
-// copy (it downloads the worker twice), and Chrome warns about integrity on a fetch preload.
-async function verifiedWorker({ href, dataset: { integrity } }) {
-  const opts = { referrerPolicy: 'no-referrer' };
-  // plain http (a phone on the LAN, npm run serve) has no SubtleCrypto: fetch checks, downloading twice
-  if (!crypto.subtle) return (await fetch(href, { ...opts, integrity })).blob();
-  const r = await fetch(href, opts);
-  if (!r.ok) throw new Error(`MapLibre worker: HTTP ${r.status}`);
-  const code = await r.arrayBuffer();
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-384', code));
-  if (`sha384-${btoa(String.fromCharCode(...digest))}` !== integrity) throw new Error(`MapLibre worker: hash mismatch (${href})`);
-  return new Blob([code], { type: 'text/javascript' });
-}
-maplibregl.setWorkerUrl(URL.createObjectURL(await verifiedWorker($('#maplibre-gl-worker'))));
 
 const map = new maplibregl.Map({
   container: 'map', style, ...view,

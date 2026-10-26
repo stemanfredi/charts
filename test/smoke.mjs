@@ -829,7 +829,8 @@ await section('the drawing', async () => {
   check(Math.abs(moved[0][0] - lab.a.offset[0] - 60) <= 2 && moved[1] === lab.undos + 1 && moved[2].join() === lab.point.join(),
     `labels: its text dragged 60 px, the point unmoved, one undo step (offset ${moved[0].join(', ')})`);
   await dw.evaluate((id) => drawing.change((doc) => { doc.points.find((n) => n.id === id).look.text = { name: true }; }), nid);
-  await dw.waitForTimeout(300);
+  // laid out in MapLibre's worker: not there on the next frame
+  await dw.waitForFunction(() => map.queryRenderedFeatures({ layers: ['draw-name-point'] }).length > 0, null, { timeout: 5000, polling: 100 }).catch(() => {});
   const shownNames = await dw.evaluate(() => map.queryRenderedFeatures({ layers: ['draw-name-point'] }).map((f) => f.properties.nm));
   check(shownNames.length > 0, `labels: a point's name shown on the map (${shownNames.join(', ')})`);
   // the drawing's look (its Display, nothing selected): names on for every element that does not say
