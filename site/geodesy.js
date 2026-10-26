@@ -42,7 +42,8 @@ export function destination(p, azi, s) {
 // spans a few tens of km at most
 export function localFrame([lon0, lat0]) {
   const k = inverse([lon0, lat0], [lon0 + 1e-4, lat0]).s / 1e-4, m = inverse([lon0, lat0], [lon0, lat0 + 1e-4]).s / 1e-4;
-  return { to: ([lon, lat]) => [(lon - lon0) * k, (lat - lat0) * m], from: ([x, y]) => [lon0 + x / k, lat0 + y / m] };
+  const wrap = (d) => ((d + 540) % 360) - 180; // the short way round, across ±180° too
+  return { to: ([lon, lat]) => [wrap(lon - lon0) * k, (lat - lat0) * m], from: ([x, y]) => [wrap(lon0 + x / k), lat0 + y / m] };
 }
 // Points along the geodesic p→q, every ≤ step metres, with continuous longitude.
 export function densify(p, q, step = 20000) {

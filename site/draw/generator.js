@@ -118,7 +118,8 @@ export function hubFor(nodes, root, minBranch = 0) {
     const q = all.find((p) => inverse(p, h).s < minBranch - 1e-6);
     if (!q) break;
     const d = inverse(q, h);
-    const azi = d.s > 1 ? d.azi : q === root ? inverse(root, hubOf(nodes)).azi : inverse(q, root).azi;
+    const away = q === root ? inverse(root, hubOf(nodes)) : inverse(q, root);
+    const azi = d.s > 1 ? d.azi : away.s > 1e-9 ? away.azi : 0; // nowhere to head (the root on the node): north
     h = destination(q, azi, minBranch);
   }
   return h;
@@ -136,8 +137,9 @@ function route(nodes, root, pattern, minBranch = 0) {
   return { hub: b, cost: inverse(root, b).s + nodes.reduce((a, n) => a + inverse(b, n).s, 0) };
 }
 // the largest tree Auto considers: each candidate group costs a hub, and every run of this many
-// points is a candidate
-export const MAX_AUTO_TREE = 32;
+// points is a candidate; and the largest a Group size may set (the search grows with its square:
+// 400 points in trees of any size took 11 s). Chains cost nothing to size: any
+export const MAX_AUTO_TREE = 32, MAX_TREE = 64;
 
 // The plan: the points (positions, in order) cut into groups of consecutive points, each joined to one
 // of the roots ([{ position, weight }]), the cut and the roots chosen together as the cheapest: the sum
@@ -153,7 +155,8 @@ export const MAX_AUTO_TREE = 32;
 export function plan(points, roots, groupSize = 'auto', pattern = 'tree', minBranch = 0) {
   const n = points.length, R = roots.length;
   if (!n || !R) return { groups: [], unused: roots.map((_, i) => i), total: 0, groupSize };
-  const k = Math.min(n, groupSize === 'auto' ? (pattern === 'chain' ? n : MAX_AUTO_TREE) : groupSize);
+  const chain = pattern === 'chain';
+  const k = Math.min(n, groupSize === 'auto' ? (chain ? n : MAX_AUTO_TREE) : chain ? groupSize : Math.min(groupSize, MAX_TREE));
   const weight = (r) => (roots[r].weight > 0 ? roots[r].weight : 1);
   const f = frame(points[n >> 1]), P = points.map(f.to), Q = roots.map((r) => f.to(r.position));
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
@@ -162,14 +165,14 @@ export function plan(points, roots, groupSize = 'auto', pattern = 'tree', minBra
   // a group's cost from root r, planar: a chain from its nearer end; a tree through its hub, the
   // median pushed off what it is nearer than minBranch (as hubFor)
   const cost = (j, i, r) => {
-    if (pattern === 'chain') return Math.min(dist(Q[r], P[j]), dist(Q[r], P[i - 1])) + along[i - 1] - along[j];
+    if (chain) return Math.min(dist(Q[r], P[j]), dist(Q[r], P[i - 1])) + along[i - 1] - along[j];
     const nodes = P.slice(j, i), all = [...nodes, Q[r]];
     let h = weiszfeld(all, 100, 0.01);
     for (let it = 0; minBranch > 0 && it < 100; it++) {
       const q = all.find((p) => dist(p, h) < minBranch - 1e-6);
       if (!q) break;
       const d = dist(q, h), to = d > 1 ? h : q === Q[r] ? weiszfeld(nodes, 100, 0.01) : Q[r], l = dist(q, to);
-      h = [q[0] + ((to[0] - q[0]) / l) * minBranch, q[1] + ((to[1] - q[1]) / l) * minBranch];
+      h = l > 1e-9 ? [q[0] + ((to[0] - q[0]) / l) * minBranch, q[1] + ((to[1] - q[1]) / l) * minBranch] : [q[0], q[1] + minBranch]; // nowhere to head (the root on the node): north
     }
     return dist(Q[r], h) + nodes.reduce((a, p) => a + dist(h, p), 0);
   };
@@ -179,7 +182,8 @@ export function plan(points, roots, groupSize = 'auto', pattern = 'tree', minBra
     for (let j = Math.max(0, i - k); j < i; j++) {
       for (let r = 0; r < R; r++) {
         const score = best[j].score + cost(j, i, r) / weight(r), mx = Math.max(best[j].mx, i - j);
-        if (!b || score < b.score - 1e-6 || (score <= b.score + 1e-6 && mx < b.mx)) b = { score, mx, j, r };
+        const eps = 1e-9 * (score + b?.score); // a tie: within rounding (totals reach 10⁷ m)
+        if (!b || score < b.score - eps || (score <= b.score + eps && mx < b.mx)) b = { score, mx, j, r };
       }
     }
     best[i] = b;
@@ -368,7 +372,7 @@ export function connect(doc, params) {
   const keep = new Set(roots.map((r) => r.id));
   const created = [...doc.points, ...doc.lines].map((x) => x.id).filter((id) => !before.has(id) && !keep.has(id));
   const minBranch = pattern === 'tree' && params.minBranch > 0 ? params.minBranch : 0;
-  const inflate = params.inflate > 0 ? Math.min(1, params.inflate) : 0;
+  const inflate = pattern === 'tree' && params.inflate > 0 ? Math.min(1, params.inflate) : 0; // chains are never bowed
   const connection = { id: params.id || newId(doc), kind: 'connect', groupId, pattern, groupSize: params.groupSize ?? 'auto', minBranch, inflate, roots, pointIds: nodes.map((n) => n.id), hubs, created };
   doc.rules.push(connection);
   return { connection, groups: p.groups.length, groupSize: p.groupSize, lines: doc.lines.filter((x) => created.includes(x.id)).length,

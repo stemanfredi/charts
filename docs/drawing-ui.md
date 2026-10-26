@@ -267,7 +267,7 @@ one end to the other, an outline's ring.
   **Connection**: each looked at, hidden or styled apart.
 - **Connect to roots**, in the same form: **Tree · Chain** (Tree: root → hub → each point; Chain:
   root → point → next point; Tree to start with); **Group size** Auto (any size: the cheapest cut,
-  trees of up to 32 points) or Set, a number (3 to start with); **Min. branch** (Tree only: 0 m to
+  trees of up to 32 points) or Set, a number (3 to start with; a tree's up to 64); **Min. branch** (Tree only: 0 m to
   start with; every hub at least this far from its points and from its root; at 0 a hub may sit on a
   point, a branch of 0 m, and can be dragged off it); **Roots**, listed with a **weight** each (1 to
   start with), × dropping one. While roots are picked the cursor is a crosshair, where a click places

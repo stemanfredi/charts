@@ -13,10 +13,12 @@ import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ha
 import { resolve as anchorAt } from './attach.js';
 import { targetPosition } from './attach.js';
 import { columnsOf } from './document.js';
+import { MAX_TREE } from './generator.js';
 
 const SIDES = ['left', 'right', 'alternate'];
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
 const MAX_POSITIONS = 100000; // positions in one line or area: more would stall the page at every change
+const MAX_FEATURES = 20000; // elements in one file: the rest are skipped (as many points stall the list)
 // the properties a feature's own are written beside: a user's key that is one of these gets a p_
 const RESERVED = ['name', 'stroke', 'stroke-width', 'stroke-opacity', 'fill', 'fill-opacity', 'charts'];
 const GEOMETRIES = ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'];
@@ -109,14 +111,17 @@ function read(raw, app, known, now, report) {
     : raw.type === 'Feature' ? [raw] : [{ type: 'Feature', properties: {}, geometry: raw }];
   const ends = []; // lines' attached ends, resolved once every point is read
   const anchored = []; // labels on an element, resolved once every element is read
+  let over = 0;
   features.forEach((f, i) => {
     const fid = isObj(f) && (typeof f.id === 'string' || typeof f.id === 'number') ? String(f.id) : null;
+    if (doc.points.length + doc.lines.length + doc.areas.length + doc.labels.length >= MAX_FEATURES) { over++; return; }
     if (!isObj(f) || f.type !== 'Feature') { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'not a Feature' }); return; }
     const g = f.geometry;
     if (!isObj(g)) { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'no geometry' }); return; }
     const props = isObj(f.properties) ? f.properties : {};
     const own = unpack(props.charts);
     const mine = isObj(own) ? own : null;
+    if (typeof g.type !== 'string') { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'geometry type: not text' }); return; }
     const parts = g.type === 'GeometryCollection' ? null : g.type.startsWith('Multi')
       ? (Array.isArray(g.coordinates) ? g.coordinates.map((coordinates) => ({ type: g.type.slice(5), coordinates })) : [])
       : [g];
@@ -142,6 +147,7 @@ function read(raw, app, known, now, report) {
 
   // a line's end attached: the attachment wins, the end goes where what it is attached to is
   let moved = 0;
+  if (over) report.warnings.push(`${over} features past the first ${MAX_FEATURES}: skipped`);
   for (const { line, end, to } of ends) {
     const p = to.element !== line.id && targetPosition(doc, to);
     if (!p) { report.warnings.push(`line ${line.id}: its ${end} is attached to ${String(to.element).slice(0, 64)}, which is not here (or has no such vertex or edge); free`); continue; }
@@ -180,7 +186,7 @@ function read(raw, app, known, now, report) {
           points: Array.isArray(x.points) ? x.points.filter((f) => isObj(f) && ref(f.pointId) && fin(f.t) && pair(f.pos)).map((f) => ({ pointId: f.pointId, t: f.t, left: f.left === true, pos: [f.pos[0], f.pos[1]] })) : [] };
       }
       taken.add(x.id);
-      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', groupSize: Number.isInteger(x.groupSize) && x.groupSize > 0 ? x.groupSize : 'auto',
+      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', groupSize: Number.isInteger(x.groupSize) && x.groupSize > 0 ? (x.pattern === 'chain' ? x.groupSize : Math.min(x.groupSize, MAX_TREE)) : 'auto',
         minBranch: Number.isFinite(x.minBranch) && x.minBranch > 0 ? x.minBranch : 0, inflate: fin(x.inflate) && x.inflate > 0 ? Math.min(1, x.inflate) : 0, pointIds: idList(x.pointIds),
         roots: Array.isArray(x.roots) ? x.roots.filter((r) => isObj(r) && ref(r.id)).map((r) => ({ id: r.id, weight: fin(r.weight) && r.weight > 0 ? r.weight : 1 })) : [],
         hubs: Array.isArray(x.hubs) ? x.hubs.filter((b) => isObj(b) && ref(b.pointId) && ref(b.rootId) && Array.isArray(b.pointIds) && pair(b.pos))

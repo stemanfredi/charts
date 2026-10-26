@@ -359,39 +359,46 @@ export function clipper({ template, mode, omtTileJson }) {
 // The cutting is the page's heaviest work (seconds of main-thread time while panning); in a
 // worker the map stays responsive. Tiles come back transferred, not copied.
 const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
-let worker = null, seq = 0;
+let worker = null, seq = 0, diedAt = 0;
 const replies = new Map(), inits = []; // each clipper's init, sent again to a worker started anew
+const RETRY_MS = 5000; // after the worker died: no new one before this, or a script that fails to load is fetched at every tile
 function clipWorker() {
   if (worker) return worker;
-  worker = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
-  for (const init of inits) worker.postMessage({ init });
-  worker.onmessage = ({ data }) => {
+  if (Date.now() - diedAt < RETRY_MS) throw new Error('clip worker: not running');
+  const w = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
+  worker = w;
+  for (const init of inits) w.postMessage({ init });
+  w.onmessage = ({ data }) => {
     const r = replies.get(data.seq);
     replies.delete(data.seq);
     if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);
   };
   // the worker died (out of memory, a script error): every tile waiting on it fails now rather than
-  // waits forever, and the next ask starts a new one
-  worker.onerror = (e) => {
+  // waits forever, and a later ask starts a new one. Said once: a dead worker may report twice
+  w.onerror = (e) => {
+    if (worker !== w) return;
     console.error('clip worker:', e.message);
-    worker.terminate();
+    w.terminate();
     worker = null;
+    diedAt = Date.now();
     for (const r of replies.values()) r.reject(new Error(`clip worker: ${e.message}`));
     replies.clear();
   };
-  return worker;
+  return w;
 }
 const ask = (msg, signal) => new Promise((resolve, reject) => {
+  const w = clipWorker(); // throws while it is not to be started: this tile fails
   const n = ++seq;
   replies.set(n, { resolve, reject });
   signal?.addEventListener('abort', () => { replies.delete(n); reject(new Error('aborted')); }, { once: true });
-  clipWorker().postMessage({ ...msg, seq: n });
+  w.postMessage({ ...msg, seq: n });
 });
 
 // MapLibre protocol handler and maplibre-contour hooks for one clipper (mode 'sea' or 'land')
 export function workerClipper({ template, mode, omtTileJson }) {
   inits.push({ template, mode, omtTileJson });
-  clipWorker().postMessage({ init: inits.at(-1) });
+  if (worker) worker.postMessage({ init: inits.at(-1) }); // else the next start sends every init once
+  else clipWorker();
   return {
     protocol: async (params, abortController) => {
       if (abortController?.signal.aborted) throw new Error('aborted');

@@ -14,7 +14,7 @@ import { OUTLINES, OUTLINE_NAME, outlineOf, isVehicle } from './outlines.js';
 import { lineTrace, totals, applySmooth, nearestAlong } from './lines.js';
 import { profileCsv } from './profile.js';
 import { COPY_RADIUS, distribute, lines, plan, planConnection, makeDistribution, editDistribution, connect, reconnect, unconnect, alongTrace, alongOf,
-  distributions, connections, ruleOf, distributionOf, connectionOn, changedByHand, giveBack, MAX_COPIES, MAX_AUTO_TREE } from './generator.js';
+  distributions, connections, ruleOf, distributionOf, connectionOn, changedByHand, giveBack, MAX_COPIES, MAX_AUTO_TREE, MAX_TREE } from './generator.js';
 import { BUILT_IN, builtInName } from './place.js';
 import { boundsOf, drawable, perimeterOf } from './features.js';
 import { fmtDist, fmtArea, fmtBrg, inverse, areaOf, pathOf, destination } from '../geodesy.js';
@@ -838,11 +838,11 @@ export function drawView(root, ctx) {
       ...[refRow('Start', id, 'start'), refRow('End', id, 'end')].flat(),
       row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u)),
         h('button', { type: 'button', class: 'small', title: 'Copies placed along this line, every so far or so many, which then follow it; they can be connected to roots', onclick: () => openArray({ element: id, part: null }) }, 'Distribute along…')),
-      offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, its group's Offset. Its length is the real one.`) : null,
+      offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, an Offset it inherits. Its length is the real one.`) : null,
       drawing.inflatedIds().includes(id) ? h('p', { class: 'note' }, 'Drawn bowed, its connection\'s Inflate. Its length is the real one.') : null,
       profileBlock(id),
       row('Curve', h('span', { class: 'fvalue' }, el.mode === 'auto' ? 'smooth, follows its vertices' : 'as stored')),
-      row('', h('button', { type: 'button', class: 'small', title: 'Curve smoothly through its bends; the curve then follows them (it replaces handles typed)', disabled: !el.vertices.length && !el.start.element, onclick: async () => {
+      row('', h('button', { type: 'button', class: 'small', title: 'Curve smoothly through its bends; the curve then follows them (it replaces handles typed)', disabled: !el.vertices.length, onclick: async () => {
           const typed = el.mode === 'fixed' && [el.startHandle, el.endHandle, ...el.vertices.flatMap((v) => [v.handleIn, v.handleOut])].some(Boolean);
           if (typed && !await ask('Smooth', 'Smoothing replaces the handles you typed with its own. The vertices stay.', [['yes', 'Smooth']])) return;
           set(id, (x) => { x.mode = 'auto'; applySmooth(drawing.doc, x); });
@@ -1034,7 +1034,7 @@ export function drawView(root, ctx) {
       : h('span', { class: 'fvalue', title: 'A new root weighs 1: set it once made' }, '1'));
     return [row('', segOf('Tree or chain', [['tree', 'Tree', 'root → hub → each point'], ['chain', 'Chain', 'root → point → next point …']], con.pattern, (v) => { con.pattern = v; redo(); })),
       row('Group size', pair(segOf('Group size', [['auto', 'Auto', `any size: the cheapest cut${con.pattern === 'tree' ? ` (trees of up to ${MAX_AUTO_TREE})` : ''}`], ['set', 'Set', `points at most per ${what}`]], con.groupSize === 'auto' ? 'auto' : 'set', (v) => { con.groupSize = v === 'auto' ? 'auto' : 3; redo(); }), '',
-        con.groupSize === 'auto' ? [] : F.number(() => con.groupSize, (v) => { con.groupSize = v; redo(); }, 'Group size', { whole: true, above: true, title: `Points at most per ${what}` }))),
+        con.groupSize === 'auto' ? [] : F.number(() => con.groupSize, (v) => { con.groupSize = v; redo(); }, 'Group size', { whole: true, above: true, max: con.pattern === 'tree' ? MAX_TREE : Infinity, title: `Points at most per ${what}${con.pattern === 'tree' ? ` (up to ${MAX_TREE})` : ''}` }))),
       con.pattern === 'tree' ? row('Min. branch', F.dist(() => con.minBranch, (m) => { con.minBranch = m; redo(); }, 'Shortest branch', { zero: true,
         title: 'Each hub at least this far from its points and from its root. 0: where the lines are shortest, on a point if need be' })) : null,
       h('div', { class: 'fblock' }, h('h3', {}, `Roots (${c.roots.length})`),

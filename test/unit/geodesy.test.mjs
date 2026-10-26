@@ -74,3 +74,11 @@ test('pathOf: a step densifies, the default does not split short legs', () => {
   assert.equal(pathOf([[0, 0], [0.01, 0]], false).length, 2);
   assert.equal(pathOf([[0, 0], [0.1, 0]], false, 1000).length, 13); // 11.1 km in ≤ 1 km steps
 });
+
+test('localFrame: across ±180° the short way round', async () => {
+  const { localFrame } = await import('../../site/geodesy.js');
+  const f = localFrame([179.9, -16]);
+  const [x] = f.to([-179.9, -16]);
+  near(x, inverse([179.9, -16], [-179.9, -16]).s, 100, 'east across the antimeridian, not round the world');
+  near(f.from([x, 0])[0], -179.9, 1e-6, 'and back, as a longitude in range');
+});

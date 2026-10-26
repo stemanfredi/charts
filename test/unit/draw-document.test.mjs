@@ -864,3 +864,9 @@ test('hardening: a property key named like Object.prototype\'s is a column like 
   const back = read(JSON.stringify(toFile(doc))).doc.points.find((n) => n.id === 'p');
   assert.deepEqual(back.properties, p.properties, 'read back as they were');
 });
+
+test('a feature whose geometry type is not text is skipped with a reason, not thrown', () => {
+  const { doc, report } = read({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 7, coordinates: [1, 2] } }, { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [1, 2] } }] });
+  assert.equal(doc.points.length, 1);
+  assert.deepEqual(report.skipped.map((s) => s.reason), ['geometry type: not text']);
+});

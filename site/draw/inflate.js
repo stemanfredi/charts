@@ -5,7 +5,7 @@
 // (one along it stays straight; the farther off, the more it bows): the fan opens. The trunk is drawn
 // arriving at the hub along the dominant direction, as far as it heads that way at all. The amount is
 // the connection's `inflate` (0: off, straight; 1: the most), on a quadratic Bézier in the map's
-// projection. A line edited by hand (a vertex added) is drawn as it is.
+// projection. A line edited by hand (a vertex added, a handle set) is drawn as it is.
 
 import { mercator, unmercator } from '../geo.js';
 import { connections } from './generator.js';
@@ -25,7 +25,8 @@ export function inflated(doc) {
   const out = new Map();
   for (const c of connections(doc)) {
     if (!(c.inflate > 0) || c.pattern !== 'tree') continue;
-    const made = doc.lines.filter((s) => c.created.includes(s.id) && !s.vertices.length);
+    const ids = new Set(c.created); // (a Set: a drawing of thousands of lines asks this per line)
+    const made = doc.lines.filter((s) => ids.has(s.id) && !s.vertices.length && !s.startHandle && !s.endHandle);
     for (const b of c.hubs) {
       const H = mercator(b.pos);
       const branches = made.filter((s) => s.start.element === b.pointId && b.pointIds.includes(s.end.element));
