@@ -368,7 +368,7 @@ dialog.dreport button.done { background: var(--accent); border-color: var(--acce
 
 
 /* ---- legends, stacked bottom left above the credits ---- */
-.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
+.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 11px); /* the zoom rail's 10 px, plus the outline drawn outside the canvases: their visible edges level */ display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
 .legends:empty { display: none; }
 .legends canvas { display: block; outline: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* an outline, not a border: it moves no pixel of the canvas */
 
