@@ -11,6 +11,15 @@ lists only what it does not do, or not well enough.
   (as Terrarium's Gulf of Panama did): smoothing them there, and never where depths are
   surveyed, would remove those without touching real detail. None seen with GEBCO so far:
   only if one appears.
+- **Inland water decided from its whole shore.** A lake or lagoon is classified (at sea level,
+  or a lake with no depth) once, from the shore vertices in the first tile that asks, within an
+  8 m margin (clip.js). A big liman can so be flat at one zoom and a lake at another when the
+  page opens there first (Khadzhibey, Odesa: flat up to zoom 11, a lake at 12 and 13, 2026-10-26).
+  Tried: reading the whole shore from the finest OpenMapTiles zoom where the body fits in one tile
+  (an ancestor of every tile it touches, so every zoom agrees; it did). It cost data: more
+  ancestor tiles, and depth chunks finer than the view's for the heights, up to 2.7 MB more on
+  the north Caspian; and a river's banks are one polygon for a long way, whose one decision would
+  be wrong. Parked: it needs the heights read no finer than the view's, and rivers left per tile.
 
 ## Land and mountains
 
