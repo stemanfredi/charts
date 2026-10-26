@@ -193,17 +193,18 @@ map.touchZoomRotate.disableRotation();
 $('#nostart').remove(); // started (index.html)
 const small = () => window.innerWidth < 720;
 
-// ---- bottom row: credits; scale note, time shown, cursor position, double scale
-// The scale is double, as on OpenSeaMap: km above the line, nautical miles below. Credits are
-// always on screen (Esri: data attribution "always visible"; OSM likewise), on one line: what
-// does not fit ends in "…", and a tap on the line shows it all.
+// ---- bottom row: credits; scale note, time shown, cursor position, the scale
+// One scale bar, in the display's units (the switch beside it); the PNG export draws a double
+// one, km and NM (png.js). Credits are always on screen (Esri: data attribution "always visible";
+// OSM likewise), on one line: what does not fit ends in "…", and a tap on the line shows it all.
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
 const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time (and depth) the layers show
-const scales = ['metric', 'nautical'].map((unit) => new maplibregl.ScaleControl({ maxWidth: 100, unit }));
-const scalesEl = h('div', { class: 'scales', id: 'scales' }, scales.map((s) => s.onAdd(map)));
+const scale = new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' });
+const scaleEl = scale.onAdd(map);
+scaleEl.id = 'scale';
 // MapLibre writes nautical miles "nm" (the nanometre's symbol): NM, as on charts and in Measure
-const scaleUnits = () => { for (const el of scalesEl.children) el.textContent = el.textContent.replace(/\snm$/, '\u00a0NM'); };
+const scaleUnits = () => { scaleEl.textContent = scaleEl.textContent.replace(/\snm$/, '\u00a0NM'); };
 const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const creditsText = h('span', { class: 'credits-text' });
 const credits = h('div', { class: 'credits' }, creditsText);
@@ -221,7 +222,7 @@ credits.addEventListener('click', (e) => {
 });
 // credits on the left; the scale note, time shown, cursor position and scale on the right (not for
 // navigation: About and the exports say it)
-statusEl.append(credits, h('div', { class: 'readout' }, scaleNoteEl, shownEl, posEl, scalesEl));
+statusEl.append(credits, h('div', { class: 'readout' }, scaleNoteEl, shownEl, posEl, scaleEl));
 // the panel, zoom buttons and legends sit above the bottom row, whose height follows its credits
 new ResizeObserver(() => { document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`); snapLegends(); }).observe(statusEl);
 
@@ -999,6 +1000,8 @@ function renderUnits() {
   const nm = display.units === 'nm';
   unitsBtn.textContent = nm ? 'NM' : 'km';
   unitsBtn.title = nm ? 'Distances in nautical miles: click for kilometres' : 'Distances in kilometres: click for nautical miles';
+  scale.setUnit(nm ? 'nautical' : 'metric');
+  scaleUnits();
 }
 
 // ---- the Draw view (draw/panel.js) ------------------------------------------------------------

@@ -318,8 +318,8 @@ await section('a satellite observation', async () => {
 
 await section('the PNG and GIS exports', async () => {
   const again = await open('#v=6/41/12/0&on=chart,coastline,depth,isobaths&u=nm'); // the view the link reopened
-  // the nautical scale reads NM, as Measure and the PNG do (MapLibre writes "nm")
-  check(/\d\sNM$/.test(await again.evaluate(() => document.querySelectorAll('.maplibregl-ctrl-scale')[1].textContent)), 'the nautical scale reads NM');
+  // the scale is in the display's units, one bar: NM here, as Measure does (MapLibre writes "nm")
+  check(/\d\sNM$/.test(await again.evaluate(() => document.querySelector('#scale').textContent)) && await again.evaluate(() => document.querySelectorAll('.maplibregl-ctrl-scale').length === 1), 'the scale reads NM, one bar');
   // PNG export
   const [dl] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), exportItem(again, 'png')]);
   const png = await readFile(await dl.path());
