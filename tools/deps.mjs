@@ -67,7 +67,7 @@ export async function stale() {
     if (!have || !have.equals(bytes)) out.push(`site/vendor/${name}`);
   }
   const w = await wanted();
-  for (const name of await readdir(VENDOR).catch(() => [])) if (!w.has(name)) out.push(`site/vendor/${name}: not a library of package.json's`);
+  for (const e of await readdir(VENDOR, { withFileTypes: true }).catch(() => [])) if (!w.has(e.name) || e.isDirectory()) out.push(`site/vendor/${e.name}: not a library of package.json's`);
   const html = await readFile(INDEX, 'utf8');
   if (indexWith(html) !== html) out.push('index.html: the Content-Security-Policy');
   return out;
@@ -76,7 +76,7 @@ export async function stale() {
 async function write() {
   await mkdir(VENDOR, { recursive: true });
   const w = await wanted();
-  for (const name of await readdir(VENDOR)) if (!w.has(name)) await rm(new URL(name, VENDOR)); // a library renamed or dropped
+  for (const e of await readdir(VENDOR, { withFileTypes: true })) if (!w.has(e.name) || e.isDirectory()) await rm(new URL(e.name, VENDOR), { recursive: true }); // a library renamed or dropped, or anything else left there
   for (const [name, bytes] of w) await writeFile(new URL(name, VENDOR), bytes);
   await writeFile(INDEX, indexWith(await readFile(INDEX, 'utf8')));
   console.log('site/vendor/ and the policy written');

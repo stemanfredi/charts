@@ -873,6 +873,13 @@ test('root weights: read as given, small ones kept; 0, a negative, text read as 
   assert.deepEqual(again(doc).doc.rules[0].roots.map((r) => r.weight), [2, 0.0004, 1, 1, 1], 'the file keeps a small weight');
 });
 
+test('a file of more than a million positions is refused, as soon as that is known', () => {
+  const line = (id) => ({ type: 'Feature', id, geometry: { type: 'LineString', coordinates: Array.from({ length: 100000 }, (_, i) => [12 + i * 1e-6, 41]) }, properties: {} });
+  const { doc, report } = read(collection(Array.from({ length: 11 }, (_, i) => line(`l${i}`))));
+  assert.equal(doc, null);
+  assert.match(report.refused, /^This file holds more than 1,000,000 positions/);
+});
+
 test('a feature whose geometry type is not text is skipped with a reason, not thrown', () => {
   const { doc, report } = read({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 7, coordinates: [1, 2] } }, { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [1, 2] } }] });
   assert.equal(doc.points.length, 1);

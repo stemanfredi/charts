@@ -19,7 +19,8 @@ const SIDES = ['left', 'right', 'alternate'];
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
 const MAX_POSITIONS = 100000; // positions in one line or area: more would stall the page at every change
 const MAX_FEATURES = 20000; // elements in one file: the rest are skipped (as many points stall the list)
-const MAX_TOTAL_POSITIONS = 1000000; // positions in a file's lines and areas together: more is refused
+const MAX_TOTAL_POSITIONS = 1000000; // positions in a file's lines and areas together: more is refused, as soon as read
+class Refused extends Error {}
 // the properties a feature's own are written beside: a user's key that is one of these gets a p_
 const RESERVED = ['name', 'stroke', 'stroke-width', 'stroke-opacity', 'fill', 'fill-opacity', 'charts'];
 const GEOMETRIES = ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'];
@@ -40,7 +41,8 @@ export function parse(text, known = null, now = Date.now()) {
   if (raw.type !== 'FeatureCollection' && raw.type !== 'Feature' && !GEOMETRIES.includes(raw.type)) return refuse('This is neither a drawing file nor GeoJSON.');
   const app = isObj(unpack(raw.charts)) ? unpack(raw.charts) : null; // as text: a GIS may write it so
   if (app && fin(app.version) && app.version !== VERSION) return refuse(`This drawing is of format version ${app.version}; this app reads version ${VERSION}.`);
-  return { doc: read(raw, app, known, now, report), report };
+  const doc = read(raw, app, known, now, report);
+  return { doc: report.refused ? null : doc, report };
 }
 
 // a value a GIS may have written back as text (a nested value): read again
@@ -112,8 +114,8 @@ function read(raw, app, known, now, report) {
     : raw.type === 'Feature' ? [raw] : [{ type: 'Feature', properties: {}, geometry: raw }];
   const ends = []; // lines' attached ends, resolved once every point is read
   const anchored = []; // labels on an element, resolved once every element is read
-  let over = 0;
-  features.forEach((f, i) => {
+  let over = 0, positions = 0;
+  try { features.forEach((f, i) => {
     const fid = isObj(f) && (typeof f.id === 'string' || typeof f.id === 'number') ? String(f.id) : null;
     if (!isObj(f) || f.type !== 'Feature') { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'not a Feature' }); return; }
     const g = f.geometry;
@@ -142,15 +144,15 @@ function read(raw, app, known, now, report) {
         }
         return READ[kind](part.coordinates, props, mine || {}, x, c, { ends, anchored, taken, doc, foreign: !mine });
       });
+      positions += el?.vertices ? el.vertices.length + 2 : el?.points?.length ?? 0; // a line's, an area's
+      if (positions > MAX_TOTAL_POSITIONS) throw new Refused(`This file holds more than ${MAX_TOTAL_POSITIONS.toLocaleString('en')} positions in its lines and areas: it would stall the page at every change.`);
       if (el) doc[KIND[kind].list].push(el);
     });
-  });
+  }); } catch (e) { if (!(e instanceof Refused)) throw e; report.refused = e.message; return null; }
 
   // a line's end attached: the attachment wins, the end goes where what it is attached to is
   let moved = 0;
   if (over) report.warnings.push(`${over} past the first ${MAX_FEATURES} elements: skipped`);
-  const positions = doc.lines.reduce((a, s) => a + s.vertices.length + 2, 0) + doc.areas.reduce((a, x) => a + x.points.length, 0);
-  if (positions > MAX_TOTAL_POSITIONS) return { doc: null, report: { ...report, refused: `${positions.toLocaleString('en')} positions in its lines and areas: more than ${MAX_TOTAL_POSITIONS.toLocaleString('en')} would stall the page at every change` } };
   for (const { line, end, to } of ends) {
     const p = to.element !== line.id && targetPosition(doc, to);
     if (!p) { report.warnings.push(`line ${line.id}: its ${end} is attached to ${String(to.element).slice(0, 64)}, which is not here (or has no such vertex or edge); free`); continue; }

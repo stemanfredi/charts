@@ -45,7 +45,7 @@ test('resize a rectangle from each corner: the opposite corner stays put; Shift 
   near(c.length, 200, 0.5, 'about the centre');
 });
 
-test('a Bézier handle in metres east and north; moving by the pointer; the rotate handle', () => {
+test('a Bézier handle in metres east and north; moving by the pointer; the rotate stalk', () => {
   const h = handleTo([0, 60], [0.001, 60]);
   // the format's convention: Mercator metres times cos latitude (true ground metres within 0.5 %)
   near(h[0], (mercator([0.001, 60])[0] - mercator([0, 60])[0]) * Math.cos((60 * Math.PI) / 180), 0.001, 'east, at 60° N');

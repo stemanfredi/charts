@@ -158,7 +158,7 @@ let lastPlan = null; // the last plan, by its inputs: the form previews it, then
 export function plan(points, roots, groupSize = 'auto', pattern = 'tree', minBranch = 0) {
   const n = points.length, R = roots.length;
   if (!n || !R) return { groups: [], unused: roots.map((_, i) => i), total: 0, groupSize };
-  const key = JSON.stringify([points, roots, groupSize, pattern, minBranch]);
+  const key = JSON.stringify([points, roots.map((r) => [r.position, r.weight > 0 ? r.weight : 1]), groupSize, pattern, minBranch]); // the weights as taken: the form's preview and Connect ask alike
   if (lastPlan?.key === key) return structuredClone(lastPlan.value);
   const value = planNow(points, roots, groupSizeOf(groupSize, pattern), pattern, minBranch);
   lastPlan = { key, value: structuredClone(value) };
@@ -229,8 +229,8 @@ export function lines(points, roots, p, pattern = 'tree') {
 // points in the order a connection cuts them: all in one distribution, its order along its line;
 // otherwise as given
 function ordered(doc, nodes) {
-  const arr = distributions(doc).find((a) => nodes.every((n) => a.points.some((x) => x.pointId === n.id)));
-  if (arr) { const t = new Map(arr.points.map((x) => [x.pointId, x.t])); return [...nodes].sort((a, b) => t.get(a.id) - t.get(b.id)); }
+  const dist = distributions(doc).find((a) => nodes.every((n) => a.points.some((x) => x.pointId === n.id)));
+  if (dist) { const t = new Map(dist.points.map((x) => [x.pointId, x.t])); return [...nodes].sort((a, b) => t.get(a.id) - t.get(b.id)); }
   return nodes;
 }
 

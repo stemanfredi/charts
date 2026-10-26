@@ -59,7 +59,7 @@ export function moved(pos, start, now) {
   return unmercator([q[0] + b[0] - a[0], q[1] + b[1] - a[1]]);
 }
 
-// where a rectangle's rotate handle sits: beyond the middle of its front edge, along its bearing, by
+// where a rectangle's rotate stalk ends: beyond the middle of its front edge, along its bearing, by
 // gap metres
 export function rotateHandle(shape, gap) {
   return destination(shape.center, shape.bearing, shape.length / 2 + gap);

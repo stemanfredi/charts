@@ -30,7 +30,7 @@ export function scaled(parts, d) {
 
 // What the Point or the Shape tool places at p, by the tool's kind: a built-in preset (Shape), a preset
 // of the user's ('preset:<name>'), else a symbol (Point). Each remembers its preset in the property
-// preset, and faces north: its bearing is set afterwards (the rotate handle, the inspector), so
+// preset, and faces north: its bearing is set afterwards (the stalk, the inspector), so
 // that a shape does not swing while it is sized. d (the Shape tool's second click, metres from the
 // centre): a built-in's largest part reaches it, every part scaled with it; 0: its own size. A
 // preset of the user's keeps its size.
