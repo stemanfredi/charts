@@ -201,6 +201,9 @@ export function drawView(root, ctx) {
         onclick: () => choose(tool, v), oncontextmenu: preset ? (e) => { e.preventDefault(); presetMenu(name); } : null },
       preset ? h('span', { class: 'initials' }, name.slice(0, 2)) : icon(...((tool === 'select' && SELECT_ICON[v]) || POINT_ICON[v] || ctx.measureIcons?.(v) || KIND_ICON.point)));
     }));
+    // from 1024 px wide: level with its tool's button, within the window
+    const from = tool === 'select' ? selectBtn : toolBtns.find((x) => x.dataset.tool === tool);
+    subrail.style.top = WIDE.matches && from && !subrail.hidden ? `${Math.max(0, Math.min(from.offsetTop - 5, innerHeight - subrail.offsetHeight - 6))}px` : '';
     // where the row scrolls sideways (phones): the kind in use in sight
     subrail.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }
