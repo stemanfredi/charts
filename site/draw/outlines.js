@@ -37,14 +37,15 @@ export function unitOutline(outline) {
 // rectangle: front right, back right, back left, front left, as geodesy.rectangle) }. Each point is
 // a geodesic destination from the centre, as the rectangle's corners are.
 // Kept by what it depends on, as lines' traces are: an unchanged shape is not computed again (callers
-// read it, never change it).
+// read it, never change it). points: its own corners (outlinePoints).
 const outlines = new Map();
 export function outlineOf(center, bearing, length, width, outline = 'rectangle') {
   const key = `${center}|${bearing}|${length}|${width}|${outline}`;
   let o = outlines.get(key);
   if (!o) {
     const corners = cornersOf(center, bearing, length, width);
-    o = { corners, ring: pathOf(outline === 'rectangle' ? corners : outlinePoints(center, bearing, length, width, outline), true, 1000) };
+    const points = outline === 'rectangle' ? corners : unitOutline(outline).map(([u, v]) => destination(center, bearing + Math.atan2(u * width, v * length) * R2D, Math.hypot(u * width, v * length)));
+    o = { corners, points, ring: pathOf(points, true, 1000) };
     if (outlines.size > 5000) outlines.clear();
     outlines.set(key, o);
   }
@@ -52,7 +53,4 @@ export function outlineOf(center, bearing, length, width, outline = 'rectangle')
 }
 // An outline's own corners on the ellipsoid, in order, not closed: a rectangle's four (as
 // geodesy.rectangle), a silhouette's points. Its edges join each to the next, the last to the first.
-export function outlinePoints(center, bearing, length, width, outline = 'rectangle') {
-  if (outline === 'rectangle') return cornersOf(center, bearing, length, width);
-  return unitOutline(outline).map(([u, v]) => destination(center, bearing + Math.atan2(u * width, v * length) * R2D, Math.hypot(u * width, v * length)));
-}
+export const outlinePoints = (...args) => outlineOf(...args).points;

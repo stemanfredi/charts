@@ -27,8 +27,8 @@ function crossing(a, b, c, d) {
 // target (attach.js: { element } a point's centre, { element, vertex }, { element, edge, at }: an
 // area's or an outline's, or a line's, its legs as drawn), or { end: { lineId, key } } (a line's free
 // end: a point is made there to join them). ids: the elements whose edges to
-// look at, and whose outlines' corners (the map's hits near p, which may lag a change by a frame; null:
-// all; the other vertices are looked at in every element); exclude: elements never snapped to (the one drawn or dragged).
+// look at (the map's hits near p, which may lag a change by a frame; null: all; vertices are looked at
+// in every element); exclude: elements never snapped to (the one drawn or dragged).
 export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius = RADIUS } = {}) {
   const px = (q) => view.project(q);
   const want = (el) => !exclude.has(el.id) && isShown(doc, el);
@@ -46,7 +46,7 @@ export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius =
       if (!want(el)) continue;
       if (kind === 'point') vertex(el.position, { element: el.id });
       // the corners and sides of an area, of each of a point's shown outline parts (named by its place)
-      const rings = kind === 'area' ? [{ cs: el.points, ref: {} }] : kind === 'point' && edgesOf(el) ? el.parts.map((part, k) => (part.radius || !part.shown ? null : { cs: verticesOf({ kind, el }, k), ref: { part: k }, ellipse: part.kind === 'ellipse' })).filter(Boolean) : [];
+      const rings = kind === 'area' ? [{ cs: el.points, ref: {} }] : kind === 'point' ? el.parts.map((part, k) => (part.radius || !part.shown ? null : { cs: verticesOf({ kind, el }, k), ref: { part: k }, ellipse: part.kind === 'ellipse' })).filter(Boolean) : [];
       for (const { cs, ref, ellipse } of rings) {
         cs.forEach((c, i) => {
           if (!ellipse) vertex(c, { element: el.id, ...ref, vertex: i }); // an ellipse's samples are no corners: its edge
