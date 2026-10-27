@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { placeKind, scaled, BUILT_IN, builtInName, nameByLook } = await import('../../site/draw/place.js');
+const { placeKind, placeBox, BOX, scaled, BUILT_IN, builtInName, nameByLook } = await import('../../site/draw/place.js');
+const { inverse } = await import('../../site/geodesy.js');
+const { parse, serialise } = await import('../../site/draw/file.js');
 const { emptyDoc, makePart, OUTLINES } = await import('../../site/draw/document.js');
 const { OUTLINE_NAME } = await import('../../site/draw/outlines.js');
 
@@ -71,14 +73,35 @@ test('scaled: every part by one factor, the largest reaching d (a radius, or hal
 });
 
 test('the built-in presets: by the Shape tool\'s kinds, each a symbol of none and its parts; their names', () => {
-  assert.deepEqual(Object.keys(BUILT_IN), ['circle', 'rings', 'sector', ...OUTLINES]);
+  assert.deepEqual(Object.keys(BUILT_IN), ['circle', 'rings', 'sector', 'arc', ...OUTLINES]);
   assert.ok(Object.values(BUILT_IN).every((b) => b.symbol === 'none' && b.parts.length));
   assert.deepEqual(BUILT_IN.rings.parts.map((x) => [x.kind, x.radius, x.fill]), [['circle', 1000, true], ['circle', 2000, false], ['circle', 3000, false]]);
   for (const k of OUTLINES.filter((x) => x !== 'triangle')) assert.deepEqual(BUILT_IN[k].parts, [makePart(k, { length: 100, width: 50 })], k);
-  assert.deepEqual(['circle', 'rings', 'sector', 'rectangle', 'aerial-vehicle', 'point', 'nothing'].map(builtInName), ['Circle', 'Rings', 'Sector', 'Rectangle', 'Aerial vehicle', 'Point', undefined]);
+  assert.deepEqual(['circle', 'rings', 'sector', 'arc', 'rectangle', 'aerial-vehicle', 'point', 'nothing'].map(builtInName), ['Circle', 'Rings', 'Sector', 'Arc', 'Rectangle', 'Aerial vehicle', 'Point', undefined]);
   const doc = emptyDoc(0);
   placeKind(doc, C, 'sector', []);
   assert.equal(nameByLook(doc, { parts: [makePart('circle'), makePart('sector')] }), 'Sector 2');
   assert.equal(nameByLook(doc, { parts: [makePart('circle'), makePart('ellipse')] }), 'Ellipse 1'); // by its largest outline
   assert.equal(nameByLook(doc, { parts: [] }), 'Point 1');
+});
+
+test('corner to corner: a rectangle or an ellipse, its box from one corner to the other, facing north; square: the larger side', () => {
+  assert.deepEqual([...BOX], ['rectangle', 'ellipse']);
+  const doc = emptyDoc(0), a = [12, 40], b = [12.02, 40.01];
+  const r = placeBox(doc, a, b, 'rectangle');
+  near(r.position[0], 12.01, 1e-9, 'centre lon'); near(r.position[1], 40.005, 1e-9, 'centre lat');
+  near(r.parts[0].length, inverse([12.01, 40], [12.01, 40.01]).s, 0.01, 'length: north-south');
+  near(r.parts[0].width, inverse([12, 40.005], [12.02, 40.005]).s, 0.01, 'width: east-west');
+  assert.deepEqual([r.bearing, r.name, r.properties], [0, 'Rectangle 1', preset('Rectangle')]);
+  const e = placeBox(doc, b, a, 'ellipse', true); // either corner first; a circle
+  assert.deepEqual([e.parts[0].kind, e.parts[0].length], ['ellipse', e.parts[0].width]);
+  near(e.parts[0].width, r.parts[0].width, 0.01, 'the larger side');
+});
+
+test('an arc: a sector\'s edge alone, never filled; its file read back the same', () => {
+  const doc = emptyDoc(0), x = placeKind(doc, C, 'arc', []);
+  assert.deepEqual([x.parts[0].kind, x.parts[0].fill, x.parts[0].aperture, x.name], ['arc', false, 90, 'Arc 1']);
+  x.parts[0].fill = true; // a file saying otherwise: read as an arc, not filled
+  const back = parse(serialise(doc), null, 0).doc.points[0].parts[0];
+  assert.deepEqual([back.kind, back.fill, back.aperture, back.radius], ['arc', false, 90, 1000]);
 });

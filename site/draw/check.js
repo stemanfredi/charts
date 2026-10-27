@@ -3,7 +3,7 @@
 // (file.js). Pure: no map, no DOM.
 
 import { MAX_LAT, norm360 } from '../geo.js';
-import { DEFAULT_STYLE, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, PART_KINDS, isoNow } from './document.js';
+import { DEFAULT_STYLE, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, ARCED, PART_KINDS, isoNow } from './document.js';
 
 export const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const COLOUR = /^#[0-9a-fA-F]{6}$/;
@@ -151,10 +151,11 @@ export function parts(list, c) {
       strokeColor: r.strokeColor == null ? null : colour(r.strokeColor, null, c, `part ${n} stroke colour`),
       strokeDash: r.strokeDash == null ? null : DASHES.includes(r.strokeDash) ? r.strokeDash : (c.warn(`part ${n}: unknown dash, the point's used`), null) };
     if (round) part.radius = r.radius; else { part.length = r.length; part.width = r.width; }
-    if (r.kind === 'sector') {
+    if (ARCED.has(r.kind)) {
       const a = aperture(r.aperture, c);
-      if (a === null) { part.kind = 'circle'; if (r.aperture == null) c.warn(`part ${n}: a sector with no aperture; a circle`); } else part.aperture = a;
+      if (a === null) { part.kind = 'circle'; if (r.aperture == null) c.warn(`part ${n}: a${r.kind === 'arc' ? 'n arc' : ' sector'} with no aperture; a circle`); } else part.aperture = a;
     }
+    if (part.kind === 'arc') part.fill = false;
     out.push(part);
   });
   return out;

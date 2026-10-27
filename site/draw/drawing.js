@@ -5,7 +5,7 @@
 import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf, mainOutline } from './document.js';
 import { typing } from '../dom.js';
 import { outlineOf } from './outlines.js';
-import { placeKind, nameByLook } from './place.js';
+import { placeKind, placeBox, BOX, nameByLook } from './place.js';
 import { norm360 as norm } from '../geo.js';
 import { serialise } from './file.js';
 import { DrawStore, settleGeometry } from './store.js';
@@ -195,8 +195,9 @@ export class Drawing extends DrawStore {
   pointer(e) {
     this.lastPoint = e.point; // where a paste goes
     if (this.tool === 'line' || this.tool === 'polygon' || this.tool === 'sector' || (this.tool === 'shape' && this.draft)) {
-      const r = this.snapFor(e.point, e.originalEvent, this.tool === 'shape' ? {} : this.lastLeg()); // a shape's size: Shift steps nothing, as on its click
-      this.cursor = { point: e.point, p: r.position, snap: r };
+      let r = this.snapFor(e.point, e.originalEvent, this.tool === 'shape' ? {} : this.lastLeg()); // a shape's size: Shift steps nothing, as on its click
+      if (this.closesPolygon(e.point)) { r = { position: this.draft.pts[0], to: null, kind: 'vertex' }; this.snapMark = { kind: 'vertex', position: r.position }; } // a click closes it
+      this.cursor = { point: e.point, p: r.position, snap: r, shift: !!e.originalEvent?.shiftKey };
       this.renderMarks();
       if (this.draft) this.onChange('draft');
       return;
@@ -243,16 +244,18 @@ export class Drawing extends DrawStore {
     if (this.tool) this.stop();
     const v = this.variant[tool];
     this.pressed = tool;
-    this.tool = tool === 'shape' && ['polygon', 'sector'].includes(v) ? v : tool === 'measure' ? { ruler: 'line', area: 'polygon', ring: 'shape' }[v] : tool;
+    this.tool = tool === 'shape' && ['polygon', 'sector', 'arc'].includes(v) ? (v === 'arc' ? 'sector' : v) : tool === 'measure' ? { ruler: 'line', area: 'polygon', ring: 'shape' }[v] : tool;
     this.map.doubleClickZoom.disable();
-    if (tool === 'area') { this.map.dragPan.disable(); this.map.boxZoom.disable(); } // a drag draws the rectangle (the tool is the box)
+    this.map.boxZoom.disable(); // Shift is the tools' (steps, a square), not the map's box zoom
+    if (tool === 'area') this.map.dragPan.disable(); // a drag draws the rectangle (the tool is the box)
     this.map.getCanvas().style.cursor = 'crosshair';
     this.onChange('tool');
   }
   stop() {
     if (!this.tool) return;
     this.snapMark = null;
-    if (this.tool === 'area') { this.map.dragPan.enable(); this.map.boxZoom.enable(); }
+    if (this.tool === 'area') this.map.dragPan.enable();
+    this.map.boxZoom.enable();
     this.tool = null;
     this.pressed = null;
     this.draft = null;
@@ -367,8 +370,17 @@ export class Drawing extends DrawStore {
     this.onChange('draft');
   }
   cancelDraft() { this.draft = null; this.renderMarks(); this.onChange('draft'); }
-  // the Polygon tool: each click a corner, snapped (a double-click's second click is the same point)
+  // the polygon being drawn, three corners or more, and point on its first corner: a click closes it
+  closesPolygon(point) {
+    const pts = this.tool === 'polygon' && this.draft?.pts;
+    if (!pts || pts.length < 3) return false;
+    const q = this.map.project(pts[0]);
+    return Math.hypot(q.x - point.x, q.y - point.y) <= SNAP_PX;
+  }
+  // the Polygon tool: each click a corner, snapped (a double-click's second click is the same point);
+  // a click on its first corner closes it
   polygonClick(point, e) {
+    if (this.closesPolygon(point)) return this.finishPolygon();
     const p = this.snapFor(point, e, this.lastLeg()).position;
     const d = (this.draft ??= { pts: [] }), last = d.pts.at(-1);
     if (!last || last[0] !== p[0] || last[1] !== p[1]) d.pts.push(p);
@@ -394,8 +406,11 @@ export class Drawing extends DrawStore {
   }
   finishesOnDoubleClick() { return this.tool === 'line' || this.tool === 'polygon'; }
   // Shape (and Measure › ring), in two clicks: the centre; then the size, the pointer showing it (a
-  // circle's radius, an outline's front). A second click on the first: the default size. Facing north
-  // always (the bearing is set afterwards); a preset of the user's, which has its size, in one click.
+  // circle's radius, an outline's front); a rectangle or an ellipse (place.js BOX) corner to corner
+  // instead (Shift: a square, a circle). A second click on the first: the default size, centred there.
+  // Facing north always (the bearing is set afterwards); a preset of the user's, which has its size, in
+  // one click.
+  boxing() { return !this.measuring && BOX.has(this.variant.shape); }
   shapeClick(point, e) {
     if (!this.draft) {
       this.draft = { pts: [this.snapFor(point, e).position] };
@@ -405,7 +420,17 @@ export class Drawing extends DrawStore {
     }
     const c = this.map.project(this.draft.pts[0]);
     if (Math.hypot(c.x - point.x, c.y - point.y) <= SNAP_PX) return this.finishShape(null);
+    if (this.boxing()) return this.finishBox(this.snapFor(point, e).position, e.shiftKey);
     this.finishShape(this.snapFor(point, e).position);
+  }
+  // a rectangle or an ellipse from the first click's corner to q; the tool stays on for the next
+  finishBox(q, square) {
+    const a = this.draft.pts[0];
+    this.draft = null;
+    let el;
+    this.change((doc) => { el = placeBox(doc, a, q, this.variant.shape, square); });
+    this.select([el.id]);
+    this.onChange('draft');
   }
   // the shape being drawn made, sized to q (null: the default size), facing north; the tool stays on
   // for the next
@@ -425,6 +450,11 @@ export class Drawing extends DrawStore {
     const d = this.draft, q = this.cursor?.p;
     if (this.tool !== 'shape' || !d || !q) return null;
     const g = inverse(d.pts[0], q), doc = { ...emptyDoc(0), points: [] };
+    if (this.boxing()) {
+      const el = placeBox(doc, d.pts[0], q, this.variant.shape, !!this.cursor.shift);
+      setLook(el, 'text.values', true);
+      return { doc, el, centre: el.position, to: q, size: g.s };
+    }
     const el = this.measuring ? addPoint(doc, d.pts[0], { symbol: 'none', parts: [makePart('circle', { radius: g.s || 1 })] })
       : placeKind(doc, d.pts[0], this.variant.shape, this.presets, g.s);
     setLook(el, 'text.values', true);
@@ -440,7 +470,9 @@ export class Drawing extends DrawStore {
       this.draft = null;
       let el;
       this.change((doc) => { const radius = Math.round(sec.r * 1000) / 1000;
-        el = addPoint(doc, d.pts[0], { symbol: 'none', parts: [sec.aperture ? makePart('sector', { radius, aperture: sec.aperture }) : makePart('circle', { radius })], bearing: sec.bearing }); el.name = nameByLook(doc, el); });
+        const arc = this.variant.shape === 'arc'; // Shape › arc: the sector's three clicks, its edge alone (a whole one: a circle, not filled)
+        const part = sec.aperture ? makePart(arc ? 'arc' : 'sector', { radius, aperture: sec.aperture }) : { ...makePart('circle', { radius }), fill: !arc };
+        el = addPoint(doc, d.pts[0], { symbol: 'none', parts: [part], bearing: sec.bearing }); el.name = nameByLook(doc, el); });
       this.select([el.id]);
     }
     this.renderMarks();
@@ -492,7 +524,8 @@ export class Drawing extends DrawStore {
     if (sec) {
       const line = (coordinates) => ({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates } });
       const out = [line([sec.centre, sec.first])];
-      if (this.draft.pts[1] && sec.r > 0) out.push(line(sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture) : circle(sec.centre, sec.r)));
+      const edge = this.variant.shape === 'arc' && sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture).slice(1, -1) : null; // an arc: its edge alone
+      if (this.draft.pts[1] && sec.r > 0) out.push(line(edge || (sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture) : circle(sec.centre, sec.r))));
       return out;
     }
     const poly = this.draftPolygon();

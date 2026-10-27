@@ -23,7 +23,7 @@
 import { inverse, destination, localFrame as frame } from '../geodesy.js';
 import { norm360 } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
-import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
+import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label, remove, removePart, ARCED } from './document.js';
 import { outlineOf } from './outlines.js';
 import { BUILT_IN, scaled } from './place.js';
 
@@ -43,12 +43,12 @@ export function alongTrace(doc, el, part = null) {
   if (!o) return null;
   let coords;
   if (o.radius) {
-    const ap = o.kind === 'sector' ? o.aperture : 360, from = ap < 360 ? el.bearing - ap / 2 : el.bearing, n = Math.max(8, Math.ceil(ap * 2));
+    const ap = ARCED.has(o.kind) ? o.aperture : 360, from = ap < 360 ? el.bearing - ap / 2 : el.bearing, n = Math.max(8, Math.ceil(ap * 2));
     coords = Array.from({ length: n + 1 }, (_, i) => destination(el.position, from + (ap * i) / n, o.radius));
   } else coords = outlineOf(el.position, el.bearing, o.length, o.width, o.kind).ring;
   let length = 0;
   for (let i = 1; i < coords.length; i++) length += inverse(coords[i - 1], coords[i]).s;
-  return { coords, length, closed: o.kind !== 'sector' };
+  return { coords, length, closed: !ARCED.has(o.kind) };
 }
 // the element points go along (a line or a point), or null
 export const alongOf = (doc, id) => doc.lines.find((s) => s.id === id) ?? doc.points.find((n) => n.id === id) ?? null;

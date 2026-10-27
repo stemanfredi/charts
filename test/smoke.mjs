@@ -495,7 +495,7 @@ await section('the drawing', async () => {
   const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
   await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind)
   const sub = await dw.locator('.subrail button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
-  check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
+  check(sub.join() === 'Circle,Rings,Sector,Arc,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds, round a centre first, then the outlines, then the vehicles (${sub})`);
   // from 1024 px wide: the strip beside the rail, the tool's kinds a column beside it, nothing folded
   // away; the inspector hidden with nothing selected; the Elements panel open, hidden by E (a tab with
@@ -791,14 +791,41 @@ await section('the drawing', async () => {
     drawn: map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').length + map.querySourceFeatures('drawzoom').filter((f) => f.properties.id === x.id && f.properties.kind === 'shape').length }; });
   check(twoParts.kinds === 'surface-vehicle,circle' && twoParts.len === 100 && twoParts.preset === 'Rectangle' && twoParts.drawn >= 2,
     `parts: an outline's kind changed, its length kept; a circle added, both drawn; its preset remembered (${JSON.stringify(twoParts)})`);
-  // two clicks: the centre, then the reach (half the length; the width in proportion); facing north
+  // a rectangle corner to corner: its box from the first click to the second, facing north; Shift: a
+  // square, the larger side
   await dw.evaluate(() => { drawing.stop(); drawing.variant.shape = 'rectangle'; });
   await dw.keyboard.press('s');
-  await dw.mouse.click(300, 500);
-  await dw.mouse.move(360, 500, { steps: 3 });
-  await dw.mouse.click(360, 500);
-  const sized = await dw.evaluate(async () => { const { inverse } = await import('./geodesy.js'); const x = drawing.doc.points.at(-1), a = map.unproject([300, 500]), b = map.unproject([360, 500]); return [x.bearing, x.parts[0].length, x.parts[0].width, inverse([a.lng, a.lat], [b.lng, b.lat]).s]; });
-  check(sized[0] === 0 && Math.abs(sized[1] - 2 * sized[3]) < 2 && Math.abs(sized[2] - sized[1] / 2) < 1, `shapes in two clicks: a rectangle sized by the second, facing north (${sized.map((v) => Math.round(v))})`);
+  await dw.mouse.click(300, 460);
+  await dw.mouse.move(380, 500, { steps: 3 });
+  await dw.mouse.click(380, 500);
+  const boxOf = (a, b) => dw.evaluate(async ([a, b]) => { const { inverse } = await import('./geodesy.js'); const x = drawing.doc.points.at(-1), p = map.unproject(a), q = map.unproject(b), c = map.project(x.position);
+    return [x.bearing, x.parts[0].length, x.parts[0].width, inverse([p.lng, p.lat], [p.lng, q.lat]).s, inverse([p.lng, p.lat], [q.lng, p.lat]).s, Math.round(c.x), Math.round(c.y)]; }, [a, b]);
+  const sized = await boxOf([300, 460], [380, 500]);
+  await dw.mouse.click(300, 560);
+  await dw.keyboard.down('Shift');
+  await dw.mouse.click(380, 600);
+  await dw.keyboard.up('Shift');
+  const square = await boxOf([300, 560], [380, 600]);
+  check(sized[0] === 0 && Math.abs(sized[1] - sized[3]) < 2 && Math.abs(sized[2] - sized[4]) < 2 && Math.abs(sized[5] - 340) <= 1 && Math.abs(sized[6] - 480) <= 1 && square[1] === square[2] && Math.abs(square[1] - square[4]) < 2,
+    `shapes: a rectangle corner to corner, facing north, centred between them; Shift a square (${sized.map((v) => Math.round(v))}; ${square.slice(1, 3).map(Math.round)})`);
+  // a polygon closed by a click on its first corner; an arc in three clicks: open, never filled
+  await dw.keyboard.press('Escape');
+  await dw.evaluate(() => { drawing.variant.shape = 'polygon'; });
+  await dw.keyboard.press('s');
+  const areasBefore = await dw.evaluate(() => drawing.doc.areas.length);
+  for (const [x, y] of [[450, 450], [520, 450], [500, 520], [451, 451]]) await dw.mouse.click(x, y);
+  const closed = await dw.evaluate(() => [drawing.doc.areas.length, drawing.doc.areas.at(-1)?.points.length, !!drawing.draft]);
+  await dw.keyboard.press('Escape');
+  await dw.evaluate(() => { drawing.variant.shape = 'arc'; });
+  await dw.keyboard.press('s');
+  for (const [x, y] of [[600, 450], [600, 400], [650, 450]]) await dw.mouse.click(x, y);
+  await dw.waitForTimeout(300);
+  const arc = await dw.evaluate(() => { const x = drawing.doc.points.at(-1); return [x.parts.map((q) => [q.kind, q.fill, Math.round(q.aperture)].join(':')).join(), x.name.split(' ')[0],
+    map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').map((f) => f.geometry.type)[0]]; });
+  await dw.keyboard.press('Escape');
+  check(closed.join() === `${areasBefore + 1},3,false` && arc[0] === 'arc:false:90' && arc[1] === 'Arc' && arc[2] === 'LineString',
+    `shapes: a polygon closed on its first corner (${closed}); an arc in three clicks, open and unfilled (${arc})`);
+  await dw.evaluate(() => drawing.remove([drawing.doc.points.at(-1).id, drawing.doc.areas.at(-1).id])); // the checks after these find the drawing as it was
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('Escape');
   // attaching: a line drawn to a shape's corner ends attached there, and follows it when it turns
