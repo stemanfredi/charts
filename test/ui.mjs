@@ -51,8 +51,8 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       await page.waitForTimeout(800);
       if (process.env.UI_SHOTS) await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}-${typeof menu === 'string' ? menu : menu ? 'menu' : 'map'}.png` });
       const r = await page.evaluate(({ OVERLAYS }) => {
-        // with a mouse 36 px, but 28 in the Tools panel's inspector and the Elements list (a grid of cells)
-        const COARSE = matchMedia('(pointer: coarse)').matches, MIN = COARSE ? 44 : 36, minOf = (el) => (!COARSE && el.closest('.dview, #elements') ? 28 : MIN);
+        // with a mouse 36 px, but 28 in the column (a grid of cells) and 32 in the tools' rail
+        const COARSE = matchMedia('(pointer: coarse)').matches, MIN = COARSE ? 44 : 36, minOf = (el) => (COARSE ? MIN : el.closest('.dview, #elements') ? 28 : el.closest('#dstrip') ? 32 : MIN);
         const seen = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[hidden]') === null; };
         const boxes = {};
         for (const [k, sel] of Object.entries(OVERLAYS)) {

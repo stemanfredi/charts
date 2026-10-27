@@ -209,9 +209,9 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 /* the list's head: its name, the eye for all of it, the Elements panel's toggle (from 1024 px wide) */
 .dlisthead { flex: none; display: flex; align-items: center; gap: 2px; padding: 0 4px 0 12px; min-height: 40px; border-bottom: 1px solid var(--line2); }
 .dlisthead h2 { flex: 1; margin: 0; font-size: 13px; font-weight: 600; }
-.dlisthead .etoggle { width: var(--row); height: var(--row); border: 0; background: none; border-radius: 4px; display: grid; place-items: center; color: var(--soft); padding: 0; }
-.dlisthead .etoggle:hover { background: var(--line2); color: var(--ink); }
-.dlisthead .etoggle svg { width: 18px; height: 18px; }
+:is(.dlisthead, .dinsphead) .etoggle { width: var(--row); height: var(--row); border: 0; background: none; border-radius: 4px; display: grid; place-items: center; color: var(--soft); padding: 0; }
+:is(.dlisthead, .dinsphead) .etoggle:hover { background: var(--line2); color: var(--ink); }
+:is(.dlisthead, .dinsphead) .etoggle svg { width: 18px; height: 18px; }
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
 .ddivider { flex: none; height: 9px; cursor: row-resize; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #f6f8fa; position: relative; touch-action: none; }
 .ddivider::after { content: ""; position: absolute; left: 50%; top: 3px; width: 32px; height: 1.5px; margin-left: -16px; background: #c3ccd3; box-shadow: 0 2px 0 #c3ccd3; }
@@ -482,12 +482,6 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 .tools2 .short { display: none; }
 .panel.compact header, .panel.compact .dlistbox, .panel.compact .ddivider, .panel.compact .dinspect { display: none; }
 .panel.wide.compact:has(.dview:not([hidden])) { height: auto; }
-@media (min-width: 1024px) {
-  /* the Tools panel is the inspector, left of the tools' strip, shown when it has something to show
-     (drawing-ui.md §1) */
-  .panel:has(~ .dstrip:not([hidden])) { right: calc(var(--rail) + 72px); } /* Layers too, while the tools are on */
-  .panel.wide.noinspect { display: none; }
-}
 @media (max-width: 720px) {
   .panel.compact .dview { padding-top: 16px; } /* clear of the sheet's handle */
   /* one line each, scrolled sideways (drawing-ui.md §1): the sheet stays low */
@@ -527,39 +521,53 @@ svg.profile .pdepth { fill: none; stroke: #335f97; stroke-width: 1.5; stroke-lin
 svg.profile .pmax, svg.profile .pmin { fill: #335f97; }
 svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 
-/* ---- from 1024 px wide (drawing-ui.md §1): while Tools is open, its tools in a strip beside the
-   panel and the drawing's elements in a panel of their own on the left; the panel is the inspector,
-   its title row the inspector's ---- */
-.dstrip, .epanel { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.dstrip { z-index: 4; top: 10px; right: calc(var(--rail) + 20px); /* beside the rail, where it stays */
-  width: 46px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; }
-.dstrip > button { position: relative; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); font-size: 0; } /* icons only: the name in the tooltip */
-/* a tool with kinds: a small corner mark (its button shows the kind in use) */
-.dstrip > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
-.dstrip > button svg { width: 20px; height: 20px; }
+/* ---- from 1024 px wide (drawing-ui.md §1): the drawing is the left frame, docked: the rail of its
+   tools, then the column, the tree over the inspector; the bottom row, the legends and the search
+   start after it (--frame, set by draw/panel.js) ---- */
+.dstrip { position: absolute; z-index: 7; left: 0; top: 0; bottom: 0; width: 44px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0;
+  background: #f4f6f8; border-right: 1px solid var(--line); }
+.dstrip > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); font-size: 0; } /* icons only: the name in the tooltip */
+.dstrip > button svg { width: 18px; height: 18px; }
 .dstrip > button:hover { background: var(--line2); }
 .dstrip > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.dstrip > .coltoggle[aria-pressed="true"] { background: #e3edf4; color: var(--accent); }
 .dstrip > button:disabled { opacity: .35; cursor: default; background: none; }
-.dstrip > .tsep { width: 26px; height: 1px; background: var(--line); margin: 3px 0; }
-/* a tool's kinds: a column to the strip's left, level with its top */
-.dstrip > .subrail { position: absolute; top: -1px; right: calc(100% + 6px); flex-direction: column; flex-wrap: nowrap; gap: 2px; padding: 4px;
+/* a tool with kinds: a small corner mark (its button shows the kind in use) */
+.dstrip > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
+.dstrip > .tsep { width: 22px; height: 1px; background: var(--line); margin: 3px 0; flex: none; }
+.dstrip > .grow { flex: 1; }
+/* a tool's kinds: a column beside the rail, level with its top, over the column while they are picked */
+.dstrip > .subrail { position: absolute; top: 6px; left: calc(100% + 6px); flex-direction: column; flex-wrap: nowrap; gap: 2px; padding: 4px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.dstrip > .subrail button { min-width: 36px; min-height: 36px; border: 0; }
-.epanel { z-index: 4; left: 10px; top: 66px; bottom: calc(var(--status-h) + 10px); width: 280px; display: flex; flex-direction: column; overflow: hidden; }
+.dstrip > .subrail button { min-width: 32px; min-height: 32px; border: 0; }
+.epanel { position: absolute; z-index: 6; left: 44px; top: 0; bottom: 0; width: 301px; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--line); }
 @media (pointer: fine) { .epanel { --row: 28px; } }
-.epanel .dlistbox { flex: 1 1 auto; height: auto; min-height: 0; }
-.epanel .dlisthead { min-height: 48px; border-bottom-color: var(--line); }
-.epanel .dlisthead { padding-left: 6px; }
-/* its head: the drawing's title (a click shows the drawing in the inspector), its menu, the eye, ‹ */
-.dtitle { flex: 1; min-width: 0; min-height: var(--row); border: 0; border-radius: 6px; background: none; padding: 0 6px; text-align: left; font: 600 15px/1.2 var(--font); color: var(--ink);
+.epanel > .dview { flex: 1 1 auto; min-height: 0; }
+.epanel .dlisthead, .epanel .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.dinsphead { display: none; }
+.dinsphead .ititle { flex: 1; min-width: 0; padding: 0 6px; font: 600 13.5px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dinsphead .iacts { display: inline-flex; align-items: center; gap: 0; }
+.dinsphead .hact { width: 28px; height: 28px; border: 0; background: none; border-radius: 6px; display: grid; place-items: center; color: var(--soft); padding: 0; }
+.dinsphead .hact:hover { background: var(--line2); color: var(--ink); }
+.dinsphead .hact svg { width: 16px; height: 16px; }
+.epanel .dinspect > .fhead, .epanel .nowide, .epanel .dinspect .danger { display: none; }
+/* a half folded: its head alone; the other half takes the height */
+.etoggle.fold svg { transition: transform .15s; }
+.etoggle.fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.dview.nolist .dlistbox { height: auto; flex: none; }
+.dview.nolist .dlistbox > :not(.dlisthead), .dview.nolist .ddivider { display: none; }
+.dview.noinsp .dlistbox { height: auto; flex: 1 1 auto; }
+.dview.noinsp .dinspect, .dview.noinsp .ddivider { display: none; }
+.dtitle { flex: 1; min-width: 0; min-height: var(--row); border: 0; border-radius: 6px; background: none; padding: 0 6px; text-align: left; font: 600 13.5px/1.2 var(--font); color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .dtitle:hover { background: var(--line2); }
-.dtitle.sel { background: #e3edf4; }
-/* the Elements panel hidden: a tab with the tree's icon, where the panel was */
-.etab { position: absolute; z-index: 4; left: 10px; top: 66px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; color: var(--ink);
-  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.etab:hover { background: var(--line2); }
-body.elements-open .legends { left: 300px; }
+@media (min-width: 1024px) {
+  .epanel .dinsphead { display: flex; }
+  #b-draw { display: none; } /* the tools are always on */
+  .status { left: var(--frame, 0px); }
+  .legends { left: calc(var(--frame, 0px) + 10px); }
+  .search { left: calc(var(--frame, 0px) + 10px); }
+}
 /* the panel's title row: what the inspector shows, then its actions */
 .pactions .hact { width: 36px; height: 36px; border: 0; background: none; border-radius: 6px; color: var(--soft); }
 .pactions .hact:hover { background: var(--line2); color: var(--ink); }

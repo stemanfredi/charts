@@ -22,28 +22,27 @@ Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, 
 - Units (km or NM) are switched beside the scale; bearings beside lengths in the drawing's **Display**
   (§5). Both apply to every value shown.
 
-**From 1024 px wide**, **Tools** on the rail (or D) turns the tools on and off; each of the three
-things it brings has one job:
+**From 1024 px wide** the drawing is the **left frame**, docked to the window's left edge, full height,
+always there; the map's own controls are on the right, and the bottom row (credits, position, scale),
+the legends and the search start after the frame:
 
-- the **tool strip**, a column of icons beside the rail, where it stays: the tools that make, Select,
-  Undo and Redo. A tool with kinds has a small corner mark and shows the kind in use; its kinds open
-  in a column to the strip's left, level with its top, when the tool goes on (or its key moves to the
-  next kind), and go once a kind is picked or the map is clicked;
-- the **Elements** panel on the left (§4), under the search: the tree, its head the drawing's (its
-  title, a menu of the drawings in this browser, the eye for all, and ‹ to hide it). Hidden, a tab with
-  the tree's icon brings it back; **E** does both. Open to start with; whether it is open is
-  remembered in this browser;
-- the **Tools panel**, the inspector (§5), left of the strip. It follows the selection: shown when
-  something is selected on purpose (a click on the map or in the tree, Select area, the drawing's
-  title in the Elements panel's head, a form), when a label is placed (its text is typed there) and
-  when a tool ends with something selected; not while a tool places things; hidden with nothing
-  selected. Its title row says what it shows ("Line · Line 1", "3 elements selected", the drawing's
-  title) and holds the actions on it: **Zoom to**, **Duplicate**, **Group**, **Delete** (the drawing:
-  Zoom to all of it), then › to hide it (what is selected stays so) until the next selection. Under
-  the inspector, a note says for a few seconds what just happened (with **Undo** where it applies).
+- the **rail**, small icons: **☰** (the drawings in this browser and the drawing's file, §10),
+  **Select** (on when no other tool is; its kinds, a click or an area), **Point**, **Line**,
+  **Shape**, **Label**, **Measure**, **Undo**, **Redo**, and at its foot the column's toggle (or
+  **E**). A tool with kinds has a small corner mark and shows the kind in use; its kinds are a column
+  beside the rail, level with its top, open while the tool is on (Select's while Select area is, or
+  once Select is clicked), over the column's top; they go when the tool ends or another starts;
+- the **column** beside it: the tree (§4) over the inspector (§5), a divider between them (dragged;
+  its place remembered in this browser). Each half has a head: the tree's is the drawing's title
+  (a click shows the drawing in the inspector) and the eye for all; the inspector's says what it
+  shows ("Line · Line 1", "3 elements selected", the drawing's title) with the actions on it, **Zoom
+  to**, **Duplicate**, **Group**, **Delete** (the drawing: Zoom to all of it). A chevron at the end of
+  each head folds that half to its head, the other taking the height (remembered in this browser).
+  The inspector shows what is selected, or the drawing itself with nothing selected. Selecting
+  never shows a hidden column. Under the inspector, a note says for a few seconds what just
+  happened (with **Undo** where it applies).
 
-**Layers** on the rail takes the right-hand place while it is open; the tools stay on beside it, and
-closing it gives the place back to the Tools panel.
+**Layers** on the right-hand rail opens its panel on the right; the drawing's frame stays.
 
 **Narrower**, the Tools panel holds it all, top to bottom: the tools row, the sub-rail of the tool
 on, the list, a divider (dragged, or ↑ ↓ when focused; its place remembered in this browser), the
@@ -166,12 +165,12 @@ from this: its values are the drawing's own (§2.1, Values while drawing).
 ## 4. The list
 
 - The list's head: from 1024 px wide the drawing's (its title, which a click shows in the inspector;
-  ▾, the drawings in this browser, §10; the eye; ‹ to hide the panel); narrower, **Elements**. The eye
+  the eye; the fold); narrower, **Elements**. The eye
   is for every element listed (all shown: a click hides them all; else it shows them all).
 - One row per element: a group's fold, an icon, the name, a short value, and an eye at its end
   (crossed when hidden; with a mouse, a shown element's eye appears on the row pointed at or
   selected). The list is a tree: a group, then its subgroups and members one step further in; a
-  group folds open and closed. At the top, the groups, then the rest. Deleting is the title row's
+  group folds open and closed. At the top, the groups, then the rest. Deleting is the inspector's head's
   or the Delete key's, not the row's.
 - Names and icons say what an element is: a point is a **Point**, **Circle**, **Rings**, **Sector**,
   or its outline's name (**Rectangle**, **Ellipse**…); an area is an **Area**; then **Line**,
@@ -194,10 +193,10 @@ or when it loses focus, one undo step; a value that does not read stays marked a
 Esc in a field puts its value back.
 
 **Common parts**, in this order: the header (kind · name, **Zoom to**; from 1024 px wide, the panel's
-title row instead, §1); **Name**; **Group** (none, or a group,
+inspector's head instead, §1); **Name**; **Group** (none, or a group,
 shown with the groups it is in, "A › B"; a group never offered to itself or a group inside it; **New
 group…**: a group of it in the group it is in); what it is (below); **Look**; then **Guide** (drawn
-faint and dashed, left out of the totals; on points, lines and areas), **Visible**, **Delete** (from 1024 px wide, the title row's). Near the foot, **Data**: its
+faint and dashed, left out of the totals; on points, lines and areas), **Visible**, **Delete** (from 1024 px wide, the inspector's head's). Near the foot, **Data**: its
 properties, keys and values (a description, a category: properties like any other), a list whose
 empty last row ("add a key…") adds one. Folded while it has nothing of the user's (the arrow by its
 heading opens it); a point placed from a preset says so under it ("from preset Rings").
@@ -273,8 +272,8 @@ it.
   them; **Connect…** (two or more points, §6), **Group** (a new group of them, in the nearest group
   they are all in: a subgroup of it; a group among them goes in whole), the group menu, the labels'
   Leader, one Look for all of them, Visible, **Delete all** (from 1024 px wide, Zoom to, Group and
-  Delete are the title row's, §1).
-- **The drawing** (from 1024 px wide, its title clicked in the Elements panel's head; narrower,
+  Delete are the inspector's head's, §1).
+- **The drawing** (from 1024 px wide, nothing selected, or its title clicked in the tree's head; narrower,
   nothing selected): its heading is its title (narrower, with the menu of the drawings in this
   browser, §10); Title, Description, Author;
   **Display**, the drawing's look, which every element takes unless it or a group sets its own:
@@ -390,7 +389,7 @@ one end to the other, an outline's ring.
 |---|---|
 | / | search |
 | L, D | Layers, Tools |
-| E | the Elements panel shown or hidden (from 1024 px wide) |
+| E | the column (tree and inspector) shown or hidden (from 1024 px wide) |
 | P, G, S, T, M, A | point, line, shape, label, measure, select area |
 | a tool's key again | its next kind |
 | Enter, double-click | finishes |
@@ -427,8 +426,8 @@ it. Presets live in this browser only, never in a drawing's file; **Export prese
 - A group with members asks first: delete the group only (its members and subgroups go to the group
   above it, or to none, with their look), or the group and everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.
-  The ▾ beside the drawing's title (from 1024 px wide in the Elements panel's head; narrower, in the
-  drawing's heading) opens a menu of the **drawings in this browser**, each with its last change and
+  The rail's **☰** (from 1024 px wide; narrower, the ▾ beside the drawing's title in its heading)
+  opens a menu of the **drawings in this browser**, each with its last change and
   size: a click opens it where it was drawn; a bin deletes
   it for good, asked first; **+ New drawing** adds an empty one.
 - When the browser refuses to save, the drawing's inspector says so (Export drawing, in its menu, keeps it as a

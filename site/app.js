@@ -51,7 +51,7 @@ const state = {
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
   open: new Set(['base', 'sea']),
   panel: window.innerWidth >= 1200 ? 'layers' : null, // the side panel's view; open beside the map where it leaves room
-  tools: false, // the drawing tools on (Tools on the rail): from 1024 px wide their strip, with Layers or not
+  tools: window.innerWidth >= 1024, // the drawing tools on: from 1024 px wide always (the left frame); narrower, the Tools panel
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
@@ -82,7 +82,7 @@ function readHash() {
   }
   if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => GROUPS.some((x) => x.id === g)));
   if (q.has('menu')) state.panel = { 1: 'layers', draw: 'draw' }[q.get('menu') === '1' ? 1 : q.get('menu') === 'draw' ? 'draw' : ''] || null; // menu=1: Layers
-  state.tools = state.panel === 'draw' || q.get('tools') === '1'; // tools=1: on beside Layers
+  state.tools = window.innerWidth >= 1024 || state.panel === 'draw'; // from 1024 px wide always
   display.bearings = q.get('brg') === '1';
   if (q.get('u') === 'nm') display.units = 'nm';
 }
@@ -113,7 +113,7 @@ function writeHashNow() {
   if (display.bearings) q.set('brg', '1');
   q.set('g', [...state.open].join(','));
   q.set('menu', state.panel === 'draw' ? 'draw' : state.panel ? '1' : '0');
-  if (state.tools && state.panel !== 'draw') q.set('tools', '1'); else q.delete('tools');
+  q.delete('tools'); // once written, now the width's
   drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
   setHash(q);
 }
@@ -1038,13 +1038,11 @@ const VIEWS = { layers: [$('#b-layers'), $('#lview'), 'Layers'], draw: [$('#b-dr
 // fitting: the map itself does not move when the panel opens or closes.
 function free() {
   const p = { top: 60, right: 60, bottom: 60, left: 60 };
-  // what is shown on the right (the panel, the tools' strip) and, from 1024 px wide, the Elements panel
-  const boxes = [panel, $('#dstrip')].map((e) => !e.hidden && e.getBoundingClientRect()).filter((r) => r?.width);
-  const side = $('#elements');
-  if (!side.hidden) p.left += side.getBoundingClientRect().right;
-  if (!boxes.length) return p;
-  if (small()) p.bottom += Math.max(0, innerHeight - boxes[0].top);
-  else p.right += Math.max(0, innerWidth - Math.min(...boxes.map((r) => r.left)));
+  // the left frame (from 1024 px wide: the rail and the column), and the panel on the right
+  p.left += Math.max(0, ...['#dstrip', '#elements'].map((s) => $(s)).filter((e) => !e.hidden).map((e) => e.getBoundingClientRect().right));
+  const r = !panel.hidden && panel.getBoundingClientRect();
+  if (!r?.width) return p;
+  if (small()) p.bottom += Math.max(0, innerHeight - r.top); else p.right += Math.max(0, innerWidth - r.left);
   return p;
 }
 function setCompact(on, auto = false) {
@@ -1056,9 +1054,8 @@ function setCompact(on, auto = false) {
 // with the Tools panel; from 1024 px wide they stay on beside Layers, and closing Layers gives the slot
 // back to the Tools panel. Narrower, the slot is the tools' (a sheet on a phone).
 function setPanel(view) {
-  if (view === 'draw') state.tools = true;
-  else if (!wide()) state.tools = false;
-  else if (!view && state.tools) view = 'draw';
+  // from 1024 px wide the tools are always on, in the left frame: the right-hand panel is Layers' alone
+  if (wide()) { state.tools = true; if (view === 'draw') view = null; } else state.tools = view === 'draw';
   state.panel = view;
   panel.hidden = !view;
   for (const [v, [btn, el, title]] of Object.entries(VIEWS)) {
@@ -1070,7 +1067,6 @@ function setPanel(view) {
   panel.classList.toggle('wide', view === 'draw'); // the Draw view: list and inspector need the room
   panel.classList.toggle('compact', compact.on && view === 'draw');
   $('#panel-actions').hidden = view !== 'draw'; // the Tools panel's actions (Undo, Redo, compact narrower)
-  $('#close').title = view === 'draw' && wide() ? 'Hide the panel (what is selected stays so)' : 'Close';
   $('#b-draw').setAttribute('aria-expanded', String(state.tools));
   if (!state.tools) { drawing.stop(); drawPanel.closed(); }
   drawPanel.place(); // the strip and the Elements panel with it (from 1024 px wide)
@@ -1086,7 +1082,8 @@ function setTools(on) {
 }
 $('#b-layers').addEventListener('click', () => setPanel(state.panel === 'layers' ? null : 'layers'));
 $('#b-draw').addEventListener('click', () => setTools(!state.tools));
-$('#close').addEventListener('click', () => (state.panel === 'draw' && wide() ? drawPanel.hideInspector() : setPanel(null)));
+$('#close').addEventListener('click', () => setPanel(null));
+matchMedia('(min-width: 1024px)').addEventListener('change', () => setPanel(state.panel)); // the frame comes or goes
 
 // Export: a menu of the view's link, a picture and GIS data, each acting at once; the Export button says
 // how it went for a moment ("Copied", "Saving…", "Failed"). The drawing's file goes in and out from its
