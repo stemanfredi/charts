@@ -51,6 +51,7 @@ const state = {
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
   open: new Set(['base', 'sea']),
   panel: window.innerWidth >= 1200 ? 'layers' : null, // the side panel's view; open beside the map where it leaves room
+  tools: false, // the drawing tools on (Tools on the rail): from 1024 px wide their strip, with Layers or not
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
@@ -81,6 +82,7 @@ function readHash() {
   }
   if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => GROUPS.some((x) => x.id === g)));
   if (q.has('menu')) state.panel = { 1: 'layers', draw: 'draw' }[q.get('menu') === '1' ? 1 : q.get('menu') === 'draw' ? 'draw' : ''] || null; // menu=1: Layers
+  state.tools = state.panel === 'draw' || q.get('tools') === '1'; // tools=1: on beside Layers
   display.bearings = q.get('brg') === '1';
   if (q.get('u') === 'nm') display.units = 'nm';
 }
@@ -111,6 +113,7 @@ function writeHashNow() {
   if (display.bearings) q.set('brg', '1');
   q.set('g', [...state.open].join(','));
   q.set('menu', state.panel === 'draw' ? 'draw' : state.panel ? '1' : '0');
+  if (state.tools && state.panel !== 'draw') q.set('tools', '1'); else q.delete('tools');
   drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
   setHash(q);
 }
@@ -770,7 +773,7 @@ const ICON = {
   save: ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], // down into a tray (Export)
   upload: ['M12 15V4', 'm7 9 5-5 5 5', 'M5 20h14'], // up out of a tray (Import; the drawing's file goes down into it)
   plus: ['M12 5v14M5 12h14'],
-  collapse: ['m14 10 7-7', 'M20 10h-6V4', 'm3 21 7-7', 'M4 14h6v6'], // arrows in: a panel closed
+  hide: ['m9 18 6-6-6-6'], // a chevron to the right: the panel goes to its edge
   presets: ['M8 3.5 12.5 11h-9z', 'M14 14h7v7h-7z', 'M6.5 14a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z'], // shapes kept: a triangle, a square, a circle
   minus: ['M5 12h14'],
   compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
@@ -1009,7 +1012,7 @@ function renderUnits() {
 
 // ---- the Draw view (draw/panel.js) ------------------------------------------------------------
 const drawPanel = drawView($('#dview'), {
-  drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units, isOpen: () => state.panel === 'draw',
+  drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units, isOpen: () => state.tools,
   measureIcon: ICON.ruler, measureIcons: (k) => ICON[k], compact: () => compact.on, setCompact: (v) => setCompact(v), free: () => free(), header: $('#panel-actions'),
   strip: $('#dstrip'), elements: $('#elements'), setTitle: (t) => { if (state.panel === 'draw') $('#panel-title').replaceChildren(t); }, // a text, or the drawings' switcher
   // an imported drawing added to the list and opened, with its view and layers; one of the list opened
@@ -1038,14 +1041,13 @@ const VIEWS = { layers: [$('#b-layers'), $('#lview'), 'Layers'], draw: [$('#b-dr
 // fitting: the map itself does not move when the panel opens or closes.
 function free() {
   const p = { top: 60, right: 60, bottom: 60, left: 60 };
-  if (panel.hidden) return p;
-  const r = panel.getBoundingClientRect();
-  if (!r.width) return p; // hidden (Tools from 1024 px wide: its strip alone)
-  if (small()) p.bottom += Math.max(0, innerHeight - r.top); else p.right += Math.max(0, innerWidth - r.left);
-  // the tools' strip beside it, and the Elements panel on the left (from 1024 px wide)
-  const strip = $('#dstrip'), side = $('#elements');
-  if (!strip.hidden) p.right += Math.max(0, r.left - strip.getBoundingClientRect().left);
+  // what is shown on the right (the panel, the tools' strip) and, from 1024 px wide, the Elements panel
+  const boxes = [panel, $('#dstrip')].map((e) => !e.hidden && e.getBoundingClientRect()).filter((r) => r?.width);
+  const side = $('#elements');
   if (!side.hidden) p.left += side.getBoundingClientRect().right;
+  if (!boxes.length) return p;
+  if (small()) p.bottom += Math.max(0, innerHeight - boxes[0].top);
+  else p.right += Math.max(0, innerWidth - Math.min(...boxes.map((r) => r.left)));
   return p;
 }
 function setCompact(on, auto = false) {
@@ -1053,28 +1055,41 @@ function setCompact(on, auto = false) {
   panel.classList.toggle('compact', on && state.panel === 'draw');
   drawPanel.render('tool');
 }
+// The right-hand slot: Layers, the Tools panel ('draw'), or nothing. The tools (state.tools) are on
+// with the Tools panel; from 1024 px wide they stay on beside Layers, and closing Layers gives the slot
+// back to the Tools panel. Narrower, the slot is the tools' (a sheet on a phone).
 function setPanel(view) {
+  if (view === 'draw') state.tools = true;
+  else if (!wide()) state.tools = false;
+  else if (!view && state.tools) view = 'draw';
   state.panel = view;
   panel.hidden = !view;
   for (const [v, [btn, el, title]] of Object.entries(VIEWS)) {
-    btn.setAttribute('aria-expanded', String(v === view));
+    if (v === 'layers') btn.setAttribute('aria-expanded', String(v === view));
     el.hidden = v !== view;
     if (v === view) panelTitle.textContent = title;
   }
   document.body.classList.toggle('menu-open', !!view); // phones: the legend makes way for the sheet
   panel.classList.toggle('wide', view === 'draw'); // the Draw view: list and inspector need the room
   panel.classList.toggle('compact', compact.on && view === 'draw');
-  $('#panel-actions').hidden = view !== 'draw'; // Undo, Redo, compact: the Tools panel's
-  $('#close').title = view === 'draw' && wide() ? 'Hide the panel: the tools stay' : 'Close';
-  if (view !== 'draw') { drawing.stop(); drawPanel.closed(); }
+  $('#panel-actions').hidden = view !== 'draw'; // the Tools panel's actions (Undo, Redo, compact narrower)
+  $('#close').title = view === 'draw' && wide() ? 'Hide the panel (what is selected stays so)' : 'Close';
+  $('#b-draw').setAttribute('aria-expanded', String(state.tools));
+  if (!state.tools) { drawing.stop(); drawPanel.closed(); }
   drawPanel.place(); // the strip and the Elements panel with it (from 1024 px wide)
   writeHash();
 }
-// Tools from 1024 px wide: its panel hidden alone (the strip stays, a tool on goes on) by the arrows,
-// shown again by the strip's panel icon or the rail's button; the rail's button closes it all when shown
-const toolsHidden = () => state.panel === 'draw' && wide() && compact.on;
-for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => (v === 'draw' && toolsHidden() ? setCompact(false) : setPanel(state.panel === v ? null : v)));
-$('#close').addEventListener('click', () => (state.panel === 'draw' && wide() ? setCompact(true) : setPanel(null)));
+// the rail's Tools: the tools on or off (with them, from 1024 px wide, the Elements panel and the
+// inspector); Layers: its panel shown or not. The panel's chevron: Layers closed; the Tools panel
+// (from 1024 px wide) hidden, what is selected staying so, until the next selection
+function setTools(on) {
+  state.tools = on;
+  if (on) setPanel(wide() && state.panel === 'layers' ? 'layers' : 'draw');
+  else { state.tools = false; setPanel(state.panel === 'draw' ? null : state.panel); }
+}
+$('#b-layers').addEventListener('click', () => setPanel(state.panel === 'layers' ? null : 'layers'));
+$('#b-draw').addEventListener('click', () => setTools(!state.tools));
+$('#close').addEventListener('click', () => (state.panel === 'draw' && wide() ? drawPanel.hideInspector() : setPanel(null)));
 
 // Export: a menu of the view's link, a picture, GIS data and the drawing's file, each acting at once;
 // the Export button says how it went for a moment ("Copied", "Saving…", "Failed"). Import: a
@@ -1151,10 +1166,11 @@ window.addEventListener('keydown', (e) => {
   const k = keyEntry(e.key);
   if (!k?.open && !k?.tool) return;
   if (k.open === 'search') { e.preventDefault(); q.focus(); }
-  else if (k.open === 'elements') { if (state.panel !== 'draw') setPanel('draw'); if (wide()) drawPanel.toggleElements(); }
+  else if (k.open === 'elements') { if (!state.tools) setTools(true); if (wide()) drawPanel.toggleElements(); }
+  else if (k.open === 'draw') setTools(!state.tools);
   else if (k.open) setPanel(state.panel === k.open ? null : k.open);
   else {
-    if (state.panel !== 'draw' && !small()) setPanel('draw'); // phones: the sheet makes way for the map
+    if (!state.tools && !small()) setTools(true); // phones: the sheet makes way for the map
     drawPanel.cycle(k.tool[1]); // on, or its next variant
   }
 });

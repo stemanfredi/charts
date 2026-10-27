@@ -483,9 +483,10 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 .panel.compact header, .panel.compact .dlistbox, .panel.compact .ddivider, .panel.compact .dinspect { display: none; }
 .panel.wide.compact:has(.dview:not([hidden])) { height: auto; }
 @media (min-width: 1024px) {
-  /* hidden alone, its tools' strip beside the rail (drawing-ui.md §1) */
-  .panel.wide.compact { display: none; }
-  .panel.wide.compact ~ .dstrip { right: calc(var(--rail) + 20px); }
+  /* the Tools panel is the inspector, left of the tools' strip, shown when it has something to show
+     (drawing-ui.md §1) */
+  .panel:has(~ .dstrip:not([hidden])) { right: calc(var(--rail) + 72px); } /* Layers too, while the tools are on */
+  .panel.wide.noinspect { display: none; }
 }
 @media (max-width: 720px) {
   .panel.compact .dview { padding-top: 16px; } /* clear of the sheet's handle */
@@ -530,13 +531,14 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
    panel and the drawing's elements in a panel of their own on the left; the panel is the inspector,
    its title row the inspector's ---- */
 .dstrip, .epanel { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.dstrip { z-index: 4; top: 10px; right: calc(var(--rail) + 426px); /* the panel's 400 px and its 20 px, then 6 */
+.dstrip { z-index: 4; top: 10px; right: calc(var(--rail) + 20px); /* beside the rail, where it stays */
   width: 46px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; }
-.dstrip > button { width: 36px; height: 36px; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); font-size: 0; } /* icons only: the name in the tooltip */
+.dstrip > button { position: relative; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); font-size: 0; } /* icons only: the name in the tooltip */
+/* a tool with kinds: a small corner mark (its button shows the kind in use) */
+.dstrip > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 3px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
 .dstrip > button svg { width: 20px; height: 20px; }
 .dstrip > button:hover { background: var(--line2); }
 .dstrip > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-.dstrip > .etoggle[aria-pressed="true"] { background: #e3edf4; color: var(--accent); }
 .dstrip > button:disabled { opacity: .35; cursor: default; background: none; }
 .dstrip > .tsep { width: 26px; height: 1px; background: var(--line); margin: 3px 0; }
 /* a tool's kinds: a column to the strip's left, level with its top */
@@ -547,7 +549,16 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 @media (pointer: fine) { .epanel { --row: 28px; } }
 .epanel .dlistbox { flex: 1 1 auto; height: auto; min-height: 0; }
 .epanel .dlisthead { min-height: 48px; border-bottom-color: var(--line); }
-.epanel .dlisthead h2 { font-size: 15px; letter-spacing: .02em; }
+.epanel .dlisthead { padding-left: 6px; }
+/* its head: the drawing's title (a click shows the drawing in the inspector), its menu, the eye, ‹ */
+.dtitle { flex: 1; min-width: 0; min-height: var(--row); border: 0; border-radius: 6px; background: none; padding: 0 6px; text-align: left; font: 600 15px/1.2 var(--font); color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.dtitle:hover { background: var(--line2); }
+.dtitle.sel { background: #e3edf4; }
+/* the Elements panel hidden: a tab with the tree's icon, where the panel was */
+.etab { position: absolute; z-index: 4; left: 10px; top: 66px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.etab:hover { background: var(--line2); }
 body.elements-open .legends { left: 300px; }
 /* the panel's title row: what the inspector shows, then its actions */
 .pactions .hact { width: 36px; height: 36px; border: 0; background: none; border-radius: 6px; color: var(--soft); }
@@ -571,3 +582,5 @@ body.elements-open .legends { left: 300px; }
 .dmenu .dnew { display: block; width: 100%; min-height: var(--row); margin-top: 4px; padding: 0 8px; border: 0; border-top: 1px solid var(--line2); border-radius: 0 0 6px 6px; background: none; text-align: left; color: var(--accent); font: inherit; }
 .dmenu .dnew:hover, .dmenu .drawings .dname:hover { background: var(--line2); }
 @media (pointer: coarse) { .dswitch { min-height: 44px; } }
+/* the panel's close: a chevron toward the edge it goes to (down, on a phone's sheet) */
+@media (max-width: 720px) { #close svg { transform: rotate(90deg); } }

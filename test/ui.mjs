@@ -41,8 +41,7 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       await page.goto(`${base}#v=5/45/14/0&menu=${typeof menu === 'string' ? 'draw' : menu}&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
       await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
       await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 44], [], [13, 44.5], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
-      // from 1024 px wide the list is the Elements panel's: opened (E), its overlaps checked too
-      if (typeof menu === 'string' && width >= 1024) await page.keyboard.press('e');
+      // from 1024 px wide the list is the Elements panel's (open to start with): its overlaps checked too
       if (menu === 'draw') await page.click('.dlist .drow .dname');
       if (menu === 'line') await page.click('.dlist .drow:has(.kind[title=Line]) .dname');
       if (menu === 'label') await page.click('.dlist .drow:has(.kind[title=Label]) .dname');

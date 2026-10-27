@@ -115,14 +115,22 @@ await section('URL state, Link, Measure, a bad link', async () => {
 });
 
 await section('one side panel', async () => {
-  // one side panel: Draw replaces Layers in place, the link keeps the view, its button closes it
+  // one side panel, from 1024 px wide: Tools turns the tools on beside Layers (the link keeps both);
+  // Layers closed gives the panel to Tools (hidden with nothing to show); Tools again turns them off
   const pv = await open('#v=6/41/12/0&menu=1');
+  const now = () => pv.evaluate(() => [!document.querySelector('#lview').hidden, !document.querySelector('#dstrip').hidden, !document.querySelector('#dview').hidden,
+    !!document.querySelector('#panel').offsetParent, new URLSearchParams(location.hash.slice(1)).get('menu'), new URLSearchParams(location.hash.slice(1)).get('tools')]);
   await pv.click('#b-draw');
   await pv.waitForTimeout(400);
-  const views = await pv.evaluate(() => [!document.querySelector('#panel').hidden, document.querySelector('#lview').hidden, !document.querySelector('#dview').hidden, document.querySelector('#panel-title').textContent, location.hash.includes('menu=draw')]);
-  check(views.join() === 'true,true,true,Untitled drawing,true', `Tools switches the panel in place (titled with what its inspector shows: the drawing, by its title), and the link keeps it (${views.join()})`);
+  const beside = await now();
+  await pv.click('#b-layers');
+  await pv.waitForTimeout(400);
+  const toolsOnly = await now();
   await pv.click('#b-draw');
-  check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
+  await pv.waitForTimeout(400);
+  const off = await now();
+  check(beside.join() === 'true,true,false,true,1,1' && toolsOnly.join() === 'false,true,true,false,draw,' && off.join() === 'false,false,false,false,0,',
+    `Tools on beside Layers, in the link; Layers closed: the tools' panel (nothing to show); Tools again: off (${beside}; ${toolsOnly}; ${off})`);
   await pv.close();
 });
 
@@ -471,6 +479,7 @@ await section('maritime zones', async () => {
 await section('the drawing', async () => {
   // the drawing: place, edit, undo, export, New, import, restore, the exports
   const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=draw');
+  await dw.keyboard.press('e'); // the Elements panel hidden: the map's clicks below land on the map (it is shown where the list is used)
   await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 40.1], [], [12.05, 40.12], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
   // the drawing open, as saved in this browser (one key each, the open one's in charts.drawings.current): GeoJSON
   const saved = () => dw.evaluate(() => JSON.parse(localStorage.getItem(`charts.drawing.${localStorage.getItem('charts.drawings.current')}`) || 'null'));
@@ -481,27 +490,27 @@ await section('the drawing', async () => {
   const sub = await dw.locator('.subrail button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds, round a centre first, then the outlines, then the vehicles (${sub})`);
-  // from 1024 px wide: the tools a strip beside the panel, the kinds a column beside it; a tool started
-  // folds nothing away; the Elements panel opened and closed by its toggle (and E)
+  // from 1024 px wide: the strip beside the rail, the tool's kinds a column beside it, nothing folded
+  // away; the inspector hidden with nothing selected; the Elements panel open, hidden by E (a tab with
+  // the tree's icon then), shown again by its tab
   const layoutNow = () => dw.evaluate(() => [document.querySelector('#panel').classList.contains('compact'), !!document.querySelector('.dinspect')?.offsetParent,
     !!document.querySelector('#dstrip button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#dstrip .subrail')?.offsetParent,
-    !document.querySelector('#elements').hidden, !!document.querySelector('.cbtn')?.offsetParent]);
-  const onTool = await layoutNow();
-  await dw.click('#dstrip .etoggle');
-  const opened = await layoutNow();
-  await dw.keyboard.press('e');
-  const closed = await layoutNow();
-  check(onTool.join() === 'false,true,true,true,false,false' && opened[4] && !closed[4],
-    `tools: a tool on beside the panel, its kinds beside it, nothing folded away; Elements opened by its toggle, closed by E (${onTool}; ${opened[4]}, ${closed[4]})`);
-  // the panel hidden alone by its arrows: the strip stays, beside the rail, the tool still on; its
-  // icon in the strip shows it again
-  await dw.click('#close');
-  const alone = await dw.evaluate(() => [document.querySelector('#panel').offsetParent === null, !!document.querySelector('#dstrip').offsetParent, drawing.button,
+    !document.querySelector('#elements').hidden, !!document.querySelector('.etab')?.offsetParent,
     Math.round(innerWidth - document.querySelector('#dstrip').getBoundingClientRect().right)]);
-  await dw.click('#dstrip .etoggle[aria-label=Panel]');
-  const shownAgain = await dw.evaluate(() => !!document.querySelector('#panel').offsetParent);
-  check(alone[0] && alone[1] && alone[2] === 'shape' && alone[3] < 100 && shownAgain,
-    `tools: the panel hidden alone, the strip beside the rail and the tool on; shown again from the strip (${alone}, ${shownAgain})`);
+  const onTool = await layoutNow(); // Elements hidden at the start of this section (E)
+  await dw.click('.etab');
+  const shownE = await layoutNow();
+  await dw.keyboard.press('e');
+  const hiddenE = await layoutNow();
+  check(onTool.slice(0, 6).join() === 'false,false,true,true,false,true' && onTool[6] < 100 && !hiddenE[4] && hiddenE[5] && shownE[4] && !shownE[5],
+    `tools: the strip beside the rail, the kinds beside it, the inspector hidden with nothing selected; Elements back from its tab, hidden by E (${onTool}; ${shownE[4]}; ${hiddenE[4]},${hiddenE[5]})`);
+  // a kind picked: the column gone, the tool's button showing it; Circle again
+  await dw.click('#dstrip .subrail button[aria-label="Rings"]');
+  const picked = await dw.evaluate(() => [!!document.querySelector('#dstrip .subrail')?.offsetParent, document.querySelector('#dstrip button[data-tool=shape]').dataset.shows]);
+  await dw.keyboard.press('Escape');
+  await dw.keyboard.press('s');
+  await dw.click('#dstrip .subrail button[aria-label="Circle"]');
+  check(!picked[0] && picked[1] === 'rings', `tools: a kind picked closes the column, the tool's button shows it (${picked})`);
   await dw.mouse.click(500, 400);
   await dw.mouse.click(500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');
@@ -561,7 +570,7 @@ await section('the drawing', async () => {
   savedFile.features = [...savedFile.features.filter((f) => !measuredOf(savedFile).includes(f)), ruler];
   const exported = JSON.stringify(savedFile);
   const measuredNow = () => dw.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).map((x) => x.el.start?.position ?? x.el.position ?? x.el.points[0]); });
-  await dw.click('.dswitch'); await dw.click('.dmenu .dnew'); // a new drawing in the list, from the title's menu, nothing asked
+  await dw.keyboard.press('e'); await dw.click('.dlisthead [aria-label="Drawings in this browser"]'); await dw.click('.dmenu .dnew'); await dw.keyboard.press('e'); // a new drawing, from the menu beside the drawing's title, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
   await dw.setInputFiles('#dview input[type=file]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
@@ -598,7 +607,7 @@ await section('the drawing', async () => {
   // attached to it), the totals
   await dw.locator('#panel-title').click();
   await dw.keyboard.press('Escape'); // nothing selected: the drawing's own inspector
-  await dw.click('.dswitch'); await dw.click('.dmenu .dnew'); // a new drawing in the list, from the title's menu, nothing asked
+  await dw.keyboard.press('e'); await dw.click('.dlisthead [aria-label="Drawings in this browser"]'); await dw.click('.dmenu .dnew'); await dw.keyboard.press('e'); // a new drawing, from the menu beside the drawing's title, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length);
   await dw.keyboard.press('g');
   await dw.mouse.click(200, 500);
@@ -855,6 +864,9 @@ await section('the drawing', async () => {
   // the drawing's look (its Display, nothing selected): names on for every element that does not say
   // otherwise; a point's own switch still wins
   await dw.evaluate((id) => { drawing.change((doc) => { doc.points.find((n) => n.id === id).look = {}; }); drawing.select([]); }, nid);
+  await dw.keyboard.press('e'); // the drawing shown by its title, in the Elements panel's head
+  await dw.click('.dtitle');
+  await dw.keyboard.press('e');
   await dw.locator('.dinspect .fblock:has(h3:text-is("Display")) input[aria-label="Names on map"]').check();
   const byDefault = await dw.evaluate((id) => [drawing.doc.look.text?.name, drawing.doc.points.find((n) => n.id === id).look.text], nid);
   await dw.waitForTimeout(300);
@@ -872,7 +884,9 @@ await section('the drawing', async () => {
   const val = dw.locator('.dinspect [data-grid$=":data"] input[aria-label=Value]').last();
   await val.fill('x');
   await val.press('Enter');
-  await dw.evaluate(() => drawing.select([]));
+  await dw.keyboard.press('e'); // the drawing, by its title
+  await dw.click('.dtitle');
+  await dw.keyboard.press('e');
   await dw.selectOption('.dinspect select[aria-label="Totals by"]', 'kind');
   const byKind = await dw.evaluate(() => [...document.querySelectorAll('.dinspect .vtable.totals td:first-child')].map((td) => td.textContent));
   check(byKind.some((t) => t.endsWith('“x”')) && byKind.some((t) => t.endsWith('No kind')), `drawing: a property added in Data, the totals by its key (${byKind.join(', ')})`);

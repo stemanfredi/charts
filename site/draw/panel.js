@@ -50,7 +50,8 @@ const UI_ICON = {
   hidden: ['M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7', 'M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6', 'M14.1 14.1a3 3 0 1 1-4.2-4.2', 'M2 2l20 20'],
   // a panel collapsed (arrows in) or made whole (arrows out); a menu below
   collapse: ['m14 10 7-7', 'M20 10h-6V4', 'm3 21 7-7', 'M4 14h6v6'], expand: ['M15 3h6v6', 'm21 3-7 7', 'm3 21 7-7', 'M9 21H3v-6'],
-  chevron: ['m6 9 6 6 6-6'],
+  chevron: ['m6 9 6 6 6-6'], left: ['m15 18-6-6 6-6'],
+  tree: ['M3 5h4', 'M3 12h4', 'M10 5h11', 'M10 12h11', 'M13 19h8', 'M7 5v12a2 2 0 0 0 2 2h1'], // a tree's nodes (as Lucide's list-tree)
 };
 // what each kind of point and shape looks like (the sub-rails, the list): those round a centre have it
 // marked, the outlines not
@@ -113,8 +114,13 @@ export function drawView(root, ctx) {
   const current = (tool) => drawing.variant[tool];
   // a tool's button pressed: on, or off when it is on; pressed with the keyboard (no pointer), a point,
   // a shape or a label placed at the map's centre, for its fields
+  // From 1024 px wide a tool's kinds are a column beside the strip, shown when the tool goes on (or its
+  // key moves to the next kind) and gone once a kind is picked or the map is clicked; the tool's button
+  // shows the kind in use (drawing-ui.md §1)
+  let kindsOpen = false;
   function press(tool, e = {}) {
     if (drawing.button === tool) return drawing.stop();
+    kindsOpen = true;
     if (tool === 'measure') return drawing.start(tool);
     const c = map.getCenter();
     if (e.detail === 0 && (tool === 'point' || tool === 'shape') && !['sector', 'polygon'].includes(current(tool))) return drawing.place([c.lng, c.lat], tool);
@@ -123,12 +129,14 @@ export function drawView(root, ctx) {
   }
   // a variant chosen in the sub-rail: the tool on with it
   function choose(tool, v) {
+    kindsOpen = false;
     drawing.setVariant(tool, v);
   }
   // the next variant of a tool (its key pressed again), or the tool on
   function cycle(tool) {
     const vs = variants(tool).map(([v]) => v), on = drawing.button === tool;
     if (!on || vs.length < 2) return press(tool);
+    kindsOpen = true;
     choose(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
   }
   const toolBtns = Object.entries(TOOLS).map(([k, [text, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', title: `${title} (${keyOf(k)})`,
@@ -171,10 +179,11 @@ export function drawView(root, ctx) {
     touch.snap.setAttribute('aria-pressed', String(!drawing.snapOff));
     touchbar.hidden = Object.values(touch).every((b) => b.hidden);
   }
+  map.getCanvasContainer().addEventListener('pointerdown', () => { if (kindsOpen && WIDE.matches) { kindsOpen = false; renderSubrail(); } });
   function renderSubrail() {
     const tool = drawing.button;
     const vs = variants(tool);
-    subrail.hidden = vs.length < 2;
+    subrail.hidden = vs.length < 2 || (WIDE.matches && !kindsOpen);
     subrail.setAttribute('aria-label', `${TOOLS[tool]?.[0] ?? ''}: what it makes`);
     subrail.replaceChildren(...vs.map(([v, title]) => {
       const preset = v.startsWith('preset:'), name = preset ? v.slice(7) : '';
@@ -229,21 +238,58 @@ export function drawView(root, ctx) {
   const filterRow = h('div', { class: 'dfilter' }, filterInput, selectShown);
   // the hover ends when the pointer leaves the list: a row rebuilt under it never says it was left
   const list = h('ul', { class: 'dlist', 'aria-label': 'Elements', onpointerleave: () => drawing.setHover(null) });
-  // the Elements panel (from 1024 px wide): open or closed by its toggle, in the strip and in its own head
-  let elementsOpen = false;
-  try { elementsOpen = localStorage.getItem(ELEMENTS_KEY) === '1'; } catch { /* only a convenience */ }
-  const elementsToggle = (paths, aria, title) => h('button', { type: 'button', class: 'etoggle', 'aria-label': aria, title, onclick: () => setElements(!elementsOpen) }, icon(...paths));
-  const stripToggle = elementsToggle(UI_ICON.elements, 'Elements', 'Elements: the list of what is drawn (E)');
-  const headToggle = elementsToggle(UI_ICON.collapse, 'Close the Elements panel', 'Close (E)');
-  // the Tools panel's own toggle, in the strip: hidden alone, the strip staying (from 1024 px wide)
-  const panelToggle = h('button', { type: 'button', class: 'etoggle', 'aria-label': 'Panel', title: 'The panel: what is selected, or the drawing',
-    onclick: () => ctx.setCompact(!ctx.compact()) }, icon(...UI_ICON.panel));
+  // The Elements panel (from 1024 px wide, drawing-ui.md §1): the tree, its head the drawing's: its title
+  // (a click shows the drawing in the inspector), its menu (the drawings in this browser), the eye for
+  // all, and ‹ to hide it; hidden, a tab with the tree's icon brings it back (and E). Open to start with.
+  let elementsOpen = true;
+  try { elementsOpen = localStorage.getItem(ELEMENTS_KEY) !== '0'; } catch { /* only a convenience */ }
   function setElements(v) {
     elementsOpen = v;
     try { localStorage.setItem(ELEMENTS_KEY, v ? '1' : '0'); } catch { /* only a convenience */ }
     place();
   }
-  const listBox = h('div', { class: 'dlistbox' }, h('div', { class: 'dlisthead' }, h('h2', {}, 'Elements'), eyeAll, headToggle), filterRow, list);
+  const docTitle = h('button', { type: 'button', class: 'dtitle', title: 'The drawing: its title, its display, its totals', onclick: () => showDrawing() });
+  const docMenu = h('button', { type: 'button', class: 'etoggle', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'Drawings in this browser',
+    title: 'The drawings in this browser: open another, or a new one', onclick: () => (drawingsMenu.hidden ? openDrawingsMenu(docMenu) : closeDrawingsMenu()) }, icon(...UI_ICON.chevron));
+  const hideElements = h('button', { type: 'button', class: 'etoggle', 'aria-label': 'Hide the Elements panel', title: 'Hide (E)', onclick: () => setElements(false) }, icon(...UI_ICON.left));
+  const elementsTab = h('button', { type: 'button', class: 'etab', 'aria-label': 'Elements', title: 'Elements: the tree of what is drawn (E)', hidden: true,
+    onclick: () => setElements(true) }, icon(...UI_ICON.tree));
+  document.body.append(elementsTab);
+  const listHead = h('div', { class: 'dlisthead' });
+  const listBox = h('div', { class: 'dlistbox' }, listHead, filterRow, list);
+
+  // From 1024 px wide the Tools panel is the inspector, and follows the selection (drawing-ui.md §1):
+  // shown when something is selected on purpose (a click on the map or in the tree, Select area, the
+  // drawing's title, a form), when a label is placed (its text is typed there) and when a tool ends
+  // with something selected; not while a tool places things; hidden with nothing selected, or by its ›
+  // (what is selected stays so) until the next selection. drawingShown: the drawing chosen, by its
+  // title; hiddenByHand: its › pressed since.
+  let inspectorOpen = false, drawingShown = false, hiddenByHand = false, toolWas = null;
+  function applyInspector() {
+    const shown = !WIDE.matches || (inspectorOpen && (drawing.sel.size > 0 || !!form || drawingShown));
+    root.closest('.panel')?.classList.toggle('noinspect', !shown);
+  }
+  function showDrawing() {
+    drawing.select([]);
+    drawingShown = true;
+    inspectorOpen = true;
+    renderList();
+    renderInspector();
+    applyInspector();
+  }
+  // the selection changed: shown when it was made on purpose, hidden when nothing is left
+  function followSelection() {
+    if (!drawing.sel.size) { inspectorOpen = !!form; drawingShown = false; hiddenByHand = false; } else {
+      drawingShown = false;
+      if (!drawing.tool || drawing.tool === 'area') { inspectorOpen = true; hiddenByHand = false; }
+    }
+    applyInspector();
+  }
+  // a tool ended: what it left selected shown, unless the panel was hidden by hand
+  function followTool() {
+    if (toolWas && !drawing.tool && drawing.sel.size && !hiddenByHand) { inspectorOpen = true; applyInspector(); }
+    toolWas = drawing.tool;
+  }
 
   // the drawing's elements this view lists: all of them, measurements too
   const drawElements = () => elements(drawing.doc);
@@ -321,6 +367,8 @@ export function drawView(root, ctx) {
     filterRow.hidden = drawElements().length <= FILTER_FROM && !filter; // nothing to show above the list: no room taken
     list.replaceChildren(...rows.map(rowOf));
     renderEyeAll();
+    docTitle.textContent = drawing.doc.meta.title || 'Untitled drawing';
+    docTitle.classList.toggle('sel', drawingShown);
     if (!rows.length) list.append(h('li', { class: 'empty' }, filter ? 'Nothing matches the filter.' : 'Nothing drawn yet: pick a tool, then click on the map.'));
   }
   function clickRow(id, e) {
@@ -999,6 +1047,7 @@ export function drawView(root, ctx) {
   const picks = () => form && (form.kind === 'connect' || dform.connect);
   function openForm(f) {
     form = { ...f, sel: selKey() };
+    inspectorOpen = true;
     drawing.setPicking(picks() ? pick : null);
     formPreview();
     renderInspector();
@@ -1263,8 +1312,7 @@ export function drawView(root, ctx) {
   // Zoom to all of it; none while a form is open). Narrower, the panel's own: Tools, Undo, Redo.
   function renderHead(xs = drawing.selected()) {
     if (!WIDE.matches) return ctx.setTitle?.('Tools');
-    // the drawing shown (nothing selected, no form): its switcher, moved into the title row
-    ctx.setTitle?.(!form && !xs.length && switchBtn ? switchBtn : inspector.querySelector('.fhead h2')?.textContent || 'Tools');
+    ctx.setTitle?.(!form && !xs.length ? drawing.doc.meta.title || 'Untitled drawing' : inspector.querySelector('.fhead h2')?.textContent || 'Tools');
     const ids = xs.map((x) => x.el.id), every = ids.length ? ids : elements(drawing.doc).map((x) => x.el.id);
     const act = (paths, aria, title, run) => h('button', { type: 'button', class: 'hact', 'aria-label': aria, title, onclick: run }, icon(...paths));
     ctx.header?.replaceChildren(...(form ? [] : [
@@ -1291,13 +1339,14 @@ export function drawView(root, ctx) {
   // open marked; each opened where it was drawn, or deleted for good, asked first) and + New
   const drawingsMenu = h('div', { class: 'dmenu', role: 'menu', 'aria-label': 'Drawings in this browser', hidden: true });
   document.body.append(drawingsMenu);
-  let switchBtn = null;
+  let switchBtn = null; // the button the menu was opened from
   function switcher() {
-    switchBtn = h('button', { type: 'button', class: 'dswitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: 'The drawings in this browser: open another, or a new one',
-      onclick: () => (drawingsMenu.hidden ? openDrawingsMenu() : closeDrawingsMenu()) }, h('span', {}, drawing.doc.meta.title || 'Untitled drawing'), icon(...UI_ICON.chevron));
-    return switchBtn;
+    const b = h('button', { type: 'button', class: 'dswitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: 'The drawings in this browser: open another, or a new one',
+      onclick: () => (drawingsMenu.hidden ? openDrawingsMenu(b) : closeDrawingsMenu()) }, h('span', {}, drawing.doc.meta.title || 'Untitled drawing'), icon(...UI_ICON.chevron));
+    return b;
   }
-  function openDrawingsMenu() {
+  function openDrawingsMenu(from) {
+    switchBtn = from;
     const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`);
     const when = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const del = async (x) => {
@@ -1388,23 +1437,26 @@ export function drawView(root, ctx) {
     const wide = WIDE.matches, open = ctx.isOpen();
     if (wide) {
       const makes = toolBtns.filter((b) => b.dataset.tool !== 'area'), select = toolBtns.find((b) => b.dataset.tool === 'area');
-      ctx.strip?.replaceChildren(stripToggle, panelToggle, sep(), ...makes, sep(), select, sep(), undoBtn, redoBtn, subrail);
+      ctx.strip?.replaceChildren(...makes, sep(), select, sep(), undoBtn, redoBtn, subrail);
+      listHead.replaceChildren(docTitle, docMenu, eyeAll, hideElements);
       ctx.elements?.append(listBox);
       root.replaceChildren(touchbar, inspector, noteEl, fileInput);
     } else {
       delete compactBtn.dataset.c; // its icon and title set again (renderTools)
       placeControls(ctx.compact());
+      listHead.replaceChildren(h('h2', {}, 'Elements'), eyeAll);
       root.replaceChildren(toolsRow, touchbar, subrail, listBox, divider, inspector, noteEl, fileInput);
     }
     if (ctx.strip) ctx.strip.hidden = !(wide && open);
     if (ctx.elements) ctx.elements.hidden = !(wide && open && elementsOpen);
+    elementsTab.hidden = !(wide && open && !elementsOpen);
     document.body.classList.toggle('elements-open', !!ctx.elements && !ctx.elements.hidden);
-    for (const b of [stripToggle, headToggle]) b.setAttribute('aria-pressed', String(elementsOpen));
-    headToggle.hidden = !wide;
+    applyInspector();
     renderHead();
     renderTools();
   }
   WIDE.addEventListener('change', () => { if (WIDE.matches && ctx.compact()) ctx.setCompact(false); place(); });
+  renderList(); // the Elements panel's head with the drawing's title
   place();
 
   // ---- keys, while the Tools panel is open -----------------------------------------------------
@@ -1446,10 +1498,16 @@ export function drawView(root, ctx) {
   // ---- rendering ---------------------------------------------------------------------------
   function renderTools() {
     const on = drawing.button;
-    for (const b of toolBtns) b.setAttribute('aria-pressed', String(on === b.dataset.tool));
+    for (const b of toolBtns) {
+      b.setAttribute('aria-pressed', String(on === b.dataset.tool));
+      // from 1024 px wide, a tool with kinds shows the one in use (a preset of the user's: the tool's own)
+      const k = b.dataset.tool, v = variants(k).length > 1 && WIDE.matches ? current(k) : null;
+      const paths = (v && (POINT_ICON[v] || ctx.measureIcons?.(v))) || (k === 'measure' ? ctx.measureIcon : KIND_ICON[k]);
+      if (b.dataset.shows !== String(v)) { b.dataset.shows = String(v); b.querySelector('svg')?.replaceWith(icon(...paths)); }
+      b.classList.toggle('haskinds', variants(k).length > 1);
+    }
     undoBtn.disabled = !drawing.undos.length;
     redoBtn.disabled = !drawing.redos.length;
-    panelToggle.setAttribute('aria-pressed', String(!ctx.compact()));
     renderTouch();
     const c = ctx.compact();
     if (!WIDE.matches && compactBtn.dataset.c !== String(c)) {
@@ -1463,7 +1521,7 @@ export function drawView(root, ctx) {
   }
   return {
     render(what) {
-      if (what === 'tool') return renderTools();
+      if (what === 'tool') { followTool(); return renderTools(); }
       if (what === 'draft') return renderTouch();
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
@@ -1475,11 +1533,14 @@ export function drawView(root, ctx) {
         return;
       }
       // a label just placed (and selected, so shown): its text ready to be typed
-      if (what === 'placed') { const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return; }
+      if (what === 'placed') { inspectorOpen = true; hiddenByHand = false; applyInspector(); const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return; }
       // the selection only changed: the rows marked again, not built again (each row's value is a length
       // or an area, computed)
-      if (what === 'sel') for (const row of list.querySelectorAll('.drow[data-id]')) row.classList.toggle('sel', drawing.sel.has(row.dataset.id));
-      else renderList();
+      if (what === 'sel') {
+        followSelection();
+        for (const row of list.querySelectorAll('.drow[data-id]')) row.classList.toggle('sel', drawing.sel.has(row.dataset.id));
+        docTitle.classList.toggle('sel', drawingShown);
+      } else renderList();
       renderInspector();
       if (form && what === 'doc') formPreview(); // the form's preview follows the drawing (an undo, its line edited)
       if (what === 'doc') for (const id of profiles.keys()) if (!find(drawing.doc, id)) { profiles.delete(id); profileShown.delete(id); } // a line gone: its profile too
@@ -1492,6 +1553,7 @@ export function drawView(root, ctx) {
     press, cycle, // the tools' keys (app.js)
     place, // the Tools panel opened or closed (app.js)
     toggleElements: () => setElements(!elementsOpen), // its key (app.js)
+    hideInspector: () => { inspectorOpen = false; hiddenByHand = true; applyInspector(); }, // the panel's › (app.js)
     open: () => fileInput.click(),
     // the panel closed: nothing it started goes on picking on the map (the form's roots, Attach to…)
     closed() { if (form) { closeForm(); renderInspector(); } if (drawing.repointing) drawing.cancelRepoint(); },
