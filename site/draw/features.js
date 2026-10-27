@@ -37,6 +37,7 @@ export function enlargement(doc, p, zoom) {
 }
 
 const HANDLE_GAP = 12; // px
+const BAND_GAP = 2; // px: the hover band's points, at least this far apart on screen
 
 // line paint of a style's stroke (a radius may have its own colour and dash)
 const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.opacity, sw: s.width, dash });
@@ -70,9 +71,13 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     if (!kind) return kind;
     if (kind === 'sel' && geometry.type !== 'Point') {
       if (sel.size > 1 && dots) for (const p of thinned(dots())) marks.push({ type: 'Feature', properties: { id, kind }, geometry: { type: 'Point', coordinates: p } });
-    } else marks.push({ type: 'Feature', properties: { id, kind, ...props }, geometry });
+    } else marks.push({ type: 'Feature', properties: { id, kind, ...props }, geometry: fine(geometry) });
     return kind;
   };
+  // a band's line or outline at the screen's resolution: a point every BAND_GAP px is all it shows (a
+  // line of 10,000 vertices would be re-tiled whole at each hover)
+  const fine = (g) => (g.type === 'LineString' ? { ...g, coordinates: thinned(g.coordinates, BAND_GAP) }
+    : g.type === 'Polygon' ? { ...g, coordinates: g.coordinates.map((r) => thinned(r, BAND_GAP)) } : g);
   const midway = (a, b) => { const d = inverse(a, b); return destination(a, d.azi, d.s / 2); };
   // handles, thinned at the map's zoom: one at least HANDLE_GAP px from the last one kept, and the
   // last point always (a line of hundreds of points would be a chain of squares)
@@ -80,14 +85,14 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   const midPx = display.midPx ?? 40; // a + halfway only along a leg or edge this long on screen (80 with a finger)
   // Each handle says what dragging it does: role and ref (a part's place in its point's list, an index, a point ID).
   // items: [{ p, role, ref, kind ('handle', 'mid', 'ctrl') }]; thin: a line's points thinned.
-  // positions thinned at the map's zoom: one at least HANDLE_GAP px from the last kept, the last always
-  const thinned = (ps) => {
+  // positions thinned at the map's zoom: one at least gap px from the last kept, the last always
+  const thinned = (ps, gap = HANDLE_GAP) => {
     if (!mpp) return ps;
     const out = [];
     let last = null;
     ps.forEach((p, i) => {
       const m = mercator(p);
-      if (last && i < ps.length - 1 && Math.hypot(m[0] - last[0], m[1] - last[1]) / mpp < HANDLE_GAP) return;
+      if (last && i < ps.length - 1 && Math.hypot(m[0] - last[0], m[1] - last[1]) / mpp < gap) return;
       last = m;
       out.push(p);
     });
