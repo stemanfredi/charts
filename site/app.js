@@ -770,6 +770,8 @@ const ICON = {
   save: ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], // down into a tray (Export)
   upload: ['M12 15V4', 'm7 9 5-5 5 5', 'M5 20h14'], // up out of a tray (Import; the drawing's file goes down into it)
   plus: ['M12 5v14M5 12h14'],
+  collapse: ['m14 10 7-7', 'M20 10h-6V4', 'm3 21 7-7', 'M4 14h6v6'], // arrows in: a panel closed
+  presets: ['M8 3.5 12.5 11h-9z', 'M14 14h7v7h-7z', 'M6.5 14a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z'], // shapes kept: a triangle, a square, a circle
   minus: ['M5 12h14'],
   compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
   locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
@@ -1009,7 +1011,7 @@ function renderUnits() {
 const drawPanel = drawView($('#dview'), {
   drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units, isOpen: () => state.panel === 'draw',
   measureIcon: ICON.ruler, measureIcons: (k) => ICON[k], compact: () => compact.on, setCompact: (v) => setCompact(v), free: () => free(), header: $('#panel-actions'),
-  strip: $('#dstrip'), elements: $('#elements'), setTitle: (t) => { if (state.panel === 'draw') $('#panel-title').textContent = t; },
+  strip: $('#dstrip'), elements: $('#elements'), setTitle: (t) => { if (state.panel === 'draw') $('#panel-title').replaceChildren(t); }, // a text, or the drawings' switcher
   // an imported drawing added to the list and opened, with its view and layers; one of the list opened
   // where it was drawn
   onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
@@ -1038,6 +1040,7 @@ function free() {
   const p = { top: 60, right: 60, bottom: 60, left: 60 };
   if (panel.hidden) return p;
   const r = panel.getBoundingClientRect();
+  if (!r.width) return p; // hidden (Tools from 1024 px wide: its strip alone)
   if (small()) p.bottom += Math.max(0, innerHeight - r.top); else p.right += Math.max(0, innerWidth - r.left);
   // the tools' strip beside it, and the Elements panel on the left (from 1024 px wide)
   const strip = $('#dstrip'), side = $('#elements');
@@ -1062,12 +1065,16 @@ function setPanel(view) {
   panel.classList.toggle('wide', view === 'draw'); // the Draw view: list and inspector need the room
   panel.classList.toggle('compact', compact.on && view === 'draw');
   $('#panel-actions').hidden = view !== 'draw'; // Undo, Redo, compact: the Tools panel's
+  $('#close').title = view === 'draw' && wide() ? 'Hide the panel: the tools stay' : 'Close';
   if (view !== 'draw') { drawing.stop(); drawPanel.closed(); }
   drawPanel.place(); // the strip and the Elements panel with it (from 1024 px wide)
   writeHash();
 }
-for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => setPanel(state.panel === v ? null : v));
-$('#close').addEventListener('click', () => setPanel(null));
+// Tools from 1024 px wide: its panel hidden alone (the strip stays, a tool on goes on) by the arrows,
+// shown again by the strip's panel icon or the rail's button; the rail's button closes it all when shown
+const toolsHidden = () => state.panel === 'draw' && wide() && compact.on;
+for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => (v === 'draw' && toolsHidden() ? setCompact(false) : setPanel(state.panel === v ? null : v)));
+$('#close').addEventListener('click', () => (state.panel === 'draw' && wide() ? setCompact(true) : setPanel(null)));
 
 // Export: a menu of the view's link, a picture, GIS data and the drawing's file, each acting at once;
 // the Export button says how it went for a moment ("Copied", "Saving…", "Failed"). Import: a

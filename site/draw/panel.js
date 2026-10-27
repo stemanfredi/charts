@@ -40,6 +40,7 @@ const KIND_ICON = {
 // Delete, Detach, shown and hidden
 const UI_ICON = {
   elements: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M9 3v18'],
+  panel: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M15 3v18'], // the panel on the right
   zoom: ['M3 7V5a2 2 0 0 1 2-2h2', 'M17 3h2a2 2 0 0 1 2 2v2', 'M21 17v2a2 2 0 0 1-2 2h-2', 'M7 21H5a2 2 0 0 1-2-2v-2', 'M12 9v6', 'M9 12h6'],
   duplicate: ['M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2'],
   group: ['M3 7h7l2 2h9v10H3z', 'M12 11v6', 'M9 14h6'],
@@ -47,6 +48,9 @@ const UI_ICON = {
   detach: ['m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'm5.17 11.75-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71', 'M8 2v3', 'M2 8h3', 'M16 19v3', 'M19 16h3'],
   eye: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
   hidden: ['M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7', 'M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6', 'M14.1 14.1a3 3 0 1 1-4.2-4.2', 'M2 2l20 20'],
+  // a panel collapsed (arrows in) or made whole (arrows out); a menu below
+  collapse: ['m14 10 7-7', 'M20 10h-6V4', 'm3 21 7-7', 'M4 14h6v6'], expand: ['M15 3h6v6', 'm21 3-7 7', 'm3 21 7-7', 'M9 21H3v-6'],
+  chevron: ['m6 9 6 6 6-6'],
 };
 // what each kind of point and shape looks like (the sub-rails, the list): those round a centre have it
 // marked, the outlines not
@@ -228,9 +232,12 @@ export function drawView(root, ctx) {
   // the Elements panel (from 1024 px wide): open or closed by its toggle, in the strip and in its own head
   let elementsOpen = false;
   try { elementsOpen = localStorage.getItem(ELEMENTS_KEY) === '1'; } catch { /* only a convenience */ }
-  const elementsToggle = () => h('button', { type: 'button', class: 'etoggle', 'aria-label': 'Elements', title: 'Elements: the list of what is drawn (E)',
-    onclick: () => setElements(!elementsOpen) }, icon(...UI_ICON.elements));
-  const stripToggle = elementsToggle(), headToggle = elementsToggle();
+  const elementsToggle = (paths, aria, title) => h('button', { type: 'button', class: 'etoggle', 'aria-label': aria, title, onclick: () => setElements(!elementsOpen) }, icon(...paths));
+  const stripToggle = elementsToggle(UI_ICON.elements, 'Elements', 'Elements: the list of what is drawn (E)');
+  const headToggle = elementsToggle(UI_ICON.collapse, 'Close the Elements panel', 'Close (E)');
+  // the Tools panel's own toggle, in the strip: hidden alone, the strip staying (from 1024 px wide)
+  const panelToggle = h('button', { type: 'button', class: 'etoggle', 'aria-label': 'Panel', title: 'The panel: what is selected, or the drawing',
+    onclick: () => ctx.setCompact(!ctx.compact()) }, icon(...UI_ICON.panel));
   function setElements(v) {
     elementsOpen = v;
     try { localStorage.setItem(ELEMENTS_KEY, v ? '1' : '0'); } catch { /* only a convenience */ }
@@ -1176,9 +1183,8 @@ export function drawView(root, ctx) {
     if (totalsBy && !keys.includes(totalsBy)) { totalsBy = ''; computeFacts(); } // its key gone
     const by = select('Totals by', [['', 'group'], ...keys.map((k) => [k, k])], totalsBy || '', (v) => { totalsBy = v; computeFacts(); renderInspector(); });
     const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look.offset != null); // where Offset is set on an element or a group
-    return [h('div', { class: 'fhead' }, h('h2', {}, 'Drawing'), n ? h('button', { type: 'button', class: 'small', onclick: () => showOnMap(new Set(elements(drawing.doc).map((x) => x.el.id))) }, 'Zoom to') : null),
+    return [h('div', { class: 'fhead' }, h('h2', {}, switcher()), n ? h('button', { type: 'button', class: 'small', onclick: () => showOnMap(new Set(elements(drawing.doc).map((x) => x.el.id))) }, 'Zoom to') : null),
       row('Title', meta('title', 'Title')), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
-      drawingsBlock(),
       lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'offset', 'minSize'], 'Display', [
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Bearings', check('beside lengths', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }))]),
@@ -1257,7 +1263,8 @@ export function drawView(root, ctx) {
   // Zoom to all of it; none while a form is open). Narrower, the panel's own: Tools, Undo, Redo.
   function renderHead(xs = drawing.selected()) {
     if (!WIDE.matches) return ctx.setTitle?.('Tools');
-    ctx.setTitle?.(inspector.querySelector('.fhead h2')?.textContent || 'Tools');
+    // the drawing shown (nothing selected, no form): its switcher, moved into the title row
+    ctx.setTitle?.(!form && !xs.length && switchBtn ? switchBtn : inspector.querySelector('.fhead h2')?.textContent || 'Tools');
     const ids = xs.map((x) => x.el.id), every = ids.length ? ids : elements(drawing.doc).map((x) => x.el.id);
     const act = (paths, aria, title, run) => h('button', { type: 'button', class: 'hact', 'aria-label': aria, title, onclick: run }, icon(...paths));
     ctx.header?.replaceChildren(...(form ? [] : [
@@ -1280,22 +1287,44 @@ export function drawView(root, ctx) {
     const title = drawing.doc.meta.title.normalize('NFKD').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'chart';
     ctx.download(text, `${title}-${when}.geojson`);
   }
-  // the drawings in this browser: the one open, the others to open (each with its view), New, and
-  // Delete for good (asked first)
-  function drawingsBlock() {
+  // The drawing's heading: its title, a switcher whose menu lists the drawings in this browser (the one
+  // open marked; each opened where it was drawn, or deleted for good, asked first) and + New
+  const drawingsMenu = h('div', { class: 'dmenu', role: 'menu', 'aria-label': 'Drawings in this browser', hidden: true });
+  document.body.append(drawingsMenu);
+  let switchBtn = null;
+  function switcher() {
+    switchBtn = h('button', { type: 'button', class: 'dswitch', 'aria-haspopup': 'menu', 'aria-expanded': 'false', title: 'The drawings in this browser: open another, or a new one',
+      onclick: () => (drawingsMenu.hidden ? openDrawingsMenu() : closeDrawingsMenu()) }, h('span', {}, drawing.doc.meta.title || 'Untitled drawing'), icon(...UI_ICON.chevron));
+    return switchBtn;
+  }
+  function openDrawingsMenu() {
     const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`);
     const when = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const del = async (x) => {
+      closeDrawingsMenu();
       if (!await ask('Delete the drawing', `Delete “${x.title || 'Untitled'}” for good? It cannot be brought back.`, [['yes', 'Delete']])) return;
       drawing.saving.remove(x.id);
       note('Drawing deleted');
     };
-    return h('div', { class: 'fblock' }, h('h3', {}, 'Drawings in this browser', h('button', { type: 'button', class: 'small', title: 'A new, empty drawing (this one stays in the list)', onclick: newDrawing }, '+ New')),
-      h('ul', { class: 'drawings' }, drawing.saving.list().map((x) => h('li', { class: x.open ? 'open' : '' },
-        h('button', { type: 'button', class: 'dname', disabled: x.open, title: x.open ? 'Open' : 'Open it, where it was drawn', onclick: () => ctx.openDrawing(x.id) }, x.title || 'Untitled'),
-        h('span', { class: 'val' }, [when(x.modified), x.size ? kb(x.size) : ''].filter(Boolean).join(' · ')),
-        h('button', { type: 'button', class: 'x', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, '×')))));
+    const pick = (run) => () => { closeDrawingsMenu(); run(); };
+    drawingsMenu.replaceChildren(h('ul', { class: 'drawings' }, drawing.saving.list().map((x) => h('li', { class: x.open ? 'open' : '' },
+      h('button', { type: 'button', role: 'menuitem', class: 'dname', 'aria-current': x.open ? 'true' : null, title: x.open ? 'The drawing open' : 'Open it, where it was drawn',
+        onclick: pick(() => { if (!x.open) ctx.openDrawing(x.id); }) }, x.title || 'Untitled'),
+      h('span', { class: 'val' }, [when(x.modified), x.size ? kb(x.size) : ''].filter(Boolean).join(' · ')),
+      h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, icon(...UI_ICON.delete))))),
+    h('button', { type: 'button', role: 'menuitem', class: 'dnew', title: 'A new, empty drawing (this one stays in the list)', onclick: pick(newDrawing) }, '+ New drawing'));
+    const r = switchBtn.getBoundingClientRect();
+    Object.assign(drawingsMenu.style, { top: `${r.bottom + 4}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - 360))}px` });
+    drawingsMenu.hidden = false;
+    switchBtn.setAttribute('aria-expanded', 'true');
+    drawingsMenu.querySelector('[role=menuitem]')?.focus();
   }
+  function closeDrawingsMenu() {
+    drawingsMenu.hidden = true;
+    switchBtn?.setAttribute('aria-expanded', 'false');
+  }
+  document.addEventListener('pointerdown', (e) => { if (!drawingsMenu.hidden && !drawingsMenu.contains(e.target) && !switchBtn?.contains(e.target)) closeDrawingsMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !drawingsMenu.hidden) { e.stopPropagation(); closeDrawingsMenu(); switchBtn?.focus(); } }, true);
   function newDrawing() {
     drawing.saving.add();
     note('New drawing');
@@ -1359,7 +1388,7 @@ export function drawView(root, ctx) {
     const wide = WIDE.matches, open = ctx.isOpen();
     if (wide) {
       const makes = toolBtns.filter((b) => b.dataset.tool !== 'area'), select = toolBtns.find((b) => b.dataset.tool === 'area');
-      ctx.strip?.replaceChildren(stripToggle, sep(), ...makes, sep(), select, sep(), undoBtn, redoBtn, subrail);
+      ctx.strip?.replaceChildren(stripToggle, panelToggle, sep(), ...makes, sep(), select, sep(), undoBtn, redoBtn, subrail);
       ctx.elements?.append(listBox);
       root.replaceChildren(touchbar, inspector, noteEl, fileInput);
     } else {
@@ -1420,6 +1449,7 @@ export function drawView(root, ctx) {
     for (const b of toolBtns) b.setAttribute('aria-pressed', String(on === b.dataset.tool));
     undoBtn.disabled = !drawing.undos.length;
     redoBtn.disabled = !drawing.redos.length;
+    panelToggle.setAttribute('aria-pressed', String(!ctx.compact()));
     renderTouch();
     const c = ctx.compact();
     if (!WIDE.matches && compactBtn.dataset.c !== String(c)) {
@@ -1427,8 +1457,7 @@ export function drawView(root, ctx) {
       placeControls(c);
       compactBtn.setAttribute('aria-label', c ? 'The whole panel' : 'Only the tools');
       compactBtn.title = c ? 'The whole panel: the list and the inspector' : 'Only the tools: the map as large as it can be (it goes back when the tool ends)';
-      // a panel on the right, an arrow out of it or into it (as Lucide's panel-right-open, -close)
-      compactBtn.replaceChildren(icon('M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M15 3v18', c ? 'm10 15-3-3 3-3' : 'm8 9 3 3-3 3'));
+      compactBtn.replaceChildren(icon(...(c ? UI_ICON.expand : UI_ICON.collapse))); // arrows out: whole; in: compact
     }
     renderSubrail();
   }

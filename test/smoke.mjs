@@ -120,7 +120,7 @@ await section('one side panel', async () => {
   await pv.click('#b-draw');
   await pv.waitForTimeout(400);
   const views = await pv.evaluate(() => [!document.querySelector('#panel').hidden, document.querySelector('#lview').hidden, !document.querySelector('#dview').hidden, document.querySelector('#panel-title').textContent, location.hash.includes('menu=draw')]);
-  check(views.join() === 'true,true,true,Drawing,true', `Tools switches the panel in place (titled with what its inspector shows: the drawing), and the link keeps it (${views.join()})`);
+  check(views.join() === 'true,true,true,Untitled drawing,true', `Tools switches the panel in place (titled with what its inspector shows: the drawing, by its title), and the link keeps it (${views.join()})`);
   await pv.click('#b-draw');
   check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
   await pv.close();
@@ -493,6 +493,15 @@ await section('the drawing', async () => {
   const closed = await layoutNow();
   check(onTool.join() === 'false,true,true,true,false,false' && opened[4] && !closed[4],
     `tools: a tool on beside the panel, its kinds beside it, nothing folded away; Elements opened by its toggle, closed by E (${onTool}; ${opened[4]}, ${closed[4]})`);
+  // the panel hidden alone by its arrows: the strip stays, beside the rail, the tool still on; its
+  // icon in the strip shows it again
+  await dw.click('#close');
+  const alone = await dw.evaluate(() => [document.querySelector('#panel').offsetParent === null, !!document.querySelector('#dstrip').offsetParent, drawing.button,
+    Math.round(innerWidth - document.querySelector('#dstrip').getBoundingClientRect().right)]);
+  await dw.click('#dstrip .etoggle[aria-label=Panel]');
+  const shownAgain = await dw.evaluate(() => !!document.querySelector('#panel').offsetParent);
+  check(alone[0] && alone[1] && alone[2] === 'shape' && alone[3] < 100 && shownAgain,
+    `tools: the panel hidden alone, the strip beside the rail and the tool on; shown again from the strip (${alone}, ${shownAgain})`);
   await dw.mouse.click(500, 400);
   await dw.mouse.click(500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');
@@ -552,7 +561,7 @@ await section('the drawing', async () => {
   savedFile.features = [...savedFile.features.filter((f) => !measuredOf(savedFile).includes(f)), ruler];
   const exported = JSON.stringify(savedFile);
   const measuredNow = () => dw.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).map((x) => x.el.start?.position ?? x.el.position ?? x.el.points[0]); });
-  await dw.click('.dinspect button:has-text("New")'); // a new drawing in the list, nothing asked
+  await dw.click('.dswitch'); await dw.click('.dmenu .dnew'); // a new drawing in the list, from the title's menu, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
   await dw.setInputFiles('#dview input[type=file]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
@@ -589,7 +598,7 @@ await section('the drawing', async () => {
   // attached to it), the totals
   await dw.locator('#panel-title').click();
   await dw.keyboard.press('Escape'); // nothing selected: the drawing's own inspector
-  await dw.click('.dinspect button:has-text("New")'); // a new drawing in the list, nothing asked
+  await dw.click('.dswitch'); await dw.click('.dmenu .dnew'); // a new drawing in the list, from the title's menu, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length);
   await dw.keyboard.press('g');
   await dw.mouse.click(200, 500);
