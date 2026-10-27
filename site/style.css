@@ -303,12 +303,15 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid tr.vnode td.frozen { background: var(--bg2); }
 .lgrid tr.warn td { color: var(--warn); }
 .lgrid tr.ladd td { opacity: .75; }
-.lgrid tr.lsub td { padding-bottom: 4px; }
 .lgrid .fcheck { justify-content: center; padding: 0; min-width: var(--row); }
 .lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; }
-.fhandles { display: flex; gap: 10px; }
-.fhandle { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
-.fhandle input.num { width: 72px; }
+/* a row's sub-row (a vertex's handles): across the row, held at the grid's left edge as it scrolls */
+.lgrid tr.lsub td { padding: 0 0 4px; }
+.lsubin { position: sticky; left: 0; width: max-content; padding-left: 26px; }
+.fhandles { display: flex; flex-direction: column; } /* in, then out: one line each */
+.fhandle { display: inline-flex; align-items: center; gap: 4px; }
+.fhandle > .funit:first-child { width: 24px; }
+.lgrid td .fhandle input.num:not([type=checkbox]) { width: 72px !important; } /* over the grid's full-width cells */
 .fsummary { color: var(--ink); background: var(--bg2); border-radius: 6px; padding: 6px 8px; }
 .fblock { display: flex; flex-direction: column; }
 .fend { justify-content: space-between; border-top: 1px solid var(--line2); padding-top: 8px; margin-top: 4px; }
