@@ -8,7 +8,7 @@ import { norm360, unrollTo } from './geo.js';
 // GeographicLib is a classic script on the page (window.geodesic); tests set globalThis.geodesic
 export const G = globalThis.geodesic.Geodesic.WGS84;
 const { STANDARD, DISTANCE_IN, LONG_UNROLL } = globalThis.geodesic.Geodesic;
-export const MASK = STANDARD | DISTANCE_IN | LONG_UNROLL; // DISTANCE_IN: positions along a line by distance
+const MASK = STANDARD | DISTANCE_IN | LONG_UNROLL; // DISTANCE_IN: positions along a line by distance
 export const NM = 1852;
 
 export function fmtDist(m, units) {

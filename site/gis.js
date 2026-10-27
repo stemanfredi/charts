@@ -71,8 +71,10 @@ export function gisExport({ map, layersOf, kindOf, drawing, display, profiled, c
       const vectors = [];
       for (const it of layers) {
         const fs = viewFeatures(vectorPieces(it.id), corners, clipping);
-        if (fs.length) vectors.push({ key: `vector/${it.id}`, title: it.label, file: `vector/${it.id}.geojson`, data: featureCollection(it.label, fs), n: fs.length, how: 'clipped to the view' });
-        if (fs.length) it.assets.push(`vector/${it.id}`); // in item.json: the assets that hold this layer as data (keyed by path: a layer may be called chart, as the overview is)
+        if (fs.length) {
+          vectors.push({ key: `vector/${it.id}`, title: it.label, file: `vector/${it.id}.geojson`, data: featureCollection(it.label, fs), n: fs.length, how: 'clipped to the view' });
+          it.assets.push(`vector/${it.id}`); // in item.json: the assets that hold this layer as data (keyed by path: a layer may be called chart, as the overview is)
+        }
       }
       const left = []; // what could not be read: the rest is saved, the button says what is missing
       // raster/<key>.tif for each elevation grid an item drawn reads

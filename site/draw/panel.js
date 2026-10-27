@@ -5,19 +5,19 @@
 
 import { h, typing as typingIn } from '../dom.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, ARCED, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, ARCED, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef } from './attach.js';
 import { labelText, labelValues, TOKENS } from './labels.js';
 import { resolve as anchorAt } from './attach.js';
-import { OUTLINES, OUTLINE_NAME, outlineOf, isVehicle } from './outlines.js';
+import { OUTLINE_NAME, outlineOf, isVehicle } from './outlines.js';
 import { lineTrace, totals, breakdown, applySmooth, nearestAlong } from './lines.js';
 import { profileCsv } from './profile.js';
 import { COPY_RADIUS, distribute, lines, plan, planConnection, makeDistribution, editDistribution, connect, reconnect, unconnect, alongTrace, alongOf,
   distributions, connections, ruleOf, distributionOf, connectionOn, changedByHand, giveBack, removePartOf, MAX_COPIES, MAX_TREE } from './generator.js';
 import { BUILT_IN, builtInName } from './place.js';
-import { boundsOf, drawable, perimeterOf } from './features.js';
-import { fmtDist, fmtArea, fmtBrg, inverse, areaOf, pathOf, destination } from '../geodesy.js';
+import { boundsOf, drawable } from './features.js';
+import { fmtDist, fmtArea, fmtBrg, inverse, areaOf, pathOf, destination, perimeterOf } from '../geodesy.js';
 import { moved } from './drag.js';
 import { norm360 } from '../geo.js';
 import { fields, choice, select, check } from '../fields.js';
@@ -36,11 +36,10 @@ const KIND_ICON = {
   label: ['M10 4h10v7H10z', 'M10 11 4 19'], // a text box and its leader
   area: ['M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4M4 7V4'], // a dashed box: Select area
 };
-// the panels' and the actions' icons (as Lucide's): the Elements panel, Zoom to, Duplicate, Group,
-// Delete, Detach, shown and hidden
+// the column's and the actions' icons (as Lucide's): the column, Zoom to, Duplicate, Group, Delete,
+// Detach, shown and hidden
 const UI_ICON = {
   elements: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M9 3v18'],
-  panel: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M15 3v18'], // the panel on the right
   zoom: ['M3 7V5a2 2 0 0 1 2-2h2', 'M17 3h2a2 2 0 0 1 2 2v2', 'M21 17v2a2 2 0 0 1-2 2h-2', 'M7 21H5a2 2 0 0 1-2-2v-2', 'M12 9v6', 'M9 12h6'],
   duplicate: ['M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2'],
   group: ['M3 7h7l2 2h9v10H3z', 'M12 11v6', 'M9 14h6'],
@@ -50,8 +49,7 @@ const UI_ICON = {
   hidden: ['M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7', 'M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6', 'M14.1 14.1a3 3 0 1 1-4.2-4.2', 'M2 2l20 20'],
   // a panel collapsed (arrows in) or made whole (arrows out); a menu below
   collapse: ['m14 10 7-7', 'M20 10h-6V4', 'm3 21 7-7', 'M4 14h6v6'], expand: ['M15 3h6v6', 'm21 3-7 7', 'm3 21 7-7', 'M9 21H3v-6'],
-  chevron: ['m6 9 6 6 6-6'], left: ['m15 18-6-6 6-6'],
-  tree: ['M3 5h4', 'M3 12h4', 'M10 5h11', 'M10 12h11', 'M13 19h8', 'M7 5v12a2 2 0 0 0 2 2h1'], // a tree's nodes (as Lucide's list-tree)
+  chevron: ['m6 9 6 6 6-6'],
 };
 // what each kind of point and shape looks like (the sub-rails, the list): those round a centre have it
 // marked, the outlines not
@@ -236,8 +234,8 @@ export function drawView(root, ctx) {
     queueMicrotask(box.render); // once what it counts can be read (the list's, while the panel is still being built)
     return h('label', { class: 'dvis', title: 'Show all, or hide all when every one is shown' }, box);
   };
-  // the list's head: its name, one eye for every element listed (shown: a click hides them all; else
-  // shows them all), and from 1024 px wide the Elements panel's toggle
+  // the list's head: its name (from 1024 px wide the drawing's title), one eye for every element listed
+  // (shown: a click hides them all; else shows them all), from 1024 px wide its fold
   const listed = () => (filter ? shown() : drawElements());
   const eyeAll = h('button', { type: 'button', class: 'deye', onclick: () => { const all = listed(); showAll(!all.every((x) => x.el.visible), all); } });
   function renderEyeAll() {
@@ -250,7 +248,6 @@ export function drawView(root, ctx) {
   const filterRow = h('div', { class: 'dfilter' }, filterInput, selectShown);
   // the hover ends when the pointer leaves the list: a row rebuilt under it never says it was left
   const list = h('ul', { class: 'dlist', 'aria-label': 'Elements', onpointerleave: () => drawing.setHover(null) });
-  // The Elements panel (from 1024 px wide, drawing-ui.md §1): the tree, its head the drawing's: its title
   // From 1024 px wide (drawing-ui.md §1) the drawing is the left frame's: the rail, and beside it the
   // column, the tree over the inspector, shown or hidden by the rail's toggle (and E); either half
   // folds to its head (each remembered in this browser). The inspector shows what is selected, or the
@@ -1440,10 +1437,8 @@ export function drawView(root, ctx) {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setSplit(listBox.offsetHeight + (e.key === 'ArrowUp' ? -24 : 24)); }
   });
 
-  // From 1024 px wide (drawing-ui.md §1): the tools in a strip beside the panel (the Elements toggle
-  // first, Undo and Redo last, a tool's kinds opening to its left), the list in the Elements panel on
-  // the left, the panel the inspector only; both shown while the Tools panel is. Narrower: all in the
-  // panel, the list above the inspector. fileInput: the rail's Import.
+  // From 1024 px wide (drawing-ui.md §1): the rail (ctx.strip) and the column (ctx.elements), the tree
+  // over the inspector. Narrower: all in the Tools panel, the list above the inspector.
   const home = root.parentElement; // the Tools panel, narrower than 1024 px
   function place() {
     const wide = WIDE.matches, open = ctx.isOpen();

@@ -15,9 +15,9 @@ export class Skip extends Error {}
 export function time(t) {
   return typeof t === 'string' && !Number.isNaN(Date.parse(t)) ? isoNow(Date.parse(t)) : null;
 }
-export const MAX_TEXT = 10000; // characters: a name, a value, a description
-export const MAX_PARTS = 100; // parts on one point
-export const MAX_PROPERTIES = 200; // properties on one element
+const MAX_TEXT = 10000; // characters: a name, a value, a description
+const MAX_PARTS = 100; // parts on one point
+const MAX_PROPERTIES = 200; // properties on one element
 export function text(v, c, what) {
   if (v === undefined || v === null) return '';
   if (typeof v === 'string') return v.length > MAX_TEXT ? (c.warn(`${what}: cut to ${MAX_TEXT} characters`), v.slice(0, MAX_TEXT)) : v;
@@ -87,7 +87,7 @@ export function colour(v, dflt, c, what) {
   c.warn(`${what}: not a #rrggbb colour, default used`);
   return dflt;
 }
-export function clamp(v, lo, hi, dflt, c, what) {
+function clamp(v, lo, hi, dflt, c, what) {
   if (v === undefined) return dflt;
   if (!fin(v)) { c.warn(`${what}: not a number, default used`); return dflt; }
   const r = Math.min(hi, Math.max(lo, v));

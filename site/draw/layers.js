@@ -80,16 +80,15 @@ const fillLayer = (kind, source) => ({
 // (negative offset: the left of a counter-clockwise ring, its outside on screen), on both sides of a
 // line: the mark's blue on its white casing
 const BAND = 2;
-const LINE_HALO = [['case', MARK_CASE, BAND + 2, 1, HOVER], ['line', MARK, BAND, 1, HOVER]];
-const AREA_HALO = LINE_HALO;
-const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([part, colour, width, opSel, opHover]) => ({
+const HALO = [['case', MARK_CASE, BAND + 2, HOVER], ['line', MARK, BAND, HOVER]];
+const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([part, colour, width, opacity]) => ({
   id: `draw-mark-${part}-${geom.toLowerCase()}${sides.length > 1 ? (side > 0 ? '-r' : '-l') : ''}`, type: 'line', source: 'drawover',
-  filter: ['all', ['in', ['get', 'kind'], ['literal', ['sel', 'hover']]], ['==', ['geometry-type'], geom]],
+  filter: ['all', ['==', ['get', 'kind'], 'hover'], ['==', ['geometry-type'], geom]],
   layout: { 'line-join': 'round' },
-  paint: { 'line-color': colour, 'line-width': width, 'line-opacity': ['match', ['get', 'kind'], 'sel', opSel, opHover],
+  paint: { 'line-color': colour, 'line-width': width, 'line-opacity': opacity,
     'line-offset': ['+', OFF, ['*', side, ['+', ['/', ['get', 'sw'], 2], 3, BAND / 2]]] } })));
-// bottom to top: points' rings, areas, lines (guides, the others), outlines, the selection's
-// halos, symbols, handles, the selection's rings
+// bottom to top: points' rings, areas, lines (guides, the others), outlines, the hover band,
+// symbols, handles, the selection's rings
 // a finger (a coarse pointer): handles drawn larger (14 px from 8), as drawing.js grabs them farther
 export const FINGER = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const HANDLE_SIZE = FINGER ? 1.75 : 1;
@@ -100,7 +99,7 @@ export const DRAW_LAYERS = [
   { id: 'draw-linehit', type: 'line', source: 'drawzoom', filter: ['==', ['get', 'kind'], 'linehit'], paint: { 'line-width': 10, 'line-opacity': 0, 'line-offset': OFF } },
   ...lineLayers('guide', 'drawzoom'), ...lineLayers('path', 'drawzoom'),
   fillLayer('shape', 'drawzoom'), ...lineLayers('shape', 'drawzoom'),
-  ...haloLayers('Polygon', [-1], AREA_HALO), ...haloLayers('LineString', [-1, 1], LINE_HALO),
+  ...haloLayers('Polygon', [-1], HALO), ...haloLayers('LineString', [-1, 1], HALO),
   { id: 'draw-symbol', type: 'symbol', source: 'draw', filter: ['==', ['get', 'kind'], 'symbol'],
     layout: { 'icon-image': ['concat', 'draw-', ['get', 'symbol']], 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': ['get', 'sc'], 'icon-opacity': ['get', 'so'], 'icon-halo-color': '#ffffff', 'icon-halo-width': 1.5 } },

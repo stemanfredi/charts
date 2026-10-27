@@ -7,7 +7,7 @@ import { styleOf, minSizeOf, SYMBOLS } from './document.js';
 import { parts, look } from './check.js';
 
 const KEY = 'charts.presets';
-export const PRESETS_FORMAT = 'charts-presets';
+const PRESETS_FORMAT = 'charts-presets';
 
 export function loadPresets() {
   try { const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? clean(v) : []; } catch { return []; }

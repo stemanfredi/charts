@@ -12,7 +12,7 @@ import { anchorsOf, lineTrace, steps } from './lines.js';
 import { isShown, KIND } from './document.js';
 
 export const RADIUS = 6; // px
-export const STEP = 15; // degrees: Shift's steps
+const STEP = 15; // degrees: Shift's steps
 
 // where the screen segments a–b and c–d cross, strictly inside both, or null
 function crossing(a, b, c, d) {
@@ -112,4 +112,4 @@ export function neighbours(positions, k) {
   return { from: positions[1] ?? null, prev: positions[2] ?? null };
 }
 // a line's positions, start to end (its anchors)
-export const positionsOf = (doc, line) => anchorsOf(doc, line).map((a) => a.position);
+export const positionsOf = (doc, line) => anchorsOf(line).map((a) => a.position);

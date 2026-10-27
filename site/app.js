@@ -195,7 +195,7 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 $('#nostart').remove(); // started (index.html)
 const small = () => window.innerWidth < 720;
-// from 1024 px wide the Tools panel's tools are a strip beside it, its list a panel on the left (draw/panel.js)
+// from 1024 px wide the drawing is the left frame (draw/panel.js)
 const wide = () => matchMedia('(min-width: 1024px)').matches;
 
 // ---- bottom row: credits; scale note, time shown, cursor position, the scale
@@ -1039,7 +1039,7 @@ const drawPanel = drawView($('#dview'), {
   // went, the menu open meanwhile) and About; given back to the Export menu when it closes
   menuExtras: (close) => [h('div', { class: 'dsep' }), $('#link'), $('#png'), $('#zip'),
     h('button', { type: 'button', role: 'menuitem', class: 'mabout', onclick: () => { close(); $('#about').showModal(); showVersion(); } }, 'About')],
-  menuExtrasBack: () => $('#export-menu').append($('#link'), $('#png'), $('#zip')), setTitle: (t) => { if (state.panel === 'draw') $('#panel-title').replaceChildren(t); }, // a text, or the drawings' switcher
+  menuExtrasBack: () => $('#export-menu').append($('#link'), $('#png'), $('#zip')),
   // an imported drawing added to the list and opened, with its view and layers; one of the list opened
   // where it was drawn
   onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
@@ -1092,7 +1092,6 @@ function setPanel(view) {
     if (v === view) panelTitle.textContent = title;
   }
   document.body.classList.toggle('menu-open', !!view); // phones: the legend makes way for the sheet
-  panel.classList.toggle('wide', view === 'draw'); // the Draw view: list and inspector need the room
   panel.classList.toggle('compact', compact.on && view === 'draw');
   $('#panel-actions').hidden = view !== 'draw'; // the Tools panel's actions (Undo, Redo, compact narrower)
   $('#b-draw').setAttribute('aria-expanded', String(state.tools));
@@ -1100,13 +1099,10 @@ function setPanel(view) {
   drawPanel.place(); // the strip and the Elements panel with it (from 1024 px wide)
   writeHash();
 }
-// the rail's Tools: the tools on or off (with them, from 1024 px wide, the Elements panel and the
-// inspector); Layers: its panel shown or not. The panel's chevron: Layers closed; the Tools panel
-// (from 1024 px wide) hidden, what is selected staying so, until the next selection
+// the rail's Tools (narrower than 1024 px): the tools on or off, the Tools panel with them
 function setTools(on) {
-  state.tools = on;
   if (on) setPanel(wide() && state.panel === 'layers' ? 'layers' : 'draw');
-  else { state.tools = false; setPanel(state.panel === 'draw' ? null : state.panel); }
+  else setPanel(state.panel === 'draw' ? null : state.panel);
 }
 $('#b-layers').addEventListener('click', () => setPanel(state.panel === 'layers' ? null : 'layers'));
 $('#b-maplayers').addEventListener('click', () => setPanel(state.panel === 'layers' ? null : 'layers'));

@@ -105,5 +105,5 @@ export class DrawStore {
     this.hover = null;
     this.settle();
   }
-  isEmpty(doc = this.doc) { return !elements(doc).length && !doc.meta.title && !doc.meta.description && !doc.meta.author; }
+  isEmpty() { const d = this.doc; return !elements(d).length && !d.meta.title && !d.meta.description && !d.meta.author; }
 }

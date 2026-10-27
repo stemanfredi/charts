@@ -11,15 +11,13 @@
 // Any element can be a guide (supporting geometry: faint, left out of totals). How each is drawn is
 // its look (docs/drawing-ui.md §5): its own values, else its groups', else the drawing's.
 
-import { MAX_LAT } from '../geo.js';
 
 export const FORMAT = 'charts-drawing';
 export const VERSION = 1; // the drawing's version: this code writes and reads it, and no other
 
-export { MAX_LAT }; // the map's limit
 // a shape whose long side is shorter than this on screen (px) is drawn enlarged (display only);
 // 0 turns it off. The drawing's value, unless a shape has its own.
-export const MIN_DISPLAY_SIZE = 12;
+const MIN_DISPLAY_SIZE = 12;
 export const MAX_OFFSET = 50; // px: Offset's reach either side of a line
 export const MAX_MIN_SIZE = 200; // px: the largest minimum display size
 export const STROKE_WIDTH = [0.5, 20]; // px: a stroke's width, least and most
@@ -31,7 +29,7 @@ export const DEFAULT_STYLE = Object.freeze({
 export const GUIDE_STROKE = Object.freeze({ color: '#6b7a86', opacity: 1, width: 1, dash: 'dashed' });
 export const GUIDE_STYLE = Object.freeze({ fill: Object.freeze({ color: '#6b7a86', opacity: 0.05 }), stroke: GUIDE_STROKE });
 // what a measurement (a guide showing its values, Measure's tools make) is drawn with
-export const MEASURE_COLOUR = '#b0127a';
+const MEASURE_COLOUR = '#b0127a';
 export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASURE_COLOUR, opacity: 0.08 }),
   stroke: Object.freeze({ color: MEASURE_COLOUR, opacity: 1, width: 2, dash: 'dashed' }) });
 // A look: how an element is drawn. Every field optional where it is set (an element's, a group's, the
@@ -40,7 +38,7 @@ export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASUR
 // background; offset: a line drawn this many px to the right of where it is (negative: left; 0: on
 // it; display only); minSize: a small outline drawn enlarged below it
 // (px, 0: never; for a vehicle, twice the drawing's).
-export const LOOK_TEXT = Object.freeze({ name: false, values: false, size: 'medium', color: null, background: 'halo' });
+const LOOK_TEXT = Object.freeze({ name: false, values: false, size: 'medium', color: null, background: 'halo' });
 export const DEFAULT_LOOK = Object.freeze({ fill: DEFAULT_STYLE.fill, stroke: DEFAULT_STYLE.stroke, text: LOOK_TEXT, offset: 0, minSize: MIN_DISPLAY_SIZE });
 export const SYMBOLS = ['diamond', 'square', 'triangle', 'dot', 'none'];
 export const DASHES = ['solid', 'dashed', 'dotted'];
@@ -82,9 +80,9 @@ const LIST = Object.fromEntries(KINDS.map((k) => [k, KIND[k].list]));
 export const LEADERS = ['arrow', 'dot', 'line', 'none'];
 export const LABEL_SIZES = ['small', 'medium', 'large'];
 export const BACKGROUNDS = ['halo', 'box'];
-export const LABEL_STYLE = Object.freeze({ size: 'medium', color: '#1f2933', background: 'halo' }); // a label's text, not in a group
+const LABEL_COLOUR = '#1f2933'; // a label's text, not in a group
 export const LABEL_OFFSET = Object.freeze([40, -40]); // px: a new label's text, up and to the right of what it points at
-export const NEW_RADIUS = 1000; // a new point's one radius: a neutral starting value, not a preset
+const NEW_RADIUS = 1000; // a new point's one radius: a neutral starting value, not a preset
 export const MAX_RADIUS = 1e7;
 
 const clone = (x) => structuredClone(x);
@@ -188,7 +186,7 @@ export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.val
 // a label's colour: its own (or its groups'), else its group's stroke colour, else the default
 export function labelColour(doc, a) {
   const g = groupOf(doc, a);
-  return lookOf(doc, a).text.color ?? (g ? styleOf(doc, g).stroke.color : LABEL_STYLE.color);
+  return lookOf(doc, a).text.color ?? (g ? styleOf(doc, g).stroke.color : LABEL_COLOUR);
 }
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
 export const offsetOf = (doc, el) => lookOf(doc, el).offset;

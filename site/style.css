@@ -29,8 +29,9 @@ button { cursor: pointer; }
 svg { flex: none; }
 
 /* Layout: the map's edges hold what you read (legends, credits and the scale at the bottom);
-   the right edge holds what you use (Layers, Tools, Import, Export, About; zoom and compass lower down).
-   The panel opens to the left of that column, so its buttons never move. */
+   narrower than 1024 px the right edge holds what you use (Layers, Tools, Export, About; zoom and
+   compass lower down), the panel opening to the left of that column, so its buttons never move.
+   From 1024 px wide the drawing is a frame on the left, the map's controls a column top right. */
 .rail, .zoom, .panel { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 
 /* ---- right column ---- */
@@ -154,12 +155,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .note { margin: 2px 4px; font-size: 11.5px; color: var(--soft); }
 
 /* ---- Draw view: tools, the list, a divider, the inspector of what is selected ---- */
-/* on a desktop the Draw view is wider, and as tall as the panel may be: list and inspector share it
-   (narrower screens: the panel as for the other views) */
-@media (min-width: 1024px) {
-  .panel.wide { width: min(400px, calc(100vw - var(--rail) - 40px)); }
-  .panel.wide:has(.dview:not([hidden])) { height: calc(100% - var(--status-h) - 20px); }
-}
 .dview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; --dlist-h: 220px; }
 /* the list and the inspector: rows of 28 px with a mouse (a grid of cells), 44 with a finger */
 @media (pointer: fine) { .dview { --row: 28px; } }
@@ -189,7 +184,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow { display: flex; align-items: center; gap: 2px; min-height: var(--row); padding: 0 4px 0 2px; }
 .drow:hover { background: #f3f6f8; }
 .drow.sel { background: #e3edf4; }
-.drow.member { padding-left: 12px; }
 .drow.dim .dname, .drow.dim .kind { color: var(--soft); }
 .dvis { flex: none; width: var(--row); height: var(--row); display: grid; place-items: center; cursor: pointer; }
 .dvis input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
@@ -247,7 +241,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .dinspect input.angle { width: 76px; font-family: var(--mono); font-size: 12px; }
 .dinspect input.num { width: 76px; } /* "mixed" fits beside the spinner */
 .dinspect input[type=color] { width: var(--row); height: var(--row); padding: 4px; border: 0; background: none; }
-.fpair { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
 /* a value grid's row (docs/drawing-ui.md §5): label, cell, last column (× or ↺); it never wraps.
    A cell holds one value or a pair, its fields sharing the width; text too long ends in … */
 .frow.vrow { display: grid; grid-template-columns: 96px minmax(0, 1fr) var(--row); gap: 0; align-items: stretch; min-height: var(--row); border-bottom: 1px solid var(--line2); }
@@ -306,7 +299,6 @@ button.small.link:hover { border-color: var(--line); }
 /* the drawing's totals: sections (Lines, Areas, Points), a group's row with its lines under it,
    a connection's lines summed by what they are, each section's total */
 .vtable { width: 100%; border-collapse: collapse; font-size: 12px; }
-.vtable th { font-weight: 400; font-size: 10.5px; color: var(--soft); text-align: left; padding: 0 2px; }
 .vtable td { padding: 1px 2px; vertical-align: middle; }
 .vtable.totals td { padding: 3px 4px; border-top: 1px solid var(--line2); }
 .vtable.totals td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -352,8 +344,6 @@ button.small.link:hover { border-color: var(--line); }
 .fhandle { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
 .fhandle input.num { width: 72px; }
 .fsummary { color: var(--ink); background: #f6f8fa; border-radius: 6px; padding: 6px 8px; }
-.steps { margin: 0; padding-left: 22px; font-size: 12px; }
-details.along summary { cursor: pointer; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); min-height: var(--row); display: flex; align-items: center; }
 .fblock { display: flex; flex-direction: column; }
 .fend { justify-content: space-between; border-top: 1px solid var(--line2); padding-top: 8px; margin-top: 4px; }
 .fcheck { display: flex; align-items: center; gap: 6px; min-height: var(--row); padding-right: 6px; cursor: pointer; }
@@ -481,7 +471,6 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 /* the Tools panel compact: only its tools (drawing-ui.md §1); the list and the inspector folded away */
 .tools2 .short { display: none; }
 .panel.compact header, .panel.compact .dlistbox, .panel.compact .ddivider, .panel.compact .dinspect { display: none; }
-.panel.wide.compact:has(.dview:not([hidden])) { height: auto; }
 @media (max-width: 720px) {
   .panel.compact .dview { padding-top: 16px; } /* clear of the sheet's handle */
   /* one line each, scrolled sideways (drawing-ui.md §1): the sheet stays low */
@@ -496,9 +485,6 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .touchbar button { flex: 1 1 0; min-height: 44px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font-size: 13px; }
   .touchbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 }
-@media (pointer: coarse) and (min-width: 1024px) {
-  .panel.compact .touchbar:not([hidden]) { flex-direction: column; width: 64px; padding: 6px; border-bottom: 0; order: 1; }
-}
 /* the Tools panel's header: Undo, Redo, compact, then × (draw/panel.js placeControls) */
 .pactions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .pactions:not([hidden]) + .x { margin-left: 0; }
@@ -511,9 +497,6 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 .tsep { flex: none; width: 1px; align-self: stretch; margin: 2px; background: var(--line); }
 .pactions .tsep { height: 24px; align-self: center; }
 .tools2 { flex-wrap: nowrap; }
-@media (min-width: 1024px) {
-  .panel.compact .tools2 .tsep { width: 100%; height: 1px; margin: 2px 0; align-self: auto; }
-}
 /* a line's depth profile (draw/panel.js profileBlock) */
 svg.profile { width: 100%; height: auto; display: block; background: #f6f8fa; border-radius: 6px; touch-action: none; }
 svg.profile .psurface { stroke: #9fb3c8; stroke-dasharray: 3 3; stroke-width: 1; }
@@ -544,13 +527,11 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 @media (pointer: fine) { .epanel { --row: 28px; } }
 .epanel > .dview { flex: 1 1 auto; min-height: 0; }
 .epanel .dlisthead, .epanel .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
-.dinsphead { display: none; }
 .dinsphead .ititle { flex: 1; min-width: 0; padding: 0 6px; font: 600 13.5px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dinsphead .iacts { display: inline-flex; align-items: center; gap: 0; }
 .dinsphead .hact { width: 28px; height: 28px; border: 0; background: none; border-radius: 6px; display: grid; place-items: center; color: var(--soft); padding: 0; }
 .dinsphead .hact:hover { background: var(--line2); color: var(--ink); }
 .dinsphead .hact svg { width: 16px; height: 16px; }
-.epanel .dinspect > .fhead, .epanel .nowide, .epanel .dinspect .danger { display: none; }
 /* a half folded: its head alone; the other half takes the height */
 .etoggle.fold svg { transition: transform .15s; }
 .etoggle.fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
@@ -566,13 +547,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
      which hides it (Zoom to and a place found keep clear of it) */
   .status { left: 44px; }
   .legends { left: 54px; }
-  .epanel .dinsphead { display: flex; }
   #b-draw { display: none; } /* the tools are always on */
 }
-/* the panel's title row: what the inspector shows, then its actions */
-.pactions .hact { width: 36px; height: 36px; border: 0; background: none; border-radius: 6px; color: var(--soft); }
-.pactions .hact:hover { background: var(--line2); color: var(--ink); }
-.pactions .hact svg { width: 18px; height: 18px; }
 @media (min-width: 1024px) {
   /* its heading, Zoom to, Group and Delete are in the title row */
   .dview .dinspect > .fhead, .dview .nowide, .dview .dinspect .danger { display: none; }

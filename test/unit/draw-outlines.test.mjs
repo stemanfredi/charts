@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { OUTLINES, OUTLINE_NAME, unitOutline, outlineOf, isVehicle } = await import('../../site/draw/outlines.js');
+const { OUTLINES } = await import('../../site/draw/document.js');
+const { OUTLINE_NAME, unitOutline, outlineOf, isVehicle } = await import('../../site/draw/outlines.js');
 const { OUTLINES: DOC_OUTLINES, makePart } = await import('../../site/draw/document.js');
 const { enlargement } = await import('../../site/draw/features.js');
 const { inverse, rectangle, areaOf, ccw } = await import('../../site/geodesy.js');

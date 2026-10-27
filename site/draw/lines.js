@@ -16,7 +16,7 @@ const scale = (lat) => 1 / Math.cos(lat * D2R);
 
 // The anchors of a line: [{ position, hIn, hOut }], from its start to its end (an attached end where
 // what it is attached to is: attach.js refreshAttached keeps it there).
-export function anchorsOf(doc, line) {
+export function anchorsOf(line) {
   return [{ position: line.start.position, hIn: null, hOut: line.startHandle },
     ...line.vertices.map((v) => ({ position: v.position, hIn: v.handleIn, hOut: v.handleOut })),
     { position: line.end.position, hIn: line.endHandle, hOut: null }];
@@ -57,7 +57,7 @@ export function leg(a, b) {
 // cached by what it depends on (the anchors), so an unchanged line is not computed again.
 const cache = new Map();
 export function lineTrace(doc, line) {
-  const anchors = anchorsOf(doc, line);
+  const anchors = anchorsOf(line);
   const key = JSON.stringify(anchors);
   const hit = cache.get(line.id);
   if (hit && hit.key === key) return hit.line;
@@ -158,7 +158,7 @@ export function madeLines(doc) {
   }
   return out;
 }
-export const PART_ORDER = ['trunk', 'branch', 'root link', 'link'];
+const PART_ORDER = ['trunk', 'branch', 'root link', 'link'];
 
 // The drawing's lengths and counts laid out for the Totals view (docs/drawing-ui.md §5): the lines
 // by group (or by the values of property `by`), each line listed under its group but for those a
@@ -206,7 +206,7 @@ export function breakdown(doc, by = null) {
 // handle's end, a third of the leg. Returned as the line's handle fields, in ground metres. A
 // line without vertices stays as it is: straight, a geodesic.
 export function smooth(doc, line) {
-  const anchors = anchorsOf(doc, line);
+  const anchors = anchorsOf(line);
   if (anchors.length < 3) return { startHandle: line.startHandle, endHandle: line.endHandle, vertices: line.vertices.map((v) => ({ handleIn: v.handleIn, handleOut: v.handleOut })) };
   const ps = [anchors[0].position];
   for (const a of anchors.slice(1)) ps.push(near(ps[ps.length - 1], a.position));

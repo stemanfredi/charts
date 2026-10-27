@@ -5,11 +5,11 @@
 const W = 236, H = 44, KEY = 16, BAR = { x: 8, y: 20, w: 220, h: 9 };
 const INK = '#2b3a46', SOFT = '#5d6d79';
 
-// height: the canvas's, H by default (and a row more for a noData key, see head)
-function canvas(el, noData, height) {
+// h: the canvas's height
+function canvas(el, h) {
   // one canvas pixel per screen pixel, in whole screen pixels (at a display scale of 125% too: its
   // CSS size follows), or the browser resamples it and the text blurs
-  const dpr = window.devicePixelRatio || 1, h = height || H + (noData ? KEY : 0);
+  const dpr = window.devicePixelRatio || 1;
   el.width = Math.round(W * dpr);
   el.height = Math.round(h * dpr);
   el.style.width = `${el.width / dpr}px`;
@@ -31,7 +31,7 @@ function head(el, text, sub, noData, height) {
   const w = m.measureText(text).width;
   m.font = '11px system-ui, sans-serif';
   const below = !!sub && BAR.x + w + 6 + m.measureText(sub).width > W - 4;
-  const g = canvas(el, noData, (height || H + (noData ? KEY : 0)) + (below ? SUB_LINE : 0));
+  const g = canvas(el, (height || H + (noData ? KEY : 0)) + (below ? SUB_LINE : 0));
   g.fillStyle = INK;
   g.fillText(text, BAR.x, 14);
   if (sub) {

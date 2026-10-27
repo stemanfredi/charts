@@ -48,10 +48,9 @@
     </div>
   </div>
 
-  <!-- right edge: what the map shows, measuring and drawing (they switch one side panel, which opens
-       to the left of this column), then Import (a drawing's file), Export (a menu: the link, a picture,
-       GIS data, the drawing's file) and About; zoom, compass and the units lower down. The column
-       never moves. -->
+  <!-- right edge, narrower than 1024 px: Layers and Tools (they switch one side panel, which opens to
+       the left of this column), Export (a menu: the link, a picture, GIS data) and About; zoom, my
+       location, compass and the units lower down. The column never moves. -->
   <nav id="rail" class="rail" aria-label="Map controls">
     <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false"><i data-icon="layers"></i><span>Layers</span></button>
     <button type="button" id="b-draw" aria-controls="panel" aria-expanded="false"><i data-icon="draw"></i><span>Tools</span></button>
@@ -94,8 +93,8 @@
     <!-- Draw: the tools, the list of the drawing's elements, and the inspector of what is selected -->
     <div id="dview" class="dview" hidden></div>
   </aside>
-  <!-- From 1024 px wide, while Tools is open (drawing-ui.md §1): the tools in a strip beside the panel,
-       and the drawing's elements in a panel of their own on the left -->
+  <!-- From 1024 px wide (drawing-ui.md §1): the drawing's left frame, the rail of its tools and the
+       column (the tree over the inspector) -->
   <div id="dstrip" class="dstrip" role="toolbar" aria-label="Tools" aria-orientation="vertical" hidden></div>
   <aside id="elements" class="epanel" aria-label="Elements" hidden></aside>
 

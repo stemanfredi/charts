@@ -145,7 +145,7 @@ function layers() {
     { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
     raster('gebco-tid', 'depthsource'),
     ...overlayLayers(['emodnetdepth', 'substrate']),
-    ...Object.keys(GIBS).map((k) => ({ ...raster(`gibs-${k}`, 'gibs', k), source: `gibs-${k}` })),
+    ...Object.keys(GIBS).map((k) => raster(`gibs-${k}`, 'gibs', k)),
     // colours, then the layers that can draw arrows (currents, then wind), whose arrows go over them
     ...Object.keys(CMEMS).sort((a, b) => ARROWS_LAST(a) - ARROWS_LAST(b)).map((id) => raster(`cmems-${id}`, id)),
     raster('traffic', 'traffic'), raster('routes', 'routes'), ...overlayLayers(['worlddensity']),

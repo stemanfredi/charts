@@ -8,7 +8,7 @@ import { isShown, label, labelColour, lookOf, followedPart } from './document.js
 import { resolve, verticesOf } from './attach.js';
 import { fmtDist, fmtArea, fmtBrg, areaOf, pathOf, perimeterOf } from '../geodesy.js';
 
-export const SIZE_PX = { small: 11, medium: 13, large: 16 };
+const SIZE_PX = { small: 11, medium: 13, large: 16 };
 const PAD = { halo: 3, box: 6 }; // px around the text a leader stops short of (a box's padding and border)
 
 

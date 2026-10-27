@@ -27,10 +27,10 @@ test('straight legs: the same length as the ruler over the same points', () => {
 });
 
 test('anchors: the start, each vertex and the end, with their handles', () => {
-  const { doc, line } = lineOf([12, 40], [[12.1, 40.05]], [12.2, 40], { startHandle: [10, 0], endHandle: [-10, 0] });
+  const { line } = lineOf([12, 40], [[12.1, 40.05]], [12.2, 40], { startHandle: [10, 0], endHandle: [-10, 0] });
   line.vertices[0].handleIn = [-5, 0];
   line.vertices[0].handleOut = [5, 1];
-  assert.deepEqual(anchorsOf(doc, line), [
+  assert.deepEqual(anchorsOf(line), [
     { position: [12, 40], hIn: null, hOut: [10, 0] },
     { position: [12.1, 40.05], hIn: [-5, 0], hOut: [5, 1] },
     { position: [12.2, 40], hIn: [-10, 0], hOut: null }]);

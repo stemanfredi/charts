@@ -60,7 +60,7 @@ export const targetPosition = (doc, ref) => resolve(doc, ref)?.position ?? null;
 export const freeRef = (ref) => ({ position: [...ref.position], element: null });
 
 // every reference in the drawing, as [object, key] pairs: the lines' ends, the labels' anchors
-export const refsIn = (doc) => [...doc.lines.flatMap((s) => [[s, 'start'], [s, 'end']]), ...doc.labels.map((a) => [a, 'anchor'])];
+const refsIn = (doc) => [...doc.lines.flatMap((s) => [[s, 'start'], [s, 'end']]), ...doc.labels.map((a) => [a, 'anchor'])];
 
 // Each reference where what it points at is now; one whose target is gone is free where it was.
 // Twice: a line's end on another line's vertex follows that line's own end.
@@ -78,10 +78,10 @@ export function refreshAttached(doc) {
 
 // The edge of a closed ring of corners nearest to p (as on screen: in the projection), and how far
 // along it: { edge, at, d (Mercator metres) }.
-export function nearestEdge(cs, p, closed = true) {
+function nearestEdge(cs, p) {
   const P = mercator(p);
   let best = null;
-  for (let i = 0; i < (closed ? cs.length : cs.length - 1); i++) {
+  for (let i = 0; i < cs.length; i++) {
     const { t, d } = nearestOnSegment(mercator(cs[i]), mercator(cs[(i + 1) % cs.length]), P);
     if (!best || d < best.d) best = { edge: i, at: t, d };
   }

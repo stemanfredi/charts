@@ -2,7 +2,6 @@
 // shape's length (along its bearing) and width (across it). Pure: no map, no DOM.
 
 import { destination, cornersOf, pathOf } from '../geodesy.js';
-export { OUTLINES } from './document.js'; // the file's list (document.js stays free of geodesy)
 export const OUTLINE_NAME = { rectangle: 'Rectangle', triangle: 'Triangle', ellipse: 'Ellipse', 'aerial-vehicle': 'Aerial vehicle', 'surface-vehicle': 'Surface vehicle', 'underwater-vehicle': 'Underwater vehicle' };
 // drawn small, a vehicle is enlarged to this many times the drawing's minimum display size
 export const VEHICLE_MIN_FACTOR = 2;

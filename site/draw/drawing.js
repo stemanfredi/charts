@@ -570,7 +570,7 @@ export class Drawing extends DrawStore {
     // first (capture): a press on a handle or a selected element takes the gesture from the map's panning
     box.addEventListener('pointerdown', (e) => {
       // a second finger during a drag: everything back (as Esc), the map's pinch takes over
-      if (this.drag && e.pointerId !== this.drag.pointer) { cancelDrag(); return; }
+      if (this.drag && e.pointerId !== this.drag.pointer) { this.cancelDrag(); return; } // a second finger: everything as it was (Esc too: keyEvents)
       if (e.button !== 0 || this.tool || this.picking || !this.sel.size || e.ctrlKey || e.metaKey) return;
       const pt = at(e), h = this.handleAt(pt);
       const grab = h || (this.hitAt(pt, 3).some((id) => this.sel.has(id)) ? { role: 'move' } : null);
@@ -610,8 +610,6 @@ export class Drawing extends DrawStore {
       if (d.moved) { this.pending = d.orig; this.change(() => {}); } // one undo step, from the document before the drag
       this.onChange('drag');
     });
-    // a second finger: everything as it was (Esc too: keyEvents)
-    const cancelDrag = () => this.cancelDrag();
   }
   cancelDrag() {
     this.doc = JSON.parse(this.drag.orig);

@@ -4,7 +4,6 @@
 
 import { circle, sector, cornersOf, reachesPole, ccw, areaOf, destination, inverse, pathOf, perimeterOf, fmtDist, fmtArea, fmtBrg } from '../geodesy.js';
 
-export { perimeterOf }; // the panel's and the tests' (geodesy.js)
 import { styleOf, lookOf, minSizeOf, offsetOf, isShown, elements, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf, ARCED } from './document.js';
 import { mercator, unmercator, unrollTo, metresPerPixel } from '../geo.js';
 import { columnsOf } from './document.js';
@@ -53,10 +52,10 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 //   names;
 // - marks: those of the selected elements (sel: Set of IDs) and of the one under the pointer (hover).
 // Every feature has the element's id, so a click on it finds the element.
-// A mark never covers the element's own stroke, so a change to it shows while it is selected: a
-// halo just outside the outline (a point: its outermost round part, or its largest outline), drawn offset
-// by half the stroke's width and a gap (sw), its ring counter-clockwise so that "outside" is one side;
-// handles at the points a drag grabs; a ring around a point's centre.
+// A mark never covers the element's own stroke, so a change to it shows while it is selected: the
+// hover band just outside the outline (a point: its outermost round part, or its largest outline),
+// drawn offset by half the stroke's width and a gap (sw), its ring counter-clockwise so that "outside"
+// is one side; handles at the points a drag grabs; a ring around a point's centre.
 // display: { zoom, ctrl }: an outline too small to see at that zoom is drawn enlarged, dotted
 // (it is not to scale); without a zoom, everything at real size. A line with an Offset carries it
 // (off, px): MapLibre draws it beside its geometry (layers.js), display only; a connection's lines
@@ -207,8 +206,8 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
       if (named(sg)) name(zoomNames, sg, g, st.color);
       zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: sg.guide ? 'guide' : 'path', off, ...lineProps(st) }, geometry: g });
     }
-    if (mark(sg.id, g, { sw: st.width, off }, () => anchorsOf(doc, sg).map((a) => a.position)) && sel.has(sg.id)) {
-      const an = anchorsOf(doc, sg), last = an.length - 1;
+    if (mark(sg.id, g, { sw: st.width, off }, () => anchorsOf(sg).map((a) => a.position)) && sel.has(sg.id)) {
+      const an = anchorsOf(sg), last = an.length - 1;
       // its ends: one attached to a point's centre moves the point; another (free, or attached to a
       // corner, an edge, a vertex) itself, attached again where it is dropped
       const centre = (e) => e.element && e.edge == null && e.vertex == null;
@@ -270,10 +269,10 @@ const showsValues = (doc, el) => lookOf(doc, el).text.values;
 // its end; an area its area and perimeter; a point each round part's radius. units: 'km' | 'nm'.
 export function valueFeatures(doc, units = 'km', bearings = false) {
   const out = [];
-  const label = (id, coord, text, anchor = 'center') => out.push({ type: 'Feature', properties: { id, draft: 0, label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
+  const label = (id, coord, text, anchor = 'center') => out.push({ type: 'Feature', properties: { id, label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
   for (const s of doc.lines) {
     if (!showsValues(doc, s) || !isShown(doc, s)) continue;
-    const tr = lineTrace(doc, s), an = anchorsOf(doc, s);
+    const tr = lineTrace(doc, s), an = anchorsOf(s);
     tr.legs.forEach((len, i) => {
       const mid = pointsAlong(tr.coords, [tr.at[i] + len / 2])[0].position;
       const straight = !an[i].hOut && !an[i + 1].hIn;

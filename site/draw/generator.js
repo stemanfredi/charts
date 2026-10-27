@@ -89,7 +89,7 @@ const facingOf = (el, position, azi, left) => (el.position ? away(inverse(el.pos
 
 // The geometric median of planar points (Weiszfeld), weights all 1; tol: the step (m) at which it
 // has settled.
-export function weiszfeld(pts, iterations = 500, tol = 1e-6) {
+function weiszfeld(pts, iterations = 500, tol = 1e-6) {
   let m = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
   for (let it = 0; it < iterations; it++) {
     let wx = 0, wy = 0, w = 0;
