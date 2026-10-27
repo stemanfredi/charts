@@ -95,7 +95,7 @@ await section('URL state, Link, Measure, a bad link', async () => {
   await p.mouse.click(560, 300);
   await p.keyboard.press('Escape');
   await p.waitForTimeout(400);
-  const kinds = (await p.evaluate(() => [...document.querySelectorAll('#dview .drow:not(.dall) .dname')].map((l) => l.textContent.split(' ')[0]))).sort().join();
+  const kinds = (await p.evaluate(() => [...document.querySelectorAll('.dlist .drow .dname')].map((l) => l.textContent.split(' ')[0]))).sort().join();
   const measured = await p.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return [elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).length, map.querySourceFeatures('drawvalue').map((f) => f.properties.label)]; });
   check(kinds === 'Distance,Ring' && measured[0] === 2 && measured[1].some((t) => /NM$/.test(t)) && liveValues > 0,
     `Measure: a distance and a ring, guides showing their values in NM, the leg's length shown while drawing (${kinds}; ${measured[1].join(' | ')}; ${liveValues} live)`);
@@ -120,7 +120,7 @@ await section('one side panel', async () => {
   await pv.click('#b-draw');
   await pv.waitForTimeout(400);
   const views = await pv.evaluate(() => [!document.querySelector('#panel').hidden, document.querySelector('#lview').hidden, !document.querySelector('#dview').hidden, document.querySelector('#panel-title').textContent, location.hash.includes('menu=draw')]);
-  check(views.join() === 'true,true,true,Tools,true', `Tools switches the panel in place and the link keeps it (${views.join()})`);
+  check(views.join() === 'true,true,true,Drawing,true', `Tools switches the panel in place (titled with what its inspector shows: the drawing), and the link keeps it (${views.join()})`);
   await pv.click('#b-draw');
   check(await pv.evaluate(() => document.querySelector('#panel').hidden), "the shown view's button closes the panel");
   await pv.close();
@@ -481,16 +481,18 @@ await section('the drawing', async () => {
   const sub = await dw.locator('.subrail button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds, round a centre first, then the outlines, then the vehicles (${sub})`);
-  const compactNow = () => dw.evaluate(() => [document.querySelector('#panel').classList.contains('compact'), !!document.querySelector('.dinspect')?.offsetParent]);
-  const onTool = await compactNow();
-  await dw.keyboard.press('Escape'); // the tool ends: the panel whole again
-  const offTool = await compactNow();
-  await dw.click('.cbtn'); // by hand: compact, and back
-  const byHand = await compactNow();
-  await dw.click('.cbtn');
-  await dw.keyboard.press('s');
-  check(onTool.join() === 'true,false' && offTool.join() === 'false,true' && byHand.join() === 'true,false',
-    `tools: a tool started makes the panel compact (only the tools), its end makes it whole; the button switches by hand (${onTool}; ${offTool}; ${byHand})`);
+  // from 1024 px wide: the tools a strip beside the panel, the kinds a column beside it; a tool started
+  // folds nothing away; the Elements panel opened and closed by its toggle (and E)
+  const layoutNow = () => dw.evaluate(() => [document.querySelector('#panel').classList.contains('compact'), !!document.querySelector('.dinspect')?.offsetParent,
+    !!document.querySelector('#dstrip button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#dstrip .subrail')?.offsetParent,
+    !document.querySelector('#elements').hidden, !!document.querySelector('.cbtn')?.offsetParent]);
+  const onTool = await layoutNow();
+  await dw.click('#dstrip .etoggle');
+  const opened = await layoutNow();
+  await dw.keyboard.press('e');
+  const closed = await layoutNow();
+  check(onTool.join() === 'false,true,true,true,false,false' && opened[4] && !closed[4],
+    `tools: a tool on beside the panel, its kinds beside it, nothing folded away; Elements opened by its toggle, closed by E (${onTool}; ${opened[4]}, ${closed[4]})`);
   await dw.mouse.click(500, 400);
   await dw.mouse.click(500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');
@@ -516,7 +518,7 @@ await section('the drawing', async () => {
   const nudged = await dw.evaluate(() => drawing.selected()[0].el.bearing);
   await dw.evaluate(() => drawing.undo()); // back to 330, for the undo check below
   check(!tall.length && nudged === 331, `inspector: value rows never wrap (${tall.join(' | ') || 'none taller'}); ↑ nudges a bearing (330 → ${nudged})`);
-  await dw.locator('.dinspect h2').click(); // out of the fields: the keys are the drawing's
+  await dw.locator('#panel-title').click(); // out of the fields: the keys are the drawing's
   await dw.keyboard.press('Control+z');
   await dw.waitForTimeout(600);
   d = await saved();
@@ -526,8 +528,10 @@ await section('the drawing', async () => {
   d = await saved();
   check(undone === 0 && pt0().bearing === 330, `drawing: undo and redo (bearing ${undone}, then 330)`);
   // the list's header box: all shown, a click hides them all; again, shows them all
-  const allBox = dw.locator('.dlist .dall input[aria-label="Show all listed"]');
-  const wasAll = await allBox.isChecked();
+  await dw.keyboard.press('e'); // the Elements panel, its head's eye
+  const allBox = dw.locator('.dlisthead .deye');
+  const isAll = async () => (await allBox.getAttribute('aria-pressed')) === 'true';
+  const wasAll = await isAll();
   await allBox.click();
   await dw.waitForTimeout(600);
   d = await saved();
@@ -535,7 +539,9 @@ await section('the drawing', async () => {
   await allBox.click();
   await dw.waitForTimeout(600);
   d = await saved();
-  check(wasAll && hidden === false && (pt0().visible ?? true) === true && await allBox.isChecked(), 'drawing: the list\'s All row hides all, then shows all');
+  const allAgain = await isAll();
+  await dw.keyboard.press('e');
+  check(wasAll && hidden === false && (pt0().visible ?? true) === true && allAgain, 'drawing: the list\'s eye hides all, then shows all');
   const [dex] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportItem(dw, 'save'); })()]);
   const savedFile = JSON.parse(await readFile(await dex.path(), 'utf8'));
   const ruler = measuredOf(savedFile).find((f) => f.geometry.type === 'LineString' && f.geometry.coordinates[0][0] === 12);
@@ -569,8 +575,8 @@ await section('the drawing', async () => {
   check(drawings.length === 3, `drawing: every drawing kept in the list, the imported ones added (${drawings.join(', ')})`); // the first and two imported (an empty New left nothing)
   await dw.reload();
   await dw.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
-  check((await dw.locator('#dview .drow:not(.dall)').count()) === 1, 'drawing: restored after a reload');
-  await dw.locator('#dview .drow:not(.dall) .dname').first().click(); // selected: its highlight must stay out of the picture
+  check((await dw.locator('.dlist .drow').count()) === 1, 'drawing: restored after a reload');
+  await dw.evaluate(() => drawing.select([drawing.doc.points[0].id])); // selected: its highlight must stay out of the picture
   const [dpng] = await Promise.all([dw.waitForEvent('download', { timeout: 120000 }), exportItem(dw, 'png')]);
   const [dzip] = await Promise.all([dw.waitForEvent('download', { timeout: 120000 }), exportItem(dw, 'zip')]);
   const dfiles = files(await readFile(await dzip.path()));
@@ -581,7 +587,7 @@ await section('the drawing', async () => {
   check(await dw.evaluate(() => map.getLayoutProperty('draw-mark-line-polygon', 'visibility') === 'visible'), 'drawing: the selection shown again after the exports');
   // lines: a line and two lines from its end drawn with the Line tool (joined there: a point, each
   // attached to it), the totals
-  await dw.locator('.dinspect h2').first().click();
+  await dw.locator('#panel-title').click();
   await dw.keyboard.press('Escape'); // nothing selected: the drawing's own inspector
   await dw.click('.dinspect button:has-text("New")'); // a new drawing in the list, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length);
@@ -624,23 +630,23 @@ await section('the drawing', async () => {
   const painted = await dw.evaluate(() => map.querySourceFeatures('drawzoom').filter((f) => f.properties.kind === 'path').map((f) => f.properties.off));
   check(before === 0 && offset.join() === '2,-8,-8,4' && painted.includes(-8),
     `drawing: Offset off until set (${before}); −8 px on the two lines selected (${offset.slice(0, 3)}), their lengths still counted (${offset[3]} lines), carried to the map (${painted})`);
-  await dw.click('.tools2 button[data-tool=area]'); // Select area, a tool after Measure
+  await dw.click('#dstrip button[data-tool=area]'); // Select area, a tool after Measure
   await dw.mouse.move(150, 250);
   await dw.mouse.down();
   await dw.mouse.move(700, 600, { steps: 5 });
   await dw.mouse.up();
   await dw.keyboard.press('Escape');
-  await dw.click('.dinspect button:text-is("Group")');
+  await dw.click('.pactions button[aria-label=Group]'); // the title row's Group
   check(await dw.evaluate(() => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === drawing.doc.groups[0].id)), 'drawing: Select area, then a group of everything in it');
   // two of its lines grouped: a subgroup of it, one step further in the list; deleted alone, its lines
   // back in the group above
   const top = await dw.evaluate(() => { drawing.select(drawing.doc.lines.slice(0, 2).map((s) => s.id)); return drawing.doc.groups[0].id; });
-  await dw.click('.dinspect button:text-is("Group")');
+  await dw.click('.pactions button[aria-label=Group]'); // the title row's Group
   const nested = await dw.evaluate((t) => {
     const g = drawing.doc.groups.find((x) => x.groupId === t), cls = (id) => document.querySelector(`.dlist [data-id="${id}"]`)?.className ?? '';
     return g && { id: g.id, members: drawing.doc.lines.filter((s) => s.groupId === g.id).length, row: cls(g.id), member: cls(drawing.doc.lines[0].id), selected: drawing.selected()[0]?.el.id === g.id };
   }, top);
-  check(nested?.members === 2 && nested.selected && /\bd2\b/.test(nested.row) && /\bd3\b/.test(nested.member),
+  check(nested?.members === 2 && nested.selected && /\bd1\b/.test(nested.row) && /\bd2\b/.test(nested.member),
     `drawing: a group of a group's members is a subgroup of it, indented further (${JSON.stringify(nested)})`);
   await dw.evaluate((id) => drawing.remove([id]), nested?.id);
   check(await dw.evaluate((t) => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === t), top), 'drawing: a subgroup deleted alone: its lines back in the group above');
@@ -686,7 +692,7 @@ await section('the drawing', async () => {
         return 111320 * Math.hypot((b[0] - a[0]) * k, b[1] - a[1]);
       })), hubs: c?.hubs.length, minBranch: c?.minBranch };
   });
-  await dw.locator('.dinspect h2').first().click();
+  await dw.locator('#panel-title').click();
   await dw.keyboard.press('Control+z');
   const genUndone = await dw.evaluate(() => [drawing.doc.rules.filter((r) => r.kind === 'connect').length, drawing.doc.lines.length, drawing.doc.rules.filter((r) => r.kind === 'distribute').length]);
   check(previewed[0] === gen.n && previewed[1] > 0, `drawing: Distribute along previews its points and lines before making them (${previewed})`);
@@ -817,7 +823,7 @@ await section('the drawing', async () => {
   await dw.keyboard.press('t');
   await dw.mouse.click(640, 300);
   await dw.keyboard.type('Hi {name}');
-  await dw.locator('.dinspect h2').first().click();
+  await dw.locator('#panel-title').click();
   await dw.keyboard.press('Escape'); // the tool off; the label stays selected
   // drawn once its glyphs have loaded and it has been placed: a fixed wait was sometimes too short
   await dw.waitForFunction(() => map.queryRenderedFeatures({ layers: ['draw-label-text'] }).length > 0, null, { timeout: 5000 }).catch(() => {});

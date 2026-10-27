@@ -93,6 +93,10 @@
     <!-- Draw: the tools, the list of the drawing's elements, and the inspector of what is selected -->
     <div id="dview" class="dview" hidden></div>
   </aside>
+  <!-- From 1024 px wide, while Tools is open (drawing-ui.md §1): the tools in a strip beside the panel,
+       and the drawing's elements in a panel of their own on the left -->
+  <div id="dstrip" class="dstrip" role="toolbar" aria-label="Tools" aria-orientation="vertical" hidden></div>
+  <aside id="elements" class="epanel" aria-label="Elements" hidden></aside>
 
   <div id="legends" class="legends" aria-label="Legends"></div>
   <footer id="status" class="status"></footer>

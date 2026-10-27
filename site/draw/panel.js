@@ -36,6 +36,18 @@ const KIND_ICON = {
   label: ['M10 4h10v7H10z', 'M10 11 4 19'], // a text box and its leader
   area: ['M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4M4 7V4'], // a dashed box: Select area
 };
+// the panels' and the actions' icons (as Lucide's): the Elements panel, Zoom to, Duplicate, Group,
+// Delete, Detach, shown and hidden
+const UI_ICON = {
+  elements: ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M9 3v18'],
+  zoom: ['M3 7V5a2 2 0 0 1 2-2h2', 'M17 3h2a2 2 0 0 1 2 2v2', 'M21 17v2a2 2 0 0 1-2 2h-2', 'M7 21H5a2 2 0 0 1-2-2v-2', 'M12 9v6', 'M9 12h6'],
+  duplicate: ['M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2'],
+  group: ['M3 7h7l2 2h9v10H3z', 'M12 11v6', 'M9 14h6'],
+  delete: ['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6', 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2', 'M10 11v6', 'M14 11v6'],
+  detach: ['m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'm5.17 11.75-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71', 'M8 2v3', 'M2 8h3', 'M16 19v3', 'M19 16h3'],
+  eye: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
+  hidden: ['M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7', 'M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6', 'M14.1 14.1a3 3 0 1 1-4.2-4.2', 'M2 2l20 20'],
+};
 // what each kind of point and shape looks like (the sub-rails, the list): those round a centre have it
 // marked, the outlines not
 const POINT_ICON = {
@@ -56,6 +68,8 @@ const presetTool = (x) => (x.point.parts.length ? 'shape' : 'point');
 const SYMBOL_ICON = { diamond: ['m12 4 8 8-8 8-8-8z'], square: ['M6 6h12v12H6z'], triangle: ['M12 4l9 15H3z'], dot: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'], none: [] };
 const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle', dot: 'Dot', none: 'None' };
 const SPLIT_KEY = 'charts.drawing.split';
+const ELEMENTS_KEY = 'charts.drawing.elements'; // the Elements panel open ('1') or not, from 1024 px wide
+const WIDE = typeof matchMedia === 'function' ? matchMedia('(min-width: 1024px)') : { matches: false, addEventListener() {} }; // the strip and the Elements panel
 const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'underwater-vehicle': 'Diameter' }; // a shape's width, as said of each outline
 
 // root: the view's element. ctx: { drawing, map, icon, units() ('km' | 'nm'), known, isOpen() (the
@@ -197,12 +211,32 @@ export function drawView(root, ctx) {
     queueMicrotask(box.render); // once what it counts can be read (the list's, while the panel is still being built)
     return h('label', { class: 'dvis', title: 'Show all, or hide all when every one is shown' }, box);
   };
-  const listAll = allBox(() => (filter ? shown() : drawElements()), 'Show all listed');
-  const allRow = h('li', { class: 'drow dall' }, listAll, h('span', { class: 'dname' }, 'All'));
+  // the list's head: its name, one eye for every element listed (shown: a click hides them all; else
+  // shows them all), and from 1024 px wide the Elements panel's toggle
+  const listed = () => (filter ? shown() : drawElements());
+  const eyeAll = h('button', { type: 'button', class: 'deye', onclick: () => { const all = listed(); showAll(!all.every((x) => x.el.visible), all); } });
+  function renderEyeAll() {
+    const all = listed(), on = all.filter((x) => x.el.visible).length, every = !!all.length && on === all.length;
+    eyeAll.setAttribute('aria-pressed', on && !every ? 'mixed' : String(every));
+    eyeAll.setAttribute('aria-label', every ? 'Hide all listed' : 'Show all listed');
+    eyeAll.title = every ? 'All shown: click to hide them all' : on ? 'Some hidden: click to show them all' : 'All hidden: click to show them all';
+    eyeAll.replaceChildren(icon(...(every ? UI_ICON.eye : UI_ICON.hidden)));
+  }
   const filterRow = h('div', { class: 'dfilter' }, filterInput, selectShown);
   // the hover ends when the pointer leaves the list: a row rebuilt under it never says it was left
   const list = h('ul', { class: 'dlist', 'aria-label': 'Elements', onpointerleave: () => drawing.setHover(null) });
-  const listBox = h('div', { class: 'dlistbox' }, filterRow, list);
+  // the Elements panel (from 1024 px wide): open or closed by its toggle, in the strip and in its own head
+  let elementsOpen = false;
+  try { elementsOpen = localStorage.getItem(ELEMENTS_KEY) === '1'; } catch { /* only a convenience */ }
+  const elementsToggle = () => h('button', { type: 'button', class: 'etoggle', 'aria-label': 'Elements', title: 'Elements: the list of what is drawn (E)',
+    onclick: () => setElements(!elementsOpen) }, icon(...UI_ICON.elements));
+  const stripToggle = elementsToggle(), headToggle = elementsToggle();
+  function setElements(v) {
+    elementsOpen = v;
+    try { localStorage.setItem(ELEMENTS_KEY, v ? '1' : '0'); } catch { /* only a convenience */ }
+    place();
+  }
+  const listBox = h('div', { class: 'dlistbox' }, h('div', { class: 'dlisthead' }, h('h2', {}, 'Elements'), eyeAll, headToggle), filterRow, list);
 
   // the drawing's elements this view lists: all of them, measurements too
   const drawElements = () => elements(drawing.doc);
@@ -239,8 +273,8 @@ export function drawView(root, ctx) {
     const offset = el.look?.offset ? '⇉' : ''; // Offset set here: found again in the list
     if (kind === 'line') return [el.guide ? 'guide' : '', fmtDist(lineTrace(drawing.doc, el).length, u), offset].filter(Boolean).join(' · ');
     if (kind === 'label') return labelText(drawing.doc, el, u).split('\n')[0];
-    const t = facts.totals.groups.get(el.id);
-    return [t ? countOf(t, u) : 'empty', offset].filter(Boolean).join(' · ');
+    const t = facts.totals.groups.get(el.id), n = t ? t.points + t.lines + t.areas : 0;
+    return [n ? plural(n, 'element') : 'empty', offset].filter(Boolean).join(' · ');
   }
   // an outline drawn larger than its real size at this zoom says so
   function enlarged(point) {
@@ -248,26 +282,29 @@ export function drawView(root, ctx) {
     return k > 1 ? `shown ×${k < 10 ? k.toFixed(1) : Math.round(k)}` : '';
   }
 
-  // one row of the list: shown or not, its kind, its name, a short value, delete; selected by a click
-  // (Ctrl/⌘: adds or removes), outlined on the map while the pointer is over it
-  function elementRow({ id, icon, kindIcon, title, name, value = '', visible, selected }, on, more = {}) {
+  // one row of the list: a group's fold (or its room), its kind, its name, a short value, its eye (shown
+  // or hidden); selected by a click (Ctrl/⌘: adds or removes), outlined on the map while the pointer is
+  // over it
+  function elementRow({ id, icon, kindIcon, title, name, value = '', valueTitle, visible, selected }, on, more = {}) {
     return h('li', { class: `drow${selected ? ' sel' : ''}${visible ? '' : ' dim'}${more.classes ? ` ${more.classes}` : ''}`, 'data-id': id,
       onpointerenter: () => on.hover(id), onpointerleave: () => on.hover(null) },
-    h('label', { class: 'dvis', title: 'Show on the map' }, h('input', { type: 'checkbox', checked: visible, 'aria-label': `Show ${name}`, onchange: (e) => on.visible(e.target.checked) })),
-    more.fold || null,
+    more.fold || h('span', { class: 'dfold none', 'aria-hidden': 'true' }),
     h('span', { class: 'kind', title }, icon(...kindIcon)),
     h('button', { type: 'button', class: 'dname', title: `Select (${MOD}: add or remove)`, onclick: (e) => on.select(e), ...more.name }, name),
-    h('span', { class: 'val' }, value),
-    h('button', { type: 'button', class: 'x', 'aria-label': `Delete ${name}`, title: 'Delete', onclick: () => on.remove() }, '×'));
+    h('span', { class: 'val', title: valueTitle }, value),
+    h('button', { type: 'button', class: 'deye', 'aria-pressed': String(visible), 'aria-label': `Show ${name}`, title: visible ? 'Shown: click to hide' : 'Hidden: click to show',
+      onclick: () => on.visible(!visible) }, icon(...(visible ? UI_ICON.eye : UI_ICON.hidden))));
   }
   function rowOf({ kind, el, depth = 0 }) {
     const id = el.id;
     const fold = kind === 'group' ? h('button', { type: 'button', class: 'dfold', 'aria-expanded': String(!folded.has(id)), 'aria-label': `Show the members of ${label(kind, el)}`,
       onclick: () => { if (folded.has(id)) folded.delete(id); else folded.add(id); renderList(); } }) : null;
-    return elementRow({ id, icon, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: label(kind, el), value: value(kind, el), visible: el.visible, selected: drawing.sel.has(id) }, {
-      select: (e) => clickRow(id, e), hover: (x) => drawing.setHover(x), remove: () => del([id]),
+    const t = kind === 'group' && facts.totals.groups.get(id);
+    return elementRow({ id, icon, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: label(kind, el), value: value(kind, el), valueTitle: t ? countOf(t, ctx.units()) : undefined,
+      visible: el.visible, selected: drawing.sel.has(id) }, {
+      select: (e) => clickRow(id, e), hover: (x) => drawing.setHover(x),
       visible: (v) => drawing.change((doc) => { find(doc, id).el.visible = v; }),
-    }, { fold, classes: [`member d${Math.min(depth + 1, 5)}`, kind === 'group' ? 'dgroup' : ''].filter(Boolean).join(' '), // under All: a step to its right
+    }, { fold, classes: [depth ? `d${Math.min(depth, 5)}` : '', kind === 'group' ? 'dgroup' : ''].filter(Boolean).join(' '),
       name: { title: `Select (Shift: range, ${MOD}: add or remove). Double-click to rename.`, ondblclick: () => rename(id) } });
   }
 
@@ -275,9 +312,9 @@ export function drawView(root, ctx) {
     computeFacts();
     const rows = shown();
     filterRow.hidden = drawElements().length <= FILTER_FROM && !filter; // nothing to show above the list: no room taken
-    list.replaceChildren(...(rows.length ? [allRow] : []), ...rows.map(rowOf));
-    listAll.firstChild.render();
-    if (!rows.length) list.append(h('li', { class: 'empty' }, filter ? 'Nothing matches the filter.' : 'Nothing drawn yet: pick a tool above, then click on the map.'));
+    list.replaceChildren(...rows.map(rowOf));
+    renderEyeAll();
+    if (!rows.length) list.append(h('li', { class: 'empty' }, filter ? 'Nothing matches the filter.' : 'Nothing drawn yet: pick a tool, then click on the map.'));
   }
   function clickRow(id, e) {
     // a range starts from the row last clicked, or else from the last element selected (on the map)
@@ -630,7 +667,7 @@ export function drawView(root, ctx) {
     if (!on) { const [, lat, , lon] = F.position(() => now(id)[key].position, (q) => set(id, (x) => { x[key] = { position: q, element: null }; })); return [row(text, pair(lat, '·', lon)), row('', attach)]; }
     // attached: what to (and where on it), Attach to…; × detaches it (it stays where it is)
     return row(text, link(on.el.id), partName(r) ? h('span', { class: 'funit' }, partName(r)) : null, attach,
-      h('button', { type: 'button', class: 'x', title: 'Detach: keep it where it is, no longer following what it is attached to', 'aria-label': `Detach ${text.toLowerCase()}`, onclick: () => set(id, (x) => { x[key] = freeRef(x[key]); }) }, '×'));
+      h('button', { type: 'button', class: 'x', title: 'Detach: keep it where it is, no longer following what it is attached to', 'aria-label': `Detach ${text.toLowerCase()}`, onclick: () => set(id, (x) => { x[key] = freeRef(x[key]); }) }, icon(...UI_ICON.detach)));
   }
 
   // a label: its text (with live values), what it points at, its leader and its look
@@ -884,13 +921,14 @@ export function drawView(root, ctx) {
     xs.length > shown.length ? h('button', { type: 'button', class: 'small', onclick: () => { chipsAll = true; renderInspector(); } }, `+${xs.length - shown.length} more`) : null);
   }
 
+  // a new group of ids, in the nearest group they are all in; it is selected
+  function groupThem(ids) { let g; drawing.change((doc) => { g = makeGroup(doc, ids); }); drawing.select([g.id]); }
   function severalInspector(xs) {
     const counts = {};
     for (const x of xs) counts[x.kind] = (counts[x.kind] || 0) + 1;
     const vis = xs.every((x) => x.el.visible) ? true : xs.every((x) => !x.el.visible) ? false : null;
     const ids = xs.map((x) => x.el.id), members = ids;
     const pointIds = xs.filter((x) => x.kind === 'point').map((x) => x.el.id);
-    const makeG = () => { let g; drawing.change((doc) => { g = makeGroup(doc, members); }); drawing.select([g.id]); };
     // two points: how far apart, and the bearing from the first to the second
     const between = xs.length === 2 && xs.every((x) => x.kind === 'point') ? inverse(xs[0].el.position, xs[1].el.position) : null;
     return [h('div', { class: 'fhead' }, h('h2', {}, `${xs.length} elements selected`),
@@ -901,7 +939,7 @@ export function drawView(root, ctx) {
     between ? row('Bearing', h('span', { class: 'fvalue', title: `From ${label(xs[0].kind, xs[0].el)}` }, fmtBrg(between.azi))) : null,
     h('div', { class: 'frow fbuttons' },
       pointIds.length > 1 ? h('button', { type: 'button', title: 'Join these points to roots with straight lines: trees through hubs, or chains', onclick: () => openConnect(pointIds) }, 'Connect…') : null,
-      h('button', { type: 'button', title: 'A new group of these, in the group they are in', onclick: makeG }, 'Group')),
+      h('button', { type: 'button', class: 'nowide', title: 'A new group of these, in the group they are in', onclick: () => groupThem(members) }, 'Group')),
     groupRow(members),
     xs.some((x) => x.kind === 'label') ? leaderRow(xs.filter((x) => x.kind === 'label')) : null,
     lookBlock(xs),
@@ -1212,6 +1250,22 @@ export function drawView(root, ctx) {
     const top = inspector.scrollTop;
     inspector.replaceChildren(...kids.flat().filter(Boolean));
     inspector.scrollTop = top;
+    renderHead(xs);
+  }
+  // From 1024 px wide the panel's title row is the inspector's (drawing-ui.md §5): what it shows (its
+  // heading), then Zoom to, Duplicate, Group and Delete for the selection (with nothing selected,
+  // Zoom to all of it; none while a form is open). Narrower, the panel's own: Tools, Undo, Redo.
+  function renderHead(xs = drawing.selected()) {
+    if (!WIDE.matches) return ctx.setTitle?.('Tools');
+    ctx.setTitle?.(inspector.querySelector('.fhead h2')?.textContent || 'Tools');
+    const ids = xs.map((x) => x.el.id), every = ids.length ? ids : elements(drawing.doc).map((x) => x.el.id);
+    const act = (paths, aria, title, run) => h('button', { type: 'button', class: 'hact', 'aria-label': aria, title, onclick: run }, icon(...paths));
+    ctx.header?.replaceChildren(...(form ? [] : [
+      every.length ? act(UI_ICON.zoom, 'Zoom to', ids.length ? 'Zoom to: fit the map to it' : 'Zoom to: fit the map to the whole drawing', () => showOnMap(new Set(every))) : null,
+      ids.length ? act(UI_ICON.duplicate, 'Duplicate', `Duplicate: a copy beside it (${MOD} D)`, () => { const n = drawing.duplicate(); if (n) note(`Duplicated: ${plural(n, 'element')}`, true); }) : null,
+      ids.length ? act(UI_ICON.group, 'Group', 'Group: a new group of it, in the group it is in', () => groupThem(ids)) : null,
+      ids.length ? act(UI_ICON.delete, 'Delete', 'Delete (Delete)', () => del(ids)) : null,
+    ].filter(Boolean)));
   }
 
   // ---- map and files --------------------------------------------------------------------------
@@ -1297,7 +1351,32 @@ export function drawView(root, ctx) {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setSplit(listBox.offsetHeight + (e.key === 'ArrowUp' ? -24 : 24)); }
   });
 
-  root.append(toolsRow, touchbar, subrail, listBox, divider, inspector, noteEl, fileInput); // fileInput: the rail's Import
+  // From 1024 px wide (drawing-ui.md §1): the tools in a strip beside the panel (the Elements toggle
+  // first, Undo and Redo last, a tool's kinds opening to its left), the list in the Elements panel on
+  // the left, the panel the inspector only; both shown while the Tools panel is. Narrower: all in the
+  // panel, the list above the inspector. fileInput: the rail's Import.
+  function place() {
+    const wide = WIDE.matches, open = ctx.isOpen();
+    if (wide) {
+      const makes = toolBtns.filter((b) => b.dataset.tool !== 'area'), select = toolBtns.find((b) => b.dataset.tool === 'area');
+      ctx.strip?.replaceChildren(stripToggle, sep(), ...makes, sep(), select, sep(), undoBtn, redoBtn, subrail);
+      ctx.elements?.append(listBox);
+      root.replaceChildren(touchbar, inspector, noteEl, fileInput);
+    } else {
+      delete compactBtn.dataset.c; // its icon and title set again (renderTools)
+      placeControls(ctx.compact());
+      root.replaceChildren(toolsRow, touchbar, subrail, listBox, divider, inspector, noteEl, fileInput);
+    }
+    if (ctx.strip) ctx.strip.hidden = !(wide && open);
+    if (ctx.elements) ctx.elements.hidden = !(wide && open && elementsOpen);
+    document.body.classList.toggle('elements-open', !!ctx.elements && !ctx.elements.hidden);
+    for (const b of [stripToggle, headToggle]) b.setAttribute('aria-pressed', String(elementsOpen));
+    headToggle.hidden = !wide;
+    renderHead();
+    renderTools();
+  }
+  WIDE.addEventListener('change', () => { if (WIDE.matches && ctx.compact()) ctx.setCompact(false); place(); });
+  place();
 
   // ---- keys, while the Tools panel is open -----------------------------------------------------
   window.addEventListener('keydown', (e) => {
@@ -1343,7 +1422,7 @@ export function drawView(root, ctx) {
     redoBtn.disabled = !drawing.redos.length;
     renderTouch();
     const c = ctx.compact();
-    if (compactBtn.dataset.c !== String(c)) {
+    if (!WIDE.matches && compactBtn.dataset.c !== String(c)) {
       compactBtn.dataset.c = String(c);
       placeControls(c);
       compactBtn.setAttribute('aria-label', c ? 'The whole panel' : 'Only the tools');
@@ -1382,6 +1461,8 @@ export function drawView(root, ctx) {
     // the rail's Export › Presets: the user's, as a file
     savePresets: () => ctx.download(presetsFile(drawing.presets), 'presets.json'),
     press, cycle, // the tools' keys (app.js)
+    place, // the Tools panel opened or closed (app.js)
+    toggleElements: () => setElements(!elementsOpen), // its key (app.js)
     open: () => fileInput.click(),
     // the panel closed: nothing it started goes on picking on the map (the form's roots, Attach to…)
     closed() { if (form) { closeForm(); renderInspector(); } if (drawing.repointing) drawing.cancelRepoint(); },

@@ -21,17 +21,28 @@ Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, 
 - Units (km or NM) are switched beside the scale; bearings beside lengths in the drawing's **Display**
   (§5). Both apply to every value shown.
 
-The Tools panel, top to bottom: the tools row, the sub-rail of the tool on, the list, a divider
-(dragged, or ↑ ↓ when focused; its place remembered in this browser), the inspector, and a note that
-says for a few seconds what just happened (with **Undo** where it applies).
+**From 1024 px wide**, while Tools is open, three things, side by side:
 
-**Compact**: only the tools, the list and the inspector folded away. A tool
+- the **Elements** panel on the left (§4), under the search; its toggle (a panel icon) is at the
+  top of the tool strip and in its own head, and **E** works too; it starts closed, and whether it is
+  open is remembered in this browser;
+- the **tool strip**, a column of icons beside the Tools panel: the Elements toggle, the tools that
+  make, Select, Undo and Redo; a tool's kinds open in a column to its left, level with its top;
+- the **Tools panel**, the inspector only (§5): its title row says what it shows ("Line · Line 1",
+  "3 elements selected", "Drawing") and holds the actions on it: **Zoom to**, **Duplicate**,
+  **Group**, **Delete** (with nothing selected, Zoom to the whole drawing). A tool on changes none of
+  it. Under the inspector, a note says for a few seconds what just happened (with **Undo** where it
+  applies).
+
+**Narrower**, the Tools panel holds it all, top to bottom: the tools row, the sub-rail of the tool
+on, the list, a divider (dragged, or ↑ ↓ when focused; its place remembered in this browser), the
+inspector, and the note; its header has **Undo**, **Redo** and the compact button.
+
+**Compact** (narrower than 1024 px): only the tools, the list and the inspector folded away. A tool
 started makes the panel compact and its end makes it whole again (Label keeps it whole: a label's
-text is typed in the inspector); a button switches by hand: whole, in the panel's header beside the
-× (with **Undo** and **Redo**); compact, at the top of the tools.
-From 1024 px wide it is a column beside the rail (**Meas.** for Measure), the tool's kinds in a
-column beside it; narrower, the tools and the kinds rows (each one line, scrolled sideways on a
-phone). Compact, the tools hold everything, in groups set apart by dividers: the button back to the
+text is typed in the inspector); a button switches by hand: whole, in the panel's header; compact,
+at the start of the tools. The tools and the kinds are rows, each one line, scrolled sideways on a
+phone; compact, the tools hold everything, in groups set apart by dividers: the button back to the
 whole panel, the tools that make, Select, Undo and Redo.
 
 **On a phone** the panel is a sheet at one of three heights: compact, half the screen, or full (as
@@ -137,22 +148,23 @@ from this: its values are the drawing's own (§2.1, Values while drawing).
 
 ## 4. The list
 
-- One row per element: a visibility box, an icon, the name, a short value, and × to delete (with a
-  mouse, the box of a shown element and the × appear on the row pointed at or selected). The list
-  is a tree: a group, then its subgroups and members one step further in; a group folds open and
-  closed. At the top, the groups, then the rest.
+- The list's head: **Elements**, an eye for every element listed (all shown: a click hides them all;
+  else it shows them all), and from 1024 px wide the panel's toggle.
+- One row per element: a group's fold, an icon, the name, a short value, and an eye at its end
+  (crossed when hidden; with a mouse, a shown element's eye appears on the row pointed at or
+  selected). The list is a tree: a group, then its subgroups and members one step further in; a
+  group folds open and closed. At the top, the groups, then the rest. Deleting is the title row's
+  or the Delete key's, not the row's.
 - Names and icons say what an element is: a point is a **Point**, **Circle**, **Rings**, **Sector**,
   or its outline's name (**Rectangle**, **Ellipse**…); an area is an **Area**; then **Line**,
   **Label**, **Group**. An unnamed one shows as its kind and place.
 - The value: a shape's size ("shown ×7.0" when drawn enlarged), its first filled round part's radius (and a
   sector's aperture), an area's area, a line's length ("guide" when it is one), a label's text, a
-  group's counts (everything in it, its subgroups' too).
+  group's count of elements (everything in it, its subgroups' too; the whole count in its tooltip).
 - **Select** (the tool, A): drag a box on the map: what lies entirely inside is selected, a point by
   its centre, a shape by its whole outline; Shift adds; Esc or a right-click ends it.
-- The first row, **All**: one box over the rows' own (ticked: every element listed is shown; half:
-  some are): a click shows them all, or hides them all when every one is shown. Every element is
-  listed a step to its right. Past 30 elements a filter appears (names and property values), with
-  **Select all shown** (Shift: adds).
+- Past 30 elements a filter appears (names and property values), with **Select all shown** (Shift:
+  adds).
 - A row selects on the map, and the reverse (the list scrolls to it); hovering a row outlines the
   element. Shift-click selects a range, Ctrl/⌘-click adds or removes. Double-click a name, or F2, to
   rename; ↑ ↓ move the selection.
@@ -163,10 +175,11 @@ It shows what is selected: one element, several, or nothing (the drawing). A fie
 or when it loses focus, one undo step; a value that does not read stays marked and is not applied;
 Esc in a field puts its value back.
 
-**Common parts**, in this order: the header (kind · name, **Zoom to**); **Name**; **Group** (none, or a group,
+**Common parts**, in this order: the header (kind · name, **Zoom to**; from 1024 px wide, the panel's
+title row instead, §1); **Name**; **Group** (none, or a group,
 shown with the groups it is in, "A › B"; a group never offered to itself or a group inside it; **New
 group…**: a group of it in the group it is in); what it is (below); **Look**; then **Guide** (drawn
-faint and dashed, left out of the totals; on points, lines and areas), **Visible**, **Delete**. Near the foot, **Data**: its
+faint and dashed, left out of the totals; on points, lines and areas), **Visible**, **Delete** (from 1024 px wide, the title row's). Near the foot, **Data**: its
 properties, keys and values (a description, a category: properties like any other), a list whose
 empty last row ("add a key…") adds one. Folded while it has nothing of the user's (the arrow by its
 heading opens it); a point placed from a preset says so under it ("from preset Rings").
@@ -215,8 +228,8 @@ it.
   closing edge following; its bar: **Insert after** (halfway to the next), **Delete** (while more than
   three are left)).
 - **Line:** **Start** and **End** (attached: what to, and which vertex or edge, with **Attach to…**
-  (the next click on the map chooses again; Esc or a right-click cancels) and **×**, which detaches it: the end stays where it
-  is; free: its position, and **Attach to…**); Length (the drawn line's, curves
+  (the next click on the map chooses again; Esc or a right-click cancels) and a broken link, which detaches it: the end stays
+  where it is; free: its position, and **Attach to…**); Length (the drawn line's, curves
   included) with **Distribute along…** (§6); **Depth profile** (pressed: the depth along
   the line, as the depth shading has it (GEBCO, cut to the coast), sampled at the grid's spacing, at
   most 1,000 places; the shallowest and the deepest; a chart whose place pointed at shows on the map,
@@ -229,7 +242,7 @@ it.
   **Handles** for each vertex's curve (metres east and north, in and out).
 - **Label:** Text, with **Insert** for the live values that apply to what it points at: name, length,
   distance along, bearing, radius, area, perimeter; **Attached to** (a link, which vertex or edge)
-  with **Attach to…** and **×** (detach), as a line's end; Along (typed) for a label on a line, or the
+  with **Attach to…** and the broken link (detach), as a line's end; Along (typed) for a label on a line, or the
   position of a free one; **Leader**
   (Arrow, Dot, Line, None); its Look; Placement and **Reset**.
 - **Group:** the group it is in; Members (its own, and how many groups in it; **Select members**
@@ -240,7 +253,8 @@ it.
   out; past 12, "+N more"), the kinds selected; two points give the distance and bearing between
   them; **Connect…** (two or more points, §6), **Group** (a new group of them, in the nearest group
   they are all in: a subgroup of it; a group among them goes in whole), the group menu, the labels'
-  Leader, one Look for all of them, Visible, **Delete all**.
+  Leader, one Look for all of them, Visible, **Delete all** (from 1024 px wide, Zoom to, Group and
+  Delete are the title row's, §1).
 - **The drawing** (nothing selected): Title, Description, Author; **Drawings in this browser** (§10);
   **Display**, the drawing's look, which every element takes unless it or a group sets its own:
   Names on the map, Offset (and where Offset is set otherwise, each a link), Min. size; then Bearings beside lengths, for values shown;
@@ -348,6 +362,7 @@ one end to the other, an outline's ring.
 |---|---|
 | / | search |
 | L, D | Layers, Tools |
+| E | the Elements panel (from 1024 px wide) |
 | P, G, S, T, M, A | point, line, shape, label, measure, select area |
 | a tool's key again | its next kind |
 | Enter, double-click | finishes |

@@ -13,6 +13,7 @@ const KEYS = [
   { line: 1, key: '/', show: '[/]', text: 'search', open: 'search' },
   { line: 1, key: 'l', text: 'layers', open: 'layers' },
   { line: 1, key: 'd', text: 'tools (draw and measure)', open: 'draw' },
+  { line: 1, key: 'e', text: 'elements (the list beside the map)', open: 'elements' },
   { line: 3, key: 'p', text: 'point', tool: ['draw', 'point'] },
   { line: 3, key: 'g', text: 'line', tool: ['draw', 'line'] },
   { line: 3, key: 's', text: 'shape', tool: ['draw', 'shape'] },

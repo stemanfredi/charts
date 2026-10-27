@@ -192,6 +192,8 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 $('#nostart').remove(); // started (index.html)
 const small = () => window.innerWidth < 720;
+// from 1024 px wide the Tools panel's tools are a strip beside it, its list a panel on the left (draw/panel.js)
+const wide = () => matchMedia('(min-width: 1024px)').matches;
 
 // ---- bottom row: credits; scale note, time shown, cursor position, the scale
 // One scale bar, in the display's units (the switch beside it); the PNG export draws a double
@@ -1007,6 +1009,7 @@ function renderUnits() {
 const drawPanel = drawView($('#dview'), {
   drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units, isOpen: () => state.panel === 'draw',
   measureIcon: ICON.ruler, measureIcons: (k) => ICON[k], compact: () => compact.on, setCompact: (v) => setCompact(v), free: () => free(), header: $('#panel-actions'),
+  strip: $('#dstrip'), elements: $('#elements'), setTitle: (t) => { if (state.panel === 'draw') $('#panel-title').textContent = t; },
   // an imported drawing added to the list and opened, with its view and layers; one of the list opened
   // where it was drawn
   onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
@@ -1019,7 +1022,7 @@ function renderDrawTool() {
   // a tool started makes the Tools panel compact, and it goes back when the tool ends (drawing-ui.md §1
   // §6b); a label's text is typed in the inspector: the Label tool keeps it whole
   const placing = drawing.tool && drawing.tool !== 'label';
-  if (placing && state.panel === 'draw' && !compact.on) setCompact(true, true);
+  if (placing && state.panel === 'draw' && !compact.on && !wide()) setCompact(true, true); // from 1024 px wide the tools are a strip: nothing folds
   else if (!placing && compact.auto) setCompact(false);
 }
 
@@ -1036,6 +1039,10 @@ function free() {
   if (panel.hidden) return p;
   const r = panel.getBoundingClientRect();
   if (small()) p.bottom += Math.max(0, innerHeight - r.top); else p.right += Math.max(0, innerWidth - r.left);
+  // the tools' strip beside it, and the Elements panel on the left (from 1024 px wide)
+  const strip = $('#dstrip'), side = $('#elements');
+  if (!strip.hidden) p.right += Math.max(0, r.left - strip.getBoundingClientRect().left);
+  if (!side.hidden) p.left += side.getBoundingClientRect().right;
   return p;
 }
 function setCompact(on, auto = false) {
@@ -1056,6 +1063,7 @@ function setPanel(view) {
   panel.classList.toggle('compact', compact.on && view === 'draw');
   $('#panel-actions').hidden = view !== 'draw'; // Undo, Redo, compact: the Tools panel's
   if (view !== 'draw') { drawing.stop(); drawPanel.closed(); }
+  drawPanel.place(); // the strip and the Elements panel with it (from 1024 px wide)
   writeHash();
 }
 for (const [v, [btn]] of Object.entries(VIEWS)) btn.addEventListener('click', () => setPanel(state.panel === v ? null : v));
@@ -1136,6 +1144,7 @@ window.addEventListener('keydown', (e) => {
   const k = keyEntry(e.key);
   if (!k?.open && !k?.tool) return;
   if (k.open === 'search') { e.preventDefault(); q.focus(); }
+  else if (k.open === 'elements') { if (state.panel !== 'draw') setPanel('draw'); if (wide()) drawPanel.toggleElements(); }
   else if (k.open) setPanel(state.panel === k.open ? null : k.open);
   else {
     if (state.panel !== 'draw' && !small()) setPanel('draw'); // phones: the sheet makes way for the map

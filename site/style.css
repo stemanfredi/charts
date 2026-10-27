@@ -198,10 +198,20 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow .dname { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 0 4px; min-height: var(--row); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drow input.dname { border: 1px solid var(--accent); border-radius: 4px; background: #fff; }
 .drow .val { flex: none; font-family: var(--mono); font-size: 11px; color: var(--soft); white-space: nowrap; }
-.drow .x { width: var(--row); height: var(--row); font-size: 18px; }
+/* a row's eye, at its end: shown or hidden (crossed); with a mouse, a shown one's eye only on the row
+   pointed at or selected */
+.deye { flex: none; width: var(--row); height: var(--row); border: 0; background: none; padding: 0; display: grid; place-items: center; color: var(--soft); border-radius: 4px; }
+.deye svg { width: 16px; height: 16px; }
+.deye:hover { background: var(--line2); color: var(--ink); }
 @media (hover: hover) {
-  .drow:not(:hover, :focus-within, .sel, .dall) :is(.x, .dvis:has(input:checked)) { visibility: hidden; }
+  .drow:not(:hover, :focus-within, .sel) .deye[aria-pressed="true"] { visibility: hidden; }
 }
+/* the list's head: its name, the eye for all of it, the Elements panel's toggle (from 1024 px wide) */
+.dlisthead { flex: none; display: flex; align-items: center; gap: 2px; padding: 0 4px 0 12px; min-height: 40px; border-bottom: 1px solid var(--line2); }
+.dlisthead h2 { flex: 1; margin: 0; font-size: 13px; font-weight: 600; }
+.dlisthead .etoggle { width: var(--row); height: var(--row); border: 0; background: none; border-radius: 4px; display: grid; place-items: center; color: var(--soft); padding: 0; }
+.dlisthead .etoggle:hover { background: var(--line2); color: var(--ink); }
+.dlisthead .etoggle svg { width: 18px; height: 18px; }
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
 .ddivider { flex: none; height: 9px; cursor: row-resize; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #f6f8fa; position: relative; touch-action: none; }
 .ddivider::after { content: ""; position: absolute; left: 50%; top: 3px; width: 32px; height: 1.5px; margin-left: -16px; background: #c3ccd3; box-shadow: 0 2px 0 #c3ccd3; }
@@ -280,6 +290,7 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .dfold { flex: none; width: 20px; height: var(--row); border: 0; background: none; padding: 0; display: grid; place-items: center; color: var(--soft); }
 .dfold::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; }
 .dfold[aria-expanded="true"]::after { transform: rotate(45deg); }
+.dfold.none::after { display: none; } /* the room of a fold, so that icons line up */
 .drow.dgroup { padding-left: 0; font-weight: 600; }
 /* how far in the tree a row is: what is in a group, one step further than the group */
 .drow.d1 { padding-left: 12px; }
@@ -287,7 +298,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .drow.d3 { padding-left: 36px; }
 .drow.d4 { padding-left: 48px; }
 .drow.d5 { padding-left: 60px; }
-.drow.dall .dname { color: var(--soft); cursor: default; }
 .drow.dgroup .dname { font-weight: 600; }
 .fvalue { font-family: var(--mono); font-size: 12px; }
 button.small.link { border-color: transparent; background: none; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -520,3 +530,36 @@ svg.profile .psurface { stroke: #9fb3c8; stroke-dasharray: 3 3; stroke-width: 1;
 svg.profile .pdepth { fill: none; stroke: #335f97; stroke-width: 1.5; stroke-linejoin: round; }
 svg.profile .pmax, svg.profile .pmin { fill: #335f97; }
 svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
+
+/* ---- from 1024 px wide (drawing-ui.md §1): while Tools is open, its tools in a strip beside the
+   panel and the drawing's elements in a panel of their own on the left; the panel is the inspector,
+   its title row the inspector's ---- */
+.dstrip, .epanel { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.dstrip { z-index: 4; top: 10px; right: calc(var(--rail) + 426px); /* the panel's 400 px and its 20 px, then 6 */
+  width: 46px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; }
+.dstrip > button { width: 36px; height: 36px; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); font-size: 0; } /* icons only: the name in the tooltip */
+.dstrip > button svg { width: 20px; height: 20px; }
+.dstrip > button:hover { background: var(--line2); }
+.dstrip > button[aria-pressed="true"] { background: var(--magenta); color: #fff; }
+.dstrip > .etoggle[aria-pressed="true"] { background: #e3edf4; color: var(--accent); }
+.dstrip > button:disabled { opacity: .35; cursor: default; background: none; }
+.dstrip > .tsep { width: 26px; height: 1px; background: var(--line); margin: 3px 0; }
+/* a tool's kinds: a column to the strip's left, level with its top */
+.dstrip > .subrail { position: absolute; top: -1px; right: calc(100% + 6px); flex-direction: column; flex-wrap: nowrap; gap: 2px; padding: 4px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.dstrip > .subrail button { min-width: 36px; min-height: 36px; border: 0; }
+.epanel { z-index: 4; left: 10px; top: 66px; bottom: calc(var(--status-h) + 10px); width: 280px; display: flex; flex-direction: column; overflow: hidden; }
+@media (pointer: fine) { .epanel { --row: 28px; } }
+.epanel .dlistbox { flex: 1 1 auto; height: auto; min-height: 0; }
+.epanel .dlisthead { min-height: 48px; border-bottom-color: var(--line); }
+.epanel .dlisthead h2 { font-size: 15px; letter-spacing: .02em; }
+body.elements-open .legends { left: 300px; }
+/* the panel's title row: what the inspector shows, then its actions */
+.pactions .hact { width: 36px; height: 36px; border: 0; background: none; border-radius: 6px; color: var(--soft); }
+.pactions .hact:hover { background: var(--line2); color: var(--ink); }
+.pactions .hact svg { width: 18px; height: 18px; }
+@media (min-width: 1024px) {
+  /* its heading, Zoom to, Group and Delete are in the title row */
+  .dview .dinspect > .fhead, .dview .nowide, .dview .dinspect .danger { display: none; }
+  #panel-title { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+}
