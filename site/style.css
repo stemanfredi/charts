@@ -161,6 +161,8 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
   .panel.wide:has(.dview:not([hidden])) { height: calc(100% - var(--status-h) - 20px); }
 }
 .dview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; --dlist-h: 220px; }
+/* the list and the inspector: rows of 28 px with a mouse (a grid of cells), 44 with a finger */
+@media (pointer: fine) { .dview { --row: 28px; } }
 .tools2 { flex: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .tools2 > button { flex: 1 0 48px; }
 .tools2 > .urbtn { flex: 0 0 auto; }
@@ -197,13 +199,21 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow input.dname { border: 1px solid var(--accent); border-radius: 4px; background: #fff; }
 .drow .val { flex: none; font-family: var(--mono); font-size: 11px; color: var(--soft); white-space: nowrap; }
 .drow .x { width: var(--row); height: var(--row); font-size: 18px; }
+@media (hover: hover) {
+  .drow:not(:hover, :focus-within, .sel, .dall) :is(.x, .dvis:has(input:checked)) { visibility: hidden; }
+}
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
 .ddivider { flex: none; height: 9px; cursor: row-resize; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #f6f8fa; position: relative; touch-action: none; }
 .ddivider::after { content: ""; position: absolute; left: 50%; top: 3px; width: 32px; height: 1.5px; margin-left: -16px; background: #c3ccd3; box-shadow: 0 2px 0 #c3ccd3; }
 .ddivider:hover, .ddivider:focus-visible { background: #e3edf4; }
-.dinspect { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 12px 16px; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
+.dinspect { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 0 16px; overscroll-behavior: contain; display: flex; flex-direction: column; }
+/* a property grid (docs/drawing-ui.md §5): rows ruled across the panel, a label column, fields
+   without a box until pointed at or typed in; headings as bands; what is not a row inset */
+.dinspect > :not(.vrow, h3, .lgridbox, .lmatrix, .fblock) { margin-left: 12px; margin-right: 12px; }
+.dinspect > :is(.frow:not(.vrow), .note, .fbuttons, .fhead) { padding: 4px 0; }
+.dinspect > * { flex-shrink: 0; } /* a row as tall as what it holds, the inspector scrolling */
 .dinspect h2 { font-size: 13.5px; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dinspect h3 { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 6px 0 2px; }
+.dinspect h3 { display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0; min-height: var(--row); padding: 0 8px 0 12px; background: #f3f5f7; border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
 .dinspect h3 .hbtns { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; }
 /* a heading that folds its section: the word and its arrow, one target */
 .dinspect h3 .hfold { display: flex; align-items: center; gap: 6px; min-height: var(--row); min-width: var(--row); border: 0; background: none; padding: 0 8px 0 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
@@ -214,19 +224,29 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .flabel { flex: none; width: 78px; color: var(--soft); font-size: 12px; }
 .frow > input:not([type]), .frow > textarea, .frow > input[spellcheck] { flex: 1; min-width: 0; }
 .dinspect input:not([type=checkbox]):not([type=radio]):not([type=color]), .dinspect textarea, .dinspect select {
-  min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; background: #fff; font: inherit; min-width: 0;
+  min-height: var(--row); border: 1px solid transparent; border-radius: 0; padding: 0 8px; background: transparent; font: inherit; min-width: 0;
 }
+.dinspect :is(input:not([type=checkbox]):not([type=radio]):not([type=color]), textarea, select):hover { background: #f3f6f8; }
+.dinspect :is(input, textarea, select):focus { outline: 2px solid var(--accent); outline-offset: -2px; background: #fff; }
+/* outside a grid (the filter, a form's own fields) a field keeps its box */
+.dinspect > :is(input, textarea, select), .dinspect .frow:not(.vrow) > :is(input, textarea, select) { border-color: var(--line); border-radius: 4px; }
 .dinspect textarea { resize: vertical; padding: 6px 8px; }
 input.bad { border-color: var(--err) !important; background: #fdf3f2 !important; } /* a value not applied (fields.js) */
 .dinspect input.coord { flex: 1; width: 0; min-width: 80px; font-family: var(--mono); font-size: 12px; }
 .dinspect input.dist { width: 104px; font-family: var(--mono); font-size: 12px; }
 .dinspect input.angle { width: 76px; font-family: var(--mono); font-size: 12px; }
 .dinspect input.num { width: 76px; } /* "mixed" fits beside the spinner */
-.dinspect input[type=color] { width: var(--row); height: var(--row); padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.dinspect input[type=color] { width: var(--row); height: var(--row); padding: 4px; border: 0; background: none; }
 .fpair { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
 /* a value grid's row (docs/drawing-ui.md §5): label, cell, last column (× or ↺); it never wraps.
    A cell holds one value or a pair, its fields sharing the width; text too long ends in … */
-.frow.vrow { display: grid; grid-template-columns: 78px minmax(0, 1fr) var(--row); gap: 6px; }
+.frow.vrow { display: grid; grid-template-columns: 96px minmax(0, 1fr) var(--row); gap: 0; align-items: stretch; min-height: var(--row); border-bottom: 1px solid var(--line2); }
+.vrow .flabel { display: flex; align-items: center; padding: 0 8px 0 12px; border-right: 1px solid var(--line2); }
+.vrow .vcell, .vrow .vpair { gap: 0; align-items: stretch; }
+.vrow .vcell > :is(.fvalue, .funit, .link, .fcheck), .vrow .vcell > span:not(.vpair), .vrow .vsep { align-self: center; }
+.vrow .vcell > .fvalue, .vrow .vcell > .funit { padding: 0 8px; }
+.vrow .vcell > button:not(.x) { align-self: center; margin: 0 2px; }
+.vrow :is(.vlast, .vcell) > .x, .lgrid .x { width: var(--row); height: var(--row); font-size: 16px; border-radius: 0; }
 .vrow .flabel { width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vcell, .vpair { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .vpair { flex: 1 1 0; gap: 4px; }
@@ -241,10 +261,14 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .vcell > .fcheck, .vpair > .fcheck { flex: none; min-width: var(--row); justify-content: center; padding: 0; } /* a box alone: a whole target */
 /* the look's Fill and Stroke, a small matrix of the same columns */
 .lmatrix { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
-.lmatrix th { font-weight: 400; color: var(--soft); text-align: left; font-size: 10.5px; padding: 0 2px; }
+.lmatrix th { font-weight: 400; color: var(--soft); text-align: left; font-size: 10.5px; padding: 0 6px; }
+.lmatrix :is(th, td) { border-bottom: 1px solid var(--line2); border-right: 1px solid var(--line2); height: var(--row); }
+.lmatrix :is(th, td):last-child { border-right: 0; }
+.lmatrix thead th { background: #f3f5f7; height: 24px; }
+.lmatrix tbody th { padding-left: 12px; }
 .lmatrix tbody th { font-size: 12px; width: 52px; }
 .lmatrix thead th:last-child, .lmatrix td:last-child { width: var(--row); }
-.lmatrix td { padding: 1px 2px; }
+.lmatrix td { padding: 0; }
 .lmatrix td :is(input:not([type=color]), select) { width: 100% !important; min-width: 0 !important; }
 .lmatrix td { white-space: nowrap; }
 .funit { color: var(--soft); font-size: 12px; }
@@ -266,7 +290,7 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .drow.dall .dname { color: var(--soft); cursor: default; }
 .drow.dgroup .dname { font-weight: 600; }
 .fvalue { font-family: var(--mono); font-size: 12px; }
-button.small.link { border-color: transparent; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.small.link { border-color: transparent; background: none; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.small.link:hover { border-color: var(--line); }
 .fcheck.small { font-size: 11.5px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
 /* the drawing's totals: sections (Lines, Areas, Points), a group's row with its lines under it,
@@ -288,11 +312,16 @@ button.small.link:hover { border-color: var(--line); }
 .vtable.totals tr.all td { font-weight: 600; border-top: 2px solid var(--line); }
 /* a list grid (docs/drawing-ui.md §5): fixed columns; the first ones kept in place while it
    scrolls sideways; the current row marked; its actions in the bar under it */
-.lgridbox { display: flex; flex-direction: column; gap: 4px; }
+.lgridbox { display: flex; flex-direction: column; }
+.lgridbox > :not(.lscroll) { margin: 0 12px; }
 .lscroll { overflow-x: auto; max-width: 100%; }
-.lgrid { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12px; }
+.lgrid { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12px; min-width: 100%; }
+.lgrid :is(th, td) { border-bottom: 1px solid var(--line2); border-right: 1px solid var(--line2); }
+.lgrid :is(th, td):last-child { border-right: 0; }
+.lgrid thead th { background: #f3f5f7; height: 24px; }
 .lgrid th { font-weight: 400; font-size: 10.5px; color: var(--soft); text-align: left; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lgrid td { padding: 1px 3px; vertical-align: middle; white-space: nowrap; }
+.lgrid td { padding: 0; height: var(--row); vertical-align: middle; white-space: nowrap; }
+.lgrid td.num { padding: 0 4px; }
 .lgrid td.num, .lgrid th.num { font-family: var(--mono); font-size: 11px; color: var(--soft); text-align: right; }
 .lgrid td :is(input:not([type=checkbox]):not([type=color]), select) { width: 100% !important; min-width: 0 !important; }
 .lgrid td .vpair { width: 100%; }
@@ -315,7 +344,7 @@ button.small.link:hover { border-color: var(--line); }
 .fsummary { color: var(--ink); background: #f6f8fa; border-radius: 6px; padding: 6px 8px; }
 .steps { margin: 0; padding-left: 22px; font-size: 12px; }
 details.along summary { cursor: pointer; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); min-height: var(--row); display: flex; align-items: center; }
-.fblock { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line2); padding-top: 4px; }
+.fblock { display: flex; flex-direction: column; }
 .fend { justify-content: space-between; border-top: 1px solid var(--line2); padding-top: 8px; margin-top: 4px; }
 .fcheck { display: flex; align-items: center; gap: 6px; min-height: var(--row); padding-right: 6px; cursor: pointer; }
 .fbuttons { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -325,6 +354,7 @@ details.along summary { cursor: pointer; font-size: 11.5px; text-transform: uppe
 .dinspect .danger { color: var(--err); }
 .dinspect .danger:hover { border-color: var(--err); }
 button.small { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); min-width: var(--row); padding: 0 8px; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--ink); font-weight: 400; }
+.dview :is(button.small, .fbuttons button, .danger) { border-radius: 4px; }
 button.small:hover { border-color: var(--accent); }
 button.small[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* the drawings in this browser: the open one marked */

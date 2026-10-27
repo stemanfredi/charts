@@ -137,7 +137,8 @@ from this: its values are the drawing's own (§2.1, Values while drawing).
 
 ## 4. The list
 
-- One row per element: a visibility box, an icon, the name, a short value, and × to delete. The list
+- One row per element: a visibility box, an icon, the name, a short value, and × to delete (with a
+  mouse, the box of a shown element and the × appear on the row pointed at or selected). The list
   is a tree: a group, then its subgroups and members one step further in; a group folds open and
   closed. At the top, the groups, then the rest.
 - Names and icons say what an element is: a point is a **Point**, **Circle**, **Rings**, **Sector**,
@@ -189,8 +190,10 @@ lengths, area and perimeter, or radii on the map); **Offset** (lines; §7);
 **Min. size** (shapes: drawn enlarged, dotted, when shorter than this on screen). A field shows what
 they are drawn with; where several differ it says "mixed", and a change writes only that field.
 
-**Rows**: each a label, one value or a pair read as one (latitude · longitude,
-colour · opacity, start · end…), and a last column for × or ↺; a row never wraps. In a value row
+**Rows**: a property grid, ruled across the panel, 28 px with a mouse (44 with a finger): each a
+label, one value or a pair read as one (latitude · longitude, colour · opacity, start · end…), and a
+last column for × or ↺; a row never wraps. A field shows no box until it is pointed at or typed in;
+lists are tables of the same cells. In a value row
 ↑ and ↓ nudge a distance, an angle or a number by one unit of its last digit (Shift: ten), each step
 applied.
 

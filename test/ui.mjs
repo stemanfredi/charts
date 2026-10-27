@@ -6,7 +6,8 @@
 //   CHROME=/path/to/chrome npm run ui        Screenshots go to $UI_SHOTS if set.
 import { start } from './browser.mjs';
 
-// phone and tablet are touch devices (pointer: coarse, 44 px targets); desktop has a mouse (36 px)
+// phone and tablet are touch devices (pointer: coarse, 44 px targets); desktop has a mouse (36 px; 28
+// in the Tools panel's list and inspector)
 const VIEWPORTS = [['phone', 390, 844, true], ['tablet', 820, 1180, true], ['desktop', 1280, 800, false]];
 // overlays that must not collide (screen-space boxes of floating UI)
 const OVERLAYS = {
@@ -49,7 +50,8 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       await page.waitForTimeout(800);
       if (process.env.UI_SHOTS) await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}-${typeof menu === 'string' ? menu : menu ? 'menu' : 'map'}.png` });
       const r = await page.evaluate(({ OVERLAYS }) => {
-        const MIN = matchMedia('(pointer: coarse)').matches ? 44 : 36;
+        // with a mouse 36 px, but 28 in the Tools panel's list and inspector (a grid of cells)
+        const COARSE = matchMedia('(pointer: coarse)').matches, MIN = COARSE ? 44 : 36, minOf = (el) => (!COARSE && el.closest('.dview') ? 28 : MIN);
         const seen = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[hidden]') === null; };
         const boxes = {};
         for (const [k, sel] of Object.entries(OVERLAYS)) {
@@ -80,7 +82,7 @@ for (const [name, width, height, touch] of VIEWPORTS) {
           if (el.matches('input[type=checkbox], input[type=radio]') && (el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`)))) continue;
           if (el.matches('label') && !el.querySelector('input') && !el.htmlFor) continue; // plain text labels
           const b = el.getBoundingClientRect();
-          if (b.width < MIN - 0.5 || b.height < MIN - 0.5) {
+          if (b.width < minOf(el) - 0.5 || b.height < minOf(el) - 0.5) {
             small.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''} ${Math.round(b.width)}×${Math.round(b.height)}`);
           }
         }
