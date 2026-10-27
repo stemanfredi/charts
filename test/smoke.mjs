@@ -499,7 +499,7 @@ await section('the drawing', async () => {
   const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=draw');
   const DX = 400; // from 1024 px wide the left frame (rail and column) covers the map's left: the clicks below, written for the whole map, moved right of it
   await dw.evaluate(() => { if (document.querySelector('#elements').hidden) document.querySelector('#dstrip .coltoggle').click(); }); // open (an earlier section may have hidden it)
-  // the drawing's file out: from the menu beside its title, in the Elements panel's head
+  // the drawing's file out: from the drawings menu
   const exportDrawing = async () => {
     await dw.click('#dstrip .filebtn');
     await dw.click('.dmenu button:text-is("Export drawing (GeoJSON)")');

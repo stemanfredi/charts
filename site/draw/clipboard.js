@@ -6,6 +6,7 @@
 // too. Pure, but for the storage (guarded).
 
 import { find, elements, membersOf, newId, idsOf, KIND, nextName } from './document.js';
+import { unrollTo } from '../geo.js';
 
 const KEY = 'charts.clipboard';
 const clone = (x) => structuredClone(x);
@@ -37,7 +38,7 @@ function places(kind, el) {
 export function centreOf(clip) {
   const pts = clip.items.flatMap(({ kind, el }) => places(kind, el).map(([o, k]) => o[k]));
   if (!pts.length) return null;
-  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const xs = pts.map((p) => unrollTo(pts[0], p)[0]), ys = pts.map((p) => p[1]);
   return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }
 // "Point 4" → "Point"; a name with no number of its own is its own base

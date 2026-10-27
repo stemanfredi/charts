@@ -103,10 +103,20 @@ export function search(map, Marker, free) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(active + 1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(active - 1); }
     else if (e.key === 'Enter') { e.preventDefault(); if (hits[active]?.go) choose(active); }
-    else if (e.key === 'Escape') { if (!results.hidden) hideResults(); else { q.value = ''; qClear.hidden = true; pin?.remove(); pin = null; q.blur(); } }
+    else if (e.key === 'Escape') { if (!results.hidden) hideResults(); else { clear(); q.blur(); } }
   });
   q.addEventListener('focus', () => { if (q.value.trim() && hits.length) showResults(hits); });
   q.addEventListener('blur', () => setTimeout(hideResults, 150));
-  qClear.addEventListener('click', () => { q.value = ''; qClear.hidden = true; hideResults(); pin?.remove(); pin = null; q.focus(); });
+  // the box emptied: a search under way or waiting goes too, else its results would come back
+  function clear() {
+    clearTimeout(searchTimer);
+    searchCtl?.abort();
+    q.value = '';
+    qClear.hidden = true;
+    hideResults();
+    pin?.remove();
+    pin = null;
+  }
+  qClear.addEventListener('click', () => { clear(); q.focus(); });
   return q;
 }

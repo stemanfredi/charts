@@ -5,6 +5,7 @@
 import { addPoint, nextName, idsOf, makePart, pointKind, reachOf, POINT_KIND_NAME, OUTLINES } from './document.js';
 import { OUTLINE_NAME } from './outlines.js';
 import { inverse } from '../geodesy.js';
+import { unrollTo } from '../geo.js';
 
 // The built-in presets, by the Shape tool's kind: a circle of 1 km; rings at 1, 2 and 3 km (the first
 // filled); a sector of 1 km, 90° wide, and an arc as its edge; an outline (a triangle equilateral, 100 m a side; the others
@@ -55,6 +56,7 @@ export function placeKind(doc, p, kind, presets, d = 0) {
 // one; square (Shift): as long as wide, the larger of the two
 export const BOX = new Set(['rectangle', 'ellipse']);
 export function placeBox(doc, a, b, kind, square = false) {
+  b = unrollTo(a, b); // across the antimeridian: the box between them, not round the world
   const centre = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   let length = inverse([centre[0], a[1]], [centre[0], b[1]]).s, width = inverse([a[0], centre[1]], [b[0], centre[1]]).s; // north-south, east-west
   if (square) length = width = Math.max(length, width);

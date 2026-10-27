@@ -2,7 +2,7 @@
 // layers of layers.js from features.js and labels.js, with the placing tools, clicks, hit testing,
 // dragging and the Select area tool; saved in this browser as it changes (saving.js).
 
-import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf, mainOutline } from './document.js';
+import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf, mainOutline, MAX_RADIUS } from './document.js';
 import { typing } from '../dom.js';
 import { outlineOf } from './outlines.js';
 import { placeKind, placeBox, BOX, nameByLook } from './place.js';
@@ -195,7 +195,7 @@ export class Drawing extends DrawStore {
   pointer(e) {
     this.lastPoint = e.point; // where a paste goes
     if (this.tool === 'line' || this.tool === 'polygon' || this.tool === 'sector' || (this.tool === 'shape' && this.draft)) {
-      let r = this.snapFor(e.point, e.originalEvent, this.tool === 'shape' ? {} : this.lastLeg()); // a shape's size: Shift steps nothing, as on its click
+      let r = this.snapFor(e.point, e.originalEvent, this.tool === 'shape' ? {} : this.tool === 'sector' ? { from: this.draft?.pts[0] ?? null } : this.lastLeg()); // as on the click: a shape's size, Shift steps nothing; a sector's edges step round its centre
       if (this.closesPolygon(e.point)) { r = { position: this.draft.pts[0], to: null, kind: 'vertex' }; this.snapMark = { kind: 'vertex', position: r.position }; } // a click closes it
       this.cursor = { point: e.point, p: r.position, snap: r, shift: !!e.originalEvent?.shiftKey };
       this.renderMarks();
@@ -242,6 +242,7 @@ export class Drawing extends DrawStore {
   // ---- tools -----------------------------------------------------------------------------
   start(tool) {
     if (this.tool) this.stop();
+    clearTimeout(this.dblZoom); // stop()'s, which would turn it on again after this
     const v = this.variant[tool];
     this.pressed = tool;
     this.tool = tool === 'shape' && ['polygon', 'sector', 'arc'].includes(v) ? (v === 'arc' ? 'sector' : v) : tool === 'measure' ? { ruler: 'line', area: 'polygon', ring: 'shape' }[v] : tool;
@@ -261,7 +262,7 @@ export class Drawing extends DrawStore {
     this.draft = null;
     this.renderMarks();
     this.map.getCanvas().style.cursor = '';
-    setTimeout(() => this.map.doubleClickZoom.enable(), 0);
+    this.dblZoom = setTimeout(() => this.map.doubleClickZoom.enable(), 0);
     this.onChange('tool');
   }
 
@@ -277,9 +278,9 @@ export class Drawing extends DrawStore {
     const c = clip && centreOf(clip);
     if (!c) return 0;
     const pt = at ?? this.lastPoint ?? this.map.project(this.map.getCenter());
-    const to = this.map.unproject(pt), from = c;
+    const to = this.map.unproject(pt);
     let made = [];
-    this.change((doc) => { made = paste(doc, clip, (q) => moved(q, from, [to.lng, to.lat])); });
+    this.change((doc) => { made = paste(doc, clip, (q) => moved(q, c, [to.lng, to.lat])); });
     this.select(made.map((x) => x.el.id));
     return made.length;
   }
@@ -338,8 +339,8 @@ export class Drawing extends DrawStore {
     // on something to attach to, the line ends there (not where it starts, with nothing between)
     else if (r.to && (d.pts.length || JSON.stringify(r.to) !== JSON.stringify(d.startTo))) return this.finishLine(this.resolve(r.to, p));
     else {
-      const last = d.pts.at(-1);
-      if (!last || last[0] !== p[0] || last[1] !== p[1]) d.pts.push(p); // a double-click's second click: the same point
+      const last = this.lastLeg().from; // the start too: a double-click's second click, the same point
+      if (!last || last[0] !== p[0] || last[1] !== p[1]) d.pts.push(p);
     }
     if (!d && r.to) this.draft.startTo = r.to;
     this.renderMarks();
@@ -689,7 +690,7 @@ export class Drawing extends DrawStore {
       case 'pmid': { const q = this.snapped(pt, e, p, { exclude: new Set([el.id]) }).position; insertCorner(doc, el, d.ref, q); return; } // a corner added halfway along an edge
       case 'radius': {
         const part = el.parts[+d.ref];
-        part.radius = Math.max(1, Math.min(9.9e6, radiusTo(el.position, p))); // its size only: a sector's ends and the stalk turn it
+        part.radius = Math.max(1, Math.min(MAX_RADIUS - 1, radiusTo(el.position, p))); // its size only: a sector's ends and the stalk turn it
         return;
       }
       case 'aperture': { // one end of a sector part's arc: its aperture, and the point's bearing (its middle)

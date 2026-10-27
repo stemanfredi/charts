@@ -1241,9 +1241,9 @@ export function drawView(root, ctx) {
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Bearings', check('beside lengths', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }))]),
       n ? totalsBlock(keys.length ? by : null, groupName) : null,
-      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Export drawing (GeoJSON), in the menu beside its title, keeps it as a file.') : null,
+      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Export drawing (GeoJSON), in the drawings menu, keeps it as a file.') : null,
       drawing.saving.otherTab ? h('p', { class: 'note warn' }, 'The drawing was changed in another tab. Saving here replaces that version. ', h('button', { type: 'button', class: 'small', onclick: () => location.reload() }, 'Reload')) : null,
-      h('p', { class: 'note' }, 'Drawings stay in this browser, saved as you go; nothing is sent anywhere. Export drawing (GeoJSON), in the menu beside its title, writes it as a file, with the view, to share or keep it: links do not carry drawings.')];
+      h('p', { class: 'note' }, 'Drawings stay in this browser, saved as you go; nothing is sent anywhere. Export drawing (GeoJSON), in the drawings menu, writes it as a file, with the view, to share or keep it: links do not carry drawings.')];
   }
   // The Totals view (docs/drawing-ui.md §5): the lines by group (or by a property's values), each
   // listed under its group, those a connection made summed by what they are (trunks and branches; a
