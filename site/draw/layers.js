@@ -63,17 +63,21 @@ const FONT = ['Noto Sans Regular']; // the map's own (style.js), from the same g
 const labelLayout = { 'text-field': ['get', 'text'], 'text-font': FONT, 'text-size': ['get', 'px'], 'text-max-width': 100, 'text-line-height': 1.2,
   'text-allow-overlap': true, 'text-ignore-placement': true, 'icon-image': ['case', ['==', ['get', 'box'], 1], 'draw-box', ''],
   'icon-text-fit': 'both', 'icon-text-fit-padding': [3, 5, 3, 5], 'icon-allow-overlap': true, 'icon-ignore-placement': true };
-const DASH = { solid: null, dashed: [4, 3], dotted: [1, 2] };
+// a stroke's dash, per feature (solid: one long dash)
+const DASH = ['match', ['get', 'dash'], 'dashed', ['literal', [4, 3]], 'dotted', ['literal', [1, 2]], ['literal', [1, 0]]];
+// the drawing order within a kind (features.js z): the first in its list drawn on top
+const Z = ['coalesce', ['get', 'z'], 0];
 // a line's Offset (features.js: off, px, positive to the right of its direction), as QGIS offsets a
 // line symbol: drawn by MapLibre beside the geometry, display only
 const OFF = ['coalesce', ['get', 'off'], 0];
-const lineLayers = (kind, source) => Object.entries(DASH).map(([dash, arr]) => ({
-  id: `draw-${kind}-line-${dash}`, type: 'line', source, filter: ['all', ['==', ['get', 'kind'], kind], ['==', ['get', 'dash'], dash]],
-  layout: { 'line-join': 'round' },
-  paint: { 'line-color': ['get', 'sc'], 'line-opacity': ['get', 'so'], 'line-width': ['get', 'sw'], 'line-offset': OFF, ...(arr ? { 'line-dasharray': arr } : {}) },
-}));
+const lineLayer = (kind, source) => ({
+  id: `draw-${kind}-line`, type: 'line', source, filter: ['==', ['get', 'kind'], kind],
+  layout: { 'line-join': 'round', 'line-sort-key': Z },
+  paint: { 'line-color': ['get', 'sc'], 'line-opacity': ['get', 'so'], 'line-width': ['get', 'sw'], 'line-offset': OFF, 'line-dasharray': DASH },
+});
 const fillLayer = (kind, source) => ({
   id: `draw-${kind}-fill`, type: 'fill', source, filter: ['all', ['==', ['get', 'kind'], kind], ['==', ['get', 'fill'], 1]],
+  layout: { 'fill-sort-key': Z },
   paint: { 'fill-color': ['get', 'fc'], 'fill-opacity': ['get', 'fo'] },
 });
 // the hover band, never on the element's own stroke, clear of it by 3 px: outside a polygon's outline
@@ -88,17 +92,17 @@ const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([p
   paint: { 'line-color': colour, 'line-width': width, 'line-opacity': opacity,
     'line-offset': ['+', OFF, ['*', side, ['+', ['/', ['get', 'sw'], 2], 3, BAND / 2]]] } })));
 // bottom to top: points' rings, areas, lines (guides, the others), outlines, the hover band,
-// symbols, handles, the selection's rings
+// symbols, handles, the selection's rings; within each, the drawing order (Z)
 // a finger (a coarse pointer): handles drawn larger (14 px from 8), as drawing.js grabs them farther
 export const FINGER = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const HANDLE_SIZE = FINGER ? 1.75 : 1;
 export const DRAW_LAYERS = [
-  fillLayer('ring', 'draw'), ...lineLayers('ring', 'draw'),
-  fillLayer('polygon', 'draw'), ...lineLayers('polygon', 'draw'),
+  fillLayer('ring', 'draw'), lineLayer('ring', 'draw'),
+  fillLayer('polygon', 'draw'), lineLayer('polygon', 'draw'),
   // under the lines: the lines' click targets, invisible
   { id: 'draw-linehit', type: 'line', source: 'drawzoom', filter: ['==', ['get', 'kind'], 'linehit'], paint: { 'line-width': 10, 'line-opacity': 0, 'line-offset': OFF } },
-  ...lineLayers('guide', 'drawzoom'), ...lineLayers('path', 'drawzoom'),
-  fillLayer('shape', 'drawzoom'), ...lineLayers('shape', 'drawzoom'),
+  lineLayer('guide', 'drawzoom'), lineLayer('path', 'drawzoom'),
+  fillLayer('shape', 'drawzoom'), lineLayer('shape', 'drawzoom'),
   ...haloLayers('Polygon', [-1], HALO), ...haloLayers('LineString', [-1, 1], HALO),
   { id: 'draw-symbol', type: 'symbol', source: 'draw', filter: ['==', ['get', 'kind'], 'symbol'],
     layout: { 'icon-image': ['concat', 'draw-', ['get', 'symbol']], 'icon-allow-overlap': true, 'icon-ignore-placement': true },

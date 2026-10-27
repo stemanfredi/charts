@@ -38,7 +38,8 @@ The app makes random 8-character IDs. Any unique IDs will do (`a`, `l1`, `p-main
 them. A feature's `id` given as a number is read as text.
 
 **Order matters.** The order of the features is the order in the panel and the drawing order within a
-kind (later on top). The writer writes points, then lines, areas and labels.
+kind: the first on top (areas among areas, lines among lines, points' shapes among points'). Between
+kinds the stacking is fixed (drawing-ui.md §7). The writer writes points, then lines, areas and labels.
 
 ## 3. The collection
 

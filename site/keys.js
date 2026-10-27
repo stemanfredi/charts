@@ -26,6 +26,7 @@ const KEYS = [
   { line: 5, show: '[↑][↓]', text: 'select' },
   { line: 5, show: mac ? '[Delete] or [⌘] [Backspace]' : '[Delete]', text: 'deletes' },
   { line: 5, show: '[F2]', text: 'rename' },
+  { line: 5, show: `[${MOD}]`, text: 'with ] or [: up or down in the drawing order' },
   { line: 5, show: `[${MOD}] [Z]`, text: 'undo' },
   { line: 5, show: `[${MOD}] [Shift] [Z]`, text: 'redo' },
   { line: 5, show: `[${MOD}] [C] [V] [D]`, text: 'copy, paste, duplicate' },

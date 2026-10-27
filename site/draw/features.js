@@ -115,6 +115,10 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   const named = (el) => !!el.name.trim() && wants(el);
   const name = (to, el, geometry, c, props = {}) => to.push({ type: 'Feature', properties: { id: el.id, kind: 'name', nm: el.name, c, ...props }, geometry });
 
+  // the drawing order within a kind (drawing-format.md §2): the first in its list on top (layers.js
+  // sorts by z, the higher above)
+  const Z = new Map();
+  for (const list of [doc.points, doc.lines, doc.areas]) list.forEach((el, i) => Z.set(el.id, list.length - i));
   // points: their round parts, then (with the lines) their outlines, then their symbols on top
   for (const n of doc.points) {
     const rounds = roundParts(n).filter(({ part }) => part.shown && drawable(n, part.radius));
@@ -123,7 +127,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     let outer = null;
     for (const { part } of rounds) {
       const rg = ringOf(n, part);
-      if (want.base) base.push({ type: 'Feature', properties: { id: n.id, kind: 'ring', fill: part.fill ? 1 : 0, fc: st.fill.color, fo: st.fill.opacity,
+      if (want.base) base.push({ type: 'Feature', properties: { id: n.id, kind: 'ring', z: Z.get(n.id), fill: part.fill ? 1 : 0, fc: st.fill.color, fo: st.fill.opacity,
         ...lineProps(st.stroke, part.strokeColor || st.stroke.color, part.strokeDash || st.stroke.dash) }, geometry: roundGeometry(part, rg) });
       if (!outer || part.radius > outer.part.radius) outer = { part, rg };
     }
@@ -151,7 +155,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   for (const g of doc.areas) {
     if (!isShown(doc, g) || (!want.base && !want.zoom && !markOf(g.id))) continue;
     const st = styleOf(doc, g), rg = pathOf(g.points, true);
-    if (want.base) base.push({ type: 'Feature', properties: { id: g.id, kind: 'polygon', fill: 1, fc: st.fill.color, fo: st.fill.opacity, ...lineProps(st.stroke) }, geometry: { type: 'Polygon', coordinates: [rg] } });
+    if (want.base) base.push({ type: 'Feature', properties: { id: g.id, kind: 'polygon', z: Z.get(g.id), fill: 1, fc: st.fill.color, fo: st.fill.opacity, ...lineProps(st.stroke) }, geometry: { type: 'Polygon', coordinates: [rg] } });
     if (want.zoom && named(g)) name(zoomNames, g, { type: 'Point', coordinates: centroid(g.points) }, st.stroke.color, { ctr: 1 }); // with the outlines' names (a centre)
     if (mark(g.id, { type: 'Polygon', coordinates: [ccw(rg)] }, { sw: st.stroke.width }, () => g.points) && sel.has(g.id)) {
       handles(g.id, g.points.map((p, i) => ({ p, role: 'ppoint', ref: i })), true);
@@ -170,7 +174,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     for (const { part, i } of outs) {
       const o = outlineOf(n.position, n.bearing, part.length * k, part.width * k, part.kind);
       if (i === main.i) mainCorners = o.corners;
-      if (want.zoom) zoomed.push({ type: 'Feature', properties: { id: n.id, kind: 'shape', fill: part.fill ? 1 : 0, fc: st.fill.color, fo: st.fill.opacity,
+      if (want.zoom) zoomed.push({ type: 'Feature', properties: { id: n.id, kind: 'shape', z: Z.get(n.id), fill: part.fill ? 1 : 0, fc: st.fill.color, fo: st.fill.opacity,
         ...lineProps(st.stroke, part.strokeColor || st.stroke.color, k > 1 ? 'dotted' : part.strokeDash || st.stroke.dash), ...(k > 1 ? { enlarged: k } : {}) }, geometry: { type: 'Polygon', coordinates: [o.ring] } });
       if (i === main.i) halo = o.ring;
       corners.push(...o.corners.map((p, c) => ({ p, role: 'corner', ref: `${i}:${c}` })));
@@ -203,7 +207,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     if (want.zoom) {
       zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: 'linehit', off }, geometry: g });
       if (named(sg)) name(zoomNames, sg, g, st.color);
-      zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: sg.guide ? 'guide' : 'path', off, ...lineProps(st) }, geometry: g });
+      zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: sg.guide ? 'guide' : 'path', z: Z.get(sg.id), off, ...lineProps(st) }, geometry: g });
     }
     if (mark(sg.id, g, { sw: st.width, off }, () => anchorsOf(sg).map((a) => a.position)) && sel.has(sg.id)) {
       const an = anchorsOf(sg), last = an.length - 1;

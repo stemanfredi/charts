@@ -165,6 +165,11 @@ from this: its values are the drawing's own (§2.1, Values while drawing).
   selected). The list is a tree: a group, then its subgroups and members one step further in; a
   group folds open and closed. At the top, the groups, then the rest. Deleting is the inspector's head's
   or the Delete key's, not the row's.
+- **Order**: the first of a kind is drawn on top (areas over later areas, lines over later lines,
+  shapes over later shapes; between kinds the stacking is fixed, §7). A row dragged onto a group's row
+  goes into that group; onto a row of its kind, just before it and into its group; onto another, into
+  its group. Ctrl/⌘ ] moves the selection one step up among its kind in its group, Ctrl/⌘ [ one step
+  down.
 - Names and icons say what an element is: a point is a **Point**, **Circle**, **Rings**, **Sector**,
   or its outline's name (**Rectangle**, **Ellipse**…); an area is an **Area**; then **Line**,
   **Label**, **Group**. An unnamed one shows as its kind and place.
@@ -334,6 +339,8 @@ one end to the other, an outline's ring.
 
 ## 7. On the map
 
+- **Stacking**, bottom to top: points' circles and sectors, areas, lines (guides under the others),
+  shapes' outlines, symbols, names and values, labels; within each, the drawing order (§4).
 - **Marks:** everything that says "this is what you point at, picked, or would hit" is one blue,
   cased in white so that it shows on chart, sea and satellite; at half strength for hovering, at
   full for the selection and for targets. What is not made yet (what is being drawn, a form's
@@ -391,6 +398,7 @@ one end to the other, an outline's ring.
 | F2 | rename |
 | Ctrl/⌘ Z, Ctrl/⌘ Shift Z (or Ctrl Y) | undo, redo |
 | Ctrl/⌘ C, V, D | copy, paste, duplicate |
+| Ctrl/⌘ ], [ | the selection up or down in the drawing order (§4) |
 
 None act while typing in a field, except Esc and Enter. About lists them from `site/keys.js`.
 

@@ -160,6 +160,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow { display: flex; align-items: center; gap: 2px; min-height: var(--row); padding: 0 4px 0 2px; }
 .drow:hover { background: var(--bg2); }
 .drow.sel { background: var(--sel); }
+.drow.drop { box-shadow: inset 0 2px 0 var(--accent); } /* dropped here: just before this row, or into its group */
 .drow.dim .dname, .drow.dim .kind { color: var(--soft); }
 .drow .kind { flex: none; color: var(--accent); display: grid; place-items: center; }
 .drow .kind svg { width: 16px; height: 16px; }

@@ -6,7 +6,7 @@
 import { h, svg, typing, NARROW, store } from '../dom.js';
 import { popup } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, ARCED, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, ARCED, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
 import { labelText, labelValues, TOKENS } from './labels.js';
@@ -306,7 +306,7 @@ export function drawView(root, ctx) {
   // or hidden); selected by a click (Ctrl/⌘: adds or removes), outlined on the map while the pointer is
   // over it
   function elementRow({ id, icon, kindIcon, title, name, value = '', valueTitle, visible, selected }, on, more = {}) {
-    return h('li', { class: `drow${selected ? ' sel' : ''}${visible ? '' : ' dim'}${more.classes ? ` ${more.classes}` : ''}`, 'data-id': id,
+    return h('li', { class: `drow${selected ? ' sel' : ''}${visible ? '' : ' dim'}${more.classes ? ` ${more.classes}` : ''}`, 'data-id': id, draggable: 'true',
       onpointerenter: () => on.hover(id), onpointerleave: () => on.hover(null) },
     more.fold || h('span', { class: 'dfold none', 'aria-hidden': 'true' }),
     h('span', { class: 'kind', title }, icon(...kindIcon)),
@@ -337,6 +337,26 @@ export function drawView(root, ctx) {
     docTitle.textContent = drawing.doc.meta.title || 'Untitled drawing';
     if (!rows.length) list.append(h('li', { class: 'empty' }, filter ? 'Nothing matches the filter.' : 'Nothing drawn yet: pick a tool, then click on the map.'));
   }
+  // A row dragged (drawing-ui.md §4): dropped on a group's row, into that group; on a row of its
+  // kind, just before it (the drawing order: the first on top) and in its group; on another, in its
+  // group. One undo step.
+  let dragged = null;
+  const dropOn = (e) => { const r = e.target.closest?.('.drow[data-id]'); return r && dragged && r.dataset.id !== dragged ? r : null; };
+  list.addEventListener('dragstart', (e) => { dragged = e.target.closest?.('.drow')?.dataset.id ?? null; if (dragged) e.dataTransfer.effectAllowed = 'move'; });
+  list.addEventListener('dragover', (e) => { const r = dropOn(e); if (!r) return; e.preventDefault(); for (const x of list.querySelectorAll('.drop')) if (x !== r) x.classList.remove('drop'); r.classList.add('drop'); });
+  list.addEventListener('dragleave', (e) => e.target.closest?.('.drow')?.classList.remove('drop'));
+  list.addEventListener('dragend', () => { dragged = null; for (const x of list.querySelectorAll('.drop')) x.classList.remove('drop'); });
+  list.addEventListener('drop', (e) => {
+    const r = dropOn(e);
+    if (!r) return;
+    e.preventDefault();
+    const id = dragged, t = find(drawing.doc, r.dataset.id), x = find(drawing.doc, id);
+    drawing.change((doc) => {
+      if (t.kind === 'group') setGroup(doc, id, t.el.id);
+      else if (t.kind === x.kind) moveBefore(doc, id, t.el.id);
+      else setGroup(doc, id, t.el.groupId ?? null);
+    });
+  });
   function clickRow(id, e) {
     // a range starts from the row last clicked, or else from the last element selected (on the map)
     if (!anchor || !drawing.sel.has(anchor)) anchor = [...drawing.sel].at(-1) ?? null;
@@ -1429,6 +1449,13 @@ export function drawView(root, ctx) {
       e.preventDefault();
       const n = k === 'c' ? drawing.copy() : k === 'v' ? drawing.paste() : drawing.duplicate();
       if (n) note(`${k === 'c' ? 'Copied' : k === 'v' ? 'Pasted' : 'Duplicated'}: ${plural(n, 'element')}`, k !== 'c');
+      return;
+    }
+    // the drawing order: Ctrl/⌘ ] one step up (drawn above), [ one step down, among its kind in its group
+    if (mod && !typed && (e.key === ']' || e.key === '[') && drawing.sel.size) {
+      e.preventDefault();
+      const dir = e.key === ']' ? -1 : 1, ids = shown().map((x) => x.el.id).filter((id) => drawing.sel.has(id));
+      drawing.change((doc) => { for (const id of dir < 0 ? ids : ids.reverse()) moveStep(doc, id, dir); });
       return;
     }
     // deleting: Delete; on a Mac, whose delete key is Backspace, ⌘-Backspace as in the Finder. Never

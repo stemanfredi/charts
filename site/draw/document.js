@@ -343,6 +343,26 @@ export function makeGroup(doc, ids) {
   for (const x of xs) setGroup(doc, x.el.id, g.id);
   return g;
 }
+// Order (docs/drawing-format.md §2): each kind's list is the panel's order and the drawing order, the
+// first on top. moveBefore: id just before beforeId (one of its kind), in its group; moveStep: one
+// step up (-1) or down (1) among its siblings (its kind, its group).
+export function moveBefore(doc, id, beforeId) {
+  const x = find(doc, id), b = find(doc, beforeId);
+  if (!x || !b || x.kind !== b.kind || id === beforeId) return;
+  setGroup(doc, id, b.el.groupId ?? null);
+  if ((x.el.groupId ?? null) !== (b.el.groupId ?? null)) return; // it could not go there (a group into itself)
+  const list = doc[LIST[x.kind]];
+  list.splice(list.indexOf(x.el), 1);
+  list.splice(list.indexOf(b.el), 0, x.el);
+}
+export function moveStep(doc, id, dir) {
+  const x = find(doc, id);
+  if (!x) return;
+  const list = doc[LIST[x.kind]], sibs = list.filter((e) => (e.groupId ?? null) === (x.el.groupId ?? null)), y = sibs[sibs.indexOf(x.el) + dir];
+  if (!y) return;
+  const i = list.indexOf(x.el), j = list.indexOf(y);
+  [list[i], list[j]] = [y, x.el];
+}
 // whether group gid can take id: not itself, nor a group it is in
 export const canHold = (doc, gid, id) => !gid || (gid !== id && !groupsOf(doc, find(doc, gid)?.el ?? {}).some((g) => g.id === id));
 // The fields of a look each kind is drawn with

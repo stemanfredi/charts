@@ -857,3 +857,23 @@ test('a feature whose geometry type is not text is skipped with a reason, not th
   assert.equal(doc.points.length, 1);
   assert.deepEqual(report.skipped.map((s) => s.reason), ['geometry type: not text']);
 });
+
+test('order: moved before one of its kind (into its group), or a step among its siblings; drawn first on top', async () => {
+  const { drawParts } = await import('../../site/draw/features.js');
+  const doc = emptyDoc(NOW);
+  const [a, b, c] = [0, 1, 2].map((i) => addArea(doc, [[i, 0], [i + 1, 0], [i, 1]]));
+  const p = addPoint(doc, [5, 5]);
+  const g = makeGroup(doc, [c.id]);
+  d.moveBefore(doc, c.id, a.id); // out of g, into a's (none), just before it
+  assert.deepEqual([doc.areas.map((x) => x.id), c.groupId], [[c.id, a.id, b.id], null]);
+  d.moveBefore(doc, p.id, b.id); // another kind: nothing
+  assert.deepEqual(doc.areas.map((x) => x.id), [c.id, a.id, b.id]);
+  setGroup(doc, b.id, g.id);
+  d.moveStep(doc, a.id, -1); // up among its siblings (not grouped): c
+  assert.deepEqual(doc.areas.map((x) => x.id), [a.id, c.id, b.id]);
+  d.moveStep(doc, b.id, -1); // alone in its group: stays
+  assert.deepEqual(doc.areas.map((x) => x.id), [a.id, c.id, b.id]);
+  const z = Object.fromEntries(drawParts(doc).base.filter((f) => f.properties.kind === 'polygon').map((f) => [f.properties.id, f.properties.z]));
+  assert.ok(z[a.id] > z[c.id] && z[c.id] > z[b.id], 'the first drawn on top');
+  assert.deepEqual(again(doc).doc.areas.map((x) => x.id), [a.id, c.id, b.id]); // the order kept in the file
+});
