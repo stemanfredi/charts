@@ -613,7 +613,8 @@ export function drawView(root, ctx) {
       paste: (r, text) => pastePlaces(id, r, text, (d, x, from, places) => { const res = placesAfterPaste(x.points, from, places); x.points = res.places; return res; }) });
     const cornerRows = () => { const ps = now(id).points; return [['#', 'Lat', 'Lon', 'Edge m', 'Brg °'], ps.map((q, i) => { const g = i ? legOf(ps, i) : null; return [i + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '']; })]; };
     return [...commonTop('area', id),
-      row('Area', h('span', { class: 'fvalue' }, `${fmtArea(areaOf(pathOf(el.points, true)), u)} · perimeter ${fmtDist(perimeterOf(el.points), u)}`)),
+      row('Area', h('span', { class: 'fvalue' }, fmtArea(areaOf(pathOf(el.points, true)), u))),
+      row('Perimeter', h('span', { class: 'fvalue' }, fmtDist(perimeterOf(el.points), u))),
       h('div', { class: 'fblock' }, h('h3', {}, `Corners (${n})`, copyBtn(cornerRows)), table),
       lookBlock([item(id)]), ...commonBottom('area', id)];
   }
@@ -896,7 +897,8 @@ export function drawView(root, ctx) {
       h('button', { type: 'button', class: 'small', onclick: () => showOnMap(new Set(ids)) }, 'Zoom to')),
     chips(xs),
     h('p', { class: 'note' }, Object.entries(counts).map(([k, n]) => plural(n, kindName(k).toLowerCase())).join(', ')),
-    between ? row('Between', h('span', { class: 'fvalue', title: `From ${label(xs[0].kind, xs[0].el)}` }, `${fmtDist(between.s, ctx.units())} · ${fmtBrg(between.azi)}`)) : null,
+    between ? row('Distance', h('span', { class: 'fvalue' }, fmtDist(between.s, ctx.units()))) : null,
+    between ? row('Bearing', h('span', { class: 'fvalue', title: `From ${label(xs[0].kind, xs[0].el)}` }, fmtBrg(between.azi))) : null,
     h('div', { class: 'frow fbuttons' },
       pointIds.length > 1 ? h('button', { type: 'button', title: 'Join these points to roots with straight lines: trees through hubs, or chains', onclick: () => openConnect(pointIds) }, 'Connect…') : null,
       h('button', { type: 'button', title: 'A new group of these, in the group they are in', onclick: makeG }, 'Group')),
