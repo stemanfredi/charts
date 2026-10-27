@@ -77,16 +77,27 @@ export function lineTrace(doc, line) {
   return trace;
 }
 
+// A polyline's steps' geodesics and their distances from its start, once per coords (a trace's are cached).
+const stepsOf = new WeakMap();
+export function steps(coords) {
+  let x = stepsOf.get(coords);
+  if (!x) {
+    const legs = [], from = [0];
+    for (let i = 1; i < coords.length; i++) { legs.push(inverse(coords[i - 1], coords[i])); from.push(from[i - 1] + legs[i - 1].s); }
+    stepsOf.set(coords, x = { legs, from });
+  }
+  return x;
+}
 // Positions along a line (its coords, a geodesic polyline) at distances: [{ position, azi }], azi the
 // line's direction there.
 export function pointsAlong(coords, distances) {
-  const legs = [];
-  for (let i = 1; i < coords.length; i++) legs.push(inverse(coords[i - 1], coords[i]));
+  const { legs, from } = steps(coords);
   const out = [];
-  let i = 0, start = 0;
   for (const d of distances) {
-    while (i < legs.length - 1 && start + legs[i].s < d) { start += legs[i].s; i++; }
     if (!legs.length) { out.push({ position: coords[0], azi: 0 }); continue; }
+    let lo = 0, hi = legs.length - 1; // the last step starting before d
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (from[m] < d) lo = m; else hi = m - 1; }
+    const i = lo, start = from[i];
     const p = destination(coords[i], legs[i].azi, Math.max(0, d - start));
     out.push({ position: p, azi: inverse(p, coords[i + 1]).s > 0.01 ? inverse(p, coords[i + 1]).azi : legs[i].azi });
   }
@@ -134,12 +145,12 @@ export function totals(doc, by = null) {
 // 'branch' (hub → point), 'root link' (a chain's, root → its first point), 'link' (point → point); by
 // line ID
 export function madeLines(doc) {
-  const out = new Map();
+  const out = new Map(), byId = new Map(doc.lines.map((s) => [s.id, s]));
   for (const c of doc.rules) {
     if (c.kind !== 'connect') continue;
     const roots = new Set(c.roots.map((r) => r.id)), tree = c.pattern !== 'chain';
     for (const id of c.created) {
-      const s = doc.lines.find((x) => x.id === id);
+      const s = byId.get(id);
       if (!s) continue;
       const atRoot = roots.has(s.start.element) || roots.has(s.end.element);
       out.set(id, { connection: c, part: tree ? (atRoot ? 'trunk' : 'branch') : (atRoot ? 'root link' : 'link') });

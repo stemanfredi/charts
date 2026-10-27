@@ -8,7 +8,7 @@
 import { inverse, destination } from '../geodesy.js';
 import { nearestOnSegment } from '../geo.js';
 import { verticesOf } from './attach.js';
-import { anchorsOf, lineTrace } from './lines.js';
+import { anchorsOf, lineTrace, steps } from './lines.js';
 import { isShown, KIND } from './document.js';
 
 export const RADIUS = 6; // px
@@ -27,8 +27,8 @@ function crossing(a, b, c, d) {
 // target (attach.js: { element } a point's centre, { element, vertex }, { element, edge, at }: an
 // area's or an outline's, or a line's, its legs as drawn), or { end: { lineId, key } } (a line's free
 // end: a point is made there to join them). ids: the elements whose edges to
-// look at (the map's hits near p, which may lag a change by a frame; null: all; vertices are looked at
-// in every element); exclude: elements never snapped to (the one drawn or dragged).
+// look at, and whose outlines' corners (the map's hits near p, which may lag a change by a frame; null:
+// all; the other vertices are looked at in every element); exclude: elements never snapped to (the one drawn or dragged).
 export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius = RADIUS } = {}) {
   const px = (q) => view.project(q);
   const want = (el) => !exclude.has(el.id) && isShown(doc, el);
@@ -46,7 +46,7 @@ export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius =
       if (!want(el)) continue;
       if (kind === 'point') vertex(el.position, { element: el.id });
       // the corners and sides of an area, of each of a point's shown outline parts (named by its place)
-      const rings = kind === 'area' ? [{ cs: el.points, ref: {} }] : kind === 'point' ? el.parts.map((part, k) => (part.radius || !part.shown ? null : { cs: verticesOf({ kind, el }, k), ref: { part: k }, ellipse: part.kind === 'ellipse' })).filter(Boolean) : [];
+      const rings = kind === 'area' ? [{ cs: el.points, ref: {} }] : kind === 'point' && edgesOf(el) ? el.parts.map((part, k) => (part.radius || !part.shown ? null : { cs: verticesOf({ kind, el }, k), ref: { part: k }, ellipse: part.kind === 'ellipse' })).filter(Boolean) : [];
       for (const { cs, ref, ellipse } of rings) {
         cs.forEach((c, i) => {
           if (!ellipse) vertex(c, { element: el.id, ...ref, vertex: i }); // an ellipse's samples are no corners: its edge
@@ -58,17 +58,15 @@ export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius =
       for (const key of ['start', 'end']) if (!el[key].element) vertex(el[key].position, { end: { lineId: el.id, key } });
       // its legs, as drawn (a curve's samples), each sample segment knowing its leg and how far along it
       if (!edgesOf(el)) continue;
-      const tr = lineTrace(doc, el);
-      let along = 0;
+      const tr = lineTrace(doc, el), { from } = steps(tr.coords);
       for (let i = 1; i < tr.coords.length; i++) {
-        const a = tr.coords[i - 1], b = tr.coords[i], s = inverse(a, b).s, start = along;
+        const a = tr.coords[i - 1], b = tr.coords[i], start = from[i - 1], s = from[i] - start;
         edge(a, b, (t) => {
           const d = start + t * s;
           let k = tr.legs.length - 1;
           while (k > 0 && tr.at[k] > d + 1e-6) k--;
           return { element: el.id, edge: k, at: +Math.min(1, Math.max(0, tr.legs[k] ? (d - tr.at[k]) / tr.legs[k] : 0)).toFixed(6) };
         }, el.id);
-        along += s;
       }
     }
   }

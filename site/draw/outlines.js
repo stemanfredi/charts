@@ -1,7 +1,7 @@
 // Shape outlines (docs/drawing-format.md §7.5): each a fixed silhouette in a unit frame, stretched to a
 // shape's length (along its bearing) and width (across it). Pure: no map, no DOM.
 
-import { destination, rectangle, pathOf } from '../geodesy.js';
+import { destination, cornersOf, pathOf } from '../geodesy.js';
 export { OUTLINES } from './document.js'; // the file's list (document.js stays free of geodesy)
 export const OUTLINE_NAME = { rectangle: 'Rectangle', triangle: 'Triangle', ellipse: 'Ellipse', 'aerial-vehicle': 'Aerial vehicle', 'surface-vehicle': 'Surface vehicle', 'underwater-vehicle': 'Underwater vehicle' };
 // drawn small, a vehicle is enlarged to this many times the drawing's minimum display size
@@ -37,14 +37,23 @@ export function unitOutline(outline) {
 // A shape's outline on the ellipsoid: { ring (closed, its edges geodesics), corners (of its bounding
 // rectangle: front right, back right, back left, front left, as geodesy.rectangle) }. Each point is
 // a geodesic destination from the centre, as the rectangle's corners are.
+// Kept by what it depends on, as lines' traces are: an unchanged shape is not computed again (callers
+// read it, never change it).
+const outlines = new Map();
 export function outlineOf(center, bearing, length, width, outline = 'rectangle') {
-  const box = rectangle(center, bearing, length, width);
-  if (outline === 'rectangle') return box;
-  return { ring: pathOf(outlinePoints(center, bearing, length, width, outline), true, 1000), corners: box.corners };
+  const key = `${center}|${bearing}|${length}|${width}|${outline}`;
+  let o = outlines.get(key);
+  if (!o) {
+    const corners = cornersOf(center, bearing, length, width);
+    o = { corners, ring: pathOf(outline === 'rectangle' ? corners : outlinePoints(center, bearing, length, width, outline), true, 1000) };
+    if (outlines.size > 5000) outlines.clear();
+    outlines.set(key, o);
+  }
+  return o;
 }
 // An outline's own corners on the ellipsoid, in order, not closed: a rectangle's four (as
 // geodesy.rectangle), a silhouette's points. Its edges join each to the next, the last to the first.
 export function outlinePoints(center, bearing, length, width, outline = 'rectangle') {
-  if (outline === 'rectangle') return rectangle(center, bearing, length, width).corners;
+  if (outline === 'rectangle') return cornersOf(center, bearing, length, width);
   return unitOutline(outline).map(([u, v]) => destination(center, bearing + Math.atan2(u * width, v * length) * R2D, Math.hypot(u * width, v * length)));
 }

@@ -54,15 +54,18 @@ export function leaderFrom(t, p, half) {
 // The map's features for the labels (the "drawlabel" source): each shown label's text at its offset
 // from its anchor, its leader, its end (an arrow head turned along the leader, or a dot); for the
 // selected ones, a handle at an anchor that can be dragged (a free one, or one along a line).
-// view: { project, unproject, measure(text, px) → [w, h] }; units: the display units.
-export function labelFeatures(doc, view, sel = new Set(), hover = null, units = 'km') {
+// view: { project, unproject, measure(text, px) → [w, h] }; units: the display units; texts: each
+// label's text by id, filled as read (kept by the caller while the drawing and the units stay as they
+// are: the map moving changes no text).
+export function labelFeatures(doc, view, sel = new Set(), hover = null, units = 'km', texts = new Map()) {
   const out = [];
   const pt = (properties, coordinates) => out.push({ type: 'Feature', properties, geometry: { type: 'Point', coordinates } });
   for (const a of doc.labels) {
     if (!isShown(doc, a)) continue;
     const at = resolve(doc, a.anchor);
     if (!at || (at.element && !isShown(doc, at.element.el))) continue; // a hidden element's label is hidden with it
-    const text = labelText(doc, a, units);
+    if (!texts.has(a.id)) texts.set(a.id, labelText(doc, a, units));
+    const text = texts.get(a.id);
     const lt = lookOf(doc, a).text, px = SIZE_PX[lt.size], c = labelColour(doc, a), mark = sel.has(a.id) ? 'sel' : hover === a.id ? 'hover' : '';
     const p = view.project(at.position), t = [p[0] + a.offset[0], p[1] + a.offset[1]];
     if (text.trim()) pt({ id: a.id, kind: 'label', text, px, c, box: lt.background === 'box' ? 1 : 0, mark }, view.unproject(t));

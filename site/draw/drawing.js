@@ -15,7 +15,7 @@ import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures
 import { inflated } from './inflate.js';
 import { lineTrace, nearestAlong } from './lines.js';
 import { labelFeatures } from './labels.js';
-import { inverse, rectangle, areaOf, pathOf, sector, circle } from '../geodesy.js';
+import { inverse, cornersOf, pathOf, sector, circle } from '../geodesy.js';
 import { snapAt, stepped, neighbours, positionsOf, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
 import { copyOf, paste, centreOf, keep, kept } from './clipboard.js';
@@ -91,7 +91,7 @@ export class Drawing extends DrawStore {
   hoverChanged() { this.renderMarks(); }
   preview(fn) { super.preview(fn); this.render(); }
   // a label's text being typed: only the labels drawn again
-  previewLabels(fn) { super.preview(fn); this.renderLabels(); }
+  previewLabels(fn) { super.preview(fn); this.labelTexts = null; this.renderLabels(); }
   // another document (opened from the list, New, imported): a line or a polygon being drawn belongs to
   // the one it replaces
   adopt(doc) {
@@ -113,7 +113,7 @@ export class Drawing extends DrawStore {
   render(parts = ALL_PARTS) {
     const p = drawParts(this.doc, this.sel, this.hover, { zoom: this.map.getZoom(), ctrl: this.handlesShown, midPx: MID_PX }, parts);
     const set = (id, features) => this.map.getSource(id)?.setData({ type: 'FeatureCollection', features });
-    if (parts.base) { set('draw', p.base); this.values = null; }
+    if (parts.base) { set('draw', p.base); this.values = null; this.labelTexts = null; }
     if (parts.zoom) set('drawzoom', p.zoom);
     if (parts.base || parts.marks) set('drawvalue', [...(this.values ??= valueFeatures(this.doc, this.units(), this.bearings())), ...this.draftValues()]);
     if (parts.marks) {
@@ -135,7 +135,7 @@ export class Drawing extends DrawStore {
   renderLabels() {
     const src = this.map.getSource('drawlabel');
     if (!src) return;
-    src.setData({ type: 'FeatureCollection', features: labelFeatures(this.doc, this.view(), this.marksOn ? this.sel : new Set(), this.marksOn ? this.hover : null, this.units()) });
+    src.setData({ type: 'FeatureCollection', features: labelFeatures(this.doc, this.view(), this.marksOn ? this.sel : new Set(), this.marksOn ? this.hover : null, this.units(), this.labelTexts ??= new Map()) });
   }
   // what a form would make, shown on the map, not in the drawing: nodes, roots (ringed), lines
   setPreview(pts, picked = [], lines = []) {
@@ -148,7 +148,7 @@ export class Drawing extends DrawStore {
   // how much a point's outline is drawn enlarged now (1: real size)
   enlargement(point) { return enlargement(this.doc, point, this.map.getZoom()); }
   // the lines drawn bowed (Inflate): their IDs
-  inflatedIds() { return [...inflated(this.doc).keys()].filter((id) => { const s = this.doc.lines.find((x) => x.id === id); return s && isShown(this.doc, s); }); }
+  inflatedIds() { const bowed = inflated(this.doc); return this.doc.lines.filter((s) => bowed.has(s.id) && isShown(this.doc, s)).map((s) => s.id); }
   // the lines drawn beside their real geometry (Offset): their IDs
   offset() { return this.doc.lines.filter((s) => isShown(this.doc, s) && offsetOf(this.doc, s)).map((s) => s.id); }
   // the IDs under a screen point: those right under it first, then those within pad px (lines drawn
@@ -210,9 +210,9 @@ export class Drawing extends DrawStore {
     if (this.picking && !this.tool) { this.map.getCanvas().style.cursor = this.pointAt(e.point) ? 'pointer' : 'crosshair'; return; }
     if (this.tool || this.drag) return;
     // over a handle, the cursor says what dragging it does; over a selected element, that it moves
-    const h = this.sel.size && this.handleAt(e.point);
-    const role = h ? h.role : this.sel.size && this.hitAt(e.point, 3).some((id) => this.sel.has(id)) ? 'move' : null;
-    this.map.getCanvas().style.cursor = role ? CURSOR[role] : this.hitAt(e.point).length > 0 ? 'pointer' : '';
+    const h = this.sel.size && this.handleAt(e.point), hits = h ? [] : this.hitAt(e.point, 3);
+    const role = h ? h.role : hits.some((id) => this.sel.has(id)) ? 'move' : null;
+    this.map.getCanvas().style.cursor = role ? CURSOR[role] : hits.length ? 'pointer' : '';
   }
   // hide or show the selection and hover marks (the PNG export captures the map without them)
   showMarks(on) {
@@ -450,16 +450,16 @@ export class Drawing extends DrawStore {
   draftShape() {
     const d = this.draft, q = this.cursor?.p;
     if (this.tool !== 'shape' || !d || !q) return null;
-    const g = inverse(d.pts[0], q), doc = { ...emptyDoc(0), points: [] };
+    const g = inverse(d.pts[0], q), doc = emptyDoc(0);
     if (this.boxing()) {
       const el = placeBox(doc, d.pts[0], q, this.variant.shape, !!this.cursor.shift);
       setLook(el, 'text.values', true);
-      return { doc, el, centre: el.position, to: q, size: g.s };
+      return { doc, el, centre: el.position, to: q };
     }
     const el = this.measuring ? addPoint(doc, d.pts[0], { symbol: 'none', parts: [makePart('circle', { radius: g.s || 1 })] })
       : placeKind(doc, d.pts[0], this.variant.shape, this.presets, g.s);
     setLook(el, 'text.values', true);
-    return { doc, el, centre: d.pts[0], to: q, size: g.s };
+    return { doc, el, centre: d.pts[0], to: q };
   }
   // Shape › sector, in three clicks: the centre; the radius and one edge; the other edge, clockwise
   sectorClick(point, e) {
@@ -493,21 +493,15 @@ export class Drawing extends DrawStore {
     const d = this.draft;
     if (this.tool !== 'polygon' || !d) return null;
     const pts = [...d.pts, ...(this.cursor ? [this.cursor.p] : [])];
-    return { pts, area: pts.length > 2 ? areaOf(pathOf(pts, true)) : 0 };
+    return { pts };
   }
-  // the line being drawn, to the cursor: its points and its length so far (straight legs)
+  // the line being drawn, to the cursor: its points
   draftLine() {
     const d = this.draft;
     if (!d) return null;
     const start = placeOfEnd(this.doc, d.start);
     if (!start) return null;
-    const pts = [start, ...d.pts];
-    // the line to the pointer, snapped (where a click would put it, or end it)
-    const snapped = this.cursor?.snap?.to ? this.cursor.snap : null;
-    if (this.cursor) pts.push(this.cursor.p);
-    let length = 0;
-    for (let i = 1; i < pts.length; i++) length += inverse(pts[i - 1], pts[i]).s;
-    return { pts, length, snapped };
+    return { pts: [start, ...d.pts, ...(this.cursor ? [this.cursor.p] : [])] };
   }
   // what is being drawn: a shape, a sector, a polygon, or the line (what a click would join is marked
   // by snap.js, under the pointer only)
@@ -548,8 +542,7 @@ export class Drawing extends DrawStore {
     const dragged = this.drag?.moved && this.drag.id && find(this.doc, this.drag.id);
     if (dragged && dragged.kind !== 'label' && dragged.kind !== 'group' && !lookOf(this.doc, dragged.el).text.values) {
       const shows = (x) => ({ ...x, look: { ...x.look, text: { ...x.look.text, values: true } } });
-      const list = KIND[dragged.kind].list, doc = { ...this.doc, [list]: this.doc[list].map((x) => (x === dragged.el ? shows(x) : x)) };
-      return valueFeatures(doc, u, b).filter((f) => f.properties.id === dragged.el.id);
+      return valueFeatures({ ...this.doc, points: [], lines: [], areas: [], [KIND[dragged.kind].list]: [shows(dragged.el)] }, u, b); // it alone
     }
     if (sh) return valueFeatures(sh.doc, u, b);
     const poly = this.draftPolygon();
@@ -702,7 +695,7 @@ export class Drawing extends DrawStore {
       case 'corner': {
         // an outline part's corner (ref "part:corner"); on a point with other parts, about its centre
         const [i, c] = String(d.ref).split(':').map(Number), s = shapeOf(el, i);
-        const r = resizeRect(s, rectangle(s.center, s.bearing, s.length, s.width).corners, c, p, { keep: e.shiftKey, aboutCentre: e.altKey || el.parts.length > 1 });
+        const r = resizeRect(s, cornersOf(s.center, s.bearing, s.length, s.width), c, p, { keep: e.shiftKey, aboutCentre: e.altKey || el.parts.length > 1 });
         el.position = r.center;
         Object.assign(el.parts[i], { length: r.length, width: r.width });
         return;

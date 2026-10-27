@@ -89,9 +89,13 @@ export function sector(c, r, bearing, aperture) {
 // diagonal from the centre (front right, back right, back left, front left), the edges geodesics.
 // Returns { corners, ring } (ring closed and densified).
 export function rectangle(c, bearing, length, width) {
-  const half = Math.hypot(length, width) / 2, off = (Math.atan2(width, length) * 180) / Math.PI;
-  const corners = [bearing + off, bearing + 180 - off, bearing + 180 + off, bearing - off].map((a) => destination(c, a, half));
+  const corners = cornersOf(c, bearing, length, width);
   return { corners, ring: pathOf(corners, true, 1000) };
+}
+// its corners alone (no ring)
+export function cornersOf(c, bearing, length, width) {
+  const half = Math.hypot(length, width) / 2, off = (Math.atan2(width, length) * 180) / Math.PI;
+  return [bearing + off, bearing + 180 - off, bearing + 180 + off, bearing - off].map((a) => destination(c, a, half));
 }
 // whether a circle of radius r about c reaches either pole (it cannot then be drawn as a polygon)
 export function reachesPole(c, r) {

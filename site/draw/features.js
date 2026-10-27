@@ -2,7 +2,7 @@
 // drawing.js), the values shown on the map (valueFeatures, the draw-value layer) and what the GIS export
 // writes (exportFeatures). Pure, like document.js.
 
-import { circle, sector, rectangle, reachesPole, ccw, areaOf, destination, inverse, pathOf, perimeterOf, fmtDist, fmtArea, fmtBrg } from '../geodesy.js';
+import { circle, sector, cornersOf, reachesPole, ccw, areaOf, destination, inverse, pathOf, perimeterOf, fmtDist, fmtArea, fmtBrg } from '../geodesy.js';
 
 export { perimeterOf }; // the panel's and the tests' (geodesy.js)
 import { styleOf, lookOf, minSizeOf, offsetOf, isShown, elements, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf, ARCED } from './document.js';
@@ -360,13 +360,13 @@ export const GEOMETRY = {
   point: {
     bounds: (doc, n) => {
       const far = Math.max(0, ...roundParts(n).filter(({ part }) => part.shown && drawable(n, part.radius)).map(({ part }) => part.radius));
-      return [n.position, ...(far ? circle(n.position, far, 16) : []), ...outlineParts(n).flatMap(({ part }) => rectangle(n.position, n.bearing, part.length, part.width).corners)];
+      return [n.position, ...(far ? circle(n.position, far, 16) : []), ...outlineParts(n).flatMap(({ part }) => cornersOf(n.position, n.bearing, part.length, part.width))];
     },
     inside: (doc, n, inBox, k) => {
       const outs = outlineParts(n);
       if (!outs.length) return inBox(n.position); // by its centre, not its round parts
       const e = k(n); // as drawn: small outlines' enlarged corners
-      return outs.every(({ part }) => rectangle(n.position, n.bearing, part.length * e, part.width * e).corners.every(inBox));
+      return outs.every(({ part }) => cornersOf(n.position, n.bearing, part.length * e, part.width * e).every(inBox));
     },
     move: (doc, n, mv, acc) => { acc.points.add(n.id); },
   },
