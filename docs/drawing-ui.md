@@ -340,7 +340,9 @@ one end to the other, an outline's ring.
 ## 7. On the map
 
 - **Stacking**, bottom to top: points' circles and sectors, areas, lines (guides under the others),
-  shapes' outlines, symbols, names and values, labels; within each, the drawing order (§4).
+  shapes' outlines, symbols, names and values, labels; within each, the drawing order (§4). An area is
+  drawn whole, its fill then its outline, so one above another covers its edge too (past 250 areas the
+  rest share one fill and one outline layer, under them).
 - **Marks:** everything that says "this is what you point at, picked, or would hit" is one blue,
   cased in white so that it shows on chart, sea and satellite; at half strength for hovering, at
   full for the selection and for targets. What is not made yet (what is being drawn, a form's
