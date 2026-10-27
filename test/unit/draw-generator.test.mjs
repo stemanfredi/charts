@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistribution, editDistribution, connect, unconnect, reconnect, refreshGenerated, COPY_RADIUS,
-  distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
+  distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, removePartOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
 const { emptyDoc, addPoint, addLine, makePart, find, remove } = await import('../../site/draw/document.js');
 const { BUILT_IN, scaled } = await import('../../site/draw/place.js');
 const { lineTrace, nearestAlong, pointsAlong, totals } = await import('../../site/draw/lines.js');
@@ -591,7 +591,7 @@ test('a distribution along an arc follows its point: moved, turned, its radius c
   const doc = emptyDoc(0);
   const sec = addPoint(doc, [12, 40], { parts: [makePart('sector', { radius: 1000, aperture: 180 })], bearing: 0 });
   const { distribution: array } = makeDistribution(doc, { along: { element: sec.id }, count: 3 });
-  assert.deepEqual(array.along, { element: sec.id, part: null });
+  assert.deepEqual(array.along, { element: sec.id, part: 0 }, 'the part followed by default, kept by its place');
   sec.position = [12.1, 40.1]; sec.bearing = 90; sec.parts[0].radius = 1500;
   settleGeometry(doc);
   const azis = pointsOf(doc, array).map((n) => inverse(sec.position, n.position));
@@ -600,6 +600,25 @@ test('a distribution along an arc follows its point: moved, turned, its radius c
   remove(doc, [sec.id]);
   settleGeometry(doc);
   assert.equal(distributions(doc).length, 0, 'its point gone: the array goes, its points stay');
+});
+
+test('a part taken away: a distribution round a later part keeps following it; one round that part is dropped, its copies kept', () => {
+  const doc = emptyDoc(0);
+  const p = addPoint(doc, [12, 40], { parts: [makePart('circle', { radius: 500 }), makePart('circle', { radius: 1000 }), makePart('circle', { radius: 2000 })], bearing: 0 });
+  const { distribution: round } = makeDistribution(doc, { along: { element: p.id, part: 2 }, count: 4 });
+  const { distribution: first } = makeDistribution(doc, { along: { element: p.id }, count: 3 });
+  assert.equal(first.along.part, 0, 'the followed part, by its place');
+  removePartOf(doc, p.id, 1);
+  settleGeometry(doc);
+  assert.equal(round.along.part, 1, 'the same part, one place earlier');
+  assert.ok(pointsOf(doc, round).every((n) => Math.round(inverse(p.position, n.position).s) === 2000), 'still round it');
+  const copies = first.points.map((x) => x.pointId);
+  removePartOf(doc, p.id, 0);
+  settleGeometry(doc);
+  assert.deepEqual(distributions(doc), [round], 'the one round the part taken away dropped');
+  assert.ok(copies.every((id) => find(doc, id)), 'its copies kept');
+  assert.equal(round.along.part, 0);
+  assert.deepEqual(p.parts.map((x) => x.radius), [2000]);
 });
 
 test('Edit from sectors to circles: each point\'s first part a circle, no aperture left on it; its file the same read back', () => {

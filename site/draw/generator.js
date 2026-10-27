@@ -23,7 +23,7 @@
 import { inverse, destination, localFrame as frame } from '../geodesy.js';
 import { norm360 } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
-import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label, remove } from './document.js';
+import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
 import { outlineOf } from './outlines.js';
 import { BUILT_IN, scaled } from './place.js';
 
@@ -280,6 +280,24 @@ function place(doc, a, points, groupId = a.copiesId) {
   });
 }
 
+// the part a distribution round a point follows, by its place: the one given, else the point's
+// followed part (kept as a place, so that it stays that part when another is added or taken away)
+const partOf = (along, part) => (along.position ? part ?? followedPart(along) : null);
+// A point's part i taken away: a distribution round a later part keeps following it (its place one
+// less); one round that part is dropped, its copies kept, as when what it follows is deleted.
+export function removePartOf(doc, id, i) {
+  const p = doc.points.find((n) => n.id === id);
+  if (!p?.parts[i]) return;
+  doc.rules = doc.rules.filter((a) => {
+    if (a.kind !== 'distribute' || a.along.element !== id) return true;
+    const k = a.along.part ?? followedPart(p);
+    if (k === i) return false;
+    a.along = { ...a.along, part: k > i ? k - 1 : k };
+    return true;
+  });
+  removePart(p, i);
+}
+
 // Distribute along: copies along a line or round a point's part (doc is changed: one undo step for the
 // caller). params: along ({ element, part }: the line, or the point and the place of its part), spacing
 // or count, startMargin, endMargin, offset, side ('left', 'right', 'alternate'), radius (the copies',
@@ -288,12 +306,12 @@ function place(doc, a, points, groupId = a.copiesId) {
 // Returns { distribution (its rule), group (its own: "Distribute along X", with "Copies" in it) }.
 export function makeDistribution(doc, params) {
   const along = alongOf(doc, params.along.element);
-  const set = settings(params);
-  const { points } = distribute(doc, along, { ...set, part: params.along.part ?? null });
+  const set = settings(params), part = partOf(along, params.along.part);
+  const { points } = distribute(doc, along, { ...set, part });
   const parent = doc.groups.some((g) => g.id === params.groupId) ? params.groupId : null;
   const group = groupFor(doc, `Distribute along ${label(along.position ? 'point' : 'line', along)}`, parent);
   const copies = groupFor(doc, 'Copies', group.id);
-  const distribution = { id: newId(doc), kind: 'distribute', groupId: group.id, copiesId: copies.id, along: { element: along.id, part: params.along.part ?? null }, ...set, points: [] };
+  const distribution = { id: newId(doc), kind: 'distribute', groupId: group.id, copiesId: copies.id, along: { element: along.id, part }, ...set, points: [] };
   doc.rules.push(distribution);
   place(doc, distribution, points);
   return { distribution, group };
@@ -308,7 +326,7 @@ export function editDistribution(doc, id, params) {
   if (!along) return null;
   const was = copyOf(a); // the copy before: a point that is still it takes the new one
   Object.assign(a, settings({ ...Object.fromEntries(DISTRIBUTE_KEYS.map((k) => [k, a[k]])), ...params }));
-  if (params.along) a.along = { element: a.along.element, part: params.along.part ?? null };
+  if (params.along) a.along = { element: a.along.element, part: partOf(along, params.along.part) };
   const { points } = distribute(doc, along, { ...a, part: a.along.part });
   const byId = new Map(doc.points.map((n) => [n.id, n])), copy = copyOf(a);
   if (points.length === a.points.length && a.points.every((x) => byId.has(x.pointId))) {
