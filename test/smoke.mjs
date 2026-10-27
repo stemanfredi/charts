@@ -967,6 +967,22 @@ await section('the drawing', async () => {
   const prof = await dw.evaluate(() => [document.querySelectorAll('svg.profile polyline').length, document.querySelector('.dinspect .fblock .fvalue[title*="lower bound"]')?.textContent || '']);
   const deepLength = await dw.evaluate(async (id) => { const { lineTrace } = await import('./draw/lines.js'); return lineTrace(drawing.doc, drawing.doc.lines.find((x) => x.id === id)).length; }, deepLine);
   check(prof[0] > 0 && /along the seabed/.test(prof[1]) && deepLength > 25000, `a line's depth profile: the chart and the length along the seabed (${prof[1]})`);
+  // a long line's vertex table a page at a time: 100 rows built, not 502; ‹ › move by a page
+  const longId = await dw.evaluate(async () => {
+    const { addLine } = await import('./draw/document.js');
+    let s;
+    drawing.change((doc) => { s = addLine(doc, [12, 40], Array.from({ length: 500 }, (_, i) => [12 + (i + 1) / 600, 40 + Math.sin(i / 9) / 200]), [12.9, 40]); });
+    drawing.select([s.id]);
+    return s.id;
+  });
+  const t0 = Date.now();
+  await dw.waitForSelector('.dinspect .lpager');
+  const pageOne = await dw.evaluate(() => [document.querySelectorAll('.dinspect [data-grid*=":vertices"] tbody tr[data-r]').length, document.querySelector('.dinspect .lpager .funit').textContent]);
+  await dw.click('.dinspect .lpager button[aria-label="Next rows"]');
+  const pageTwo = await dw.evaluate(() => [document.querySelector('.dinspect .lpager .funit').textContent, document.querySelector('.dinspect input[aria-label="Vertex 100 latitude"]') !== null]);
+  check(pageOne[0] === 100 && pageOne[1] === '1–100 of 502' && pageTwo[0] === '101–200 of 502' && pageTwo[1] && Date.now() - t0 < 5000,
+    `drawing: a long line's vertices a page at a time (${pageOne}; ${pageTwo}; ${Date.now() - t0} ms)`);
+  await dw.evaluate((id) => drawing.remove([id]), longId);
   check(!dw.errors.length, `drawing: no errors ${dw.errors.join(' | ')}`);
   await dw.close();
 });

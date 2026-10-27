@@ -587,3 +587,5 @@ body.elements-open .legends { left: 300px; }
 .dmenu .dfile { display: flex; flex-direction: column; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line2); }
 .dmenu .dfile button { min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font: inherit; color: var(--ink); }
 .dmenu .dfile button:hover { background: var(--line2); }
+/* a long list's pager: ‹ rows a–b of n › (drawing-ui.md §5) */
+.lpager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--line2); }

@@ -220,7 +220,8 @@ they are drawn with; where several differ it says "mixed", and a change writes o
 **Rows**: a property grid, ruled across the panel, 28 px with a mouse (44 with a finger): each a
 label, one value or a pair read as one (latitude · longitude, colour · opacity, start · end…), and a
 last column for × or ↺; a row never wraps. A field shows no box until it is pointed at or typed in;
-lists are tables of the same cells. In a value row
+lists are tables of the same cells. A list longer than 100 rows shows them a page at a time (‹ rows
+1–100 of n ›); Copy and a paste still take every row. In a value row
 ↑ and ↓ nudge a distance, an angle or a number by one unit of its last digit (Shift: ten), each step
 applied.
 
