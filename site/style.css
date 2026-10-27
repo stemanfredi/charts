@@ -4,13 +4,13 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
-  --rail: 60px;         /* width of the control column on the right (narrower than 1024 px) */
-  --rail-w: 45px;       /* from 1024 px wide: the drawing's rail, on the left (its edge inside it) */
-  --col-w: 300px;       /* and its column beside it; the Layers panel on the right as wide */
+  --rail-w: 45px;       /* the drawing's rail, on the left (its edge inside it) */
+  --col-w: min(300px, calc(100vw - var(--rail-w))); /* its column beside it; Layers on the right as wide */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
 }
 @media (pointer: fine) { :root { --row: 36px; } }
+@media (pointer: coarse) { :root { --rail-w: 53px; } } /* a finger's targets: 44 px */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
@@ -30,42 +30,33 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 svg { flex: none; }
 
-/* Layout: the map's edges hold what you read (legends, credits and the scale at the bottom);
-   narrower than 1024 px the right edge holds what you use (Layers, Tools, Export, About; zoom and
-   compass lower down), the panel opening to the left of that column, so its buttons never move.
-   From 1024 px wide the drawing is a frame on the left, the map's controls a column top right. */
-.rail, .zoom, .panel { position: absolute; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-
-/* ---- right column ---- */
-.rail { z-index: 6; top: 10px; right: 10px; width: var(--rail); display: flex; flex-direction: column; padding: 2px; gap: 2px; }
-.rail button, .zoom button {
-  position: relative; border: 0; background: none; border-radius: 6px; color: var(--ink);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-}
-.rail button { height: 54px; font-size: 11px; }
-.rail button:hover, .zoom button:hover { background: var(--line2); }
-.rail button[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
-.rail button.active { background: var(--accent); color: #fff; } /* a tool is in use */
-.rail button[aria-busy="true"] { cursor: progress; color: var(--accent); } /* an export is being made */
-/* a rail button's menu (Export): beside the column, its items acting at once */
-.railmenu { position: absolute; right: calc(100% + 8px); width: max-content; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; display: flex; flex-direction: column; gap: 2px; }
-.rail .railmenu button { flex-direction: row; justify-content: flex-start; gap: 10px; height: auto; min-height: var(--row); padding: 0 12px 0 8px; font-size: 13px; }
-.zoom { z-index: 6; right: 10px; bottom: calc(var(--status-h) + 10px); width: var(--rail); display: flex; flex-direction: column; padding: 2px; gap: 2px; }
-.zoom button { height: 54px; } /* square, like the buttons above */
+/* Layout (drawing-ui.md §1): the drawing a frame docked to the window's left edge, its rail and beside
+   it the column, over the map; the map's own controls a small column top right; Layers a panel docked
+   to the right edge, over the map; what you read on the map's edges (legends, credits and the scale at
+   the bottom). On a phone the column and Layers one at a time, as wide as the screen leaves. */
+.zoom { position: absolute; z-index: 6; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 2px; padding: 4px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.zoom button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--ink); display: grid; place-items: center; }
+.zoom button svg { width: 18px; height: 18px; }
+.zoom button:hover { background: var(--line2); }
+.zoom button[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
 .zoom button[aria-pressed="true"] { background: var(--accent); color: #fff; } /* my location shown */
-.zoom .units { height: 54px; font: 600 12px var(--mono); } /* the distance units, beside the scale: as tall as the buttons above */
-
-/* ---- layers panel, left of the column ---- */
-.panel {
-  /* as tall as its content, up to the space above the bottom row */
-  z-index: 4; top: 10px; right: calc(var(--rail) + 20px); max-height: calc(100% - var(--status-h) - 20px);
-  width: min(340px, calc(100vw - var(--rail) - 40px)); display: flex; flex-direction: column; overflow: hidden;
+.zoom .msep { align-self: center; width: 24px; height: 1px; background: var(--line); margin: 3px 0; } /* as the rail's */
+@media (pointer: coarse) { .zoom button { width: 44px; height: 44px; } }
+/* Layers: the drawing's column mirrored (its head, its bands, its rows); the map's controls beside it */
+.panel { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; width: var(--col-w); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-left: 1px solid var(--line); }
+@media (pointer: fine) { .panel { --row: 28px; } }
+.panel header { display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px; min-height: 36px; border-bottom: 1px solid var(--line); flex: none; }
+.panel h1 { margin: 0; font: 600 13.5px/1.2 var(--font); }
+#close { margin-left: auto; }
+@media (min-width: 720px) { /* on a phone it covers them: one at a time */
+  body:has(#panel:not([hidden])) .zoom { right: calc(var(--col-w) + 8px); }
+  body:has(#panel:not([hidden])) .status { right: var(--col-w); }
+  body:has(#panel:not([hidden])) .search { right: calc(var(--col-w) + 56px); }
 }
-.panel header { display: flex; align-items: center; gap: 8px; padding: 0 0 0 16px; min-height: 48px; border-bottom: 1px solid var(--line); flex: none; }
-.panel h1 { font-size: 15px; margin: 0; letter-spacing: .02em; }
-.lview { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 0; }
-/* the map's settings, at the head of Layers: ‹ time › Now, then the depth (on the next line if need be) */
-.when { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--bg2); }
+/* the time shown and the depth, in a box over its chip: ‹ time › Now, then the depth (on the next line if need be) */
+.timepop { position: fixed; z-index: 9; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .when input, .when select, .when button { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 8px; }
 .when input { flex: 1; min-width: 0; }
 .when button { min-width: var(--row); }
@@ -81,10 +72,10 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .x:hover { background: var(--line2); color: var(--ink); }
 #menu { overflow-y: auto; flex: 0 1 auto; min-height: 0; padding-bottom: 6px; overscroll-behavior: contain; }
 
-#menu details { border-bottom: 1px solid var(--line2); }
+/* a group's heading: a band, as the inspector's */
 #menu summary {
-  display: flex; align-items: center; gap: 8px; min-height: var(--row); padding: 0 16px; cursor: pointer; user-select: none;
-  font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); list-style: none;
+  display: flex; align-items: center; gap: 8px; min-height: var(--row); padding: 0 8px 0 12px; cursor: pointer; user-select: none; background: var(--bg2); border-bottom: 1px solid var(--line2);
+  font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); list-style: none;
 }
 #menu summary::-webkit-details-marker { display: none; }
 #menu summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; }
@@ -95,7 +86,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 #menu ul { list-style: none; margin: 0; padding: 0 0 4px; }
 
 /* base: two cards; the satellite source and the provenance below them */
-.bases { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 2px 16px 8px; }
+.bases { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 12px 8px; }
 .basecard { border: 2px solid var(--line); background: #fff; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; gap: 4px; font-weight: 600; text-align: left; min-height: 44px; }
 .basecard .thumb { height: 44px; border-radius: 5px; }
 .basecard[data-base="chart"] .thumb { background: linear-gradient(115deg, #f1ebdc 0 38%, #2b3a46 38% 39%, #cfe6f7 39% 62%, #a5cdec 62% 80%, #86b9e2 80%); }
@@ -104,7 +95,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .basecard[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* a layer row: name (the whole row toggles), status hint, details button, switch on the right */
-.item { padding: 0 8px 0 16px; }
+.item { padding: 0 8px 0 12px; }
 .item .line { display: flex; align-items: center; gap: 6px; min-height: var(--row); }
 /* Ocean data: a menu for colours, one for arrows */
 .pick .line { gap: 8px; padding-right: 8px; }
@@ -162,25 +153,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; --dlist-h: 220px; }
 /* the list and the inspector: rows of 28 px with a mouse (a grid of cells), 44 with a finger */
 @media (pointer: fine) { .dview { --row: 28px; } }
-.tools2 { flex: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.tools2 > button { flex: 1 0 48px; }
-.tools2 > .urbtn { flex: 0 0 auto; }
-.tools2 button:not(.urbtn) { flex-direction: column; gap: 1px; font-size: 11px; min-height: 44px; }
-.tools2 .urbtn { min-width: 36px; padding: 0; }
-.tools2 .urbtn:disabled { opacity: 0.35; cursor: default; }
-.tools2 .urbtn:disabled:hover { border-color: var(--line); }
-/* a tool's variants (its sub-rail): icons, the one chosen pressed */
-.subrail { flex: none; display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--bg2); }
-.subrail button { min-width: 34px; min-height: 36px; border: 1px solid var(--line); background: #fff; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
-.subrail button:hover { border-color: var(--accent); }
-.subrail button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.subrail svg { width: 18px; height: 18px; }
-.subrail .initials { font-size: 12px; font-weight: 600; }
-@media (pointer: coarse) { .subrail button, .tools2 .urbtn { min-width: 44px; min-height: 44px; } }
-.tools2 button { border: 1px solid var(--line); background: #fff; border-radius: 8px; min-height: var(--row); display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; padding: 0 4px; }
-.tools2 svg { width: 16px; height: 16px; }
-.tools2 button:hover { border-color: var(--accent); }
-.tools2 button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .dlistbox { flex: none; height: var(--dlist-h); min-height: 80px; display: flex; flex-direction: column; }
 .dfilter { flex: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 12px; }
 .dfilter input { flex: 1 1 140px; min-width: 0; min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; }
@@ -199,9 +171,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 @media (hover: hover) {
   .drow:not(:hover, :focus-within, .sel) .deye[aria-pressed="true"] { visibility: hidden; }
 }
-/* the list's head: its name, the eye for all of it, the Elements panel's toggle (from 1024 px wide) */
-.dlisthead { flex: none; display: flex; align-items: center; gap: 2px; padding: 0 4px 0 12px; min-height: 40px; border-bottom: 1px solid var(--line2); }
-.dlisthead h2 { flex: 1; margin: 0; font-size: 13px; font-weight: 600; }
+/* the list's head: the drawing's title, the eye for all of it, its fold */
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
 .ddivider { flex: none; height: 9px; cursor: row-resize; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg2); position: relative; touch-action: none; }
 .ddivider::after { content: ""; position: absolute; left: 50%; top: 3px; width: 32px; height: 1.5px; margin-left: -16px; background: #c3ccd3; box-shadow: 0 2px 0 #c3ccd3; }
@@ -210,7 +180,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 /* a property grid (docs/drawing-ui.md §5): rows ruled across the panel, a label column, fields
    without a box until pointed at or typed in; headings as bands; what is not a row inset */
 .dinspect > :not(.vrow, h3, .lgridbox, .lmatrix, .fblock) { margin-left: 12px; margin-right: 12px; }
-.dinspect > :is(.frow:not(.vrow), .note, .fbuttons, .fhead) { padding: 4px 0; }
+.dinspect > :is(.frow:not(.vrow), .note, .fbuttons) { padding: 4px 0; }
 .dinspect > * { flex-shrink: 0; } /* a row as tall as what it holds, the inspector scrolling */
 .dinspect h2 { font-size: 13.5px; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dinspect h3 { display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0; min-height: var(--row); padding: 0 8px 0 12px; background: var(--bg2); border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
@@ -219,7 +189,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect h3 .hfold { display: flex; align-items: center; gap: 6px; min-height: var(--row); min-width: var(--row); border: 0; background: none; padding: 0 8px 0 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .dinspect h3 .hfold::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; margin: 0 4px; }
 .dinspect h3 .hfold[aria-expanded="true"]::before { transform: rotate(45deg); }
-.fhead { display: flex; align-items: center; gap: 8px; min-height: var(--row); }
 .frow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .flabel { flex: none; width: 78px; color: var(--soft); font-size: 12px; }
 .frow > input:not([type]), .frow > textarea, .frow > input[spellcheck] { flex: 1; min-width: 0; }
@@ -344,13 +313,11 @@ button.small.link:hover { border-color: var(--line); }
 .fend { justify-content: space-between; border-top: 1px solid var(--line2); padding-top: 8px; margin-top: 4px; }
 .fcheck { display: flex; align-items: center; gap: 6px; min-height: var(--row); padding-right: 6px; cursor: pointer; }
 .fbuttons { display: flex; gap: 6px; flex-wrap: wrap; }
-.fbuttons button, .dinspect .danger { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }
+.fbuttons button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }
 .fbuttons button:hover { border-color: var(--accent); }
 .fbuttons button.done { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.dinspect .danger { color: var(--err); }
-.dinspect .danger:hover { border-color: var(--err); }
 button.small { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); min-width: var(--row); padding: 0 8px; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--ink); font-weight: 400; }
-.dview :is(button.small, .fbuttons button, .danger) { border-radius: 4px; }
+.dview :is(button.small, .fbuttons button) { border-radius: 4px; }
 button.small:hover { border-color: var(--accent); }
 button.small[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* the drawings in this browser: the open one marked */
@@ -382,15 +349,16 @@ dialog.dreport .fbuttons { margin-top: 14px; }
 dialog.dreport button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: 44px; padding: 0 14px; }
 dialog.dreport button.done { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
-/* ---- search, top left: a place or coordinates ---- */
+/* ---- find a place (a place or coordinates): beside the map's controls, shown while it is used ---- */
 .search {
-  position: absolute; z-index: 7; top: 10px; left: 10px; width: min(380px, calc(100vw - var(--rail) - 40px));
-  display: flex; align-items: center; gap: 6px; padding: 0 0 0 12px; min-height: 46px;
+  position: absolute; z-index: 7; top: 8px; right: 56px; width: min(360px, calc(100vw - var(--rail-w) - 72px));
+  display: none; align-items: center; gap: 6px; padding: 0 0 0 12px; min-height: 46px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); color: var(--soft);
 }
 .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; height: 44px; font-size: 14px; color: var(--ink); }
 .search input::-webkit-search-cancel-button { display: none; }
 .search:focus-within { border-color: var(--accent); }
+body.finding .search { display: flex; }
 .results { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; max-height: 60vh; overflow-y: auto; }
 .results ul { list-style: none; margin: 0; padding: 0; }
 .results li { min-height: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
@@ -405,14 +373,14 @@ dialog.dreport button.done { background: var(--accent); border-color: var(--acce
 
 
 /* ---- legends, stacked bottom left above the credits ---- */
-.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 11px); /* the zoom rail's 10 px, plus the outline drawn outside the canvases: their visible edges level */ display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
+.legends { position: absolute; z-index: 3; left: calc(var(--rail-w) + 10px); bottom: calc(var(--status-h) + 11px); /* 10 px from the rail, plus the outline drawn outside the canvases */ display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
 .legends:empty { display: none; }
 .legends canvas { display: block; outline: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* an outline, not a border: it moves no pixel of the canvas */
 
 /* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */
 .status {
-  position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; pointer-events: none;
+  position: absolute; z-index: 5; left: var(--rail-w); right: 0; bottom: 0; pointer-events: none; /* from the rail's edge (the map runs under it) */
   display: flex; align-items: flex-end; gap: 4px 12px; padding: 0 10px 6px;
   font-size: 11px; color: var(--soft);
 }
@@ -442,17 +410,8 @@ dialog .keys { margin: 0; padding-left: 18px; }
 kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg2); }
 dialog .action { justify-content: center; border: 1px solid var(--line); margin-top: 12px; }
 
-/* ---- phones: sheets from the bottom, pinch instead of zoom buttons ---- */
-@media (max-width: 720px) {
-  #zoom-in, #zoom-out { display: none; } /* the rail stays, one box: my location, the units, the compass when the map is turned */
-  /* a sheet from the bottom, as tall as its content up to 85% of the screen */
-  .panel { z-index: 8; top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 85%; border-radius: 12px 12px 0 0; transition: transform .2s; }
-  .panel.dragging { transition: none; }
-  .panel.half { max-height: 50%; }
-  .handle { display: block; position: absolute; z-index: 2; top: 0; left: 50%; transform: translateX(-50%); width: 88px; height: 22px; border: 0; background: none; cursor: grab; touch-action: none; }
-  .handle::after { content: ""; position: absolute; left: 28px; right: 28px; top: 8px; height: 5px; border-radius: 3px; background: #c3ccd3; }
-  .panel header { padding-top: 10px; }
-  body.menu-open .legends { display: none; }
+/* ---- phones: no cursor position; the bottom row on two lines ---- */
+@media (max-width: 719px) {
   .pos:not(.shown) { display: none; } /* no cursor on a phone; the time shown stays */
   /* two lines: the credits and the scale; the scale note and the time */
   .status { flex-wrap: wrap; }
@@ -463,36 +422,13 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .scalenote, .shown { order: 4; }
   .scalenote:not(:empty), .shown { margin-left: auto; }
 }
-
-/* the Tools panel compact: only its tools (drawing-ui.md §1); the list and the inspector folded away */
-.tools2 .short { display: none; }
-.panel.compact header, .panel.compact .dlistbox, .panel.compact .ddivider, .panel.compact .dinspect { display: none; }
-@media (max-width: 720px) {
-  .panel.compact .dview { padding-top: 16px; } /* clear of the sheet's handle */
-  /* one line each, scrolled sideways (drawing-ui.md §1): the sheet stays low */
-  .subrail, .panel.compact .tools2 { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .subrail > button, .panel.compact .tools2 > button { flex: none; }
-  .panel.compact .tools2 > button:not(.urbtn) { width: 56px; }
-}
-/* with a finger: Back, Delete, Duplicate, Snap (drawing-ui.md §1) */
+/* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, Snap, over the map's foot */
 .touchbar { display: none; }
 @media (pointer: coarse) {
-  .touchbar:not([hidden]) { flex: none; display: flex; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
-  .touchbar button { flex: 1 1 0; min-height: 44px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font-size: 13px; }
+  .touchbar:not([hidden]) { position: absolute; z-index: 7; left: var(--rail-w); right: 0; bottom: calc(var(--status-h) + 8px); display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+  .touchbar button { pointer-events: auto; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow); }
   .touchbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 }
-/* the Tools panel's header: Undo, Redo, compact, then × (draw/panel.js placeControls) */
-.pactions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.pactions:not([hidden]) + .x { margin-left: 0; }
-.pactions button { width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); background: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-.pactions button:hover { border-color: var(--accent); }
-.pactions button:disabled { opacity: 0.35; cursor: default; }
-.pactions svg { width: 16px; height: 16px; }
-@media (pointer: coarse) { .pactions button { width: 44px; height: 44px; } }
-/* dividers between the tools' groups: what makes, Select, the panel's own */
-.tsep { flex: none; width: 1px; align-self: stretch; margin: 2px; background: var(--line); }
-.pactions .tsep { height: 24px; align-self: center; }
-.tools2 { flex-wrap: nowrap; }
 /* a line's depth profile (draw/panel.js profileBlock) */
 svg.profile { width: 100%; height: auto; display: block; background: var(--bg2); border-radius: 6px; touch-action: none; }
 svg.profile .psurface { stroke: #9fb3c8; stroke-dasharray: 3 3; stroke-width: 1; }
@@ -500,12 +436,11 @@ svg.profile .pdepth { fill: none; stroke: #335f97; stroke-width: 1.5; stroke-lin
 svg.profile .pmax, svg.profile .pmin { fill: #335f97; }
 svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 
-/* ---- from 1024 px wide (drawing-ui.md §1): the drawing is the left frame, docked: the rail of its
-   tools, then the column, the tree over the inspector; the bottom row, the legends and the search
-   start after the rail ---- */
+/* ---- the drawing's left frame (drawing-ui.md §1): the rail of its tools, then the column, the tree
+   over the inspector; the bottom row and the legends start after the rail ---- */
 .dstrip { position: absolute; z-index: 9; left: 0; top: 0; bottom: 0; /* full height: the map starts at its edge; above the column, which its kinds open over */ width: var(--rail-w); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 1px 6px 0;
   background: var(--bg2); box-shadow: inset -1px 0 var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
-.dstrip > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); font-size: 0; } /* icons only: the name in the tooltip */
+.dstrip > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
 .dstrip > button svg { width: 18px; height: 18px; }
 .dstrip > button:hover { background: var(--line2); }
 .dstrip > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
@@ -513,16 +448,21 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .dstrip > button:disabled { opacity: .35; cursor: default; background: none; }
 /* a tool with kinds: a small corner mark (its button shows the kind in use) */
 .dstrip > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
-.dstrip > .tsep { align-self: stretch; width: auto; height: 1px; background: var(--line); margin: 3px 0; flex: none; } /* edge to edge */
+/* dividers between the tools' groups: short, centred */
+.tsep { width: 24px; height: 1px; background: var(--line); margin: 3px 0; flex: none; }
 .dstrip > .grow { flex: 1; }
-/* a tool's kinds: a column beside the rail, level with its top, over the column while they are picked */
-.dstrip > .subrail { position: absolute; top: 6px; left: calc(100% + 6px); flex-direction: column; flex-wrap: nowrap; gap: 2px; padding: 4px;
+/* a tool's kinds (its sub-rail): a column beside the rail, level with its button, over the column while they are picked */
+.subrail { position: absolute; top: 6px; left: calc(100% + 6px); display: flex; flex-direction: column; gap: 2px; padding: 4px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.dstrip > .subrail button { min-width: 32px; min-height: 32px; border: 0; }
+.subrail button { min-width: 32px; min-height: 32px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
+.subrail button:hover { background: var(--line2); }
+.subrail button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.subrail svg { width: 18px; height: 18px; }
+.subrail .initials { font-size: 12px; font-weight: 600; }
+@media (pointer: coarse) { .dstrip > button, .subrail button { width: 44px; height: 44px; } }
 .epanel { position: absolute; z-index: 8; left: var(--rail-w); top: 0; bottom: 0; /* over everything, the map and its bottom row too */ width: var(--col-w); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--line); }
-@media (pointer: fine) { .epanel, .panel { --row: 28px; } } /* the panel narrower than 1024 px too: a mouse's rows */
 .epanel > .dview { flex: 1 1 auto; min-height: 0; }
-.epanel .dlisthead, .epanel .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.dlisthead, .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .dinsphead .ititle { flex: 1; min-width: 0; padding: 0 6px; font: 600 13.5px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dinsphead .iacts { display: inline-flex; align-items: center; gap: 0; }
 /* a half folded: its head alone; the other half takes the height */
@@ -535,74 +475,24 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .dtitle { flex: 1; min-width: 0; min-height: var(--row); border: 0; border-radius: 6px; background: none; padding: 0 6px; text-align: left; font: 600 13.5px/1.2 var(--font); color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .dtitle:hover { background: var(--line2); }
-@media (min-width: 1024px) {
-  /* what is on the map (the bottom row, the legends) from the rail's edge; the map runs under the rail,
-     which hides it (Zoom to and a place found keep clear of it) */
-  .status { left: var(--rail-w); }
-  .legends { left: calc(var(--rail-w) + 10px); }
-  #b-draw { display: none; } /* the tools are always on */
-}
-@media (min-width: 1024px) {
-  /* its heading, Zoom to, Group and Delete are in the title row */
-  .dview .dinspect > .fhead, .dview .nowide, .dview .dinspect .danger { display: none; }
-  #panel-title { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-}
-/* the drawing's heading: its title, a switcher; its menu, the drawings in this browser and + New */
-.dswitch { display: inline-flex; align-items: center; gap: 4px; max-width: 260px; min-height: 36px; margin-left: -6px; padding: 0 6px; border: 0; border-radius: 6px; background: none; font: inherit; color: inherit; cursor: pointer; }
-.dswitch span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dswitch svg { width: 16px; height: 16px; color: var(--soft); }
-.dswitch:hover, .dswitch[aria-expanded="true"] { background: var(--line2); }
+/* the drawings menu (the rail's ☰): the drawings in this browser, + New, the file, the view's outputs, About */
 .dmenu { position: fixed; z-index: 20; width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); --row: 36px; }
 @media (pointer: coarse) { .dmenu { --row: 44px; } }
 .dmenu .drawings .hact:hover { color: var(--err); } /* Delete for good */
 .dmenu .dnew { display: block; width: 100%; min-height: var(--row); margin-top: 4px; padding: 0 8px; border: 0; border-top: 1px solid var(--line2); border-radius: 0 0 6px 6px; background: none; text-align: left; color: var(--accent); font: inherit; }
 .dmenu .dnew:hover, .dmenu .drawings .dname:hover { background: var(--line2); }
-@media (pointer: coarse) { .dswitch { min-height: 44px; } }
-/* the panel's close: a chevron toward the edge it goes to (down, on a phone's sheet) */
-@media (max-width: 720px) { #close svg { transform: rotate(90deg); } }
 .dmenu .dfile { display: flex; flex-direction: column; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line2); }
 .dmenu .dfile button { min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font: inherit; color: var(--ink); }
 .dmenu .dfile button:hover { background: var(--line2); }
-/* a long list's pager: ‹ rows a–b of n › (drawing-ui.md §5) */
-.lpager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--line2); }
-/* ---- from 1024 px wide (drawing-ui.md §1): the map's own controls a small column at the top right
-   (find a place, Layers, my position, north when turned); no zoom buttons, no units button (the
-   scale switches them); the search shown while used; Layers beside the column ---- */
-.wideonly { display: none !important; }
-#scale { cursor: pointer; }
-.pos.shown { cursor: pointer; }
-.pos.shown::after { content: " ▾"; color: var(--soft); }
-.pos.shown:hover { background: #fff; }
-.timepop { position: fixed; z-index: 9; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.timepop .when { border: 0; background: none; padding: 0; }
 .dmenu .dsep { height: 1px; background: var(--line2); margin: 4px 0; }
 .dmenu > button[role="menuitem"] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font: inherit; color: var(--ink); }
 .dmenu > button[role="menuitem"]:hover { background: var(--line2); }
 .dmenu > button[role="menuitem"] svg { width: 18px; height: 18px; }
 .dmenu > button[aria-busy="true"] { cursor: progress; color: var(--accent); }
-@media (min-width: 1024px) {
-  .wideonly { display: grid !important; }
-  .msep.wideonly { display: block !important; height: 1px; background: var(--line); margin: 3px -4px; } /* edge to edge */
-  #rail { display: none; }
-  .zoom { top: 8px; right: 8px; bottom: auto; width: 40px; padding: 4px; gap: 2px; }
-  .zoom button { width: 32px; height: 32px; padding: 0; place-items: center; }
-  .zoom button svg { width: 18px; height: 18px; }
-  .zoom button[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
-  #zoom-in, #zoom-out, #units { display: none; }
-  /* Layers as the drawing's column, mirrored: docked to the right edge, full height, over the map and
-     its bottom row; the same head and section bands; the map's controls beside it */
-  .panel { z-index: 8; top: 0; right: 0; bottom: 0; width: var(--col-w); max-height: none; border: 0; border-left: 1px solid var(--line); border-radius: 0; box-shadow: none; }
-  .panel header { min-height: 36px; padding: 0 4px 0 12px; }
-  .panel h1 { font: 600 13.5px/1.2 var(--font); letter-spacing: 0; }
-  #menu .item { padding: 0 8px 0 12px; }
-  #menu .bases { padding: 2px 12px 8px; }
-  .panel #close { width: 28px; height: 28px; font-size: 16px; }
-  #menu summary { min-height: 28px; padding: 0 8px 0 12px; font-size: 10.5px; background: var(--bg2); border-bottom: 1px solid var(--line2); }
-  #menu details { border-bottom: 0; }
-  body:has(#panel:not([hidden])) .zoom { right: calc(var(--col-w) + 8px); }
-  body:has(#panel:not([hidden])) .status { right: var(--col-w); }
-  .search { display: none; left: auto; right: 56px; top: 8px; width: 360px; }
-  body:has(#panel:not([hidden])) .search { right: calc(var(--col-w) + 56px); }
-  body.finding .search { display: flex; }
-}
-@media (min-width: 1024px) { .lview > .when { display: none !important; } } /* the time is the chip's, on the bottom row */
+/* a long list's pager: ‹ rows a–b of n › (drawing-ui.md §5) */
+.lpager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--line2); }
+/* the scale switches the units; the time a chip */
+#scale { cursor: pointer; }
+.pos.shown { cursor: pointer; }
+.pos.shown::after { content: " ▾"; color: var(--soft); }
+.pos.shown:hover { background: #fff; }

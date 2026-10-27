@@ -26,19 +26,15 @@ async function open(hash, inCtx = ctx) {
   return page;
 }
 const visible = (page, id) => page.evaluate((id) => map.getLayoutProperty(id, 'visibility'), id);
-// an item of the rail's Export menu (link, png, zip, save): the menu opened, then the item
-// the view's outputs: in the Export menu, or from 1024 px wide in the rail's ☰ (each item then says how it went)
-const wideOn = (page) => page.evaluate(() => matchMedia('(min-width: 1024px)').matches);
+// one of the view's outputs (link, png, zip), in the rail's ☰ (the menu stays open while an export runs; each item says how it went)
 const exportItem = async (page, id) => {
-  if (!(await wideOn(page))) await page.click('#export');
-  else if (!(await page.isVisible('.dmenu'))) await page.click('#dstrip .filebtn'); // the menu stays open while an export runs
+  if (!(await page.isVisible('.dmenu'))) await page.click('#dstrip .filebtn');
   await page.click(`#${id}`);
 };
-// the time line: from 1024 px wide behind the time chip on the bottom row
-const timeOpen = async (page) => { if ((await wideOn(page)) && !(await page.isVisible('#when'))) await page.click('#shown'); };
-const saidOn = async (page, id) => ((await wideOn(page)) ? `#${id}` : '#export'); // where an export says how it went
-// the search: from 1024 px wide behind its lens
-const findOpen = async (page) => { if (await wideOn(page)) await page.click('#b-find'); };
+// the time line: behind the time chip on the bottom row
+const timeOpen = async (page) => { if (!(await page.isVisible('#when'))) await page.click('#shown'); };
+// the search: behind its lens
+const findOpen = (page) => page.click('#b-find');
 
 // name → bytes, every entry of a zip (central directory: name and local header offset), and its item.json
 function files(zz) {
@@ -94,7 +90,7 @@ await section('URL state, Link, Measure, a bad link', async () => {
   // URL state: view and layers survive a reload; Link copies the current view. Measure's tools make
   // guides showing their values (a distance: a line; a ring: a circle in two clicks), their values
   // drawn with the drawing's
-  const p = await open('#v=9/35.9/14.4/0&on=chart,coastline,depth,isobaths&u=nm&menu=draw');
+  const p = await open('#v=9/35.9/14.4/0&on=chart,coastline,depth,isobaths&u=nm');
   await p.keyboard.press('e'); // the column hidden: the clicks below land on the map
   await p.keyboard.press('m'); // Measure, a distance
   await p.mouse.click(300, 300);
@@ -127,16 +123,15 @@ await section('URL state, Link, Measure, a bad link', async () => {
 });
 
 await section('one side panel', async () => {
-  // from 1024 px wide the tools are always on, in the left frame; the right-hand panel is Layers' alone:
-  // its button opens and closes it, the frame staying; no Tools button
+  // the tools always there, in the left frame; Layers a panel on the right, its button opening and
+  // closing it, the frame staying
   const pv = await open('#v=6/41/12/0&menu=1');
-  const now = () => pv.evaluate(() => [!!document.querySelector('#panel').offsetParent && !document.querySelector('#lview').hidden, !document.querySelector('#dstrip').hidden,
-    !!document.querySelector('#b-draw').offsetParent, new URLSearchParams(location.hash.slice(1)).get('menu')]);
+  const now = () => pv.evaluate(() => [!!document.querySelector('#panel').offsetParent, !!document.querySelector('#dstrip').offsetParent, new URLSearchParams(location.hash.slice(1)).get('menu')]);
   const opened = await now();
-  await pv.click('#b-maplayers');
+  await pv.click('#b-layers');
   await pv.waitForTimeout(400);
   const closed = await now();
-  check(opened.join() === 'true,true,false,1' && closed.join() === 'false,true,false,0', `Layers opened and closed by its button, the tools' frame always there (${opened}; ${closed})`);
+  check(opened.join() === 'true,true,1' && closed.join() === 'false,true,0', `Layers opened and closed by its button, the tools' frame always there (${opened}; ${closed})`);
   await pv.close();
 });
 
@@ -256,7 +251,8 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   await cm.waitForTimeout(500);
   check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'Now goes back to now');
   // About, in the right-hand column
-  if (await wideOn(cm)) { await cm.click('#dstrip .filebtn'); await cm.click('.dmenu .mabout'); } else await cm.click('#b-about');
+  await cm.click('#dstrip .filebtn');
+  await cm.click('.dmenu .mabout');
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
   check(await cm.evaluate(() => !document.querySelector('#nostart')), 'the map started: the notice that it did not is gone');
@@ -361,7 +357,7 @@ await section('the PNG and GIS exports', async () => {
   // an export that fails says so on its button, and the next click tries again
   await again.route('**/polygon-clipping*', (r) => r.abort());
   await exportItem(again, 'zip');
-  const zipSays = await saidOn(again, 'zip');
+  const zipSays = '#zip';
   await again.waitForFunction((sel) => document.querySelector(`${sel} span`).textContent === 'Failed', zipSays, { timeout: 15000 }).catch(() => {});
   const [zipLabel, zipTitle] = await again.evaluate((sel) => [document.querySelector(`${sel} span`).textContent, document.querySelector(sel).title], zipSays);
   check(zipLabel === 'Failed' && /polygon-clipping/.test(zipTitle), `a failed GIS export says so on its button (${zipLabel}: ${zipTitle})`);
@@ -496,7 +492,7 @@ await section('maritime zones', async () => {
 
 await section('the drawing', async () => {
   // the drawing: place, edit, undo, export, New, import, restore, the exports
-  const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=draw');
+  const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=0'); // Layers closed: the map's right side clear for the clicks
   const DX = 400; // from 1024 px wide the left frame (rail and column) covers the map's left: the clicks below, written for the whole map, moved right of it
   await dw.evaluate(() => { if (document.querySelector('#elements').hidden) document.querySelector('#dstrip .coltoggle').click(); }); // open (an earlier section may have hidden it)
   // the drawing's file out: from the drawings menu
@@ -517,16 +513,15 @@ await section('the drawing', async () => {
   // from 1024 px wide: the rail docked at the left edge, the tool's kinds a column beside it, nothing
   // folded away; the column (tree over inspector) open, hidden by the rail's toggle, back with E; the
   // inspector showing the drawing with nothing selected
-  const layoutNow = () => dw.evaluate(() => [document.querySelector('#panel').classList.contains('compact'),
-    !!document.querySelector('#dstrip button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#dstrip .subrail')?.offsetParent,
+  const layoutNow = () => dw.evaluate(() => [!!document.querySelector('#dstrip button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#dstrip .subrail')?.offsetParent,
     !document.querySelector('#elements').hidden, Math.round(document.querySelector('#dstrip').getBoundingClientRect().left), document.querySelector('.dinsphead .ititle')?.textContent]);
   const onTool = await layoutNow();
   await dw.click('#dstrip .coltoggle');
   const hiddenE = await layoutNow();
   await dw.keyboard.press('e');
   const shownE = await layoutNow();
-  check(onTool.join() === 'false,true,true,true,0,Untitled drawing' && !hiddenE[3] && shownE[3],
-    `tools: the rail at the left edge, the kinds beside it; the column open (the drawing in the inspector), hidden by the rail's toggle, back with E (${onTool}; ${hiddenE[3]}; ${shownE[3]})`);
+  check(onTool.join() === 'true,true,true,0,Untitled drawing' && !hiddenE[2] && shownE[2],
+    `tools: the rail at the left edge, the kinds beside it; the column open (the drawing in the inspector), hidden by the rail's toggle, back with E (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
   // a kind picked: the column still open (until the tool ends), the tool's button showing it; Circle again
   await dw.click('#dstrip .subrail button[aria-label="Rings"]');
   const picked = await dw.evaluate(() => [!!document.querySelector('#dstrip .subrail')?.offsetParent, document.querySelector('#dstrip button[data-tool=shape]').dataset.shows]);
@@ -1026,25 +1021,29 @@ await section('the drawing', async () => {
 });
 
 await section('with a finger, on a phone', async () => {
-  // with a finger, on a phone (drawing-ui.md §1): the sheet's heights, the touch row, handles
+  // with a finger, on a phone (drawing-ui.md §1): the column closed to start with, Layers and the
+  // column one at a time; the touch row over the map; handles larger
   const fctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  const fp = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=draw', fctx);
-  const sheet = () => fp.evaluate(() => { const c = document.querySelector('#panel').classList; return c.contains('compact') ? 'compact' : c.contains('half') ? 'half' : 'full'; });
+  const fp = await open('#v=11/40.2/12.1/0&on=chart,coastline', fctx);
+  const shown = () => fp.evaluate(() => [!document.querySelector('#elements').hidden, !document.querySelector('#panel').hidden]);
+  const atStart = await shown();
   await fp.evaluate(() => drawing.setVariant('shape', 'circle'));
-  const atTool = await sheet();
   await fp.touchscreen.tap(195, 300); // the centre…
   await fp.touchscreen.tap(195, 300); // …again: the default size
   const placed = await fp.evaluate(() => drawing.doc.points.length);
   await fp.click('.touchbar button:has-text("Snap")'); // off: placed exactly where tapped
-  await fp.touchscreen.tap(100, 250);
-  await fp.touchscreen.tap(100, 250);
+  await fp.touchscreen.tap(150, 250);
+  await fp.touchscreen.tap(150, 250);
   const freeTap = await fp.evaluate(() => [drawing.snapOff, drawing.doc.points.length]);
-  await fp.click('.touchbar button:has-text("Back")'); // the tool ends: the sheet as it was
-  const afterBack = [await fp.evaluate(() => drawing.tool), await sheet()];
-  await fp.click('.cbtn'); // only the tools; a point selected on the map: the sheet to half
-  await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
-  const onSelect = await sheet();
+  await fp.click('.touchbar button:has-text("Back")'); // the tool ends
+  const afterBack = await fp.evaluate(() => drawing.tool);
+  await fp.click('#dstrip .coltoggle');
+  const colOpen = await shown();
+  await fp.click('#b-layers'); // Layers: the column makes way
+  const layersOpen = await shown();
+  await fp.click('#close');
   const handles = await fp.evaluate(() => map.getLayoutProperty('draw-handle', 'icon-size'));
+  await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
   // a drag of the radius handle, then a second finger: everything back
   const rBefore = await fp.evaluate(() => drawing.doc.points[0].parts[0].radius);
   await fp.evaluate(async () => {
@@ -1058,8 +1057,8 @@ await section('with a finger, on a phone', async () => {
     window.dispatchEvent(ev('pointerup', 1));
   });
   const after = await fp.evaluate(() => [drawing.doc.points[0].parts[0].radius, !!drawing.drag]);
-  check(atTool === 'compact' && placed === 1 && freeTap.join() === 'true,2' && afterBack.join() === ',full' && onSelect === 'half',
-    `finger: a tool makes the sheet compact; a circle placed by two taps; Snap off; Back ends the tool; a point selected on the map: half (${atTool}, ${placed}, ${freeTap}, ${afterBack}, ${onSelect})`);
+  check(atStart.join() === 'false,false' && placed === 1 && freeTap.join() === 'true,2' && afterBack === null && colOpen.join() === 'true,false' && layersOpen.join() === 'false,true',
+    `finger: the column closed to start with; a circle placed by two taps; Snap off; Back ends the tool; the column and Layers one at a time (${atStart}; ${placed}; ${freeTap}; ${afterBack}; ${colOpen}; ${layersOpen})`);
   check(handles === 1.75 && after[0] === rBefore && !after[1], `finger: handles drawn larger (${handles}); a second finger during a drag puts it back (${rBefore} → ${after[0]})`);
   check(!fp.errors.length, `finger: no errors ${fp.errors.join(' | ')}`);
   await fctx.close();

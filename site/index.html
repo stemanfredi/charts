@@ -48,55 +48,34 @@
     </div>
   </div>
 
-  <!-- right edge, narrower than 1024 px: Layers and Tools (they switch one side panel, which opens to
-       the left of this column), Export (a menu: the link, a picture, GIS data) and About; zoom, my
-       location, compass and the units lower down. The column never moves. -->
-  <nav id="rail" class="rail" aria-label="Map controls">
-    <button type="button" id="b-layers" aria-controls="panel" aria-expanded="false"><i data-icon="layers"></i><span>Layers</span></button>
-    <button type="button" id="b-draw" aria-controls="panel" aria-expanded="false"><i data-icon="draw"></i><span>Tools</span></button>
-    <button type="button" id="export" aria-haspopup="menu" aria-controls="export-menu" aria-expanded="false" title="Export this view: a link, a picture, GIS data"><i data-icon="save"></i><span>Export</span></button>
-    <div id="export-menu" class="railmenu" role="menu" aria-label="Export" hidden>
-      <button type="button" role="menuitem" id="link" title="Copy a link to this exact view"><i data-icon="link"></i><span>Copy link</span></button>
-      <button type="button" role="menuitem" id="png" title="Download the view as a picture"><i data-icon="png"></i><span>Picture (PNG)</span></button>
-      <button type="button" role="menuitem" id="zip" title="Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF"><i data-icon="zip"></i><span>GIS data (ZIP)</span></button>
-    </div>
-    <button type="button" id="b-about" title="About: sources, privacy, keys"><i data-icon="info"></i><span>About</span></button>
-  </nav>
-  <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
-    <!-- from 1024 px wide the map's own, at the top right: find a place, layers; then my position and north -->
-    <button type="button" id="b-find" class="wideonly" aria-label="Find a place" aria-expanded="false" title="Find a place (/)"><i data-icon="search"></i></button>
-    <button type="button" id="b-maplayers" class="wideonly" aria-label="Layers" aria-expanded="false" title="Layers (L)"><i data-icon="layers"></i></button>
-    <span class="msep wideonly" aria-hidden="true"></span>
-    <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><i data-icon="plus"></i></button>
-    <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><i data-icon="minus"></i></button>
+  <!-- the map's own controls, top right: find a place, Layers, my position, north when turned -->
+  <div id="zoom" class="zoom" role="group" aria-label="Map controls">
+    <button type="button" id="b-find" aria-label="Find a place" aria-expanded="false"><i data-icon="search"></i></button>
+    <button type="button" id="b-layers" aria-label="Layers" aria-controls="panel" aria-expanded="false"><i data-icon="layers"></i></button>
+    <span class="msep" aria-hidden="true"></span>
     <button type="button" id="locate" aria-pressed="false" aria-label="Show my location" title="Show my location"><i data-icon="locate"></i></button>
     <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><i data-icon="compass"></i></button>
-    <button type="button" id="units" class="units" aria-label="Distance units">km</button>
   </div>
 
   <aside id="panel" class="panel" aria-labelledby="panel-title" hidden>
     <header>
       <h1 id="panel-title">Layers</h1>
       <span class="spin" aria-hidden="true"></span>
-      <span id="panel-actions" class="pactions" hidden></span>
-      <button type="button" id="close" class="x" aria-label="Close panel" title="Close"><i data-icon="hide"></i></button>
+      <button type="button" id="close" class="etoggle" aria-label="Close Layers" title="Close"><i data-icon="hide"></i></button>
     </header>
-    <!-- Layers: the map's settings for the layers that use them (the time shown, in local time, and
-         the depth), then the groups, scrolling under them -->
-    <div id="lview" class="lview">
-      <div id="when" class="when" role="group" aria-label="Time and depth shown" hidden>
-        <button type="button" data-step="-1" aria-label="Earlier" title="Earlier">‹</button><input type="datetime-local" step="3600" required aria-label="Time shown"><button type="button" data-step="1" aria-label="Later" title="Later">›</button><button type="button" data-now>Now</button>
-        <label class="depthsel" hidden><span>Depth</span><select aria-label="Depth below the surface"></select></label>
-      </div>
-      <div id="menu"></div>
-    </div>
-    <!-- Draw: the tools, the list of the drawing's elements, and the inspector of what is selected -->
-    <div id="dview" class="dview" hidden></div>
+    <div id="menu"></div>
   </aside>
-  <!-- From 1024 px wide (drawing-ui.md §1): the drawing's left frame, the rail of its tools and the
-       column (the tree over the inspector) -->
-  <div id="dstrip" class="dstrip" role="toolbar" aria-label="Tools" aria-orientation="vertical" hidden></div>
-  <aside id="elements" class="epanel" aria-label="Elements" hidden></aside>
+  <!-- the time shown and the depth (the layers that use them), opened from its chip on the bottom row -->
+  <div id="timepop" class="timepop" hidden>
+    <div id="when" class="when" role="group" aria-label="Time and depth shown">
+      <button type="button" data-step="-1" aria-label="Earlier" title="Earlier">‹</button><input type="datetime-local" step="3600" required aria-label="Time shown"><button type="button" data-step="1" aria-label="Later" title="Later">›</button><button type="button" data-now>Now</button>
+      <label class="depthsel" hidden><span>Depth</span><select aria-label="Depth below the surface"></select></label>
+    </div>
+  </div>
+  <!-- the drawing's left frame (drawing-ui.md §1): the rail of its tools, and the column (the tree over
+       the inspector) -->
+  <div id="dstrip" class="dstrip" role="toolbar" aria-label="Tools" aria-orientation="vertical"></div>
+  <aside id="elements" class="epanel" aria-label="Elements"><div id="dview" class="dview"></div></aside>
 
   <div id="legends" class="legends" aria-label="Legends"></div>
   <footer id="status" class="status"></footer>
@@ -104,7 +83,7 @@
   <dialog id="about" aria-labelledby="about-title">
     <h2 id="about-title">Charts</h2>
     <p><b>Not for navigation.</b> Positions, depths and coastlines come from open datasets of varying accuracy; depths are a coarse elevation model, not soundings.</p>
-    <p>Map data © OpenStreetMap contributors (ODbL), © OpenMapTiles, served by OpenFreeMap; depths GEBCO Compilation Group (2026) GEBCO 2026 Grid (doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa); land elevation Mapzen Terrain Tiles; ocean data generated using E.U. Copernicus Marine Service Information. Each layer's source, licence and resolution are behind its <b>ⓘ</b> in the Layers panel.</p>
+    <p>Map data © OpenStreetMap contributors (ODbL), © OpenMapTiles, served by OpenFreeMap; depths GEBCO Compilation Group (2026) GEBCO 2026 Grid (doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa); land elevation Mapzen Terrain Tiles; ocean data generated using E.U. Copernicus Marine Service Information. Each layer's source, licence and resolution are behind its <b>ⓘ</b> in Layers.</p>
     <p>Tile requests tell each provider which area you are viewing; a hidden layer makes none. A line's depth profile reads the depth tiles along that line. Your location, when you show it, stays in this page.</p>
     <p>Drawings stay in this browser: saved here as you go, never sent anywhere. Export drawing (GeoJSON), in the drawings menu, writes it as a file, with the view, to share or keep it; links do not carry drawings. Labels are written with the map's own fonts, fetched in blocks of characters, never as text.</p>
     <h3>Keys</h3>

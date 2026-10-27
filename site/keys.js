@@ -12,7 +12,6 @@ export const MOD = mac ? '⌘' : 'Ctrl';
 const KEYS = [
   { line: 1, key: '/', show: '[/]', text: 'search', open: 'search' },
   { line: 1, key: 'l', text: 'layers', open: 'layers' },
-  { line: 1, key: 'd', text: 'tools (draw and measure)', open: 'draw' },
   { line: 1, key: 'e', text: 'the column: the tree and the inspector', open: 'elements' },
   { line: 3, key: 'p', text: 'point', tool: ['draw', 'point'] },
   { line: 3, key: 'g', text: 'line', tool: ['draw', 'line'] },
@@ -24,7 +23,7 @@ const KEYS = [
   { line: 4, show: '[Enter]', text: 'or double-click finishes' },
   { line: 4, show: '[Backspace]', text: 'takes back a point' },
   { line: 4, show: '[Esc]', text: 'cancels' },
-  { line: 5, prefix: 'In Tools: ', show: '[↑][↓]', text: 'select' },
+  { line: 5, show: '[↑][↓]', text: 'select' },
   { line: 5, show: mac ? '[Delete] or [⌘] [Backspace]' : '[Delete]', text: 'deletes' },
   { line: 5, show: '[F2]', text: 'rename' },
   { line: 5, show: `[${MOD}] [Z]`, text: 'undo' },
@@ -44,5 +43,5 @@ export const openKey = (name) => KEYS.find((x) => x.open === name)?.key.toUpperC
 export function keyList() {
   const caps = (s) => s.split(/(\[[^\]]+\])/).filter(Boolean).map((p) => (p.startsWith('[') ? h('kbd', {}, p.slice(1, -1)) : p));
   const lines = [...new Set(KEYS.map((k) => k.line))].map((n) => KEYS.filter((k) => k.line === n));
-  return lines.map((ks) => h('li', {}, ks[0].prefix || '', ks.flatMap((k, i) => [i ? ' · ' : '', ...caps(k.show || `[${k.key.toUpperCase()}]`), ` ${k.text}`])));
+  return lines.map((ks) => h('li', {}, ks.flatMap((k, i) => [i ? ' · ' : '', ...caps(k.show || `[${k.key.toUpperCase()}]`), ` ${k.text}`])));
 }

@@ -16,8 +16,8 @@ export const store = {
   remove: (k) => { try { localStorage.removeItem(k); } catch { /* nothing to remove */ } },
   json: (k) => { try { return JSON.parse(store.get(k)); } catch { return null; } },
 };
-// from 1024 px wide: the drawing a frame on the left, the map's controls a column top right
-export const WIDE = typeof matchMedia === 'function' ? matchMedia('(min-width: 1024px)') : { matches: false, addEventListener() {} };
+// a phone's width: Layers and the drawing's column one at a time, the column closed to start with
+export const NARROW = typeof matchMedia === 'function' ? matchMedia('(max-width: 719px)') : { matches: false };
 // whether el (a key's target) is a field taking text: a box ticked, a colour or a slider is not,
 // so the keys stay the page's
 export const typing = (el) => !!el?.closest?.('input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]), select, textarea');
