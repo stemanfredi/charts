@@ -27,7 +27,18 @@ async function open(hash, inCtx = ctx) {
 }
 const visible = (page, id) => page.evaluate((id) => map.getLayoutProperty(id, 'visibility'), id);
 // an item of the rail's Export menu (link, png, zip, save): the menu opened, then the item
-const exportItem = async (page, id) => { await page.click('#export'); await page.click(`#${id}`); };
+// the view's outputs: in the Export menu, or from 1024 px wide in the rail's ☰ (each item then says how it went)
+const wideOn = (page) => page.evaluate(() => matchMedia('(min-width: 1024px)').matches);
+const exportItem = async (page, id) => {
+  if (!(await wideOn(page))) await page.click('#export');
+  else if (!(await page.isVisible('.dmenu'))) await page.click('#dstrip .filebtn'); // the menu stays open while an export runs
+  await page.click(`#${id}`);
+};
+// the time line: from 1024 px wide behind the time chip on the bottom row
+const timeOpen = async (page) => { if ((await wideOn(page)) && !(await page.isVisible('#when'))) await page.click('#shown'); };
+const saidOn = async (page, id) => ((await wideOn(page)) ? `#${id}` : '#export'); // where an export says how it went
+// the search: from 1024 px wide behind its lens
+const findOpen = async (page) => { if (await wideOn(page)) await page.click('#b-find'); };
 
 // name → bytes, every entry of a zip (central directory: name and local header offset), and its item.json
 function files(zz) {
@@ -122,7 +133,7 @@ await section('one side panel', async () => {
   const now = () => pv.evaluate(() => [!!document.querySelector('#panel').offsetParent && !document.querySelector('#lview').hidden, !document.querySelector('#dstrip').hidden,
     !!document.querySelector('#b-draw').offsetParent, new URLSearchParams(location.hash.slice(1)).get('menu')]);
   const opened = await now();
-  await pv.click('#b-layers');
+  await pv.click('#b-maplayers');
   await pv.waitForTimeout(400);
   const closed = await now();
   check(opened.join() === 'true,true,false,1' && closed.join() === 'false,true,false,0', `Layers opened and closed by its button, the tools' frame always there (${opened}; ${closed})`);
@@ -166,10 +177,12 @@ await section('search', async () => {
   }, { lat, lon, tol });
   let photonCalls = 0;
   sp.on('request', (r) => { if (r.url().includes('photon.komoot.io')) photonCalls++; });
+  await findOpen(sp);
   await sp.fill('#q', '35 54N 14 31E');
   await sp.keyboard.press('Enter');
   await sp.waitForTimeout(2500);
   check((await near(35.9, 14 + 31 / 60, 0.01)) && photonCalls === 0, 'coordinates in the search box go there, without a request');
+  await findOpen(sp);
   await sp.fill('#q', 'Valletta');
   await sp.waitForSelector('#results li[role=option]', { timeout: 15000 }).catch(() => {});
   await sp.keyboard.press('Enter');
@@ -224,6 +237,7 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   const aLocal = await cm.evaluate((t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }, ahead);
   const [minMax, shownOn] = await cm.evaluate(() => [[document.querySelector('#when input').min, document.querySelector('#when input').max], !document.querySelector('#shown').hidden]);
   check(shownOn && minMax[0] > '2020' && minMax[1] > minMax[0] && !minMax[1].startsWith('2099'), `the field holds the dates the layers have (${minMax.join(' to ')})`, true);
+  await timeOpen(cm);
   await cm.fill('#when input', aLocal);
   await cm.waitForTimeout(1500);
   const [shownText, cmHash] = await cm.evaluate(() => [document.querySelector('#shown').textContent, location.hash]);
@@ -242,7 +256,7 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   await cm.waitForTimeout(500);
   check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'Now goes back to now');
   // About, in the right-hand column
-  await cm.click('#b-about');
+  if (await wideOn(cm)) { await cm.click('#dstrip .filebtn'); await cm.click('.dmenu .mabout'); } else await cm.click('#b-about');
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
   check(await cm.evaluate(() => !document.querySelector('#nostart')), 'the map started: the notice that it did not is gone');
@@ -266,6 +280,7 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   // coordinates being typed never reach the place search
   const sent = [];
   cm.on('request', (r) => { if (r.url().includes('photon')) sent.push(r.url()); });
+  await findOpen(cm);
   await cm.fill('#q', '35 54N 14');
   await cm.waitForTimeout(800);
   check(!sent.length && /latitude, then longitude/.test(await cm.textContent('#results')), `coordinates being typed stay in the page (${sent.length} sent)`);
@@ -305,6 +320,7 @@ await section('water properties at a depth', async () => {
     document.querySelectorAll('.item .note:not([hidden])').length, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
   check(/^100 .* · 100 m deep$/.test(wpDepth) && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set on the time line and shown as "100 m deep": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`, true);
   // the depth on a row of its own, under the time line, which keeps its width
+  await timeOpen(wp);
   const [inW, below] = await wp.evaluate(() => { const i = document.querySelector('#when input').getBoundingClientRect(), d = document.querySelector('#when .depthsel').getBoundingClientRect(); return [i.width, d.top >= i.bottom]; });
   check(below && inW >= 150, `the depth sits under the time line, which keeps its width (${Math.round(inW)} px)`);
   await wp.close();
@@ -345,10 +361,12 @@ await section('the PNG and GIS exports', async () => {
   // an export that fails says so on its button, and the next click tries again
   await again.route('**/polygon-clipping*', (r) => r.abort());
   await exportItem(again, 'zip');
-  await again.waitForFunction(() => document.querySelector('#export span').textContent === 'Failed', null, { timeout: 15000 }).catch(() => {});
-  const [zipLabel, zipTitle] = await again.evaluate(() => [document.querySelector('#export span').textContent, document.querySelector('#export').title]);
+  const zipSays = await saidOn(again, 'zip');
+  await again.waitForFunction((sel) => document.querySelector(`${sel} span`).textContent === 'Failed', zipSays, { timeout: 15000 }).catch(() => {});
+  const [zipLabel, zipTitle] = await again.evaluate((sel) => [document.querySelector(`${sel} span`).textContent, document.querySelector(sel).title], zipSays);
   check(zipLabel === 'Failed' && /polygon-clipping/.test(zipTitle), `a failed GIS export says so on its button (${zipLabel}: ${zipTitle})`);
   await again.unroute('**/polygon-clipping*');
+  await again.keyboard.press('Escape'); // the menu closed (from 1024 px wide it stays open while an export runs)
   const [dz] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), exportItem(again, 'zip')]);
   const z = await readFile(await dz.path());
   const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png', 'vector/coastline.geojson', 'vector/isobaths.geojson', 'raster/depth.tif'];
@@ -604,6 +622,7 @@ await section('the drawing', async () => {
   await dw.evaluate(() => drawing.select([drawing.doc.points[0].id])); // selected: its highlight must stay out of the picture
   const [dpng] = await Promise.all([dw.waitForEvent('download', { timeout: 120000 }), exportItem(dw, 'png')]);
   const [dzip] = await Promise.all([dw.waitForEvent('download', { timeout: 120000 }), exportItem(dw, 'zip')]);
+  await dw.keyboard.press('Escape'); // the ☰ menu closed (it stays open while an export runs)
   const dfiles = files(await readFile(await dzip.path()));
   const dgj = JSON.parse(dfiles['vector/drawings.geojson'] || '{}'), ditem = JSON.parse(dfiles['item.json']), dfile = JSON.parse(dfiles['drawing.geojson'] || '{}');
   check(dpng && dgj.features?.map((f) => f.properties.kind).join() === 'point,sector' && dgj.features[1].properties.radius_m === 2778

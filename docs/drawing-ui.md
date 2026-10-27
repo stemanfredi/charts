@@ -9,17 +9,24 @@ Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, 
 
 ## 1. The rail and the panel
 
-- The rail on the right: **Layers**, **Tools**, **Export**, **About**. Layers and Tools switch the one
-  side panel. The Tools panel is 400 px wide on a desktop, Layers 340. Addresses with `menu=draw` open
-  Tools (`tools=1`: on beside Layers).
-- **Export** is a menu of the view: **Copy link** (the view and layers, and the display settings:
-  units `u=nm`, bearings `brg=1`; never the drawing), **Picture (PNG)**, **GIS data (ZIP)**.
-- **The drawing's file** goes in and out from the menu beside its title (§10): **Import…** picks a
+- **From 1024 px wide**: the drawing is the left frame (below); the map's own controls are a small
+  column at the top right: **find a place** (its field shown while it is used: the lens or /; gone
+  when left), **Layers** (its panel beside the column), **my position**, **north** (only when the map
+  is turned). No zoom buttons: scroll, pinch or a double-click. The bottom row:
+  the credits, then the time shown (a chip while a layer that changes with time is on: a click opens
+  ‹ the hour › and **Now**, and the depth), the cursor's position and the scale.
+- **Narrower**: the rail on the right: **Layers**, **Tools**, **Export**, **About**. Layers and Tools
+  switch the one side panel. Addresses with `menu=draw` open Tools.
+- The view's outputs: **Copy link** (the view and layers, and the display settings: units `u=nm`,
+  bearings `brg=1`; never the drawing), **Picture (PNG)**, **GIS data (ZIP)**; from 1024 px wide in
+  the rail's **☰** (each item says how it went, the menu staying open meanwhile), with **About**;
+  narrower, the **Export** menu.
+- **The drawing's file** goes in and out from the drawings menu (§10, the rail's ☰): **Import…** picks a
   `.geojson` or `.json` file; **Export drawing (GeoJSON)** (the file, with the view); **Export presets
   (JSON)**. A file dropped on the map is imported too (the tools turned on). A drawing's file (or any
   GeoJSON) gets a report: what it holds, what was skipped and why, the warnings; **Import** adds it to
   the drawings in this browser and opens it with its view. A presets file adds its presets instead (§9).
-- Units (km or NM) are switched beside the scale; bearings beside lengths in the drawing's **Display**
+- Units (km or NM) are switched by a click on the scale (narrower, also the button beside it); bearings beside lengths in the drawing's **Display**
   (§5). Both apply to every value shown.
 
 **From 1024 px wide** the drawing is the **left frame**, docked to the window's left edge, full height,

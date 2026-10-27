@@ -64,6 +64,10 @@
     <button type="button" id="b-about" title="About: sources, privacy, keys"><i data-icon="info"></i><span>About</span></button>
   </nav>
   <div id="zoom" class="zoom" role="group" aria-label="Zoom and orientation">
+    <!-- from 1024 px wide the map's own, at the top right: find a place, layers; then my position and north -->
+    <button type="button" id="b-find" class="wideonly" aria-label="Find a place" aria-expanded="false" title="Find a place (/)"><i data-icon="search"></i></button>
+    <button type="button" id="b-maplayers" class="wideonly" aria-label="Layers" aria-expanded="false" title="Layers (L)"><i data-icon="layers"></i></button>
+    <span class="msep wideonly" aria-hidden="true"></span>
     <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in"><i data-icon="plus"></i></button>
     <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out"><i data-icon="minus"></i></button>
     <button type="button" id="locate" aria-pressed="false" aria-label="Show my location" title="Show my location"><i data-icon="locate"></i></button>

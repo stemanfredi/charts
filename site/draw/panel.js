@@ -1370,7 +1370,8 @@ export function drawView(root, ctx) {
     h('div', { class: 'dfile' },
       h('button', { type: 'button', role: 'menuitem', title: 'A drawing\'s file, any GeoJSON, or a presets file: a drawing is added to these and opened; presets join the Point and Shape tools', onclick: pick(() => fileInput.click()) }, 'Import…'),
       h('button', { type: 'button', role: 'menuitem', title: 'This drawing, with the view and layers, as a GeoJSON file to share or keep', onclick: pick(exportFile) }, 'Export drawing (GeoJSON)'),
-      h('button', { type: 'button', role: 'menuitem', title: 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', onclick: pick(() => ctx.download(presetsFile(drawing.presets), 'presets.json')) }, 'Export presets (JSON)')));
+      h('button', { type: 'button', role: 'menuitem', title: 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', onclick: pick(() => ctx.download(presetsFile(drawing.presets), 'presets.json')) }, 'Export presets (JSON)')),
+    ...(WIDE.matches ? ctx.menuExtras?.(closeDrawingsMenu) ?? [] : [])); // from 1024 px wide: the view's outputs and About too
     const r = switchBtn.getBoundingClientRect();
     Object.assign(drawingsMenu.style, { top: `${r.bottom + 4}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - 360))}px` });
     drawingsMenu.hidden = false;
@@ -1378,6 +1379,7 @@ export function drawView(root, ctx) {
     drawingsMenu.querySelector('[role=menuitem]')?.focus();
   }
   function closeDrawingsMenu() {
+    if (!drawingsMenu.hidden && WIDE.matches) ctx.menuExtrasBack?.();
     drawingsMenu.hidden = true;
     switchBtn?.setAttribute('aria-expanded', 'false');
   }

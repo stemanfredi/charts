@@ -566,7 +566,6 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
   #b-draw { display: none; } /* the tools are always on */
   .status { left: var(--frame, 0px); }
   .legends { left: calc(var(--frame, 0px) + 10px); }
-  .search { left: calc(var(--frame, 0px) + 10px); }
 }
 /* the panel's title row: what the inspector shows, then its actions */
 .pactions .hact { width: 36px; height: 36px; border: 0; background: none; border-radius: 6px; color: var(--soft); }
@@ -597,3 +596,32 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .dmenu .dfile button:hover { background: var(--line2); }
 /* a long list's pager: ‹ rows a–b of n › (drawing-ui.md §5) */
 .lpager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--line2); }
+/* ---- from 1024 px wide (drawing-ui.md §1): the map's own controls a small column at the top right
+   (find a place, Layers, my position, north when turned); no zoom buttons, no units button (the
+   scale switches them); the search shown while used; Layers beside the column ---- */
+.wideonly { display: none !important; }
+#scale { cursor: pointer; }
+.pos.shown { cursor: pointer; }
+.pos.shown::after { content: " ▾"; color: var(--soft); }
+.pos.shown:hover { background: #fff; }
+.timepop { position: fixed; z-index: 9; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.timepop .when { border: 0; background: none; padding: 0; }
+.dmenu .dsep { height: 1px; background: var(--line2); margin: 4px 0; }
+.dmenu > button[role="menuitem"] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font: inherit; color: var(--ink); }
+.dmenu > button[role="menuitem"]:hover { background: var(--line2); }
+.dmenu > button[role="menuitem"] svg { width: 18px; height: 18px; }
+.dmenu > button[aria-busy="true"] { cursor: progress; color: var(--accent); }
+@media (min-width: 1024px) {
+  .wideonly { display: grid !important; }
+  .msep.wideonly { display: block !important; width: 22px; height: 1px; background: var(--line); margin: 3px auto; }
+  #rail { display: none; }
+  .zoom { top: 8px; right: 8px; bottom: auto; width: 40px; padding: 4px; gap: 2px; }
+  .zoom button { width: 32px; height: 32px; padding: 0; place-items: center; }
+  .zoom button svg { width: 18px; height: 18px; }
+  .zoom button[aria-expanded="true"] { background: #e3edf4; color: var(--accent); }
+  #zoom-in, #zoom-out, #units { display: none; }
+  .panel { top: 8px; right: 56px; }
+  .search { display: none; left: auto; right: 56px; top: 8px; width: min(360px, calc(100vw - var(--frame, 0px) - 80px)); }
+  body.finding .search { display: flex; }
+}
+@media (min-width: 1024px) { .lview > .when { display: none !important; } } /* the time is the chip's, on the bottom row */

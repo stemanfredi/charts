@@ -691,7 +691,7 @@ function renderWhen() {
   shown.textContent = [[day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' '),
     deep ? depthWords(state.depth) : ''].filter(Boolean).join(' · ');
   shown.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}`
-    + `${deep ? `; depth: ${state.depth ? `${state.depth} m below the surface, each model at its level nearest it` : 'the surface'}` : ''}. Set in Layers`;
+    + `${deep ? `; depth: ${state.depth ? `${state.depth} m below the surface, each model at its level nearest it` : 'the surface'}` : ''}. A click: earlier, later`;
 }
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
 const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
@@ -998,6 +998,29 @@ function renderStatus() {
 // the units the drawing's lengths and values, its labels and the exports use: one switch beside the scale
 const unitsBtn = $('#units');
 unitsBtn.addEventListener('click', () => setDisplay({ units: display.units === 'km' ? 'nm' : 'km' }));
+// the scale is the units' switch too (from 1024 px wide the only one: the units button goes)
+scaleEl.title = 'Distance units: a click switches km and NM';
+scaleEl.addEventListener('click', () => setDisplay({ units: display.units === 'km' ? 'nm' : 'km' }));
+// the time shown, a chip on the bottom row: a click shows its controls (from 1024 px wide, in a box over
+// it; narrower, Layers, where they are)
+const timePop = h('div', { class: 'timepop', hidden: true });
+document.body.append(timePop);
+const lview = $('#lview');
+function setTimePop(on) {
+  timePop.hidden = !on;
+  shownEl.setAttribute('aria-expanded', String(on));
+  if (on) {
+    timePop.append(when);
+    const r = shownEl.getBoundingClientRect();
+    Object.assign(timePop.style, { right: `${Math.max(8, innerWidth - r.right)}px`, bottom: `${innerHeight - r.top + 6}px` });
+  } else lview.prepend(when);
+}
+Object.assign(shownEl, { tabIndex: 0 });
+shownEl.setAttribute('role', 'button');
+shownEl.addEventListener('click', () => (wide() ? setTimePop(timePop.hidden) : setPanel('layers')));
+shownEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shownEl.click(); } });
+document.addEventListener('pointerdown', (e) => { if (!timePop.hidden && !timePop.contains(e.target) && !shownEl.contains(e.target)) setTimePop(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !timePop.hidden) { e.stopPropagation(); setTimePop(false); shownEl.focus(); } }, true);
 function renderUnits() {
   const nm = display.units === 'nm';
   unitsBtn.textContent = nm ? 'NM' : 'km';
@@ -1011,7 +1034,12 @@ function renderUnits() {
 const drawPanel = drawView($('#dview'), {
   drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units, isOpen: () => state.tools,
   measureIcon: ICON.ruler, measureIcons: (k) => ICON[k], compact: () => compact.on, setCompact: (v) => setCompact(v), free: () => free(), header: $('#panel-actions'),
-  strip: $('#dstrip'), elements: $('#elements'), setTitle: (t) => { if (state.panel === 'draw') $('#panel-title').replaceChildren(t); }, // a text, or the drawings' switcher
+  strip: $('#dstrip'), elements: $('#elements'),
+  // from 1024 px wide the ☰ menu holds the view's outputs (the Export menu's own items, each saying how it
+  // went, the menu open meanwhile) and About; given back to the Export menu when it closes
+  menuExtras: (close) => [h('div', { class: 'dsep' }), $('#link'), $('#png'), $('#zip'),
+    h('button', { type: 'button', role: 'menuitem', class: 'mabout', onclick: () => { close(); $('#about').showModal(); showVersion(); } }, 'About')],
+  menuExtrasBack: () => $('#export-menu').append($('#link'), $('#png'), $('#zip')), setTitle: (t) => { if (state.panel === 'draw') $('#panel-title').replaceChildren(t); }, // a text, or the drawings' switcher
   // an imported drawing added to the list and opened, with its view and layers; one of the list opened
   // where it was drawn
   onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
@@ -1059,7 +1087,7 @@ function setPanel(view) {
   state.panel = view;
   panel.hidden = !view;
   for (const [v, [btn, el, title]] of Object.entries(VIEWS)) {
-    if (v === 'layers') btn.setAttribute('aria-expanded', String(v === view));
+    if (v === 'layers') { btn.setAttribute('aria-expanded', String(v === view)); $('#b-maplayers').setAttribute('aria-expanded', String(v === view)); }
     el.hidden = v !== view;
     if (v === view) panelTitle.textContent = title;
   }
@@ -1081,6 +1109,14 @@ function setTools(on) {
   else { state.tools = false; setPanel(state.panel === 'draw' ? null : state.panel); }
 }
 $('#b-layers').addEventListener('click', () => setPanel(state.panel === 'layers' ? null : 'layers'));
+$('#b-maplayers').addEventListener('click', () => setPanel(state.panel === 'layers' ? null : 'layers'));
+// From 1024 px wide (drawing-ui.md §1) the map's own controls are at the top right: the search behind its
+// lens (shown while it is used: / or the lens; gone when left), Layers, my position, north when turned;
+// the scale switches the units; the time shown is a chip on the bottom row, its controls a click away
+const findBtn = $('#b-find');
+const setFinding = (on) => { document.body.classList.toggle('finding', on); findBtn.setAttribute('aria-expanded', String(on)); if (on) $('#q').focus(); };
+findBtn.addEventListener('click', () => setFinding(!document.body.classList.contains('finding')));
+$('#q').addEventListener('blur', () => setTimeout(() => { if (wide() && !$('#search').contains(document.activeElement)) setFinding(false); }, 250));
 $('#b-draw').addEventListener('click', () => setTools(!state.tools));
 $('#close').addEventListener('click', () => setPanel(null));
 matchMedia('(min-width: 1024px)').addEventListener('change', () => setPanel(state.panel)); // the frame comes or goes
@@ -1090,9 +1126,11 @@ matchMedia('(min-width: 1024px)').addEventListener('change', () => setPanel(stat
 // own menu (draw/panel.js); a file dropped on the map is imported: the tools on, the drawing opened
 const exportBtn = $('#export');
 railMenu(exportBtn, $('#export-menu'));
-$('#link').addEventListener('click', () => copyLink(exportBtn));
-$('#png').addEventListener('click', () => exportPng(exportBtn));
-$('#zip').addEventListener('click', () => exportZip(exportBtn));
+// how it went is said on the Export button, or from 1024 px wide on the ☰ menu's item itself
+const sayOn = (item) => (wide() ? item : exportBtn);
+$('#link').addEventListener('click', () => copyLink(sayOn($('#link'))));
+$('#png').addEventListener('click', () => exportPng(sayOn($('#png'))));
+$('#zip').addEventListener('click', () => exportZip(sayOn($('#zip'))));
 const mapBox = map.getContainer();
 mapBox.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
 mapBox.addEventListener('drop', (e) => {
@@ -1165,7 +1203,7 @@ window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]') || typing(e.target)) return;
   const k = keyEntry(e.key);
   if (!k?.open && !k?.tool) return;
-  if (k.open === 'search') { e.preventDefault(); q.focus(); }
+  if (k.open === 'search') { e.preventDefault(); if (wide()) setFinding(true); else q.focus(); }
   else if (k.open === 'elements') { if (!state.tools) setTools(true); if (wide()) drawPanel.toggleElements(); }
   else if (k.open === 'draw') setTools(!state.tools);
   else if (k.open) setPanel(state.panel === k.open ? null : k.open);
