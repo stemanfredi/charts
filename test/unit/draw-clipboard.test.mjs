@@ -42,7 +42,7 @@ test('a copy pasted: new IDs and numbered names, moved, its group kept; attachme
   assert.equal(twice.name, 'Mark 2');
 });
 
-test('presets: a point\'s look kept under a name (its group\'s made its own); stored; a file of them read back, what is not one left out', () => {
+test('presets: a point\'s look kept under a name; stored; a file of them read back, what is not one left out', () => {
   const doc = emptyDoc(0);
   const p = addPoint(doc, [10, 40], { bearing: 30, parts: [makePart('circle'), { ...makePart('sector', { radius: 2000, aperture: 45 }), fill: false, name: 'wide' }, makePart('triangle', { length: 80, width: 100 })] });
   const pre = presetOf(doc, p, 'Mine');
@@ -50,7 +50,7 @@ test('presets: a point\'s look kept under a name (its group\'s made its own); st
   assert.notEqual(pre.point.parts[0], p.parts[0], 'a copy');
   assert.equal(pre.point.look.stroke.color, '#e8590c');
   assert.ok(!('minSize' in pre.point.look)); // the drawing's: not its own
-  makeGroup(doc, [p.id]).look.minSize = 30;
+  p.look.minSize = 30;
   assert.equal(presetOf(doc, p, 'Mine').point.look.minSize, 30);
   const back = readPresets(presetsFile([pre, { name: '' }, { name: 'x' }, pre]));
   assert.deepEqual(back.map((x) => x.name), ['Mine']);

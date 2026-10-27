@@ -26,7 +26,7 @@ export const drawable = (p, r) => !reachesPole(p.position, r);
 export const shapeOf = (p, i = mainOutline(p)?.i) => { const o = p.parts[i]; return { center: p.position, bearing: p.bearing, length: o.length, width: o.width, outline: o.kind }; };
 
 // How much larger than their real size a point's outlines are drawn at map zoom: 1 when its largest's
-// long side is at least its minimum display size on screen (its look's: its own or its groups', else
+// long side is at least its minimum display size on screen (its look's: its own, else
 // the drawing's, twice it for a vehicle, whose silhouette needs more room to be read), more when
 // shorter; all its outlines by the same. Display only: lengths, totals and exports use the real sizes.
 export function enlargement(doc, p, zoom) {
@@ -108,7 +108,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     }
   };
   const ground = (lat) => mpp * Math.cos(lat * D2R); // metres a pixel there
-  // names shown on the map: as its look says (its own, its groups', the drawing's); drawn by MapLibre,
+  // names shown on the map: as its look says (its own, else the drawing's); drawn by MapLibre,
   // which leaves out those that collide
   const baseNames = [], zoomNames = [];
   const wants = (el) => lookOf(doc, el).text.name;

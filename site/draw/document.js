@@ -80,7 +80,7 @@ const LIST = Object.fromEntries(KINDS.map((k) => [k, KIND[k].list]));
 export const LEADERS = ['arrow', 'dot', 'line', 'none'];
 export const LABEL_SIZES = ['small', 'medium', 'large'];
 export const BACKGROUNDS = ['halo', 'box'];
-const LABEL_COLOUR = '#1f2933'; // a label's text, not in a group
+const LABEL_COLOUR = '#1f2933'; // a label's text, unless it or the drawing sets one
 export const LABEL_OFFSET = Object.freeze([40, -40]); // px: a new label's text, up and to the right of what it points at
 const NEW_RADIUS = 1000; // a new point's one radius: a neutral starting value, not a preset
 export const MAX_RADIUS = 1e7;
@@ -175,7 +175,7 @@ function layered(looks) {
 // group's group's, and so on, else a guide's (faint, dashed) or a measurement's (a guide showing its
 // values: as while it is measured), else the drawing's, else the defaults.
 export function lookOf(doc, el) {
-  const own = [...groupsOf(doc, el).reverse(), el].map((x) => x.look), under = [DEFAULT_LOOK, doc.look];
+  const own = [el.look], under = [DEFAULT_LOOK, doc.look];
   const role = !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE; // only points, lines and areas are guides
   return layered([...under, role, ...own]);
 }
@@ -183,21 +183,18 @@ export function lookOf(doc, el) {
 export const styleOf = (doc, el) => { const l = lookOf(doc, el); return { fill: l.fill, stroke: l.stroke }; };
 // a measurement: a guide showing its values (what Measure's tools make)
 export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.values;
-// a label's colour: its own (or its groups'), else its group's stroke colour, else the default
-export function labelColour(doc, a) {
-  const g = groupOf(doc, a);
-  return lookOf(doc, a).text.color ?? (g ? styleOf(doc, g).stroke.color : LABEL_COLOUR);
-}
+// a label's colour: its own, else the drawing's, else the default
+export const labelColour = (doc, a) => lookOf(doc, a).text.color ?? LABEL_COLOUR;
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
 export const offsetOf = (doc, el) => lookOf(doc, el).offset;
-// A point's minimum display size: { px, own } (own: set on it or a group it is in, not the drawing's,
-// so a vehicle does not double it)
+// A point's minimum display size: { px, own } (own: set on it, not the drawing's, so a vehicle does
+// not double it)
 export function minSizeOf(doc, p) {
-  const own = [p, ...groupsOf(doc, p)].find((x) => x.look.minSize != null)?.look.minSize;
+  const own = p.look.minSize;
   return own != null ? { px: own, own: true } : { px: doc.look.minSize ?? MIN_DISPLAY_SIZE, own: false };
 }
 // Set one field of x's own look (path: 'offset', 'fill.color', 'text.name'…); undefined takes it back
-// (the value then comes from its groups, or the defaults).
+// (the value then comes from the drawing, or the defaults).
 export function setLook(x, path, v) {
   const [a, b] = path.split('.');
   if (!b) { if (v === undefined) delete x.look[a]; else x.look[a] = v; return; }
@@ -217,7 +214,7 @@ export function isShown(doc, el) {
 
 export function touch(doc, now = Date.now()) { doc.modified = isoNow(now); }
 
-const base = (doc, kind, taken, name = nextName(doc, kind)) => ({ id: newId(doc, taken), name, properties: [], groupId: null, visible: true, look: {} });
+const base = (doc, kind, taken, name = nextName(doc, kind)) => ({ id: newId(doc, taken), name, properties: [], groupId: null, visible: true, ...(kind === 'group' ? {} : { look: {} }) }); // a group has no look: its members' own
 // A point at position: a diamond with one circle unless opts say otherwise; opts set its other fields
 // ({ symbol, parts, name, ... }).
 export function addPoint(doc, position, opts = {}, taken = idsOf(doc)) {
@@ -285,18 +282,15 @@ export function dependents(doc, ids, withMembers = false) {
 // become free, as do labels pointing at it (where they pointed).
 export function remove(doc, ids, withMembers = false) {
   const all = dependents(doc, ids, withMembers);
-  // where each one staying in a deleted group goes, and the look it keeps, read while the group is
-  // still there
+  // where each one staying in a deleted group goes: the nearest group above it that stays, read while
+  // the group is still there
   const moves = [];
-  for (const { kind, el } of elements(doc)) {
+  for (const { el } of elements(doc)) {
     if (all.has(el.id) || !el.groupId || !all.has(el.groupId)) continue;
-    moves.push({ kind, el, before: lookNow(doc, kind, el), groupId: groupsOf(doc, el).find((g) => !all.has(g.id))?.id ?? null });
+    moves.push([el, groupsOf(doc, el).find((g) => !all.has(g.id))?.id ?? null]);
   }
   for (const kind of KINDS) doc[LIST[kind]] = doc[LIST[kind]].filter((el) => !all.has(el.id));
-  for (const m of moves) {
-    m.el.groupId = m.groupId;
-    keepLook(doc, m.kind, m.el, m.before);
-  }
+  for (const [el, gid] of moves) el.groupId = gid;
   const freed = (r) => ({ position: [...r.position], element: null });
   for (const s of doc.lines) for (const key of ['start', 'end']) if (s[key].element && all.has(s[key].element)) s[key] = freed(s[key]);
   for (const a of doc.labels) if (a.anchor.element && all.has(a.anchor.element)) a.anchor = freed(a.anchor);
@@ -344,50 +338,26 @@ function commonGroup(doc, xs) {
 export function makeGroup(doc, ids) {
   const picked = ids.map((id) => find(doc, id)).filter(Boolean), chosen = new Set(picked.filter((x) => x.kind === 'group').map((x) => x.el));
   const xs = picked.filter((x) => !groupsOf(doc, x.el).some((g) => chosen.has(g))); // inside a group chosen: it goes with it
-  const parent = commonGroup(doc, xs), model = xs.find((x) => x.kind === 'point' && roundParts(x.el).length);
-  const g = { ...base(doc, 'group', idsOf(doc)), groupId: parent?.id ?? null };
+  const parent = commonGroup(doc, xs), g = { ...base(doc, 'group', idsOf(doc)), groupId: parent?.id ?? null };
   doc.groups.push(g);
-  if (model) { // what the model is drawn with that the group would not be
-    const want = styleOf(doc, model.el), has = styleOf(doc, g);
-    for (const f of STYLE_FIELDS) if (lookField(want, f) !== lookField(has, f)) setLook(g, f, lookField(want, f));
-  }
   for (const x of xs) setGroup(doc, x.el.id, g.id);
   return g;
 }
 // whether group gid can take id: not itself, nor a group it is in
 export const canHold = (doc, gid, id) => !gid || (gid !== id && !groupsOf(doc, find(doc, gid)?.el ?? {}).some((g) => g.id === id));
-// The fields of a look each kind is drawn with (a group's: all, for what is in it)
+// The fields of a look each kind is drawn with
 const STYLE_FIELDS = ['fill.color', 'fill.opacity', 'stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash'];
 export const LOOK_FIELDS = {
   point: [...STYLE_FIELDS, 'text.name', 'text.values', 'minSize'],
   area: [...STYLE_FIELDS, 'text.name', 'text.values'],
   line: [...STYLE_FIELDS.slice(2), 'text.name', 'text.values', 'offset'],
   label: ['text.size', 'text.color', 'text.background'],
-  group: [...STYLE_FIELDS, 'text.name', 'text.values', 'text.size', 'text.color', 'text.background', 'offset', 'minSize'],
 };
-// what an element is drawn with now (a label's colour as drawn)
-function lookNow(doc, kind, el) {
-  const l = lookOf(doc, el);
-  return kind === 'label' ? { ...l, text: { ...l.text, color: labelColour(doc, el) } } : l;
-}
-// After a move, an element keeps its look: each field it is no longer given as it was becomes its own
-function keepLook(doc, kind, el, before) {
-  const after = lookNow(doc, kind, el);
-  for (const f of LOOK_FIELDS[kind]) if (lookField(before, f) !== lookField(after, f)) setLook(el, f, lookField(before, f));
-}
-// what a group gives and an element joining one gives up: its fill, stroke, Offset, text colour
-const GIVEN = [...STYLE_FIELDS, 'offset', 'text.color'];
-// Move an element into the group gid, or out of any (null). An element joining a group takes its fill,
-// stroke, Offset and text colour (its own go); one leaving a group keeps its look. A group keeps
-// what it sets itself, the rest from where it goes; never into itself or a group inside it.
+// Move an element (or a group) into the group gid, or out of any (null): only its membership changes,
+// never its look; never into itself or a group inside it.
 export function setGroup(doc, id, gid) {
   const x = find(doc, id);
-  if (!x || x.el.groupId === gid || !canHold(doc, gid, id)) return;
-  if (x.kind === 'group') { x.el.groupId = gid; return; }
-  const before = lookNow(doc, x.kind, x.el);
-  x.el.groupId = gid;
-  if (gid) for (const f of GIVEN) setLook(x.el, f, undefined);
-  else keepLook(doc, x.kind, x.el, before);
+  if (x && canHold(doc, gid, id)) x.el.groupId = gid;
 }
 
 // ---- the user's properties as columns -----------------------------------------------------------------

@@ -221,10 +221,10 @@ lists are tables of the same cells. A list longer than 100 rows shows them a pag
 ↑ and ↓ nudge a distance, an angle or a number by one unit of its last digit (Shift: ten), each step
 applied.
 
-**The cascade:** an element is drawn with its own value where it has one, else its group's, else that
-group's group's, and so on up, else the drawing's (its Display), else the default; a group likewise.
-**↺** beside a field gives it back to the group (or the drawing). A hidden group hides everything in
-it.
+**The cascade:** an element is drawn with its own value where it has one, else the drawing's (its
+Display), else the default. **↺** beside a field gives it back to the drawing. A group is only who is
+in it: joining or leaving one changes nothing of an element; its Look shows what is in it and a change
+sets it on each (as for several selected). A hidden group hides everything in it.
 
 - **Point:** Position, Bearing (its outlines' front, its sectors' centre), Symbol (diamond, square,
   triangle, dot, none: with none and no outline a small dot still marks the centre), then its
@@ -257,9 +257,9 @@ it.
   position of a free one; **Leader**
   (Arrow, Dot, Line, None); its Look; Placement and **Reset**.
 - **Group:** the group it is in; Members (its own, and how many groups in it; **Select members**
-  selects everything in it, its subgroups' too), **Shown** (one box for everything in it, as the list's header), Totals (everything in it); a rule's
-  group, **Made by** (§6); its Look, which everything in it takes unless it sets its own. A group
-  has no parts: those are each point's own.
+  selects everything in it, its subgroups' too), **Shown** (one eye for everything in it, as the list's head), Totals (everything in it); a rule's
+  group, **Made by** (§6); the Look of everything in it ("mixed" where they differ; a change sets it
+  on each). A group has no look or parts of its own.
 - **Several:** the count, **Zoom to**, chips (one per element, a click selects it alone, × takes it
   out; past 12, "+N more"), the kinds selected; two points give the distance and bearing between
   them; **Connect…** (two or more points, §6), the group menu, the labels' Leader, one Look for all
@@ -267,7 +267,7 @@ it.
   subgroup of it; a group among them goes in whole) and Delete are the inspector's head's (§1).
 - **The drawing** (nothing selected, or its title clicked in the tree's head): Title, Description,
   Author;
-  **Display**, the drawing's look, which every element takes unless it or a group sets its own:
+  **Display**, the drawing's look, which every element takes unless it sets its own:
   Names on the map, Offset (and where Offset is set otherwise, each a link), Min. size; then Bearings beside lengths, for values shown;
   **Totals**, a table in three sections: **Lines** by group (or **By** any property key the drawing
   uses, one row per value and one for those without it), each line listed under its group with its
@@ -370,7 +370,7 @@ one end to the other, an outline's ring.
   - a label's text (its offset) and, for a free label or one on a line, its point.
 - **Display only** (never in lengths or exports): **Offset** (a line drawn this many pixels beside
   where it is, to the right of its direction, or to the left when negative, −50 to 50, as QGIS
-  offsets a line symbol; a line or group setting it shows ⇉ in the list); **Inflate** (a connection's
+  offsets a line symbol; a line setting it shows ⇉ in the list); **Inflate** (a connection's
   trees drawn bowed, §6); **Min. size** (a shape too small on screen drawn enlarged, dotted).
   Names on the map are left out where they collide; labels are always drawn.
 
@@ -415,7 +415,7 @@ it. Presets live in this browser only, never in a drawing's file; **Export prese
   free where they were (the note counts them). Labels on it stay, free where they pointed.
   Deleting a root of a connection makes the connection again with the roots left (§6).
 - A group with members asks first: delete the group only (its members and subgroups go to the group
-  above it, or to none, with their look), or the group and everything in it.
+  above it, or to none, as they are), or the group and everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.
   The rail's **☰**
   opens a menu of the **drawings in this browser**, each with its last change and

@@ -84,7 +84,7 @@ function read(raw, app, known, now, report) {
         if (!isObj(x)) c.skip('not an object');
         const id = typeof x.id === 'string' && ID.test(x.id) && !taken.has(x.id) ? x.id : c.skip('no valid ID');
         taken.add(id);
-        return { ...commonOf(x, c), id, groupId: typeof x.groupId === 'string' ? x.groupId : null, look: look(x.look, c) };
+        return { ...commonOf(x, c), id, groupId: typeof x.groupId === 'string' ? x.groupId : null }; // a group has no look: its members' own
       });
       if (g) doc.groups.push(g);
     }
@@ -400,8 +400,8 @@ export function toFile(doc) {
       data: v.data && { colour: v.data.colour && { ...v.data.colour }, arrows: v.data.arrows && { ...v.data.arrows }, time: v.data.time, depth: v.data.depth },
       units: v.units, bearings: v.bearings === true }, VIEW_D) : null,
     look: lookOut(doc.look ?? {}),
-    groups: doc.groups.map((g) => lean({ id: g.id, groupId: g.groupId, name: g.name, properties: g.properties.map((p) => ({ ...p })), visible: g.visible,
-      look: lookOut(g.look) }, { groupId: null, name: '', properties: [], visible: true, look: {} })),
+    groups: doc.groups.map((g) => lean({ id: g.id, groupId: g.groupId, name: g.name, properties: g.properties.map((p) => ({ ...p })), visible: g.visible },
+      { groupId: null, name: '', properties: [], visible: true })),
     rules: doc.rules.map((a) => (a.kind === 'distribute'
       ? lean({ ...a, along: { element: a.along.element, ...(a.along.part != null ? { part: a.along.part } : {}) }, spacing: a.spacing == null ? null : r3(a.spacing), radius: a.radius == null ? null : r3(a.radius),
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),

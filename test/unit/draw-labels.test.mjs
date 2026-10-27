@@ -5,7 +5,7 @@ import { near } from './helpers.mjs';
 const { labelText, labelValues, TOKENS, leaderFrom, labelFeatures } = await import('../../site/draw/labels.js');
 const { resolve: anchorAt } = await import('../../site/draw/attach.js');
 const { lineRef, targetPosition, refreshAttached, splitKeeping } = await import('../../site/draw/attach.js');
-const { emptyDoc, addPoint, addShape, addArea, addLine, addLabel, makeGroup, centroid, setLook, labelColour, LOOK_FIELDS, makePart, remove } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addShape, addArea, addLine, addLabel, makeGroup, centroid, labelColour, LOOK_FIELDS, makePart, remove } = await import('../../site/draw/document.js');
 const { drawFeatures, exportFeatures } = await import('../../site/draw/features.js');
 const { lineTrace, nearestAlong } = await import('../../site/draw/lines.js');
 const { inverse, destination } = await import('../../site/geodesy.js');
@@ -130,15 +130,13 @@ test('features: text at its screen offset, leader to the anchor, the arrow turne
   assert.equal(labelFeatures(doc, view).filter((x) => x.properties.id === 'l1').length, 0);
 });
 
-test('a label\'s colour: its own, else its group\'s stroke colour, else the default', () => {
+test('a label\'s colour: its own, else the default (a group adds nothing)', () => {
   const doc = base();
   const own = withLabel(doc, 'l1', { element: 'a' }, { look: { text: { color: '#123456' } } });
-  const grouped = withLabel(doc, 'l2', { element: 'a' });
-  const g = makeGroup(doc, [own.id, grouped.id]);
-  g.look.stroke = { color: '#00ff00' };
-  setLook(own, 'text.color', '#123456'); // joining the group took its colour; set its own again
+  const other = withLabel(doc, 'l2', { element: 'a' });
+  makeGroup(doc, [own.id, other.id]);
   const c = (id) => labelFeatures(doc, view).find((x) => x.properties.id === id && x.properties.kind === 'label').properties.c;
-  assert.deepEqual([c('l1'), c('l2')], ['#123456', '#00ff00']);
+  assert.deepEqual([c('l1'), c('l2')], ['#123456', '#1f2933']);
 });
 
 test('deleting what a label points at leaves the label free, where it pointed; a split carries it on', () => {
@@ -189,9 +187,10 @@ test('new labels: on an element, its name with an arrow; free, text where clicke
   assert.equal(LOOK_FIELDS.label.includes('text.name'), false);
 });
 
-test('names on the map: own switch or the group\'s; named vertices with their line; outlines and areas at their centre', () => {
+test('names on the map: by its own switch; named vertices with their line; outlines and areas at their centre', () => {
   const doc = base();
-  makeGroup(doc, ['a']).look.text = { name: true };
+  makeGroup(doc, ['a']);
+  doc.points.find((p) => p.id === 'a').look.text = { name: true };
   doc.points[1].name = 'End'; // its switch off
   doc.lines[0].look.text = { name: true };
   doc.lines[0].vertices[0].name = 'Bend';

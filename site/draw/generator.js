@@ -262,7 +262,7 @@ const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && 
 const isCopy = (n, copy) => canon({ symbol: n.symbol, parts: n.parts }) === canon({ symbol: copy.symbol, parts: copy.parts });
 // a group made for a rule, in parent (null: at the top)
 function groupFor(doc, name, parent) {
-  const g = { id: newId(doc), name, properties: [], groupId: parent, visible: true, look: {} };
+  const g = { id: newId(doc), name, properties: [], groupId: parent, visible: true };
   doc.groups.push(g);
   return g;
 }

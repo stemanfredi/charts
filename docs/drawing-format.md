@@ -67,7 +67,7 @@ kind (later on top). The writer writes points, then lines, areas and labels.
 | `charts.created`, `charts.modified` | missing or not a time: the time of import |
 | `charts.meta` | three free-text fields |
 | `charts.view` | §4. Missing: importing leaves the map's view and layers as they are. |
-| `charts.look` | the drawing's look (§6): what every element takes unless it or a group says otherwise |
+| `charts.look` | the drawing's look (§6): what every element takes unless it says otherwise |
 | `charts.groups` | §7.1 |
 | `charts.rules` | §8 |
 
@@ -126,8 +126,7 @@ An unknown layer, variant, period, data entry or depth is skipped with a warning
 | `stroke`, `stroke-width`, `stroke-opacity` | the element's own stroke colour, width and opacity (§6) |
 | `fill`, `fill-opacity` | the element's own fill (points and areas) |
 
-Only the element's **own** values are written here: a value it takes from its groups or the
-drawing is not (§6).
+Only the element's **own** values are written here: a value it takes from the drawing is not (§6).
 
 **`charts`**, the app's own:
 
@@ -164,30 +163,25 @@ How an element is drawn is its **look**: one object, every field optional where 
 | `minSize` | screen pixels, 0–200: an outline whose long side is shorter than this on screen is drawn enlarged (display only, dotted); 0: always real size. The drawing's counts twice for a vehicle. |
 
 Where it is written: an element's colours, opacities and stroke width as the common style names
-(§5), the rest in its `charts.look`; a group's in its `look` (§7.1); the drawing's in `charts.look`
-(§3). Only what each sets itself.
+(§5), the rest in its `charts.look`; the drawing's in `charts.look` (§3). Only what each sets itself.
+A group has no look.
 
 ### The cascade
 
-Each field an element leaves out comes from its group, else from that group's group, and so on up,
-else from the drawing's, else from the defaults (§16):
+Each field an element leaves out comes from the drawing's, else from the defaults (§16):
 
 | Layer, from the top | |
 |---|---|
 | the element's own | |
-| its groups', the nearest first | a group's own, likewise |
 | a guide's or a measurement's | a guide: faint and dashed; a measurement: magenta and dashed, its name not drawn |
 | the drawing's (`charts.look`) | |
 | the defaults | |
 
-A label's colour, set nowhere, is its group's stroke colour (as that group draws it), else
-`#1f2933`. `visible` is not part of the look: an element is drawn only if every group it is in is
-visible.
+A label's colour, set nowhere, is `#1f2933`. `visible` is not part of the look: an element is drawn
+only if every group it is in is visible.
 
-A point's symbol, bearing and parts are its own, never the group's. Joining a group
-clears an element's own fill, stroke, Offset and text colour (it takes the group's); leaving one,
-or its group deleted, makes the values it had from the group its own (it keeps its look). A group
-moved into another keeps what it sets itself; the rest then comes from where it goes.
+A group is only who is in it: joining or leaving one, or a group deleted, changes nothing of an
+element. Editing a group's look in the panel sets the value on each element in it (drawing-ui.md §5).
 
 ### Part entry
 
@@ -219,13 +213,11 @@ skipped (warning); the rest of the point loads. Only the sizes its kind needs ar
 Groups are not features: they are listed in the collection's `charts.groups`.
 
 ```json
-{ "id": "g2", "groupId": "g1", "name": "Group 2", "properties": [], "visible": true,
-  "look": { "fill": { "color": "#e8590c" }, "text": { "name": true }, "offset": 4 } }
+{ "id": "g2", "groupId": "g1", "name": "Group 2", "properties": [], "visible": true }
 ```
 
 `groupId` is the group it is in (groups nest; absent: at the top). `properties` is a list of
-`{ "key", "value" }` here. `look` holds what it sets itself (§6), which everything in it takes unless
-it sets its own. A group has no parts: those are each point's own. A group without a valid, unused ID is
+`{ "key", "value" }` here. A group has no look and no parts: those are each element's own (§6). A group without a valid, unused ID is
 skipped; an element naming a group that is not there becomes standalone, a group so naming one goes
 to the top, as does one that would be inside itself (warnings).
 
@@ -354,7 +346,7 @@ A `Point` geometry where the label points, with `"kind": "label"`:
 - **`leader`:** `"arrow"`, `"dot"`, `"line"` or `"none"`: a line from the text to the anchor, and
   how it ends.
 - **`look`:** its text's `size` (`"small"`, `"medium"` or `"large"`: 11, 13, 16 px), `color` (set
-  nowhere: the group's stroke colour, else the default) and `background` (`"halo"` or `"box"`), as
+  nowhere: the drawing's, else the default) and `background` (`"halo"` or `"box"`), as
   any look (§6).
 
 A label has no stroke or fill names in its properties, and no `guide`.
@@ -391,7 +383,7 @@ They are checked loosely: one without a valid, unused `id` is skipped.
 | `aperture` | the circle's sector, this wide, facing away from what it follows; missing: circles |
 | `points` | each copy made: `t` its place along (0–1), `left` its side, `pos` where it was last put |
 
-Each copy is an ordinary point: its symbol and parts are its own (§7.2), its look its group's. The
+Each copy is an ordinary point: its symbol, parts and look are its own (§7.2). The
 panel's **Edit…** makes each copy the rule's again, but one changed by hand (its symbol or parts no
 longer the rule's), which keeps its own.
 
@@ -474,7 +466,7 @@ The reader takes a FeatureCollection, a single Feature or a bare geometry.
   collection's and each feature's, and so are `properties`, `start` and `end` within it.
 - **IDs:** a missing, malformed or repeated ID is replaced by a new one (warning when it had one).
 - **Repairs** with a warning: opacity clamped to 0–1, width to 0.5–20; angles normalised; an own
-  colour that is not `#rrggbb`, or an unknown dash, dropped (the group's or the default applies); an
+  colour that is not `#rrggbb`, or an unknown dash, dropped (the drawing's or the default applies); an
   unknown symbol, leader, size or background → the default; a sector without an aperture a circle (§6); a
   name or text given as a number or boolean made text; an unknown group → standalone. Clamped without
   a warning: a minimum display size to 200, a label's offset to ±2000, the view's zoom to 0–24.
@@ -601,20 +593,19 @@ What a value is when the file leaves it out. Writing it with this value means th
 | feature | `id` | a new one |
 | feature | `name` | `""` |
 | feature | user's properties | none |
-| feature | `stroke`, `stroke-width`, `stroke-opacity`, `fill`, `fill-opacity`, `charts.look` | none of its own: its groups', else the drawing's, else the defaults below |
+| feature | `stroke`, `stroke-width`, `stroke-opacity`, `fill`, `fill-opacity`, `charts.look` | none of its own: the drawing's, else the defaults below |
 | feature | `charts.kind` | from the geometry |
 | feature | `charts.group` | none |
 | feature | `charts.visible` | `true` |
 | feature | `charts.guide` | `false` |
 | default look | fill | `#e8590c`, opacity 0.15 |
 | default look | stroke | `#e8590c`, opacity 1, width 1.5, `"solid"` |
-| default look | text | `name` `false`, `values` `false`, `size` `"medium"`, `color` none (a label: its group's stroke colour, else `#1f2933`), `background` `"halo"` |
+| default look | text | `name` `false`, `values` `false`, `size` `"medium"`, `color` none (a label: `#1f2933`), `background` `"halo"` |
 | default look | `offset`; `minSize` | `0`; `12` |
 | guide style | fill; stroke | `#6b7a86`, opacity 0.05; `#6b7a86`, opacity 1, width 1, `"dashed"` |
 | measurement style | fill; stroke | `#b0127a`, opacity 0.08; `#b0127a`, opacity 1, width 2, `"dashed"` |
 | group | `name`; `properties`; `visible` | `""`; `[]`; `true` |
 | group | `groupId` | `null` (at the top) |
-| group | `look` | `{}`: its groups', else the drawing's, else the defaults |
 | part | `fill`; `shown`; `name` | `true`; `true`; `""` |
 | part | `strokeColor`, `strokeDash` | `null`: the point's |
 | point | `bearing` | `0` |

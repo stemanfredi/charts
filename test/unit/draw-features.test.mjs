@@ -4,7 +4,7 @@ import { near } from './helpers.mjs';
 
 const drawgeo = await import('../../site/draw/features.js');
 const { drawParts, drawFeatures, exportFeatures, valueFeatures, flatten, boundsOf, enlargement, shapeOf, zoomDependent, GEOMETRY } = drawgeo;
-const { emptyDoc, addPoint, addDot, addShape, addArea, addLine, addLabel, makeGroup, makePart } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, addShape, addArea, addLine, addLabel, makeGroup, makePart, styleOf } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');
 const { inverse, destination, areaOf, pathOf, perimeterOf } = await import('../../site/geodesy.js');
 const { fmtArea, fmtDist } = await import('../../site/format.js');
@@ -78,14 +78,14 @@ test('symbols: "none" draws a dot at the centre, unless the point has an outline
   assert.deepEqual(sym.map((x) => [x.properties.id, x.properties.symbol]), [['n', 'centre'], ['bare', 'centre'], ['sq', 'square']]);
 });
 
-test('grouped points: drawn with the group\'s style, each with its own parts', () => {
+test('grouped points: drawn with their own style and parts (a group adds nothing)', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 41], { look: { fill: { color: '#abcdef' } }, parts: [C(300)] });
   const b = addPoint(doc, [12.2, 41]);
   makeGroup(doc, [a.id, b.id]);
   assert.deepEqual([a.parts.map((r) => r.radius), b.parts.map((r) => r.radius)], [[300], [1000]]); // their own
   const rings = () => drawFeatures(doc).features.filter((x) => x.properties.kind === 'ring');
-  assert.deepEqual(rings().map((x) => [x.properties.id, x.properties.fc]), [[a.id, '#abcdef'], [b.id, '#abcdef']]);
+  assert.deepEqual(rings().map((x) => [x.properties.id, x.properties.fc]), [[a.id, '#abcdef'], [b.id, styleOf(doc, b).fill.color]]);
   near(inverse([12.2, 41], rings()[1].geometry.coordinates[0][0]).s, 1000, 1e-3, 'its own radius');
   Object.assign(b.parts[0], { kind: 'sector', aperture: 90 });
   b.bearing = 180;

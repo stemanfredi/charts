@@ -113,7 +113,7 @@ export function ownStyle(s, c, fill) {
   part('stroke', DEFAULT_STYLE.stroke, check('stroke'));
   return out;
 }
-// A look as the file has it (an element's own, a group's, the drawing's): what it sets, each value
+// A look as the file has it (an element's own, the drawing's): what it sets, each value
 // checked; what is not valid is left out (warned). fill: whether it can have one (a line cannot).
 export function look(l, c, fill = true) {
   if (l === undefined || l === null) return {};

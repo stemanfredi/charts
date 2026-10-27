@@ -449,13 +449,15 @@ export function drawView(root, ctx) {
   const angleField = (get, apply, aria, lo, hi, wrap) => F.angle(get, apply, aria, { lo, hi, wrap });
   const segOf = (aria, options, current, pick) => choice(aria, options, () => current, pick);
 
-  // The look of xs ({ kind, el }, one or several; the drawing: { kind: 'drawing', el: doc }): each
-  // field what they are drawn with (document.js lookOf: their own value, else their groups', else
-  // the drawing's), "mixed" where they differ; a change sets their own value, ↺ takes it back. Only
-  // the fields their kinds have (a line no fill, a label its text, a shape its minimum size); fields:
-  // those to show, else all of those.
+  // The look of xs ({ kind, el }, one or several; a group: everything in it; the drawing: { kind:
+  // 'drawing', el: doc }): each field what they are drawn with (document.js lookOf: their own value,
+  // else the drawing's), "mixed" where they differ; a change sets it on each of them, ↺ takes it back.
+  // A group has no look of its own: it reaches its members. Only the fields their kinds have (a line
+  // no fill, a label its text, a shape its minimum size); fields: those to show, else all of those.
   function lookBlock(xs, fields = null, title = 'Look', extra = []) {
     const doc = drawing.doc;
+    xs = [...new Map(xs.flatMap((x) => (x.kind === 'group' ? membersOf(doc, x.el.id, true).filter((m) => m.kind !== 'group') : [x])).map((x) => [x.el.id ?? 'drawing', x])).values()];
+    if (!xs.length && !extra.length) return null; // an empty group
     const has = (x, f) => (x.kind === 'drawing' || LOOK_FIELDS[x.kind].includes(f)) && (f !== 'minSize' || x.kind !== 'point' || !!mainOutline(x.el));
     const shown = (f) => (!fields || fields.includes(f)) && xs.some((x) => has(x, f));
     const looks = xs.map((x) => (x.kind === 'label' ? { ...lookOf(doc, x.el), text: { ...lookOf(doc, x.el).text, color: labelColour(doc, x.el) } } : lookOf(doc, x.el)));
@@ -463,7 +465,7 @@ export function drawView(root, ctx) {
     const target = (d, x) => (x.kind === 'drawing' ? d : find(d, x.el.id).el);
     // live: shown as it changes (a colour being picked), the undo step made when it is set
     const put = (f, v, live = false) => (live ? drawing.preview : drawing.change).call(drawing, (d) => { for (const x of xs) if (has(x, f)) setLook(target(d, x), f, v); });
-    const above = xs.some((x) => x.el.groupId) ? 'the group\'s' : xs.some((x) => x.kind === 'drawing') ? 'the default' : 'the drawing\'s';
+    const above = xs.some((x) => x.kind === 'drawing') ? 'the default' : 'the drawing\'s';
     const back = (...fs) => (xs.some((x) => fs.some((f) => has(x, f) && lookField(x.el.look, f) !== undefined))
       ? h('button', { type: 'button', class: 'x', title: `Back to ${above}`, 'aria-label': `${fs[0]} back to ${above}`,
         onclick: () => drawing.change((d) => { for (const x of xs) for (const f of fs) if (has(x, f)) setLook(target(d, x), f, undefined); }) }, '↺') : null);
@@ -484,7 +486,6 @@ export function drawView(root, ctx) {
         h('tr', {}, h('th', {}, 'Fill'), h('td', {}, ...colour('fill.color', 'Fill colour')), h('td', {}, num('fill.opacity', 'Fill opacity', 0, 1)), h('td'), h('td'), h('td', {}, back('fill.color', 'fill.opacity'))),
         h('tr', {}, h('th', {}, 'Stroke'), h('td', {}, ...colour('stroke.color', 'Stroke colour')), h('td', {}, num('stroke.opacity', 'Stroke opacity', 0, 1)),
           h('td', {}, num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH)), h('td', {}, dashSelect()), h('td', {}, back('stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash')))));
-    const group = xs.length === 1 && (xs[0].kind === 'group' || xs[0].kind === 'drawing');
     const dash = same('stroke.dash');
     return h('div', { class: 'fblock' }, h('h3', {}, title),
       both ? matrix() : null,
@@ -494,7 +495,7 @@ export function drawView(root, ctx) {
       shown('text.color') ? row('Text colour', pair(colour('text.color', 'Text colour'), 'on',
         segOf('Background', [['halo', 'Halo', 'A white halo round the letters'], ['box', 'Box', 'A white box with a border in the text\'s colour']], same('text.background'), (v) => put('text.background', v))),
       back('text.color', 'text.background')) : null,
-      shown('text.name') ? tick('text.name', group || xs.length > 1 ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
+      shown('text.name') ? tick('text.name', xs.length > 1 || xs[0].kind === 'drawing' ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
       shown('text.values') ? tick('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
       shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -MAX_OFFSET, max: MAX_OFFSET, placeholder: 'mixed', bad: `pixels from −${MAX_OFFSET} to ${MAX_OFFSET}`,
         title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as GIS tools offset a line: display only, lengths stay real' }), h('span', { class: 'funit' }, 'px'), back('offset')) : null,
@@ -1207,7 +1208,7 @@ export function drawView(root, ctx) {
     const keys = [...new Set(elements(drawing.doc).flatMap((x) => x.el.properties.map((p) => p.key)))].sort((a, b) => a.localeCompare(b));
     if (totalsBy && !keys.includes(totalsBy)) { totalsBy = ''; computeFacts(); } // its key gone
     const by = select('Totals by', [['', 'group'], ...keys.map((k) => [k, k])], totalsBy || '', (v) => { totalsBy = v; computeFacts(); renderInspector(); });
-    const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look.offset != null); // where Offset is set on an element or a group
+    const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look?.offset != null); // where Offset is set on an element
     title = drawing.doc.meta.title || 'Untitled drawing';
     return [row('Title', meta('title', 'Title')), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
       lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'offset', 'minSize'], 'Display', [
