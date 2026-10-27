@@ -385,21 +385,21 @@ export function connect(doc, params) {
   const roots = [...(params.roots || []).filter((r) => byId.has(r.id)).map((r) => ({ id: r.id, weight: r.weight > 0 ? r.weight : 1 })), ...made.map((n) => ({ id: n.id, weight: 1 }))];
   const { nodes, plan: p } = planConnection(doc, { ...params, roots, newRoots: [], pattern });
   const rootPoints = roots.map((r) => doc.points.find((n) => n.id === r.id));
-  // a straight line from a to b, attached to both, saying its part
-  const line = (a, b, part) => inGroup(addLine(doc, a.id, [], b.id, { properties: [{ key: 'part', value: part }] }));
+  // a straight line from a to b, attached to both (what it is, a trunk or a branch: lines.js madeLines)
+  const line = (a, b) => inGroup(addLine(doc, a.id, [], b.id));
   const hubs = [];
   for (const g of p.groups) {
     const o = rootPoints[g.root], ns = g.nodes.map((i) => nodes[i]);
     if (pattern === 'chain') {
       const seq = [o, ...(g.reversed ? ns.slice().reverse() : ns)];
-      seq.slice(1).forEach((n, i) => line(seq[i], n, 'chain'));
+      seq.slice(1).forEach((n, i) => line(seq[i], n));
       continue;
     }
     // a hub of its own, always: on one of the points (the median often is), a branch of 0 m to it
     const b = inGroup(addDot(doc, g.hub));
     hubs.push({ pointId: b.id, pointIds: ns.map((x) => x.id), rootId: o.id, pos: [...b.position] });
-    line(o, b, 'trunk');
-    for (const n of ns) line(b, n, 'branch');
+    line(o, b);
+    for (const n of ns) line(b, n);
   }
   const keep = new Set(roots.map((r) => r.id));
   const created = [...doc.points, ...doc.lines].map((x) => x.id).filter((id) => !before.has(id) && !keep.has(id));

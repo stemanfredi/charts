@@ -673,13 +673,15 @@ await section('the drawing', async () => {
   const previewed = await dw.evaluate(() => [drawing.previewPts?.length ?? 0, drawing.previewLines?.length ?? 0]);
   await dw.click('.dinspect button.done:has-text("Create")');
   const gen = await dw.evaluate(() => {
-    const part = (v) => drawing.doc.lines.filter((s) => s.properties.some((p) => p.key === 'part' && p.value === v)).length;
     const rules = (k) => drawing.doc.rules.filter((r) => r.kind === k), a = rules('distribute')[0], c = rules('connect')[0];
+    // what each line the connection made is, from its ends: a trunk at a root, else a branch
+    const roots = new Set(c?.roots.map((r) => r.id)), made = drawing.doc.lines.filter((s) => c?.created.includes(s.id));
+    const ofPart = (v) => made.filter((s) => (roots.has(s.start.element) || roots.has(s.end.element)) === (v === 'trunk')), part = (v) => ofPart(v).length;
     const names = (gid) => drawing.doc.groups.filter((g) => g.groupId === gid).map((g) => g.name).sort().join();
     return { a: rules('distribute').length, n: a?.points.length, c: rules('connect').length, subgroups: a && names(a.groupId), inCircles: a && a.points.every((x) => drawing.doc.points.find((q) => q.id === x.pointId).groupId === a.copiesId), trunks: part('trunk'), branches: part('branch'),
       attached: drawing.doc.lines.filter((s) => s.start.element && s.end.element).length, undos: drawing.undos.length, group: drawing.selected()[0]?.kind,
       // the branches' shortest (m, near enough at this scale), the hubs: one of its own per trunk
-      shortest: Math.min(...drawing.doc.lines.filter((s) => s.properties.some((p) => p.key === 'part' && p.value === 'branch')).map((s) => {
+      shortest: Math.min(...ofPart('branch').map((s) => {
         const [a, b] = [s.start.position, s.end.position], k = Math.cos((a[1] * Math.PI) / 180);
         return 111320 * Math.hypot((b[0] - a[0]) * k, b[1] - a[1]);
       })), hubs: c?.hubs.length, minBranch: c?.minBranch };

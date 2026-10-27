@@ -251,9 +251,10 @@ test('breakdown: lines by group with each listed, a connection\'s summed by what
   assert.equal(t.lines.rows.find((r) => r.key === '').lines.length, 1, 'the ungrouped hidden line, listed');
   assert.deepEqual([t.areas.count, t.areas.rows.length], [1, 1]);
   assert.ok(t.areas.area > 0 && t.areas.perimeter > 0);
-  // by a property: the connection's lines fall under their part's value
+  // by a property none has: every line under '', the connections' still summed by what they are
   const byPart = breakdown(doc, 'part');
-  assert.deepEqual([...byPart.lines.rows].map((r) => r.key).sort(), ['', 'branch', 'chain', 'trunk']);
+  assert.deepEqual(byPart.lines.rows.map((r) => [r.key, r.parts.map((p) => p.part)]), [['', ['trunk', 'branch', 'root link', 'link']]]);
+  assert.ok(doc.lines.every((s) => !s.properties.length), 'a connection\'s lines carry no property of the app\'s');
   // points by kind: the one rectangle; every point counted (the connections' hubs and roots too)
   assert.equal(t.points.kinds.get('rectangle'), 1);
   assert.equal([...t.points.kinds.values()].reduce((x, y) => x + y, 0), t.points.count);

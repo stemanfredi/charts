@@ -422,8 +422,10 @@ or point (or its part) is gone, or all of whose copies are, is dropped.
 | `hubs` | each hub made: its point, its tree's points and root, where it was last put |
 | `created` | what it made: hubs and lines (not its points or roots). Connect again removes these and makes them anew. |
 
-Each line it makes is a plain line attached to the points it joins, with a plain property **`part`**:
-`"trunk"` (root to hub), `"branch"` (hub to point) or `"chain"`. The plan: the points, in order, are
+Each line it makes is a plain line attached to the points it joins; what it is follows from its ends:
+in a tree, a trunk (root to hub) or a branch (hub to point); in a chain, a root link (from a root) or
+a link (point to point). A property `part` of `"trunk"`, `"branch"` or `"chain"` on them, which
+earlier files have, is dropped on reading. The plan: the points, in order, are
 cut into groups of consecutive points, each joined to one root, the cut and the roots chosen together
 as the cheapest, the sum of the groups' lengths each divided by its root's weight (a tie: the most
 even cut). Every tree has a hub of its own, never one of its points: where the median falls on a

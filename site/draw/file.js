@@ -200,6 +200,11 @@ function read(raw, app, known, now, report) {
     });
     if (r) doc.rules.push(r);
   }
+  // a connection's lines once said what they were in a property "part"; that is worked out now
+  for (const r of doc.rules) {
+    if (r.kind !== 'connect') continue;
+    for (const s of doc.lines) if (r.created.includes(s.id)) s.properties = s.properties.filter((p) => p.key !== 'part' || !['trunk', 'branch', 'chain'].includes(p.value));
+  }
   return doc;
 }
 

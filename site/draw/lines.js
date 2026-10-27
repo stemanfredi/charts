@@ -130,19 +130,19 @@ export function totals(doc, by = null) {
   return { lines, groups, values, all };
 }
 
-// The lines a connection made, by what each is: 'trunk' (root → hub), 'branch' (hub → point), 'root
-// link' (a chain's, root → its first point), 'link' (a chain's, point → point); by line ID
-function connectionParts(doc) {
+// The lines a connection made, by what each is, from its ends: 'trunk' (a tree's, root → hub),
+// 'branch' (hub → point), 'root link' (a chain's, root → its first point), 'link' (point → point); by
+// line ID
+export function madeLines(doc) {
   const out = new Map();
   for (const c of doc.rules) {
     if (c.kind !== 'connect') continue;
-    const roots = new Set(c.roots.map((r) => r.id));
+    const roots = new Set(c.roots.map((r) => r.id)), tree = c.pattern !== 'chain';
     for (const id of c.created) {
       const s = doc.lines.find((x) => x.id === id);
       if (!s) continue;
-      const part = s.properties.find((p) => p.key === 'part')?.value;
-      if (part === 'trunk' || part === 'branch') out.set(id, { connection: c, part });
-      else if (part === 'chain') out.set(id, { connection: c, part: roots.has(s.start.element) ? 'root link' : 'link' });
+      const atRoot = roots.has(s.start.element) || roots.has(s.end.element);
+      out.set(id, { connection: c, part: tree ? (atRoot ? 'trunk' : 'branch') : (atRoot ? 'root link' : 'link') });
     }
   }
   return out;
@@ -159,7 +159,7 @@ export const PART_ORDER = ['trunk', 'branch', 'root link', 'link'];
 //     points: { count, hidden, kinds: Map kind → count (by a property: its value → count) } }
 export function breakdown(doc, by = null) {
   const keyOf = (el) => (by ? el.properties.find((p) => p.key === by)?.value ?? '' : groupsOf(doc, el)[0]?.id ?? '');
-  const made = connectionParts(doc), rows = new Map();
+  const made = madeLines(doc), rows = new Map();
   const rowOf = (key) => { if (!rows.has(key)) rows.set(key, { key, lines: [], parts: new Map(), count: 0, length: 0, hidden: false }); return rows.get(key); };
   const lines = { count: 0, length: 0, hidden: false };
   for (const s of doc.lines) {

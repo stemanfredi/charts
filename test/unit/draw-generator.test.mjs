@@ -5,7 +5,7 @@ const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistrib
   distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, removePartOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
 const { emptyDoc, addPoint, addLine, makePart, find, remove } = await import('../../site/draw/document.js');
 const { BUILT_IN, scaled } = await import('../../site/draw/place.js');
-const { lineTrace, nearestAlong, pointsAlong, totals } = await import('../../site/draw/lines.js');
+const { lineTrace, nearestAlong, pointsAlong, totals, madeLines } = await import('../../site/draw/lines.js');
 const { settleGeometry, DrawStore } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
 const { verticesOf } = await import('../../site/draw/attach.js');
@@ -15,7 +15,8 @@ const { inflated } = await import('../../site/draw/inflate.js');
 const R = (position, weight = 1) => ({ position, weight }); // a root for plan()
 const roots = (...ids) => ids.map((id) => ({ id, weight: 1 })); // roots for connect()
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
-const part = (s) => s.properties.find((p) => p.key === 'part')?.value;
+// what a line a connection made is (lines.js madeLines), a chain's root link or link as 'chain'
+const part = (doc, s) => { const p = madeLines(doc).get(s.id)?.part; return p === 'root link' || p === 'link' ? 'chain' : p; };
 // how far a position is from a line (metres, to the place along it nearest)
 // (measured as on screen: a few metres' tolerance over tens of km)
 const offLine = (doc, line, p) => { const c = lineTrace(doc, line).coords; return inverse(pointsAlong(c, [nearestAlong(c, p)])[0].position, p).s; };
@@ -159,7 +160,7 @@ const pointsOf = (doc, a) => a.points.map((x) => doc.points.find((n) => n.id ===
 // the points a chain from an root passes, in order (its lines attached end to end)
 const chainFrom = (doc, id) => {
   const out = [];
-  for (let at = id, s; (s = doc.lines.find((x) => part(x) === 'chain' && x.start.element === at));) { out.push(s.end.element); at = s.end.element; }
+  for (let at = id, s; (s = doc.lines.find((x) => part(doc, x) === 'chain' && x.start.element === at));) { out.push(s.end.element); at = s.end.element; }
   return out;
 };
 
@@ -225,10 +226,10 @@ test('tree: straight lines root → hub → points, attached at both ends, each 
     assert.deepEqual(h.pos, find(doc, h.pointId).el.position);
   }
   assert.ok(made.every((s) => !s.vertices.length && s.mode === 'fixed'), 'straight lines');
-  assert.ok(made.filter((s) => part(s) === 'trunk').every((s) => lineTrace(doc, s).length > 1), 'no trunk of length zero');
+  assert.ok(made.filter((s) => part(doc, s) === 'trunk').every((s) => lineTrace(doc, s).length > 1), 'no trunk of length zero');
   // attached at both ends, where their points are
   for (const s of made) for (const e of [s.start, s.end]) assert.deepEqual(e.position, find(doc, e.element).el.position);
-  const trunks = made.filter((s) => part(s) === 'trunk'), branches = made.filter((s) => part(s) === 'branch');
+  const trunks = made.filter((s) => part(doc, s) === 'trunk'), branches = made.filter((s) => part(doc, s) === 'branch');
   assert.equal(trunks.length + branches.length, made.length);
   assert.equal(trunks.length, r.groups);
   assert.ok(trunks.every((s) => s.start.element === o1.id), 'each trunk from the root');
@@ -265,7 +266,7 @@ test('tree: a hub on a point gives a branch of 0 m; the shortest branch set keep
   // made: a hub of its own, a branch of 0 m to the point under it; with 200 m, none shorter
   const doc = emptyDoc(0), ns = pts.map((q) => addPoint(doc, q)), o = addPoint(doc, root);
   const r = connect(doc, { pointIds: ns.map((n) => n.id), roots: roots(o.id), pattern: 'tree', groupSize: 3 });
-  const branches = () => doc.lines.filter((s) => part(s) === 'branch').map((s) => lineTrace(doc, s).length);
+  const branches = () => doc.lines.filter((s) => part(doc, s) === 'branch').map((s) => lineTrace(doc, s).length);
   assert.equal(branches().length, 3);
   assert.ok(Math.min(...branches()) < 1, 'a branch of 0 m');
   assert.equal(r.connection.minBranch, 0);
@@ -286,7 +287,7 @@ test('chain: each root starts its own chain, from its end, point to point', () =
   const ps = pointsOf(doc, array), o1 = addPoint(doc, [ps[0].position[0], 39.98]), o2 = addPoint(doc, [ps.at(-1).position[0], 39.98]); // under the end copies: a chain each is cheapest
   const r = connect(doc, { pointIds: array.points.map((x) => x.pointId), roots: roots(o1.id, o2.id), pattern: 'chain', groupSize: 'auto' });
   assert.equal(r.groups, 2); // one chain per root: the cheapest
-  assert.ok(doc.lines.filter((s) => s !== guide).every((s) => part(s) === 'chain' && s.start.element && s.end.element));
+  assert.ok(doc.lines.filter((s) => s !== guide).every((s) => part(doc, s) === 'chain' && s.start.element && s.end.element));
   assert.deepEqual(r.connection.hubs, []);
   const ns = pointsOf(doc, array), west = chainFrom(doc, o1.id), east = chainFrom(doc, o2.id);
   assert.equal(west[0], ns[0].id, 'the western chain reaches the western end first');
@@ -432,7 +433,7 @@ test('connect: points in no distribution taken as given; hubs follow their point
   assert.equal(s.connection.groupId, cg.id, 'in its group again');
   assert.deepEqual(doc.groups, [cg]);
   assert.equal(connections(doc).length, 1);
-  assert.ok(doc.lines.every((x) => part(x) !== 'chain'), 'the chain\'s lines gone');
+  assert.ok(doc.lines.every((x) => part(doc, x) !== 'chain'), 'the chain\'s lines gone');
   const hub = find(doc, s.connection.hubs[0]?.pointId)?.el;
   assert.ok(hub, 'a hub off the points');
   const was = [...hub.position];
@@ -466,11 +467,11 @@ test('a root deleted: the connection made again with the roots left (one undo st
   assert.equal(s.undos.length, steps + 1, 'one undo step');
   let c = connections(s.doc)[0];
   assert.deepEqual([connections(s.doc).length, c.id, c.roots, c.pointIds, c.groupId], [1, id, roots(o2.id), ids, groupId]);
-  const made = s.doc.lines.filter((x) => part(x));
+  const made = s.doc.lines.filter((x) => part(s.doc, x));
   assert.ok(made.length && made.every((x) => x.start.element !== o1.id && x.end.element !== o1.id), 'nothing attached to the root gone');
-  assert.ok(made.filter((x) => part(x) === 'trunk').every((x) => x.start.element === o2.id), 'every trunk from the root left');
+  assert.ok(made.filter((x) => part(s.doc, x) === 'trunk').every((x) => x.start.element === o2.id), 'every trunk from the root left');
   assert.ok(c.hubs.every((h) => h.rootId === o2.id));
-  assert.ok(!s.doc.lines.some((x) => !x.guide && !part(x)), 'no line of before left behind');
+  assert.ok(!s.doc.lines.some((x) => !x.guide && !part(s.doc, x)), 'no line of before left behind');
   // the last root deleted: the connection, its lines and hubs go; the copies stay
   const hubs = c.hubs.map((h) => h.pointId);
   s.remove([o2.id]);
@@ -760,6 +761,12 @@ test('rules read back from the file: a distribution with its part and a user\'s 
   assert.deepEqual(back.rules[0].along, { element: p.id, part: 1 });
   assert.deepEqual(back.rules[0].copy, copy);
   assert.deepEqual(back.groups.map((g) => g.name), ['Distribute along Point 1', 'Copies', 'Connection']);
+  // an earlier file's lines saying what they are in a property "part": dropped, a user's own kept
+  for (const s of doc.lines) s.properties.push({ key: 'part', value: 'branch' }, { key: 'note', value: 'mine' });
+  const own = addLine(doc, [12, 41], [], [12.1, 41], { properties: [{ key: 'part', value: 'trunk' }] });
+  const old = parse(serialise(doc), null, 0).doc;
+  assert.ok(old.lines.filter((s) => s.id !== own.id).every((s) => s.properties.length === 1 && s.properties[0].key === 'note'));
+  assert.deepEqual(old.lines.find((s) => s.id === own.id).properties, [{ key: 'part', value: 'trunk' }], 'on a line no connection made: the user\'s');
 });
 
 test('a distribution makes at most MAX_COPIES points, and says so', () => {
