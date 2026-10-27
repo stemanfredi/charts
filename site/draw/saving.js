@@ -6,15 +6,11 @@
 
 import { emptyDoc } from './document.js';
 import { parse } from './file.js';
+import { store } from '../dom.js';
 
 const INDEX = 'charts.drawings', CURRENT = 'charts.drawings.current', OPENING = 'charts.drawings.opening';
 const KEY = (id) => `charts.drawing.${id}`;
 
-const store = {
-  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); return true; } catch { return false; } },
-  remove: (k) => { try { localStorage.removeItem(k); } catch { /* nothing to remove */ } },
-};
 const newKey = () => [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(36).padStart(2, '0')).join('');
 const readIndex = () => { try { const v = JSON.parse(store.get(INDEX)); return Array.isArray(v) ? v : []; } catch { return []; } };
 

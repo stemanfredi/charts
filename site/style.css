@@ -4,7 +4,9 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
-  --rail: 60px;         /* width of the control column on the right */
+  --rail: 60px;         /* width of the control column on the right (narrower than 1024 px) */
+  --rail-w: 44px;       /* from 1024 px wide: the drawing's rail, on the left */
+  --col-w: 301px;       /* and its column beside it */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
 }
@@ -185,8 +187,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow:hover { background: #f3f6f8; }
 .drow.sel { background: #e3edf4; }
 .drow.dim .dname, .drow.dim .kind { color: var(--soft); }
-.dvis { flex: none; width: var(--row); height: var(--row); display: grid; place-items: center; cursor: pointer; }
-.dvis input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
 .drow .kind { flex: none; color: var(--accent); display: grid; place-items: center; }
 .drow .kind svg { width: 16px; height: 16px; }
 .drow .dname { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 0 4px; min-height: var(--row); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -506,8 +506,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 
 /* ---- from 1024 px wide (drawing-ui.md §1): the drawing is the left frame, docked: the rail of its
    tools, then the column, the tree over the inspector; the bottom row, the legends and the search
-   start after it (--frame, set by draw/panel.js) ---- */
-.dstrip { position: absolute; z-index: 9; left: 0; top: 0; bottom: 0; /* full height: the map starts at its edge; above the column, which its kinds open over */ width: 44px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0;
+   start after the rail ---- */
+.dstrip { position: absolute; z-index: 9; left: 0; top: 0; bottom: 0; /* full height: the map starts at its edge; above the column, which its kinds open over */ width: var(--rail-w); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0;
   background: #f4f6f8; border-right: 1px solid var(--line); }
 .dstrip > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); font-size: 0; } /* icons only: the name in the tooltip */
 .dstrip > button svg { width: 18px; height: 18px; }
@@ -523,7 +523,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .dstrip > .subrail { position: absolute; top: 6px; left: calc(100% + 6px); flex-direction: column; flex-wrap: nowrap; gap: 2px; padding: 4px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 .dstrip > .subrail button { min-width: 32px; min-height: 32px; border: 0; }
-.epanel { position: absolute; z-index: 8; left: 44px; top: 0; bottom: 0; /* over everything, the map and its bottom row too */ width: 301px; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--line); }
+.epanel { position: absolute; z-index: 8; left: var(--rail-w); top: 0; bottom: 0; /* over everything, the map and its bottom row too */ width: var(--col-w); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--line); }
 @media (pointer: fine) { .epanel { --row: 28px; } }
 .epanel > .dview { flex: 1 1 auto; min-height: 0; }
 .epanel .dlisthead, .epanel .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
@@ -545,8 +545,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 @media (min-width: 1024px) {
   /* what is on the map (the bottom row, the legends) from the rail's edge; the map runs under the rail,
      which hides it (Zoom to and a place found keep clear of it) */
-  .status { left: 44px; }
-  .legends { left: 54px; }
+  .status { left: var(--rail-w); }
+  .legends { left: calc(var(--rail-w) + 10px); }
   #b-draw { display: none; } /* the tools are always on */
 }
 @media (min-width: 1024px) {
@@ -599,7 +599,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
   .zoom button[aria-expanded="true"] { background: #e3edf4; color: var(--accent); }
   #zoom-in, #zoom-out, #units { display: none; }
   .panel { top: 8px; right: 56px; }
-  .search { display: none; left: auto; right: 56px; top: 8px; width: min(360px, calc(100vw - var(--frame, 0px) - 80px)); }
+  .search { display: none; left: auto; right: 56px; top: 8px; width: 360px; }
   body.finding .search { display: flex; }
 }
 @media (min-width: 1024px) { .lview > .when { display: none !important; } } /* the time is the chip's, on the bottom row */

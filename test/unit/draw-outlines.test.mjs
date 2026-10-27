@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { OUTLINES } = await import('../../site/draw/document.js');
 const { OUTLINE_NAME, unitOutline, outlineOf, isVehicle } = await import('../../site/draw/outlines.js');
@@ -8,7 +9,6 @@ const { enlargement } = await import('../../site/draw/features.js');
 const { inverse, rectangle, areaOf, ccw } = await import('../../site/geodesy.js');
 const { CIRC } = await import('../../site/geo.js');
 
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 const C = [12, 40], B = 30, L = 120, W = 40;
 
 test('every outline: symmetric, clockwise, reaching the length and width exactly', () => {

@@ -13,7 +13,7 @@
 //   tidAt       the code of the cell at a point (the depth on a click)
 import { openStore } from './zarr.js';
 import { latOf, TILE } from './geo.js';
-import { memo, fetchBytes, lru } from './net.js';
+import { fetchBytes, lru } from './net.js';
 import { GEBCO, GEBCO_TID, DEPTH_SOURCES } from './catalog.js';
 
 const SIZE = TILE, CELL = 15 / 3600, LEVELS = 7, KEEP = 96; // KEEP: chunks kept (512 kB each at most): a zoomed-out view's, and its neighbours'
@@ -21,10 +21,10 @@ const SIZE = TILE, CELL = 15 / 3600, LEVELS = 7, KEEP = 96; // KEEP: chunks kept
 // the level for tiles of zoom z: the coarsest whose cells are no larger than the tile's pixels
 const levelFor = (z) => Math.max(0, Math.min(LEVELS - 1, Math.floor(Math.log2(360 / (SIZE * 2 ** z) / CELL))));
 
-const stores = Object.create(null);
+const stores = lru(Infinity);
 // every chunk of these stores is written (tools/gebco.mjs): one the host has not got is a failure
 // (a broken upload), never the fill value drawn as the deepest sea
-const store = (url) => memo(stores, url, () => openStore(url, async (u) => { const b = await fetchBytes(u); if (!b) throw new Error(`GEBCO: ${u.slice(u.lastIndexOf('/', u.lastIndexOf('/') - 1) + 1)} is missing`); return b; }));
+const store = (url) => stores(url, () => openStore(url, async (u) => { const b = await fetchBytes(u); if (!b) throw new Error(`GEBCO: ${u.slice(u.lastIndexOf('/', u.lastIndexOf('/') - 1) + 1)} is missing`); return b; }));
 
 const chunks = lru(KEEP); // `store level/row.col` → promise of the chunk's cells
 

@@ -5,15 +5,17 @@
 
 import { styleOf, minSizeOf, SYMBOLS } from './document.js';
 import { parts, look } from './check.js';
+import { store } from '../dom.js';
 
 const KEY = 'charts.presets';
 const PRESETS_FORMAT = 'charts-presets';
 
 export function loadPresets() {
-  try { const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? clean(v) : []; } catch { return []; }
+  const v = store.json(KEY);
+  return Array.isArray(v) ? clean(v) : [];
 }
 export function savePresets(list) {
-  try { localStorage.setItem(KEY, JSON.stringify(list)); return true; } catch { return false; }
+  return store.set(KEY, JSON.stringify(list));
 }
 // a point as a preset named name: its parts, and its fill and stroke as drawn (its group's made its
 // own), its minimum display size when it or its group has one

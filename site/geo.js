@@ -4,6 +4,7 @@ export const R = 6378137; // the sphere's radius, metres
 export const CIRC = 2 * Math.PI * R; // the world's width, metres
 export const MAX_LAT = 85.05112878; // the latitude the map stops at (a square world)
 export const D2R = Math.PI / 180;
+export const NM = 1852; // a nautical mile, m
 export const TILE = 256; // a raster tile's edge, pixels (the DEM and depth tiles)
 // an angle in degrees as 0 ≤ a < 360
 export const norm360 = (a) => ((a % 360) + 360) % 360;

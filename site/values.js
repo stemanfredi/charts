@@ -5,7 +5,7 @@ import { CMEMS, cmemsStacUrl, storedVariables, EMODNET_DTM, GEBCO, GEBCO_TID } f
 import { partTimes, partLevels, regionOf } from './cmems.js';
 import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
 import { geotiff } from './geotiff.js';
-import { FETCH, memo, fetchBytes } from './net.js';
+import { fetchOk, fetchBytes, lru } from './net.js';
 
 // a store's file, or null where the store says 403 or 404: a public bucket answers 403, not 404, for
 // a file it does not hold, so either means a chunk not stored (all land, or a time no longer kept).
@@ -16,11 +16,10 @@ function rasterOf(cells, key, { title, description, names, units, planes, bands 
   return { key, file: `${key}.tif`, w, h, transform, names, units, title, description, data: geotiff(planes, w, h, transform, { crs: 4326, bands }) };
 }
 
-const stores = Object.create(null); // part (or EMODNET_DTM) → promise of its store and coordinates
+const stores = lru(Infinity); // part (or EMODNET_DTM) → promise of its store and coordinates
 function storeOf(part) {
-  return memo(stores, part, async () => {
-    const r = await fetch(cmemsStacUrl(part), FETCH);
-    if (!r.ok) throw new Error(`catalogue: HTTP ${r.status}`);
+  return stores(part, async () => {
+    const r = await fetchOk(cmemsStacUrl(part));
     const store = await openStore((await r.json()).assets.timeChunked.href, fetchBytes);
     const [time, lat, lon, elevation] = await Promise.all(['time', 'latitude', 'longitude', 'elevation'].map((c) => (store.meta(c) ? store.coord(c) : null)));
     return { store, times: Array.from(time, timeScale(store.meta('time').attrs.units)), lat, lon, elevation };
@@ -52,7 +51,7 @@ export async function cmemsValues(id, at, box) {
 // raster/emodnet-depth.tif: EMODnet Bathymetry's elevation over the view's bounding box, in its own
 // grid; a view needing more than 16 of its ~2 MB chunks (wider than about 4° × 4°) is left out:
 // zoom in to export it
-const dtmStore = () => memo(stores, EMODNET_DTM, async () => {
+const dtmStore = () => stores(EMODNET_DTM, async () => {
   const store = await openStore(EMODNET_DTM, fetchBytes);
   const [lat, lon] = await Promise.all([store.coord('latitude'), store.coord('longitude')]);
   return { store, lat, lon };
@@ -80,7 +79,7 @@ const GEBCO_GRIDS = {
     what: (grid) => `type identifier: how each cell's depth was obtained (0 land, 10–17 surveyed, 40–47 estimated, 70–72 other grids or unknown; the codes in GEBCO's documentation), ${grid}` },
 };
 export async function gebcoValues(box, variable = 'elevation') {
-  const g = GEBCO_GRIDS[variable], store = await memo(stores, g.url, () => openStore(g.url, fetchBytes));
+  const g = GEBCO_GRIDS[variable], store = await stores(g.url, () => openStore(g.url, fetchBytes));
   for (let k = 0; ; k++) {
     const name = `${k}/${variable}`, m = store.meta(name);
     if (!m) throw new Error('no level of the grid fits this view');

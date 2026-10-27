@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const drawgeo = await import('../../site/draw/features.js');
 const { drawParts, drawFeatures, exportFeatures, valueFeatures, flatten, boundsOf, enlargement, shapeOf, zoomDependent, GEOMETRY } = drawgeo;
 const { emptyDoc, addPoint, addDot, addShape, addArea, addLine, addLabel, makeGroup, makePart } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');
-const { inverse, destination, areaOf, pathOf, fmtArea, fmtDist, perimeterOf } = await import('../../site/geodesy.js');
+const { inverse, destination, areaOf, pathOf, perimeterOf } = await import('../../site/geodesy.js');
+const { fmtArea, fmtDist } = await import('../../site/format.js');
 
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 // a round part (a circle, or a sector given its aperture), its other fields as given
 const C = (radius, more = {}) => ({ ...makePart(more.aperture ? 'sector' : 'circle', { radius, aperture: more.aperture }), ...more });
 // three circles: the first filled, the second its own stroke, the third hidden

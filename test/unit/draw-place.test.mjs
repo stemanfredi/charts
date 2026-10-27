@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { placeKind, placeBox, BOX, scaled, BUILT_IN, builtInName, nameByLook } = await import('../../site/draw/place.js');
 const { inverse } = await import('../../site/geodesy.js');
@@ -8,7 +9,6 @@ const { emptyDoc, makePart, OUTLINES } = await import('../../site/draw/document.
 const { OUTLINE_NAME } = await import('../../site/draw/outlines.js');
 
 const C = [12, 40];
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 const preset = (value) => [{ key: 'preset', value }];
 
 test('a click of Point: a symbol; of Shape, with no size: the preset\'s own size, facing north, its preset named', () => {

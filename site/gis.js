@@ -10,7 +10,7 @@ import { viewFeatures } from './vector.js';
 import { exportFeatures } from './draw/features.js';
 import { lineTrace } from './draw/lines.js';
 import { mercator } from './geo.js';
-import { memo } from './net.js';
+import { lru } from './net.js';
 import { h } from './dom.js';
 import { chartCanvas, chartPng, pngOf } from './png.js';
 
@@ -54,8 +54,8 @@ export function gisExport({ map, layersOf, kindOf, drawing, display, profiled, c
   const featureCollection = (name, features) => `${JSON.stringify({ type: 'FeatureCollection', name, features })}\n`;
 
   // polygon-clipping (vector.js) loads on the first ZIP export, not with the page (site/vendor/)
-  const libs = {};
-  const polygonClipping = () => memo(libs, 'polygon-clipping', () => new Promise((resolve, reject) => {
+  const libs = lru(Infinity);
+  const polygonClipping = () => libs('polygon-clipping', () => new Promise((resolve, reject) => {
     document.head.append(h('script', { src: 'vendor/polygon-clipping.umd.min.js', onload: () => resolve(globalThis.polygonClipping),
       onerror: (e) => { e.target.remove(); reject(new Error('polygon-clipping did not load')); } }));
   }));

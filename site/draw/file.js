@@ -8,12 +8,11 @@
 // app's). Drawings of another format version are not read. Pure: no map, no DOM.
 
 import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET,
-  emptyDoc, newId } from './document.js';
+  emptyDoc, newId, columnsOf } from './document.js';
 import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, handle, ownStyle, look, parts, readView } from './check.js';
-import { resolve as anchorAt } from './attach.js';
-import { targetPosition } from './attach.js';
-import { columnsOf } from './document.js';
+import { resolve, targetPosition } from './attach.js';
 import { groupSizeOf } from './generator.js';
+import { positionsOf } from './lines.js';
 
 const SIDES = ['left', 'right', 'alternate'];
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
@@ -371,7 +370,7 @@ function feature(doc, kind, el) {
     Object.assign(mine, lean({ symbol: el.symbol, bearing: r4(el.bearing) }, { symbol: 'none', bearing: 0 }));
     if (el.parts.length) mine.parts = el.parts.map(partOut);
   } else if (kind === 'line') {
-    geometry = { type: 'LineString', coordinates: [el.start.position, ...el.vertices.map((v) => v.position), el.end.position].map(pos) };
+    geometry = { type: 'LineString', coordinates: positionsOf(el).map(pos) };
     const vs = el.vertices.map((v) => lean({ handleIn: hdl(v.handleIn), handleOut: hdl(v.handleOut), name: v.name, properties: v.properties.map((p) => ({ ...p })) }, VERTEX_D));
     Object.assign(mine, lean({ start: endOut(el.start), end: endOut(el.end), startHandle: hdl(el.startHandle), endHandle: hdl(el.endHandle), mode: el.mode },
     { start: null, end: null, startHandle: null, endHandle: null, mode: 'fixed' }));
@@ -382,7 +381,7 @@ function feature(doc, kind, el) {
     geometry = { type: 'Polygon', coordinates: [[...pts, pts[0]].map(pos)] };
     if (cw) mine.reversed = true;
   } else {
-    const at = anchorAt(doc, el.anchor);
+    const at = resolve(doc, el.anchor);
     geometry = { type: 'Point', coordinates: pos(at ? at.position : el.anchor.position ?? [0, 0]) };
     Object.assign(mine, lean({ text: el.text, anchor: endOut(el.anchor),
       offset: [r3(el.offset[0]), r3(el.offset[1])], leader: el.leader }, { text: '', anchor: null, offset: LABEL_OFFSET, leader: 'arrow' }));

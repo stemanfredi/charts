@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals, smooth, applySmooth, refreshAuto } = await import('../../site/draw/lines.js');
 const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, makeGroup, splitLine, remove, makePart } = await import('../../site/draw/document.js');
@@ -7,7 +8,6 @@ const { settleGeometry } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');
 
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 // a line from start to end (positions or point IDs) through vertices, in a new document unless one is given
 const lineOf = (start, vertices, end, opts = {}, doc = emptyDoc(0)) => ({ doc, line: addLine(doc, start, vertices, end, opts) });
 

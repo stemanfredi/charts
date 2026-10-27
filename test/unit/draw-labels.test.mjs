@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { labelText, labelValues, TOKENS, leaderFrom, labelFeatures } = await import('../../site/draw/labels.js');
 const { resolve: anchorAt } = await import('../../site/draw/attach.js');
@@ -10,7 +11,6 @@ const { lineTrace, nearestAlong } = await import('../../site/draw/lines.js');
 const { inverse, destination } = await import('../../site/geodesy.js');
 const { mercator, unmercator } = await import('../../site/geo.js');
 
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 // a line east from 12° E along 40° N, with a bend, from a named point to an unnamed one; a shape; an area
 const B = destination([12, 40], 90, 10000), E = destination(B, 90, 10000);
 const AREA = [[13, 41], [13.1, 41], [13.1, 41.1]];

@@ -6,12 +6,11 @@
 
 import { isShown, label, labelColour, lookOf, followedPart } from './document.js';
 import { resolve, verticesOf } from './attach.js';
-import { fmtDist, fmtArea, fmtBrg, areaOf, pathOf, perimeterOf } from '../geodesy.js';
+import { areaOf, pathOf, perimeterOf } from '../geodesy.js';
+import { fmtArea, fmtBrg, fmtDist } from '../format.js';
 
 const SIZE_PX = { small: 11, medium: 13, large: 16 };
 const PAD = { halo: 3, box: 6 }; // px around the text a leader stops short of (a box's padding and border)
-
-
 
 // The live values a label can show of what it points at, each as text, or undefined where it does not
 // apply: name; length (its line's, or the side it is on); along (from its line's start); bearing (of

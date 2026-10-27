@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistribution, editDistribution, connect, unconnect, reconnect, refreshGenerated, COPY_RADIUS,
   distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, removePartOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
@@ -14,7 +15,6 @@ const { inflated } = await import('../../site/draw/inflate.js');
 
 const R = (position, weight = 1) => ({ position, weight }); // a root for plan()
 const roots = (...ids) => ids.map((id) => ({ id, weight: 1 })); // roots for connect()
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 // what a line a connection made is (lines.js madeLines), a chain's root link or link as 'chain'
 const part = (doc, s) => { const p = madeLines(doc).get(s.id)?.part; return p === 'root link' || p === 'link' ? 'chain' : p; };
 // how far a position is from a line (metres, to the place along it nearest)

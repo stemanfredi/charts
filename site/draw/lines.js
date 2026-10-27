@@ -4,8 +4,8 @@
 // Mercator), its handles ground metres [east, north] at their anchor. Lengths are always geodesic: a
 // curve's, the sum over close samples of it. Pure: no map, no DOM.
 
-import { densify, inverse, destination, areaOf, pathOf, perimeterOf } from '../geodesy.js';
-import { mercator, unmercator, D2R, nearestOnSegment, unrollTo as near } from '../geo.js';
+import { densify, inverse, destination, areaOf, pathOf, perimeterOf, lengthOf } from '../geodesy.js';
+import { mercator, unmercator, D2R, nearestOnSegment, unrollTo } from '../geo.js';
 import { isShown, groupsOf, roundParts, pointKind } from './document.js';
 
 const TOL = 1e-4; // a curve is sampled finer until its length changes by less than this, relative
@@ -22,11 +22,14 @@ export function anchorsOf(line) {
     { position: line.end.position, hIn: line.endHandle, hOut: null }];
 }
 
+// a line's positions, start to end (its anchors')
+export const positionsOf = (line) => [line.start.position, ...line.vertices.map((v) => v.position), line.end.position];
+
 // One leg a → b: its points (both ends included, longitudes continuous from a's) and its length.
 export function leg(a, b) {
-  const q = near(a.position, b.position);
+  const q = unrollTo(a.position, b.position);
   if (!a.hOut && !b.hIn) {
-    const pts = densify(a.position, q).map((p) => near(a.position, p));
+    const pts = densify(a.position, q).map((p) => unrollTo(a.position, p));
     pts[0] = a.position; // the anchors exactly, not as computed back
     pts[pts.length - 1] = q;
     return { pts, length: inverse(a.position, q).s };
@@ -42,15 +45,14 @@ export function leg(a, b) {
   for (;;) {
     const next = [];
     for (let i = 0; i <= n; i++) next.push(i === 0 ? a.position : i === n ? q : at(i / n));
-    let len = 0;
-    for (let i = 1; i < next.length; i++) len += inverse(next[i - 1], next[i]).s;
+    const len = lengthOf(next);
     const done = Math.abs(len - length) <= TOL * len || n >= MAX_SAMPLES;
     pts = next;
     length = len;
     if (done) break;
     n *= 2;
   }
-  return { pts: pts.map((p, i) => (i ? near(pts[i - 1], p) : p)), length };
+  return { pts: pts.map((p, i) => (i ? unrollTo(pts[i - 1], p) : p)), length };
 }
 
 // A line's trace: { coords, length, at (distance from the start at each anchor), legs (lengths) },
@@ -65,7 +67,7 @@ export function lineTrace(doc, line) {
   let length = 0;
   for (let i = 0; i < anchors.length - 1; i++) {
     const l = leg(anchors[i], anchors[i + 1]);
-    const pts = coords.length ? l.pts.map((p) => near(coords[coords.length - 1], p)) : l.pts;
+    const pts = coords.length ? l.pts.map((p) => unrollTo(coords[coords.length - 1], p)) : l.pts;
     coords.push(...(i ? pts.slice(1) : pts));
     length += l.length;
     legs.push(l.length);
@@ -106,10 +108,10 @@ export function pointsAlong(coords, distances) {
 // The distance along a line (coords) of its point nearest to p, measured in the projection (as on
 // screen): metres from its start.
 export function nearestAlong(coords, p) {
-  const P = mercator(near(coords[0], p));
+  const P = mercator(unrollTo(coords[0], p));
   let best = Infinity, at = 0, along = 0;
   for (let i = 1; i < coords.length; i++) {
-    const s = inverse(coords[i - 1], coords[i]).s, { t, d } = nearestOnSegment(mercator(coords[i - 1]), mercator(near(coords[i - 1], coords[i])), P);
+    const s = inverse(coords[i - 1], coords[i]).s, { t, d } = nearestOnSegment(mercator(coords[i - 1]), mercator(unrollTo(coords[i - 1], coords[i])), P);
     if (d < best) { best = d; at = along + t * s; }
     along += s;
   }
@@ -209,7 +211,7 @@ export function smooth(doc, line) {
   const anchors = anchorsOf(line);
   if (anchors.length < 3) return { startHandle: line.startHandle, endHandle: line.endHandle, vertices: line.vertices.map((v) => ({ handleIn: v.handleIn, handleOut: v.handleOut })) };
   const ps = [anchors[0].position];
-  for (const a of anchors.slice(1)) ps.push(near(ps[ps.length - 1], a.position));
+  for (const a of anchors.slice(1)) ps.push(unrollTo(ps[ps.length - 1], a.position));
   const M = ps.map(mercator);
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], len = (v) => Math.hypot(v[0], v[1]);
   const unit = (v) => { const l = len(v); return l ? [v[0] / l, v[1] / l] : [0, 0]; };

@@ -1,6 +1,23 @@
 // Pure helpers (no map, no DOM): angle and distance formatting, Mercator scale, text wrap.
 // Kept apart from app.js so they can be unit-tested in Node.
 
+import { norm360, NM, D2R } from './geo.js';
+
+// a length, an area, a bearing as read (in the display's units: 'km' or 'nm')
+export function fmtDist(m, units) {
+  if (units === 'nm') return m < NM ? `${(m / NM).toFixed(3)} NM` : `${(m / NM).toFixed(m < 100 * NM ? 2 : 1)} NM`;
+  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 100e3 ? 2 : 1)} km`;
+}
+export function fmtArea(a, units) {
+  a = Math.abs(a);
+  if (units === 'nm') return `${(a / NM / NM).toFixed(a < 100 * NM * NM ? 3 : 1)} NM²`;
+  return a < 1e6 ? `${(a / 1e4).toFixed(2)} ha` : `${(a / 1e6).toFixed(a < 1e8 ? 2 : 1)} km²`;
+}
+export function fmtBrg(b) {
+  const t = norm360(b).toFixed(1);
+  return `${t === '360.0' ? '000.0' : t.padStart(5, '0')}°T`;
+}
+
 // Graticule label: whole degrees, or degrees and minutes when the step is below 1°.
 export function fmtAngle(v, pos, neg, step) {
   const hemi = v >= 0 ? pos : neg;
@@ -25,8 +42,7 @@ export const NOTE_AT = 0.03;
 export function mercatorVariation(south, north) {
   const n = Math.min(85, north), s = Math.max(-85, south);
   const hi = Math.max(Math.abs(n), Math.abs(s)), lo = s < 0 && n > 0 ? 0 : Math.min(Math.abs(n), Math.abs(s));
-  const rad = Math.PI / 180;
-  return Math.cos(lo * rad) / Math.cos(hi * rad) - 1;
+  return Math.cos(lo * D2R) / Math.cos(hi * D2R) - 1;
 }
 
 // Largest 1/2/5 × 10^k not above m (scale bar lengths).
@@ -111,7 +127,7 @@ export function parseCoord(text, axis) {
 
 // A distance typed into a field → metres, or null: a number with m, km or NM (any case), or a bare
 // number, read in the unit the field showed (bare: 'm', 'km' or 'nm'). A decimal comma is read as such.
-const UNIT_M = { m: 1, km: 1000, nm: 1852 };
+const UNIT_M = { m: 1, km: 1000, nm: NM };
 export function parseDist(text, bare) {
   const r = /^\s*(\d+(?:[.,]\d+)?|[.,]\d+)\s*(m|km|nm)?\s*$/i.exec(text);
   return r ? +r[1].replace(',', '.') * UNIT_M[(r[2] || bare).toLowerCase()] : null;

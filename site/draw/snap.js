@@ -8,7 +8,7 @@
 import { inverse, destination } from '../geodesy.js';
 import { nearestOnSegment } from '../geo.js';
 import { verticesOf } from './attach.js';
-import { anchorsOf, lineTrace, steps } from './lines.js';
+import { lineTrace, steps } from './lines.js';
 import { isShown, KIND } from './document.js';
 
 export const RADIUS = 6; // px
@@ -111,5 +111,3 @@ export function neighbours(positions, k) {
   if (k > 0) return { from: positions[k - 1], prev: positions[k - 2] ?? null };
   return { from: positions[1] ?? null, prev: positions[2] ?? null };
 }
-// a line's positions, start to end (its anchors)
-export const positionsOf = (doc, line) => anchorsOf(line).map((a) => a.position);

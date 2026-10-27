@@ -4,8 +4,10 @@
 import { DEM_SEA_MAX, DEM_LAND_MAX, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, OVERLAY_FAINT, HA_CREDIT, esriAttribution, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
 import { HOSTS } from './hosts.js';
 
+// the map's ink, for what is written on it and beside it (the legends, the picture's text)
+export const INK = '#2b3a46', SOFT = '#5d6d79';
 const C = {
-  land: '#f1ebdc', sea: '#ffffff', ink: '#2b3a46', inkSoft: '#5d6d79',
+  land: '#f1ebdc', sea: '#ffffff', ink: INK, inkSoft: SOFT,
   noDepth: NO_DEPTH,
   water: '#a9cbe3', waterText: '#2f6690', building: '#d9d1c1', buildingEdge: '#b7ac98',
   road: '#c9bea9', roadMajor: '#b3a68e', boundary: '#8a6f8f', grid: '#6b8193',
@@ -51,15 +53,15 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
       { type: 'raster', tileSize: 256, maxzoom: OVERLAY_MAXZOOM[item] ?? 18, tiles, attribution: OVERLAY_CREDIT[item] || HA_CREDIT }]))),
     // GEBCO's type identifier grid, coloured by gebco.js (gebco-tid://); level 0 from zoom 8, then magnified
     'gebco-tid': { type: 'raster', tileSize: 256, maxzoom: 10, tiles: ['gebco-tid://{z}/{x}/{y}'], attribution: '<a href="https://www.gebco.net">GEBCO 2026 Grid</a>' },
-    graticule: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    graticule: empty(),
     // the drawing (draw/drawing.js): what never depends on the zoom, what may, the marks (selection, the
     // line being drawn)
-    draw: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-    drawzoom: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-    drawover: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-    drawlabel: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // its labels, drawn again as the map moves
-    drawvalue: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // the values shown (lengths, areas, radii)
-    mylocation: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }, // the device's location, when shown (app.js)
+    draw: empty(),
+    drawzoom: empty(),
+    drawover: empty(),
+    drawlabel: empty(), // its labels, drawn again as the map moves
+    drawvalue: empty(), // the values shown (lengths, areas, radii)
+    mylocation: empty(), // the device's location, when shown (app.js)
   };
   // tiles set by app.js once the hour is known (cmems:// is cmems.js's tile handler)
   for (const id of Object.keys(CMEMS)) {
@@ -271,6 +273,9 @@ export const LOCATION_LAYERS = [
 // over one, the isobaths take a dark ink (app.js isobathInk). Ocean data is the same; seagrass, whose
 // meadows leave the depth shading seen round them, is not
 export const SEA_PICTURES = ['substrate', 'traffic', 'routes', 'worlddensity'];
+
+// a GeoJSON source with nothing in it yet
+const empty = () => ({ type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
 
 export function buildStyle(opts) {
   return {

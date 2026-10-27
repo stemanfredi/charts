@@ -6,17 +6,17 @@ import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown
 import { typing } from '../dom.js';
 import { outlineOf } from './outlines.js';
 import { placeKind, placeBox, BOX, nameByLook } from './place.js';
-import { norm360 as norm } from '../geo.js';
+import { norm360 } from '../geo.js';
 import { serialise } from './file.js';
 import { DrawStore, settleGeometry } from './store.js';
 import { Saving } from './saving.js';
 import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, FINGER } from './layers.js';
 import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures, ringOf } from './features.js';
 import { inflated } from './inflate.js';
-import { lineTrace, nearestAlong } from './lines.js';
+import { lineTrace, nearestAlong, positionsOf } from './lines.js';
 import { labelFeatures } from './labels.js';
 import { inverse, cornersOf, pathOf, sector, circle } from '../geodesy.js';
-import { snapAt, stepped, neighbours, positionsOf, RADIUS as SNAP_RADIUS } from './snap.js';
+import { snapAt, stepped, neighbours, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
 import { copyOf, paste, centreOf, keep, kept } from './clipboard.js';
 import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, resizeSide, handleTo, moved } from './drag.js';
@@ -329,15 +329,15 @@ export class Drawing extends DrawStore {
   // what a snap target attaches a line's end to. Another line's free end (where a point is to be made,
   // both ends attached to it) is kept as it is, at p, until the line is made: one undo step for both,
   // and nothing left behind if the line is dropped
-  resolve(to, p) {
+  endAt(to, p) {
     if (to.end) return { position: p, pending: to };
     return attachTo(this.doc, to);
   }
   lineClick(point, e) {
     const d = this.draft, r = this.snapFor(point, e, this.lastLeg()), p = r.position;
-    if (!d) this.draft = { start: r.to ? this.resolve(r.to, p) : p, pts: [] };
+    if (!d) this.draft = { start: r.to ? this.endAt(r.to, p) : p, pts: [] };
     // on something to attach to, the line ends there (not where it starts, with nothing between)
-    else if (r.to && (d.pts.length || JSON.stringify(r.to) !== JSON.stringify(d.startTo))) return this.finishLine(this.resolve(r.to, p));
+    else if (r.to && (d.pts.length || JSON.stringify(r.to) !== JSON.stringify(d.startTo))) return this.finishLine(this.endAt(r.to, p));
     else {
       const last = this.lastLeg().from; // the start too: a double-click's second click, the same point
       if (!last || last[0] !== p[0] || last[1] !== p[1]) d.pts.push(p);
@@ -484,9 +484,9 @@ export class Drawing extends DrawStore {
     const d = this.draft;
     if (this.tool !== 'sector' || !d?.pts.length || !q) return null;
     const c = d.pts[0], first = d.pts[1] ?? q, a = inverse(c, first);
-    if (!d.pts[1]) return { centre: c, r: a.s, bearing: norm(a.azi), aperture: 0, first };
-    const ap = Math.round(norm(inverse(c, q).azi - a.azi) * 10) / 10 || 360;
-    return { centre: c, r: a.s, bearing: +norm(a.azi + ap / 2).toFixed(4), aperture: ap >= 360 ? null : ap, first };
+    if (!d.pts[1]) return { centre: c, r: a.s, bearing: norm360(a.azi), aperture: 0, first };
+    const ap = Math.round(norm360(inverse(c, q).azi - a.azi) * 10) / 10 || 360;
+    return { centre: c, r: a.s, bearing: +norm360(a.azi + ap / 2).toFixed(4), aperture: ap >= 360 ? null : ap, first };
   }
   // the polygon being drawn, to the cursor (closed back to its first corner)
   draftPolygon() {
@@ -661,14 +661,14 @@ export class Drawing extends DrawStore {
         return;
       }
       case 'end': { // a line's end, snapped; on something to attach to, attached there (Alt: free)
-        const key = +d.ref ? 'end' : 'start', ps = positionsOf(doc, el), k = key === 'end' ? ps.length - 1 : 0;
+        const key = +d.ref ? 'end' : 'start', ps = positionsOf(el), k = key === 'end' ? ps.length - 1 : 0;
         const r = this.snapped(pt, e, moved(el[key].position, d.start, p), { exclude: new Set([el.id]), ...neighbours(key === 'end' ? ps : ps.slice().reverse(), key === 'end' ? k : ps.length - 1) });
         const to = r.to && attachTo(doc, r.to);
         el[key] = typeof to === 'string' ? { position: [...r.position], element: to } : to || { position: r.position, element: null };
         return;
       }
       case 'vertex': {
-        const v = el.vertices[d.ref], r = this.snapped(pt, e, moved(v.position, d.start, p), { exclude: new Set([el.id]), ...neighbours(positionsOf(doc, el), d.ref + 1) });
+        const v = el.vertices[d.ref], r = this.snapped(pt, e, moved(v.position, d.start, p), { exclude: new Set([el.id]), ...neighbours(positionsOf(el), d.ref + 1) });
         v.position = r.position;
         return;
       }

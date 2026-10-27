@@ -3,7 +3,7 @@
 // regional one over it; the datasets' time ranges, read from their own capabilities; legends.
 import { CMEMS, cmemsStyle, cmemsTileUrl, cmemsLegendUrl, cmemsCapsUrl } from './catalog.js';
 import { mercator, tileBounds, CIRC } from './geo.js';
-import { memo, fetchOk } from './net.js';
+import { lru, fetchOk } from './net.js';
 // regional datasets (by product name: MEDSEA_…, SST_MED_…, OCEANCOLOUR_MED_…): drawn only within
 // their area, a union of boxes [west, south, east, north], and not asked for a tile outside it. The
 // Mediterranean products' own box (18°W–36°E, 30–46°N) also holds part of the Atlantic, the Bay of
@@ -57,9 +57,9 @@ export const nearestLevel = (levels, depth) => (levels.length ? levels.reduce((a
 
 // part (product/dataset/variable) → promise of { time: its time domain, levels: its depth levels }
 // (timeDomain, depthLevels)
-const domains = Object.create(null);
+const domains = lru(Infinity);
 export function domainOf(part) {
-  return memo(domains, part, () => fetchOk(cmemsCapsUrl(part)).then((r) => r.text())
+  return domains(part, () => fetchOk(cmemsCapsUrl(part)).then((r) => r.text())
     .then((xml) => {
       const variable = part.split('/')[2], time = timeDomain(xml, variable);
       if (!time.length) throw new Error(`no time steps for ${part}`);
@@ -117,10 +117,10 @@ export async function cmemsTile({ url }, abortController) {
 
 // legend of item/variant: the service's colour map over the fixed range, as entries for
 // legend.js drawColormap, in the units shown (offset applied; log10 of the value for a log scale)
-const legends = Object.create(null);
+const legends = lru(Infinity);
 export function cmemsLegend(item, variant) {
   const v = CMEMS[item][variant], url = cmemsLegendUrl(v.parts[0], cmemsStyle(v));
-  return memo(legends, url, () => fetchOk(url).then((r) => r.json())
+  return legends(url, () => fetchOk(url).then((r) => r.json())
     .then(({ continuous: c }) => {
       const f = (x) => (v.log ? Math.log10(x) : x + (v.offset || 0));
       const cols = c.cmap.colorMap, lo = f(c.valueMin), step = (f(c.valueMax) - lo) / cols.length;

@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { inverse, destination, circle, sector, rectangle, reachesPole, pathOf } = await import('../../site/geodesy.js');
 
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 const norm = (a) => ((a % 360) + 360) % 360;
 // the difference between two azimuths, the short way round
 const nearAngle = (a, b, tol, what) => near(Math.abs(((norm(a) - norm(b) + 540) % 360) - 180), 0, tol, what);

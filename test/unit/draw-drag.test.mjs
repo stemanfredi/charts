@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { radiusTo, bearingTo, sectorEdgeTo, resizeRect, handleTo, moved, rotateHandle } = await import('../../site/draw/drag.js');
 const { inverse, destination, rectangle } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');
 
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 const C = [12, 40];
 
 test('radius, bearing, aperture from the pointer; across north', () => {
@@ -64,7 +64,6 @@ test('resizeSide: a side dragged moves that side alone; with the centre kept, bo
   const { resizeSide } = await import('../../site/draw/drag.js');
   const { destination, inverse } = await import('../../site/geodesy.js');
   const s = { center: [12, 40], bearing: 90, length: 1000, width: 400, outline: 'rectangle' };
-  const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
   // the front (side 3) pulled 200 m further ahead (east, the bearing): 1200 long, the centre 100 m east, the width kept
   let r = resizeSide(s, 3, destination(s.center, 90, 700));
   near(r.length, 1200, 1e-3, 'length'); near(r.width, 400, 1e-9, 'width kept');

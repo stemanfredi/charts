@@ -10,7 +10,7 @@ import { inverse, destination } from '../geodesy.js';
 import { mercator, nearestOnSegment } from '../geo.js';
 import { find, addDot, centroid, insertVertex, deleteVertex, splitLine, mainOutline, outlineParts } from './document.js';
 import { outlinePoints } from './outlines.js';
-import { lineTrace, pointsAlong, nearestAlong } from './lines.js';
+import { lineTrace, pointsAlong, nearestAlong, positionsOf } from './lines.js';
 
 // the vertices of an element: an area's corners, the corners of a point's outline part (part: its place
 // in the point's parts; null: its largest outline), a line's places (its start, its vertices, its end);
@@ -21,7 +21,7 @@ export function verticesOf(x, part = null) {
     const o = part == null ? mainOutline(x.el)?.part : x.el.parts[part];
     return o && o.length ? outlinePoints(x.el.position, x.el.bearing, o.length, o.width, o.kind) : null;
   }
-  if (x?.kind === 'line') return [x.el.start.position, ...x.el.vertices.map((v) => v.position), x.el.end.position];
+  if (x?.kind === 'line') return positionsOf(x.el);
   return null;
 }
 // a line's edges are its legs (open); an area's and an outline's sides close

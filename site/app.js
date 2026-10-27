@@ -1,7 +1,7 @@
 import * as maplibregl from './vendor/maplibre-gl.mjs';
 import mlcontour from './vendor/maplibre-contour.mjs';
 import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, esriAttribution, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
-import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS } from './style.js';
+import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS, INK } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses, wmsClasses } from './legend.js';
@@ -13,12 +13,12 @@ import { drawView } from './draw/panel.js';
 import { profileOf } from './draw/profile.js';
 import { isShown } from './draw/document.js';
 import { circle } from './geodesy.js';
-import { norm360, tileXY, TILE } from './geo.js';
-import { FETCH, memo, fetchOk, lru } from './net.js';
-import { $, h, typing } from './dom.js';
+import { norm360, tileXY, TILE, D2R } from './geo.js';
+import { fetchOk, lru } from './net.js';
+import { $, h, svg, typing, WIDE } from './dom.js';
 import { choice } from './fields.js';
 import { keyEntry, openKey, keyList } from './keys.js';
-import { railMenu } from './menu.js';
+import { popup } from './menu.js';
 import { search } from './search.js';
 import { gisExport } from './gis.js';
 import { chartCanvas, chartPng } from './png.js';
@@ -160,16 +160,13 @@ maplibregl.addProtocol('cmems', cmemsTile);
 maplibregl.addProtocol('gebco-tid', tidTile);
 // seagrass tiles (tools/seagrass.mjs) exist only where there is seagrass: its index lists them, and
 // a tile not listed is empty, asked of nobody (a 404 would be logged as an error)
-let seagrassIndex; // promise of zoom → Set of x · 2^z + y
-const seagrassTiles = () => (seagrassIndex ||= fetch(`${SEAGRASS}/index.json`, FETCH)
-  .then((r) => { if (!r.ok) throw new Error(`seagrass index: HTTP ${r.status}`); return r.json(); })
-  .then(({ tiles }) => Object.fromEntries(Object.entries(tiles).map(([z, xy]) => [z, new Set(xy.filter((_, k) => !(k % 2)).map((x, k) => x * 2 ** z + xy[2 * k + 1]))])))
-  .catch((e) => { seagrassIndex = null; throw e; }));
+const seagrassIndex = lru(1); // promise of zoom → Set of x · 2^z + y
+const seagrassTiles = () => seagrassIndex('index', () => fetchOk(`${SEAGRASS}/index.json`).then((r) => r.json())
+  .then(({ tiles }) => Object.fromEntries(Object.entries(tiles).map(([z, xy]) => [z, new Set(xy.filter((_, k) => !(k % 2)).map((x, k) => x * 2 ** z + xy[2 * k + 1]))]))));
 maplibregl.addProtocol('seagrass', async ({ url }, ac) => {
   const [z, x, y] = url.slice('seagrass://'.length).split('/').map(Number);
   if (!(await seagrassTiles())[z]?.has(x * 2 ** z + y)) return { data: new ArrayBuffer(0) };
-  const r = await fetch(`${SEAGRASS}/${z}/${x}/${y}.pbf`, { ...FETCH, signal: ac.signal });
-  if (!r.ok) throw new Error(`seagrass: HTTP ${r.status}`);
+  const r = await fetchOk(`${SEAGRASS}/${z}/${x}/${y}.pbf`, { signal: ac.signal });
   return { data: await r.arrayBuffer() };
 });
 const contourOpts = { contourLayer: 'contours', elevationKey: 'ele', levelKey: 'level', extent: 4096, buffer: 1 };
@@ -195,8 +192,6 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 $('#nostart').remove(); // started (index.html)
 const small = () => window.innerWidth < 720;
-// from 1024 px wide the drawing is the left frame (draw/panel.js)
-const wide = () => matchMedia('(min-width: 1024px)').matches;
 
 // ---- bottom row: credits; scale note, time shown, cursor position, the scale
 // One scale bar, in the display's units (the switch beside it); the PNG export draws a double
@@ -393,8 +388,8 @@ const LIGHT_HALO = 'rgba(255,255,255,0.9)', DARK_HALO = 'rgba(8,16,24,0.85)';
 const ATLAS_SPLIT_M = 2000;
 const byDepth = (shallow, deep, at = ATLAS_SPLIT_M) => ['step', ['abs', ['get', 'ele']], shallow, at, deep];
 const ISOBATH_INK = {
-  picture: { line: 'rgba(43,58,70,0.7)', text: '#2b3a46', halo: LIGHT_HALO },
-  emodnet: { line: byDepth('rgba(43,58,70,0.7)', '#ffffff', 1000), text: byDepth('#2b3a46', '#ffffff', 1000), halo: byDepth(LIGHT_HALO, DARK_HALO, 1000) },
+  picture: { line: 'rgba(43,58,70,0.7)', text: INK, halo: LIGHT_HALO },
+  emodnet: { line: byDepth('rgba(43,58,70,0.7)', '#ffffff', 1000), text: byDepth(INK, '#ffffff', 1000), halo: byDepth(LIGHT_HALO, DARK_HALO, 1000) },
   sat: { line: '#bfe0ff', text: '#cfe6ff', halo: DARK_HALO },
   atlas: { line: byDepth('#22436a', '#ffffff'), text: byDepth('#22436a', '#ffffff'), halo: byDepth(LIGHT_HALO, 'rgba(20,45,80,0.85)') },
   nautical: { line: '#3d6a91', text: '#3d6a91', halo: LIGHT_HALO },
@@ -449,8 +444,7 @@ async function creditEsri() {
   if (esriCredited || !(state.on.has('sat') && state.variant.sat === 'esri')) return;
   esriCredited = true;
   try {
-    const r = await fetch(ESRI_META, FETCH);
-    const text = r.ok && (await r.json()).copyrightText;
+    const text = (await (await fetchOk(ESRI_META)).json()).copyrightText;
     if (!text) return;
     const src = map.getSource('esri');
     src.attribution = esriAttribution(text);
@@ -471,9 +465,9 @@ async function creditEsri() {
 
 // NASA publishes each layer after its own delay (true colour within a day): GIBS says the newest
 // date of the layer shown, the last day the map's time can take while it is on
-const gibsEnd = Object.create(null); // GIBS key → promise of its newest date, or null if unknown
+const gibsEnd = lru(Infinity); // GIBS key → promise of its newest date, or null if unknown
 function latestGibs(key) {
-  return memo(gibsEnd, key, () => fetchOk(gibsDomainUrl(key, shiftDay(today(), -60), today())).then((r) => r.text()).then(domainEnd)).catch(() => null);
+  return gibsEnd(key, () => fetchOk(gibsDomainUrl(key, shiftDay(today(), -60), today())).then((r) => r.text()).then(domainEnd)).catch(() => null);
 }
 
 // Copernicus: each dataset at its own step for the hour shown, its time resolution (cmems.js draws
@@ -489,10 +483,10 @@ async function cmemsDrawn(id, at) {
 // a classed layer's classes, from its services' JSON legends (legend.js wmsClasses): a class drawn
 // by several (an area, and a point where it is too small) once, with its fill and its symbol; the
 // symbols loaded as pictures (one that does not load is left out, its class kept)
-const classLegends = Object.create(null), icons = Object.create(null); // keyed by URLs: no prototype to reach
-const iconOf = (url) => memo(icons, url, () => fetchOk(url).then((r) => r.blob()).then(createImageBitmap));
+const classLegends = lru(Infinity), icons = lru(Infinity);
+const iconOf = (url) => icons(url, () => fetchOk(url).then((r) => r.blob()).then(createImageBitmap));
 function classesOf(urls) {
-  return memo(classLegends, urls.join(' '), async () => {
+  return classLegends(urls.join(' '), async () => {
     const all = (await Promise.all(urls.map((url) => fetchOk(url).then((r) => r.json()).then(wmsClasses)))).flat();
     const byLabel = new Map();
     for (const c of all) {
@@ -698,7 +692,7 @@ const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1
 function updateGraticule() {
   if (!state.on.has('graticule')) return;
   const b = map.getBounds();
-  const span = Math.max(b.getNorth() - b.getSouth(), (b.getEast() - b.getWest()) * Math.cos((map.getCenter().lat * Math.PI) / 180));
+  const span = Math.max(b.getNorth() - b.getSouth(), (b.getEast() - b.getWest()) * Math.cos(map.getCenter().lat * D2R));
   const step = STEPS.find((s) => span / s >= 3) || STEPS[STEPS.length - 1];
   const f = [];
   const s = Math.max(-85, b.getSouth()), n = Math.min(85, b.getNorth());
@@ -752,18 +746,9 @@ function itemStatus(id) {
 }
 
 // ---- small builders ---------------------------------------------------------
-const SVG_NS = 'http://www.w3.org/2000/svg';
 // a 20 px line icon from SVG path data; a path given as [d, colour] is filled in that colour
-function icon(...paths) {
-  const s = document.createElementNS(SVG_NS, 'svg');
-  for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: 20, height: 20, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })) s.setAttribute(k, v);
-  for (const d of paths) {
-    const p = document.createElementNS(SVG_NS, 'path');
-    if (Array.isArray(d)) { p.setAttribute('d', d[0]); p.setAttribute('fill', d[1]); p.setAttribute('stroke', d[1]); } else p.setAttribute('d', d);
-    s.append(p);
-  }
-  return s;
-}
+const icon = (...paths) => svg('svg', { viewBox: '0 0 24 24', width: 20, height: 20, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+  paths.map((d) => (Array.isArray(d) ? svg('path', { d: d[0], fill: d[1], stroke: d[1] }) : svg('path', { d }))));
 const ICON = {
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'],
   layers: ['M12 3 3 8l9 5 9-5-9-5z', 'm3 13 9 5 9-5'],
@@ -1005,22 +990,18 @@ scaleEl.addEventListener('click', () => setDisplay({ units: display.units === 'k
 // it; narrower, Layers, where they are)
 const timePop = h('div', { class: 'timepop', hidden: true });
 document.body.append(timePop);
-const lview = $('#lview');
-function setTimePop(on) {
-  timePop.hidden = !on;
-  shownEl.setAttribute('aria-expanded', String(on));
-  if (on) {
+const timeBox = popup(timePop, {
+  place: () => {
     timePop.append(when);
     const r = shownEl.getBoundingClientRect();
     Object.assign(timePop.style, { right: `${Math.max(8, innerWidth - r.right)}px`, bottom: `${innerHeight - r.top + 6}px` });
-  } else lview.prepend(when);
-}
+  },
+  closed: () => $('#lview').prepend(when),
+});
 Object.assign(shownEl, { tabIndex: 0 });
 shownEl.setAttribute('role', 'button');
-shownEl.addEventListener('click', () => (wide() ? setTimePop(timePop.hidden) : setPanel('layers')));
+shownEl.addEventListener('click', (e) => (WIDE.matches ? timeBox.toggle(shownEl, e) : setPanel('layers')));
 shownEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shownEl.click(); } });
-document.addEventListener('pointerdown', (e) => { if (!timePop.hidden && !timePop.contains(e.target) && !shownEl.contains(e.target)) setTimePop(false); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !timePop.hidden) { e.stopPropagation(); setTimePop(false); shownEl.focus(); } }, true);
 function renderUnits() {
   const nm = display.units === 'nm';
   unitsBtn.textContent = nm ? 'NM' : 'km';
@@ -1052,7 +1033,7 @@ function renderDrawTool() {
   // a tool started makes the Tools panel compact, and it goes back when the tool ends (drawing-ui.md §1
   // §6b); a label's text is typed in the inspector: the Label tool keeps it whole
   const placing = drawing.tool && drawing.tool !== 'label';
-  if (placing && state.panel === 'draw' && !compact.on && !wide()) setCompact(true, true); // from 1024 px wide the tools are a strip: nothing folds
+  if (placing && state.panel === 'draw' && !compact.on && !WIDE.matches) setCompact(true, true); // from 1024 px wide the tools are a strip: nothing folds
   else if (!placing && compact.auto) setCompact(false);
 }
 
@@ -1083,7 +1064,7 @@ function setCompact(on, auto = false) {
 // back to the Tools panel. Narrower, the slot is the tools' (a sheet on a phone).
 function setPanel(view) {
   // from 1024 px wide the tools are always on, in the left frame: the right-hand panel is Layers' alone
-  if (wide()) { state.tools = true; if (view === 'draw') view = null; } else state.tools = view === 'draw';
+  if (WIDE.matches) { state.tools = true; if (view === 'draw') view = null; } else state.tools = view === 'draw';
   state.panel = view;
   panel.hidden = !view;
   for (const [v, [btn, el, title]] of Object.entries(VIEWS)) {
@@ -1101,7 +1082,7 @@ function setPanel(view) {
 }
 // the rail's Tools (narrower than 1024 px): the tools on or off, the Tools panel with them
 function setTools(on) {
-  if (on) setPanel(wide() && state.panel === 'layers' ? 'layers' : 'draw');
+  if (on) setPanel(WIDE.matches && state.panel === 'layers' ? 'layers' : 'draw');
   else setPanel(state.panel === 'draw' ? null : state.panel);
 }
 $('#b-layers').addEventListener('click', () => setPanel(state.panel === 'layers' ? null : 'layers'));
@@ -1112,18 +1093,19 @@ $('#b-maplayers').addEventListener('click', () => setPanel(state.panel === 'laye
 const findBtn = $('#b-find');
 const setFinding = (on) => { document.body.classList.toggle('finding', on); findBtn.setAttribute('aria-expanded', String(on)); if (on) $('#q').focus(); };
 findBtn.addEventListener('click', () => setFinding(!document.body.classList.contains('finding')));
-$('#q').addEventListener('blur', () => setTimeout(() => { if (wide() && !$('#search').contains(document.activeElement)) setFinding(false); }, 250));
+$('#q').addEventListener('blur', () => setTimeout(() => { if (WIDE.matches && !$('#search').contains(document.activeElement)) setFinding(false); }, 250));
 $('#b-draw').addEventListener('click', () => setTools(!state.tools));
 $('#close').addEventListener('click', () => setPanel(null));
-matchMedia('(min-width: 1024px)').addEventListener('change', () => setPanel(state.panel)); // the frame comes or goes
+WIDE.addEventListener('change', () => { if (WIDE.matches && compact.on) setCompact(false); setPanel(state.panel); }); // the frame comes or goes
 
 // Export: a menu of the view's link, a picture and GIS data, each acting at once; the Export button says
 // how it went for a moment ("Copied", "Saving…", "Failed"). The drawing's file goes in and out from its
 // own menu (draw/panel.js); a file dropped on the map is imported: the tools on, the drawing opened
-const exportBtn = $('#export');
-railMenu(exportBtn, $('#export-menu'));
+const exportBtn = $('#export'), exportMenu = $('#export-menu');
+const exports = popup(exportMenu, { place: (b) => { exportMenu.style.top = `${b.offsetTop}px`; } }); // level with its button
+exportBtn.addEventListener('click', (e) => exports.toggle(exportBtn, e));
 // how it went is said on the Export button, or from 1024 px wide on the ☰ menu's item itself
-const sayOn = (item) => (wide() ? item : exportBtn);
+const sayOn = (item) => (WIDE.matches ? item : exportBtn);
 $('#link').addEventListener('click', () => copyLink(sayOn($('#link'))));
 $('#png').addEventListener('click', () => exportPng(sayOn($('#png'))));
 $('#zip').addEventListener('click', () => exportZip(sayOn($('#zip'))));
@@ -1199,8 +1181,8 @@ window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]') || typing(e.target)) return;
   const k = keyEntry(e.key);
   if (!k?.open && !k?.tool) return;
-  if (k.open === 'search') { e.preventDefault(); if (wide()) setFinding(true); else q.focus(); }
-  else if (k.open === 'elements') { if (!state.tools) setTools(true); if (wide()) drawPanel.toggleElements(); }
+  if (k.open === 'search') { e.preventDefault(); if (WIDE.matches) setFinding(true); else q.focus(); }
+  else if (k.open === 'elements') { if (!state.tools) setTools(true); if (WIDE.matches) drawPanel.toggleElements(); }
   else if (k.open === 'draw') setTools(!state.tools);
   else if (k.open) setPanel(state.panel === k.open ? null : k.open);
   else {

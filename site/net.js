@@ -2,12 +2,6 @@
 // the page's <meta name="referrer" content="no-referrer">, so every fetch says it.
 export const FETCH = { credentials: 'omit', referrerPolicy: 'no-referrer' };
 
-// cache[key], made once by make() (a promise) and shared; forgotten if it fails, so the next ask
-// tries again. A cache keyed by strings from outside (URLs): Object.create(null), so no key reaches
-// the prototype
-export function memo(cache, key, make) {
-  return (cache[key] ||= make().catch((e) => { delete cache[key]; throw e; }));
-}
 // a fetch that throws on any status but 2xx (init: on top of FETCH: a signal)
 export async function fetchOk(url, init = {}) {
   const r = await fetch(url, { ...FETCH, ...init });
@@ -21,7 +15,7 @@ export async function fetchBytes(url) {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());
 }
-// A small cache of promises, the least recently used forgotten past max: get(key, make) gives the
+// A cache of promises (max Infinity: every one kept), the least recently used forgotten past max: get(key, make) gives the
 // one kept or makes it (forgotten if it fails, so the next ask tries again); peek(key) the one kept,
 // if any, without counting as a use; delete(key).
 export function lru(max) {

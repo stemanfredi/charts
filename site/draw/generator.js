@@ -20,7 +20,7 @@
 //     following.
 // The lines are straight: they are the real object (positions, lengths).
 
-import { inverse, destination, localFrame as frame } from '../geodesy.js';
+import { inverse, destination, localFrame, lengthOf } from '../geodesy.js';
 import { norm360 } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
 import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label, remove, removePart, ARCED } from './document.js';
@@ -46,9 +46,7 @@ export function alongTrace(doc, el, part = null) {
     const ap = ARCED.has(o.kind) ? o.aperture : 360, from = ap < 360 ? el.bearing - ap / 2 : el.bearing, n = Math.max(8, Math.ceil(ap * 2));
     coords = Array.from({ length: n + 1 }, (_, i) => destination(el.position, from + (ap * i) / n, o.radius));
   } else coords = outlineOf(el.position, el.bearing, o.length, o.width, o.kind).ring;
-  let length = 0;
-  for (let i = 1; i < coords.length; i++) length += inverse(coords[i - 1], coords[i]).s;
-  return { coords, length, closed: !ARCED.has(o.kind) };
+  return { coords, length: lengthOf(coords), closed: !ARCED.has(o.kind) };
 }
 // the element points go along (a line or a point), or null
 export const alongOf = (doc, id) => doc.lines.find((s) => s.id === id) ?? doc.points.find((n) => n.id === id) ?? null;
@@ -104,7 +102,7 @@ function weiszfeld(pts, iterations = 500, tol = 1e-6) {
   }
   return m;
 }
-const hubOf = (positions) => { const f = frame(positions[0]); return f.from(weiszfeld(positions.map(f.to))); };
+const hubOf = (positions) => { const f = localFrame(positions[0]); return f.from(weiszfeld(positions.map(f.to))); };
 // A tree's hub: the geometric median of its nodes and its root (on a node when that is the median: a
 // branch of 0 m). With a shortest branch (minBranch, m), the hub is kept that far from every node and
 // from the root: pushed straight away from each it is too near, in turn, until none is. On one of them
@@ -128,9 +126,7 @@ export function hubFor(nodes, root, minBranch = 0) {
 // root → the nearer end node → the next … → the other end (reversed: from the last node).
 function route(nodes, root, pattern, minBranch = 0) {
   if (pattern === 'chain') {
-    let along = 0;
-    for (let i = 1; i < nodes.length; i++) along += inverse(nodes[i - 1], nodes[i]).s;
-    const a = inverse(root, nodes[0]).s, z = inverse(root, nodes.at(-1)).s;
+    const along = lengthOf(nodes), a = inverse(root, nodes[0]).s, z = inverse(root, nodes.at(-1)).s;
     return { reversed: z < a, cost: Math.min(a, z) + along };
   }
   const b = hubFor(nodes, root, minBranch);
@@ -169,7 +165,7 @@ function planNow(points, roots, groupSize, pattern, minBranch) {
   const chain = pattern === 'chain';
   const k = Math.min(n, groupSize === 'auto' ? (chain ? n : MAX_TREE) : groupSize);
   const weight = (r) => (roots[r].weight > 0 ? roots[r].weight : 1);
-  const f = frame(points[n >> 1]), P = points.map(f.to), Q = roots.map((r) => f.to(r.position));
+  const f = localFrame(points[n >> 1]), P = points.map(f.to), Q = roots.map((r) => f.to(r.position));
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   const along = [0]; // along[i]: the chain from the first point to point i
   for (let i = 1; i < n; i++) along[i] = along[i - 1] + dist(P[i - 1], P[i]);

@@ -3,15 +3,15 @@
 // angles degrees true.
 
 import { inverse, destination, localFrame } from '../geodesy.js';
-import { mercator, unmercator, D2R, norm360 as norm, unrollTo } from '../geo.js';
+import { mercator, unmercator, D2R, norm360, unrollTo } from '../geo.js';
 
 
 // a radius: the pointer's distance from the centre
 export const radiusTo = (centre, p) => inverse(centre, p).s;
 // a bearing: the pointer's azimuth from the centre; snap (degrees) rounds it
 export function bearingTo(centre, p, snap = 0) {
-  const a = norm(inverse(centre, p).azi);
-  return snap ? norm(Math.round(a / snap) * snap) : a;
+  const a = norm360(inverse(centre, p).azi);
+  return snap ? norm360(Math.round(a / snap) * snap) : a;
 }
 // A sector with one end of its arc dragged to the pointer, the other end kept: { bearing, aperture }.
 // edge −0.5: the end anticlockwise of the bearing (where the arc starts, clockwise); 0.5: the other.
@@ -20,8 +20,8 @@ export function bearingTo(centre, p, snap = 0) {
 export function sectorEdgeTo(centre, bearing, aperture, edge, p, snap = 0) {
   const at = bearingTo(centre, p, snap);
   const start = edge < 0 ? at : bearing - aperture / 2, end = edge < 0 ? bearing + aperture / 2 : at;
-  const ap = Math.round(Math.min(359, Math.max(1, norm(end - start))) * 10) / 10;
-  return { bearing: +norm((edge < 0 ? end - ap : start) + ap / 2).toFixed(4), aperture: ap };
+  const ap = Math.round(Math.min(359, Math.max(1, norm360(end - start))) * 10) / 10;
+  return { bearing: +norm360((edge < 0 ? end - ap : start) + ap / 2).toFixed(4), aperture: ap };
 }
 
 

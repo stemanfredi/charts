@@ -17,7 +17,7 @@ import { NO_DEPTH_M } from './catalog.js';
 import { HOSTS } from './hosts.js';
 import { gebcoTile } from './gebco.js';
 import { latOf, tileBounds, TILE } from './geo.js';
-import { FETCH, memo, fetchOk, lru } from './net.js';
+import { FETCH, fetchOk, lru } from './net.js';
 
 const OMT_MAXZOOM = 14;
 // Every tile is cut, at every zoom: each shortcut tried (deep ocean, low zooms) left a hole
@@ -281,10 +281,10 @@ export function clampCoastalSpikes(e, sea, w, h) {
 // mode 'sea': GEBCO's depths; 'land': the Terrarium tiles at `template`
 export function clipper({ template, mode, omtTileJson }) {
   // the OpenMapTiles tile URL, fetched once; a failure is retried on the next tile
-  const once = {};
+  const once = lru(Infinity);
   // the TileJSON says where its tiles are: taken only from the host the page names (hosts.js), since
   // a worker is outside the page's Content-Security-Policy
-  const omtTemplate = () => memo(once, 'omt', () => fetchOk(omtTileJson).then((r) => r.json()).then((tj) => {
+  const omtTemplate = () => once('omt', () => fetchOk(omtTileJson).then((r) => r.json()).then((tj) => {
     const t = tj?.tiles?.[0];
     if (typeof t !== 'string' || new URL(t).origin !== new URL(HOSTS.openfreemap).origin) throw new Error('the base map\'s TileJSON names tiles elsewhere');
     return t;

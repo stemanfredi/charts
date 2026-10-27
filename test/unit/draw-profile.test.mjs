@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { near } from './helpers.mjs';
 
 const { profileOf, samplesOf, zoomFor, profileCsv, GRID, MAX_SAMPLES } = await import('../../site/draw/profile.js');
 const { emptyDoc, addLine } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');
 
-const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 const traceOf = (pts) => { const doc = emptyDoc(0); return lineTrace(doc, addLine(doc, pts[0], pts.slice(1, -1), pts.at(-1))); };
 
 test('samples: every grid cell along a short line, both ends; at most MAX_SAMPLES along a long one', () => {

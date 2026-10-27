@@ -2,8 +2,9 @@
 // The depth legend uses the same stops as the map layer; Copernicus legends the colour maps its
 // service publishes for the layer (cmems.js), so the colours are the real ones.
 
+import { INK, SOFT } from './style.js';
+
 const W = 236, H = 44, KEY = 16, BAR = { x: 8, y: 20, w: 220, h: 9 };
-const INK = '#2b3a46', SOFT = '#5d6d79';
 
 // h: the canvas's height
 function canvas(el, h) {
