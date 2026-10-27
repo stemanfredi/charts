@@ -63,7 +63,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   // What says "selected": the one element selected shows its handles and its own stroke, untouched
   // (as the drawing tools do: the edge is what one aligns to), a point a small white dot at its
   // centre; among several selected, each shows such dots at its key points (dots(): a line's ends and
-  // vertices, an area's or an outline's corners), inert, thinned as handles are. The yellow band
+  // vertices, an area's or an outline's corners), inert, thinned as handles are. The blue band
   // along an element is for hovering only.
   const mark = (id, geometry, props = {}, dots = null) => {
     const kind = markOf(id);

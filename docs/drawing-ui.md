@@ -340,12 +340,19 @@ one end to the other, an outline's ring.
 
 ## 7. On the map
 
-- **Selection:** the one element selected shows its handles, its own stroke untouched (what one
-  aligns to); a point a small white dot at its centre. Among several selected (a group, Select all),
-  each shows such dots at its key points instead of handles: a point's centre, an outline's or an
-  area's corners, a line's ends and vertices. Hovering a row shows a yellow band just outside the
-  element (a point's outermost round part, or its largest outline; both sides of a line; a ring
-  round a point's centre). Selecting never moves the map; Zoom to does.
+- **Marks:** everything that says "this is what you point at, picked, or would hit" is one blue,
+  cased in white so that it shows on chart, sea and satellite; at half strength for hovering, at
+  full for the selection and for targets. What is not made yet (what is being drawn, a form's
+  preview) is dashed and dark; measurements keep magenta, as content.
+- **Selection:** the one element selected shows its handles (white, with a blue rim), its own stroke
+  untouched (what one aligns to); a point a small white dot at its centre; a label a blue rim round
+  its text. Among several selected (a group, Select all), each shows such dots at its key points
+  instead of handles: a point's centre, an outline's or an area's corners, a line's ends and
+  vertices. Hovering an element (on the map or as a row) shows a blue band just outside it (a
+  point's outermost round part, or its largest outline; both sides of a line; a ring round a
+  point's centre; a label's rim). What a click would snap to, and a root or an attachment being
+  picked, is marked in full blue; the Select area box is blue. Selecting never moves the map; Zoom
+  to does.
 - **Clicks:** with no tool on, a click selects the topmost element; the same place again, the next
   one down. Shift or Ctrl/⌘-click adds or removes.
 - **Dragging** (select first): a selected element moves, or several together; labels alone move their

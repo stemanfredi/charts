@@ -2,7 +2,10 @@
 // features.js and labels.js make their features), the symbols as signed distance fields, and which
 // layers a click hits, a press grabs, the PNG export hides.
 
-const SEL = '#ffd43b', CASING = '#1f2c36'; // the selection's highlight: yellow on a dark casing, seen on sea, land and satellite
+// The marks of interaction (drawing-ui.md §7), one blue cased in white, seen on chart, sea and
+// satellite: hovered at half strength; selected, and what a click would hit, at full. What is not made
+// yet (being drawn, a form's preview) is dashed and dark (DRAFT). Measurements keep magenta: content.
+const MARK = '#1c7ed6', MARK_CASE = '#ffffff', HOVER = 0.5, DRAFT = '#1f2c36';
 
 // the symbols and the label box, added to the map once its style is loaded
 export function addIcons(map) {
@@ -73,17 +76,18 @@ const fillLayer = (kind, source) => ({
   id: `draw-${kind}-fill`, type: 'fill', source, filter: ['all', ['==', ['get', 'kind'], kind], ['==', ['get', 'fill'], 1]],
   paint: { 'fill-color': ['get', 'fc'], 'fill-opacity': ['get', 'fo'] },
 });
-// the selection's halo, never on the element's own stroke, clear of it by 3 px: outside a polygon's
-// outline (negative offset: the left of a counter-clockwise ring, its outside on screen), on both
-// sides of a line: a yellow band, no dark casing (one look for every selection)
-const LINE_HALO = [['line', SEL, 2, 1, 0.6]];
-const AREA_HALO = [['line', SEL, 3, 1, 0.6]]; // yellow only, as along lines (a little wider: an outline, one side)
+// the hover band, never on the element's own stroke, clear of it by 3 px: outside a polygon's outline
+// (negative offset: the left of a counter-clockwise ring, its outside on screen), on both sides of a
+// line: the mark's blue on its white casing
+const BAND = 2;
+const LINE_HALO = [['case', MARK_CASE, BAND + 2, 1, HOVER], ['line', MARK, BAND, 1, HOVER]];
+const AREA_HALO = LINE_HALO;
 const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([part, colour, width, opSel, opHover]) => ({
   id: `draw-mark-${part}-${geom.toLowerCase()}${sides.length > 1 ? (side > 0 ? '-r' : '-l') : ''}`, type: 'line', source: 'drawover',
   filter: ['all', ['in', ['get', 'kind'], ['literal', ['sel', 'hover']]], ['==', ['geometry-type'], geom]],
   layout: { 'line-join': 'round' },
   paint: { 'line-color': colour, 'line-width': width, 'line-opacity': ['match', ['get', 'kind'], 'sel', opSel, opHover],
-    'line-offset': ['+', OFF, ['*', side, ['+', ['/', ['get', 'sw'], 2], 3, width / 2]]] } })));
+    'line-offset': ['+', OFF, ['*', side, ['+', ['/', ['get', 'sw'], 2], 3, BAND / 2]]] } })));
 // bottom to top: points' rings, areas, lines (guides, the others), outlines, the selection's
 // halos, symbols, handles, the selection's rings
 // a finger (a coarse pointer): handles drawn larger (14 px from 8), as drawing.js grabs them farther
@@ -103,35 +107,35 @@ export const DRAW_LAYERS = [
   // handles at the outline's key points: small squares, white with a dark edge
   { id: 'draw-handle', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'handle'],
     layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': '#ffffff', 'icon-halo-color': CASING, 'icon-halo-width': 1.5 } },
+    paint: { 'icon-color': '#ffffff', 'icon-halo-color': MARK, 'icon-halo-width': 1.5 } },
   // the forms' previews: the points a distribution would make (faint diamonds), Connect's roots (rings) and lines
   { id: 'draw-ghostline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'ghostline'],
-    paint: { 'line-color': '#e8590c', 'line-opacity': 0.75, 'line-width': 2, 'line-dasharray': [3, 2] } },
+    paint: { 'line-color': DRAFT, 'line-opacity': 0.75, 'line-width': 2, 'line-dasharray': [3, 2] } },
   { id: 'draw-ghost', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'ghost'],
     layout: { 'icon-image': 'draw-diamond', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': '#e8590c', 'icon-opacity': 0.6 } },
+    paint: { 'icon-color': DRAFT, 'icon-opacity': 0.6 } },
   { id: 'draw-pick', type: 'circle', source: 'drawover', filter: ['==', ['get', 'kind'], 'pick'],
-    paint: { 'circle-radius': 11, 'circle-opacity': 0, 'circle-stroke-color': SEL, 'circle-stroke-width': 3 } },
+    paint: { 'circle-radius': 11, 'circle-opacity': 0, 'circle-stroke-color': MARK, 'circle-stroke-width': 3 } },
   // while a line is selected: a + halfway along its legs, its Bézier handles; a rectangle's rotate stalk
-  { id: 'draw-stalk', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'stalk'], paint: { 'line-color': CASING, 'line-width': 1.5 } },
-  { id: 'draw-ctrlline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'ctrlline'], paint: { 'line-color': CASING, 'line-width': 1, 'line-dasharray': [2, 2] } },
+  { id: 'draw-stalk', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'stalk'], paint: { 'line-color': MARK, 'line-width': 1.5 } },
+  { id: 'draw-ctrlline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'ctrlline'], paint: { 'line-color': MARK, 'line-width': 1, 'line-dasharray': [2, 2] } },
   { id: 'draw-mid', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'mid'],
     layout: { 'icon-image': 'draw-plus', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': CASING, 'icon-opacity': 0.6, 'icon-halo-color': '#ffffff', 'icon-halo-width': 1.5 } },
+    paint: { 'icon-color': MARK, 'icon-halo-color': MARK_CASE, 'icon-halo-width': 1.5 } },
   { id: 'draw-ctrl', type: 'circle', source: 'drawover', filter: ['==', ['get', 'kind'], 'ctrl'],
-    paint: { 'circle-radius': 5, 'circle-color': '#ffffff', 'circle-stroke-color': CASING, 'circle-stroke-width': 1.5 } },
+    paint: { 'circle-radius': 5, 'circle-color': '#ffffff', 'circle-stroke-color': MARK, 'circle-stroke-width': 1.5 } },
   // the line being drawn (Line tool)
   { id: 'draw-draft', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'draft'], layout: { 'line-join': 'round' },
-    paint: { 'line-color': CASING, 'line-width': 2, 'line-dasharray': [3, 2] } },
+    paint: { 'line-color': DRAFT, 'line-width': 2, 'line-dasharray': [3, 2] } },
   // where a click or a drag snaps (snap.js): a ring on a vertex, a dot on an edge, a cross at a crossing
   { id: 'draw-snapto', type: 'circle', source: 'drawover', filter: ['in', ['get', 'kind'], ['literal', ['snapvertex', 'snapedge']]],
-    paint: { 'circle-radius': ['match', ['get', 'kind'], 'snapvertex', 8, 4], 'circle-color': SEL, 'circle-opacity': ['match', ['get', 'kind'], 'snapvertex', 0, 1],
-      'circle-stroke-color': ['match', ['get', 'kind'], 'snapvertex', SEL, CASING], 'circle-stroke-width': ['match', ['get', 'kind'], 'snapvertex', 3, 1] } },
+    paint: { 'circle-radius': ['match', ['get', 'kind'], 'snapvertex', 8, 4], 'circle-color': MARK, 'circle-opacity': ['match', ['get', 'kind'], 'snapvertex', 0, 1],
+      'circle-stroke-color': ['match', ['get', 'kind'], 'snapvertex', MARK, MARK_CASE], 'circle-stroke-width': ['match', ['get', 'kind'], 'snapvertex', 3, 1.5] } },
   { id: 'draw-snapcross', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'snapcrossing'],
     layout: { 'icon-image': 'draw-plus', 'icon-rotate': 45, 'icon-size': 1.4, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': CASING, 'icon-halo-color': SEL, 'icon-halo-width': 2 } },
+    paint: { 'icon-color': MARK, 'icon-halo-color': MARK_CASE, 'icon-halo-width': 2 } },
   { id: 'draw-draftpt', type: 'circle', source: 'drawover', filter: ['==', ['get', 'kind'], 'draftpt'],
-    paint: { 'circle-radius': 3.5, 'circle-color': '#ffffff', 'circle-stroke-color': CASING, 'circle-stroke-width': 1.5 } },
+    paint: { 'circle-radius': 3.5, 'circle-color': '#ffffff', 'circle-stroke-color': DRAFT, 'circle-stroke-width': 1.5 } },
   // names on the map (features.js): along lines, beside points, at shapes' centres; MapLibre leaves out
   // those that collide
   { id: 'draw-name-line', type: 'symbol', source: 'drawzoom', filter: ['all', ['==', ['get', 'kind'], 'name'], ['==', ['geometry-type'], 'LineString']],
@@ -153,21 +157,21 @@ export const DRAW_LAYERS = [
     layout: { 'icon-image': ['match', ['get', 'end'], 'arrow', 'draw-arrow', 'draw-centre'], 'icon-rotate': ['get', 'rot'], 'icon-rotation-alignment': 'viewport',
       'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': ['get', 'c'] } },
-  // a selected label: a yellow rim round its text or its box (hidden with the other marks)
+  // a label selected or hovered: the mark's rim round its text or its box (hidden with the other marks)
   { id: 'draw-mark-label', type: 'symbol', source: 'drawlabel', filter: ['all', ['==', ['get', 'kind'], 'label'], ['!=', ['get', 'mark'], '']], layout: labelLayout,
-    paint: { 'text-color': 'rgba(0,0,0,0)', 'text-halo-color': SEL, 'text-halo-width': ['case', ['==', ['get', 'box'], 1], 0, 4], 'text-halo-blur': 0,
-      'text-opacity': ['match', ['get', 'mark'], 'sel', 1, 0.6], 'icon-opacity': ['match', ['get', 'mark'], 'sel', 1, 0.6],
-      'icon-color': SEL, 'icon-halo-color': SEL, 'icon-halo-width': 3 } },
+    paint: { 'text-color': 'rgba(0,0,0,0)', 'text-halo-color': MARK, 'text-halo-width': ['case', ['==', ['get', 'box'], 1], 0, 3], 'text-halo-blur': 0,
+      'text-opacity': ['match', ['get', 'mark'], 'sel', 1, HOVER], 'icon-opacity': ['match', ['get', 'mark'], 'sel', 1, HOVER],
+      'icon-color': MARK, 'icon-halo-color': MARK, 'icon-halo-width': 2 } },
   { id: 'draw-label-text', type: 'symbol', source: 'drawlabel', filter: ['==', ['get', 'kind'], 'label'], layout: labelLayout,
     paint: { 'text-color': ['get', 'c'], 'text-halo-color': '#ffffff', 'text-halo-width': ['case', ['==', ['get', 'box'], 1], 0, 1.6],
       'icon-color': '#ffffff', 'icon-halo-color': ['get', 'c'], 'icon-halo-width': 1 } },
   { id: 'draw-lhandle', type: 'symbol', source: 'drawlabel', filter: ['==', ['get', 'kind'], 'lhandle'],
     layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': '#ffffff', 'icon-halo-color': CASING, 'icon-halo-width': 1.5 } },
-  // a point's centre: selected, a small white dot with a dark rim (as a handle); hovered, a yellow ring
+    paint: { 'icon-color': '#ffffff', 'icon-halo-color': MARK, 'icon-halo-width': 1.5 } },
+  // a point's centre: selected, a small white dot with the mark's rim (as a handle); hovered, a ring
   { id: 'draw-mark-point', type: 'circle', source: 'drawover', filter: ['all', ['in', ['get', 'kind'], ['literal', ['sel', 'hover']]], ['==', ['geometry-type'], 'Point']],
     paint: { 'circle-radius': ['match', ['get', 'kind'], 'sel', 5, 11], 'circle-color': '#ffffff', 'circle-opacity': ['match', ['get', 'kind'], 'sel', 1, 0],
-      'circle-stroke-color': ['match', ['get', 'kind'], 'sel', CASING, SEL], 'circle-stroke-width': ['match', ['get', 'kind'], 'sel', 1.5, 2], 'circle-stroke-opacity': ['match', ['get', 'kind'], 'sel', 1, 0.6] } },
+      'circle-stroke-color': MARK, 'circle-stroke-width': ['match', ['get', 'kind'], 'sel', 1.5, BAND], 'circle-stroke-opacity': ['match', ['get', 'kind'], 'sel', 1, HOVER] } },
   // the values of the elements showing them, and of what is being drawn (features.js valueFeatures):
   // on top of everything
   { id: 'draw-value', type: 'symbol', source: 'drawvalue', filter: ['has', 'label'],
