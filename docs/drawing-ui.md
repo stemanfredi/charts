@@ -43,7 +43,7 @@ lies over everything (the map and its bottom row too):
 - the **column** beside it: the tree (§4) over the inspector (§5), a divider between them (dragged, or
   ↑ ↓ when focused; its place remembered in this browser). Each half has a head: the tree's is the drawing's title
   (a click shows the drawing in the inspector) and the eye for all; the inspector's says what it
-  shows ("Line · Line 1", "3 elements selected", the drawing's title) with the actions on it, **Zoom
+  shows ("Line · Line 1", "3 elements selected", "Drawing") with the actions on it, **Zoom
   to**, **Duplicate**, **Group**, **Delete** (the drawing: Zoom to all of it). A chevron at the end of
   each head folds that half to its head, the other taking the height (remembered in this browser).
   The inspector shows what is selected, or the drawing itself with nothing selected. Selecting
@@ -192,9 +192,10 @@ Esc in a field puts its value back.
 
 **Common parts**, in this order (what it is, kind · name, and Zoom to and Delete: the inspector's head,
 §1): **Name**; **Group** (none, or a group,
-shown with the groups it is in, "A › B"; a group never offered to itself or a group inside it; **New
-group…**: a group of it in the group it is in); what it is (below); **Look**; then **Guide** (drawn
-faint and dashed, left out of the totals; on points, lines and areas), **Visible**. Near the foot, **Data**: its
+shown with the groups it is in, "A › B"; a group never offered to itself or a group inside it; a new
+group: the head's Group); what it is (below); **Look**; then **Guide** (drawn faint and dashed, left out
+of the totals; on points, lines and areas). Shown or hidden: its eye in the tree. A row holds a value;
+its actions are in a row of buttons under it. Near the foot, **Data**: its
 properties, keys and values (a description, a category: properties like any other), a list whose
 empty last row ("add a key…") adds one. Folded while it has nothing of the user's (the arrow by its
 heading opens it); a point placed from a preset says so under it ("from preset Rings").
@@ -224,7 +225,8 @@ last column for × or ↺; a row never wraps. A field shows no box until it is p
 lists are tables of the same cells. A list longer than 100 rows shows them a page at a time (‹ rows
 1–100 of n ›); Copy and a paste still take every row. In a value row
 ↑ and ↓ nudge a distance, an angle or a number by one unit of its last digit (Shift: ten), each step
-applied.
+applied. A distance shows to the decimetre (metres), the metre (km) or about 2 m (NM); what is typed is
+kept as typed, and a field left unchanged changes nothing.
 
 **The cascade:** an element is drawn with its own value where it has one, else the drawing's (its
 Display), else the default. **↺** beside a field gives it back to the drawing. A group is only who is
@@ -232,7 +234,8 @@ in it: joining or leaving one changes nothing of an element; its Look shows what
 sets it on each (as for several selected). A hidden group hides everything in it.
 
 - **Point:** Position, Bearing (its outlines' front, its sectors' centre), Symbol (diamond, square,
-  triangle, dot, none: with none and no outline a small dot still marks the centre), then its
+  triangle, dot, none: with none and no outline a small dot still marks the centre; not on a shape,
+  whose outline marks it), then its
   **Parts**, always its own, a list: each its place, its kind (circle, sector, an outline; changing it
   keeps its reach), its size (a radius, a sector's with its aperture; an outline's length × width, its
   area in the tooltip), **Fill**, **Shown**, its own stroke colour and dash, a name. The empty last row
@@ -246,11 +249,11 @@ sets it on each (as for several selected). A hidden group hides everything in it
 - **Line:** **Start** and **End** (attached: what to, and which vertex or edge, with **Attach to…**
   (the next click on the map chooses again; Esc or a right-click cancels) and a broken link, which detaches it: the end stays
   where it is; free: its position, and **Attach to…**); Length (the drawn line's, curves
-  included) with **Distribute along…** (§6); **Depth profile** (pressed: the depth along
+  included); **Depth profile** (pressed: the depth along
   the line, as the depth shading has it (GEBCO, cut to the coast), sampled at the grid's spacing, at
   most 1,000 places; the shallowest and the deepest; a chart whose place pointed at shows on the map,
   and the line pointed at on the map shows on the chart; its length along the seabed, a lower bound;
-  **CSV**); Curve (**Smooth**, **Straighten**); its vertices (latitude, longitude; the **Leg** from the place
+  **CSV**); Curve (smooth, or as drawn), and **Distribute along…** (§6), **Smooth**, **Straighten**; its vertices (latitude, longitude; the **Leg** from the place
   before, its length and bearing, typed: that vertex and those after it move together, the legs after
   it unchanged, an attached end staying attached; name, distance along;
   its bar: **Insert after** (halfway to the next), **Delete**, **Split** (the vertex becomes a point both
@@ -260,21 +263,23 @@ sets it on each (as for several selected). A hidden group hides everything in it
   distance along, bearing, radius, area, perimeter; **Attached to** (a link, which vertex or edge)
   with **Attach to…** and the broken link (detach), as a line's end; Along (typed) for a label on a line, or the
   position of a free one; **Leader**
-  (Arrow, Dot, Line, None); its Look; Placement and **Reset**.
-- **Group:** the group it is in; Members (its own, and how many groups in it; **Select members**
-  selects everything in it, its subgroups' too), **Shown** (one eye for everything in it, as the list's head), Totals (everything in it); a rule's
+  (Arrow, Dot, Line, None); its Look; Placement (pixels from its point, dragged on the map; ↺ puts it
+  back).
+- **Group:** the group it is in; Members (its own, and how many groups in it, with one eye for
+  everything in it, as the list's head; **Select members** selects everything in it, its subgroups'
+  too), Totals (everything in it); a rule's
   group, **Made by** (§6); the Look of everything in it ("mixed" where they differ; a change sets it
   on each). A group has no look or parts of its own.
 - **Several:** the count, **Zoom to**, chips (one per element, a click selects it alone, × takes it
   out; past 12, "+N more"), the kinds selected; two points give the distance and bearing between
   them; **Connect…** (two or more points, §6), the group menu, the labels' Leader, one Look for all
-  of them, Visible. Zoom to, **Group** (a new group of them, in the nearest group they are all in: a
+  of them. Zoom to, **Group** (a new group of them, in the nearest group they are all in: a
   subgroup of it; a group among them goes in whole) and Delete are the inspector's head's (§1).
 - **The drawing** (nothing selected, or its title clicked in the tree's head): Title, Description,
   Author;
   **Display**, the drawing's look, which every element takes unless it sets its own:
   Names on the map, Offset (and where Offset is set otherwise, each a link), Min. size; then Bearings beside lengths, for values shown;
-  **Totals**, a table in three sections: **Lines** by group (or **By** any property key the drawing
+  **Totals** (with more than one element), a table in three sections: **Lines** by group (or **By** any property key the drawing
   uses, one row per value and one for those without it), each line listed under its group with its
   length, but for the lines a connection made, which are summed by what they are (a tree's trunks,
   root → hub, and branches, hub → point; a chain's root → first point links and its links between

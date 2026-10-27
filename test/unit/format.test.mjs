@@ -92,12 +92,13 @@ test('parseDist: units, a bare number in the unit shown, rubbish', () => {
   for (const bad of ['', 'abc', '-5 m', '5 mi', '1e3 m']) assert.equal(parseDist(bad, 'm'), null, bad);
 });
 
-test('distText: exact to the millimetre, in the unit the mode reads', () => {
-  assert.deepEqual(distText(500, 'km'), { text: '500 m', unit: 'm' });
-  assert.deepEqual(distText(1234.5, 'km'), { text: '1.2345 km', unit: 'km' });
+test('distText: as read (to the decimetre, the metre, 2 m), in the unit the mode reads', () => {
+  assert.deepEqual(distText(500.04, 'km'), { text: '500 m', unit: 'm' });
+  assert.deepEqual(distText(1234.6, 'km'), { text: '1.235 km', unit: 'km' });
+  assert.deepEqual(distText(5829.898, 'km'), { text: '5.83 km', unit: 'km' });
   assert.deepEqual(distText(1852 * 1.5, 'nm'), { text: '1.5 NM', unit: 'nm' });
-  for (const m of [0.001, 999.999, 1000, 12345.678]) {
+  for (const m of [0.1, 999.9, 1000, 12345.678]) {
     const t = distText(m, 'km');
-    assert.ok(Math.abs(parseDist(t.text, t.unit) - m) < 1e-3, t.text);
+    assert.ok(Math.abs(parseDist(t.text, t.unit) - m) < 0.51, t.text); // within half its last digit
   }
 });

@@ -132,11 +132,11 @@ export function parseDist(text, bare) {
   const r = /^\s*(\d+(?:[.,]\d+)?|[.,]\d+)\s*(m|km|nm)?\s*$/i.exec(text);
   return r ? +r[1].replace(',', '.') * UNIT_M[(r[2] || bare).toLowerCase()] : null;
 }
-// A distance as a field shows it, exact to the millimetre (fmtDist rounds, for reading): in the km
+// A distance as a field shows it, as read (to the decimetre, the metre, 2 m; fmtDist rounds more): in the km
 // mode metres below 1 km, else km; in the nm mode NM. With its unit, for parseDist's bare number.
 export function distText(m, units) {
   const unit = units === 'nm' ? 'nm' : m < 1000 ? 'm' : 'km';
-  const v = +(m / UNIT_M[unit]).toFixed(unit === 'm' ? 3 : 6);
+  const v = +(m / UNIT_M[unit]).toFixed(unit === 'm' ? 1 : 3); // to the decimetre, the metre (km), 2 m (NM): what is read; a value typed is kept exact
   return { text: `${v} ${unit === 'nm' ? 'NM' : unit}`, unit };
 }
 

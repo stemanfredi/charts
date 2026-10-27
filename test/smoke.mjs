@@ -520,7 +520,7 @@ await section('the drawing', async () => {
   const hiddenE = await layoutNow();
   await dw.keyboard.press('e');
   const shownE = await layoutNow();
-  check(onTool.join() === 'true,true,true,0,Untitled drawing' && !hiddenE[2] && shownE[2],
+  check(onTool.join() === 'true,true,true,0,Drawing' && !hiddenE[2] && shownE[2],
     `tools: the rail at the left edge, the kinds beside it; the column open (the drawing in the inspector), hidden by the rail's toggle, back with E (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
   // a kind picked: the column still open (until the tool ends), the tool's button showing it; Circle again
   await dw.click('#dstrip .subrail button[aria-label="Rings"]');
@@ -876,7 +876,7 @@ await section('the drawing', async () => {
   check(onLeg.end.element === host.id && onLeg.end.edge === 0 && onLeg.end.at > 0.2 && onLeg.end.at < 0.8 && onLeg.n === host.n,
     `attaching: a line's end on another line's leg, along it, no vertex added (${JSON.stringify(onLeg.end)})`);
   await dw.evaluate((id) => drawing.select([id]), onLeg.id);
-  await dw.click('.dinspect .frow:has(.flabel:text-is("End")) button:has-text("Attach to…")');
+  await dw.click('.dinspect .frow:has(.flabel:text-is("End")) + .frow button:has-text("Attach to…")');
   const corner = await dw.evaluate(async (id) => { const { verticesOf } = await import('./draw/attach.js'); const q = map.project(verticesOf({ kind: 'point', el: drawing.doc.points.find((x) => x.id === id) })[2]); return [q.x, q.y]; }, sc.id);
   await dw.mouse.click(corner[0] + 2, corner[1] + 2);
   const moved2 = await dw.evaluate((id) => drawing.doc.lines.find((s) => s.id === id).end, onLeg.id);
