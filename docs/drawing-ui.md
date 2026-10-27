@@ -30,8 +30,8 @@ Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, 
   (§5). Both apply to every value shown.
 
 **From 1024 px wide** the drawing is the **left frame**, docked to the window's left edge, full height,
-always there; the map's own controls are on the right, and the bottom row (credits, position, scale),
-the legends and the search start after the frame:
+always there; the map's own controls are on the right. The rail is full height and the map's bottom row and legends
+start at its edge; the column, when shown, lies over everything (the map and its bottom row too):
 
 - the **rail**, small icons: **☰** (the drawings in this browser and the drawing's file, §10),
   **Select** (on when no other tool is; its kinds, a click or an area), **Point**, **Line**,

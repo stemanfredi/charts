@@ -69,9 +69,9 @@ for (const [name, width, height, touch] of VIEWPORTS) {
             const x = Math.min(a.right, b.right) - Math.max(a.left, b.left), y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
             if (x <= 0.5 || y <= 0.5) continue;
             const pair = [keys[i], keys[j]];
-            if (pair.includes('panel')) { // allowed only if the panel is the one on top
+            if (pair.includes('panel') || pair.includes('elements')) { // allowed only if the panel (or the column, from 1024 px wide) is the one on top
               const cx = Math.max(a.left, b.left) + x / 2, cy = Math.max(a.top, b.top) + y / 2;
-              if (document.elementFromPoint(cx, cy)?.closest('#panel')) continue;
+              if (document.elementFromPoint(cx, cy)?.closest('#panel, #elements')) continue;
             }
             overlaps.push(`${pair.join(' × ')} ${Math.round(x)}×${Math.round(y)}`);
           }
