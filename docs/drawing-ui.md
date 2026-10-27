@@ -9,15 +9,16 @@ Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, 
 
 ## 1. The rail and the panel
 
-- The rail on the right: **Layers**, **Tools**, **Import**, **Export**, **About**. Layers and Tools
-  switch the one side panel. The Tools panel is 400 px wide on a desktop, Layers 340. Addresses with
-  `menu=draw` open Tools.
-- **Import** picks a `.geojson` or `.json` file. A drawing's file (or any GeoJSON) gets a report: what
-  it holds, what was skipped and why, the warnings; **Import** adds it to the drawings in this browser
-  and opens it with its view. A presets file adds its presets instead (§9).
-- **Export** is a menu: **Copy link** (the view and layers, and the display settings: units `u=nm`,
-  bearings `brg=1`; never the drawing), **Picture (PNG)**, **GIS data (ZIP)**, **Drawing (GeoJSON)**
-  (the file, with the view), **Presets (JSON)**.
+- The rail on the right: **Layers**, **Tools**, **Export**, **About**. Layers and Tools switch the one
+  side panel. The Tools panel is 400 px wide on a desktop, Layers 340. Addresses with `menu=draw` open
+  Tools (`tools=1`: on beside Layers).
+- **Export** is a menu of the view: **Copy link** (the view and layers, and the display settings:
+  units `u=nm`, bearings `brg=1`; never the drawing), **Picture (PNG)**, **GIS data (ZIP)**.
+- **The drawing's file** goes in and out from the menu beside its title (§10): **Import…** picks a
+  `.geojson` or `.json` file; **Export drawing (GeoJSON)** (the file, with the view); **Export presets
+  (JSON)**. A file dropped on the map is imported too (the tools turned on). A drawing's file (or any
+  GeoJSON) gets a report: what it holds, what was skipped and why, the warnings; **Import** adds it to
+  the drawings in this browser and opens it with its view. A presets file adds its presets instead (§9).
 - Units (km or NM) are switched beside the scale; bearings beside lengths in the drawing's **Display**
   (§5). Both apply to every value shown.
 
@@ -403,8 +404,8 @@ element left behind are free. The clipboard is kept in this browser, so it paste
 fill and stroke. A preset with parts joins the Shape sub-rail, after the built-in ones, one without
 joins Point's; it becomes the tool's kind. Placing one makes a point with all of it, named
 after it, with the preset's name as a property. A right-click on it in the sub-rail renames or deletes
-it. Presets live in this browser only, never in a drawing's file; **Export › Presets (JSON)** and
-**Import** move them to another browser (one of the same name is replaced).
+it. Presets live in this browser only, never in a drawing's file; **Export presets (JSON)** and
+**Import…** (the drawing's menu, §10) move them to another browser (one of the same name is replaced).
 
 ## 10. Deleting, and drawings in this browser
 
@@ -418,5 +419,5 @@ it. Presets live in this browser only, never in a drawing's file; **Export › P
   drawing's heading) opens a menu of the **drawings in this browser**, each with its last change and
   size: a click opens it where it was drawn; a bin deletes
   it for good, asked first; **+ New drawing** adds an empty one.
-- When the browser refuses to save, the drawing's inspector says so (Export › Drawing keeps it as a
+- When the browser refuses to save, the drawing's inspector says so (Export drawing, in its menu, keeps it as a
   file); when another tab saved the same drawing, it says so, with **Reload**.

@@ -1238,9 +1238,9 @@ export function drawView(root, ctx) {
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Bearings', check('beside lengths', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }))]),
       n ? totalsBlock(keys.length ? by : null, groupName) : null,
-      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Export › Drawing (GeoJSON) keeps it as a file.') : null,
+      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Export drawing (GeoJSON), in the menu beside its title, keeps it as a file.') : null,
       drawing.saving.otherTab ? h('p', { class: 'note warn' }, 'The drawing was changed in another tab. Saving here replaces that version. ', h('button', { type: 'button', class: 'small', onclick: () => location.reload() }, 'Reload')) : null,
-      h('p', { class: 'note' }, 'Drawings stay in this browser, saved as you go; nothing is sent anywhere. Export › Drawing (GeoJSON) writes one as a file, with the view, to share or keep it: links do not carry drawings.')];
+      h('p', { class: 'note' }, 'Drawings stay in this browser, saved as you go; nothing is sent anywhere. Export drawing (GeoJSON), in the menu beside its title, writes it as a file, with the view, to share or keep it: links do not carry drawings.')];
   }
   // The Totals view (docs/drawing-ui.md §5): the lines by group (or by a property's values), each
   // listed under its group, those a connection made summed by what they are (trunks and branches; a
@@ -1361,7 +1361,12 @@ export function drawView(root, ctx) {
         onclick: pick(() => { if (!x.open) ctx.openDrawing(x.id); }) }, x.title || 'Untitled'),
       h('span', { class: 'val' }, [when(x.modified), x.size ? kb(x.size) : ''].filter(Boolean).join(' · ')),
       h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, icon(...UI_ICON.delete))))),
-    h('button', { type: 'button', role: 'menuitem', class: 'dnew', title: 'A new, empty drawing (this one stays in the list)', onclick: pick(newDrawing) }, '+ New drawing'));
+    h('button', { type: 'button', role: 'menuitem', class: 'dnew', title: 'A new, empty drawing (this one stays in the list)', onclick: pick(newDrawing) }, '+ New drawing'),
+    // the drawing's file, and the presets': in and out (a file dropped on the map is imported too)
+    h('div', { class: 'dfile' },
+      h('button', { type: 'button', role: 'menuitem', title: 'A drawing\'s file, any GeoJSON, or a presets file: a drawing is added to these and opened; presets join the Point and Shape tools', onclick: pick(() => fileInput.click()) }, 'Import…'),
+      h('button', { type: 'button', role: 'menuitem', title: 'This drawing, with the view and layers, as a GeoJSON file to share or keep', onclick: pick(exportFile) }, 'Export drawing (GeoJSON)'),
+      h('button', { type: 'button', role: 'menuitem', title: 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', onclick: pick(() => ctx.download(presetsFile(drawing.presets), 'presets.json')) }, 'Export presets (JSON)')));
     const r = switchBtn.getBoundingClientRect();
     Object.assign(drawingsMenu.style, { top: `${r.bottom + 4}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - 360))}px` });
     drawingsMenu.hidden = false;
@@ -1547,14 +1552,11 @@ export function drawView(root, ctx) {
       if (what === 'sel' && drawing.sel.size) list.querySelector(`[data-id="${CSS.escape([...drawing.sel].at(-1))}"]`)?.scrollIntoView({ block: 'nearest' });
       renderTools();
     },
-    save: exportFile, // the rail's Export › Drawing (GeoJSON), and Import
-    // the rail's Export › Presets: the user's, as a file
-    savePresets: () => ctx.download(presetsFile(drawing.presets), 'presets.json'),
+    importFile, // a file dropped on the map (app.js)
     press, cycle, // the tools' keys (app.js)
     place, // the Tools panel opened or closed (app.js)
     toggleElements: () => setElements(!elementsOpen), // its key (app.js)
     hideInspector: () => { inspectorOpen = false; hiddenByHand = true; applyInspector(); }, // the panel's › (app.js)
-    open: () => fileInput.click(),
     // the panel closed: nothing it started goes on picking on the map (the form's roots, Attach to…)
     closed() { if (form) { closeForm(); renderInspector(); } if (drawing.repointing) drawing.cancelRepoint(); },
   };

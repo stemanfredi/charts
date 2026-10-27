@@ -584,3 +584,6 @@ body.elements-open .legends { left: 300px; }
 @media (pointer: coarse) { .dswitch { min-height: 44px; } }
 /* the panel's close: a chevron toward the edge it goes to (down, on a phone's sheet) */
 @media (max-width: 720px) { #close svg { transform: rotate(90deg); } }
+.dmenu .dfile { display: flex; flex-direction: column; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line2); }
+.dmenu .dfile button { min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font: inherit; color: var(--ink); }
+.dmenu .dfile button:hover { background: var(--line2); }

@@ -771,10 +771,8 @@ const ICON = {
   png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
   zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
   save: ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], // down into a tray (Export)
-  upload: ['M12 15V4', 'm7 9 5-5 5 5', 'M5 20h14'], // up out of a tray (Import; the drawing's file goes down into it)
   plus: ['M12 5v14M5 12h14'],
   hide: ['m9 18 6-6-6-6'], // a chevron to the right: the panel goes to its edge
-  presets: ['M8 3.5 12.5 11h-9z', 'M14 14h7v7h-7z', 'M6.5 14a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z'], // shapes kept: a triangle, a square, a circle
   minus: ['M5 12h14'],
   compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
   locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
@@ -784,7 +782,6 @@ const ICON = {
   ring: ['M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M12 12h.01'],
   // the tools: a pencil in front of a ruler, crossed; the ruler stops either side of the pencil
   draw: ['M7 11 2 6l4-4 5 5', 'M13 17l5 5 4-4-5-5', 'm8 4-1.5 1.5M20 16l-1.5 1.5M18 14l-1.5 1.5', 'M16.5 2.5l5 5L9 20l-6.5 1.5L4 15z', 'm14 5 5 5'], // as long as the ruler
-  file: ['M6 3h8l4 4v14H6z', 'M14 3v4h4', 'M11 11.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z', 'M16 16.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z', 'm10.6 12.6 2.8 2.8'], // a page with two nodes joined (the drawing's file)
 };
 // the page's own buttons name their icon: <i data-icon="…">
 for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...ICON[el.dataset.icon]));
@@ -1091,17 +1088,23 @@ $('#b-layers').addEventListener('click', () => setPanel(state.panel === 'layers'
 $('#b-draw').addEventListener('click', () => setTools(!state.tools));
 $('#close').addEventListener('click', () => (state.panel === 'draw' && wide() ? drawPanel.hideInspector() : setPanel(null)));
 
-// Export: a menu of the view's link, a picture, GIS data and the drawing's file, each acting at once;
-// the Export button says how it went for a moment ("Copied", "Saving…", "Failed"). Import: a
-// drawing's file, or any GeoJSON (the drawing, with the view that a link cannot carry)
+// Export: a menu of the view's link, a picture and GIS data, each acting at once; the Export button says
+// how it went for a moment ("Copied", "Saving…", "Failed"). The drawing's file goes in and out from its
+// own menu (draw/panel.js); a file dropped on the map is imported: the tools on, the drawing opened
 const exportBtn = $('#export');
 railMenu(exportBtn, $('#export-menu'));
 $('#link').addEventListener('click', () => copyLink(exportBtn));
 $('#png').addEventListener('click', () => exportPng(exportBtn));
 $('#zip').addEventListener('click', () => exportZip(exportBtn));
-$('#save').addEventListener('click', () => drawPanel.save());
-$('#savepresets').addEventListener('click', () => drawPanel.savePresets());
-$('#import').addEventListener('click', () => drawPanel.open());
+const mapBox = map.getContainer();
+mapBox.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+mapBox.addEventListener('drop', (e) => {
+  const f = e.dataTransfer?.files?.[0];
+  if (!f) return;
+  e.preventDefault();
+  if (!state.tools) setTools(true);
+  drawPanel.importFile(f);
+});
 async function copyLink(b) {
   writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }

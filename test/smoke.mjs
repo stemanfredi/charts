@@ -480,6 +480,13 @@ await section('the drawing', async () => {
   // the drawing: place, edit, undo, export, New, import, restore, the exports
   const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=draw');
   await dw.keyboard.press('e'); // the Elements panel hidden: the map's clicks below land on the map (it is shown where the list is used)
+  // the drawing's file out: from the menu beside its title, in the Elements panel's head
+  const exportDrawing = async () => {
+    await dw.keyboard.press('e');
+    await dw.click('.dlisthead [aria-label="Drawings in this browser"]');
+    await dw.click('.dmenu button:text-is("Export drawing (GeoJSON)")');
+    await dw.keyboard.press('e');
+  };
   await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 40.1], [], [12.05, 40.12], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
   // the drawing open, as saved in this browser (one key each, the open one's in charts.drawings.current): GeoJSON
   const saved = () => dw.evaluate(() => JSON.parse(localStorage.getItem(`charts.drawing.${localStorage.getItem('charts.drawings.current')}`) || 'null'));
@@ -560,7 +567,7 @@ await section('the drawing', async () => {
   const allAgain = await isAll();
   await dw.keyboard.press('e');
   check(wasAll && hidden === false && (pt0().visible ?? true) === true && allAgain, 'drawing: the list\'s eye hides all, then shows all');
-  const [dex] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportItem(dw, 'save'); })()]);
+  const [dex] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportDrawing(); })()]);
   const savedFile = JSON.parse(await readFile(await dex.path(), 'utf8'));
   const ruler = measuredOf(savedFile).find((f) => f.geometry.type === 'LineString' && f.geometry.coordinates[0][0] === 12);
   check(/\.geojson$/.test(dex.suggestedFilename()) && savedFile.type === 'FeatureCollection' && savedFile.charts?.view?.layers?.some((l) => l.id === 'coastline') && ruler?.geometry.type === 'LineString',
@@ -583,8 +590,12 @@ await section('the drawing', async () => {
     `drawing: New, then the file opened again: its element, its view and its measurement (${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}; ${mAfter})`);
   // a file without the measurement: its drawing has none (they are each drawing's)
   savedFile.features = savedFile.features.filter((f) => f !== ruler);
-  await dw.click('#import');
-  await dw.setInputFiles('#dview input[type=file]', { name: 'other.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(JSON.stringify(savedFile)) });
+  // dropped on the map: imported as from the menu (its report first)
+  await dw.evaluate((text) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([text], 'other.geojson', { type: 'application/geo+json' }));
+    map.getContainer().dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  }, JSON.stringify(savedFile));
   await Promise.all([dw.waitForEvent('load'), dw.click('dialog[open] button.done')]);
   await dw.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
   await dw.waitForTimeout(500);
@@ -668,7 +679,7 @@ await section('the drawing', async () => {
     `drawing: a group of a group's members is a subgroup of it, indented further (${JSON.stringify(nested)})`);
   await dw.evaluate((id) => drawing.remove([id]), nested?.id);
   check(await dw.evaluate((t) => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === t), top), 'drawing: a subgroup deleted alone: its lines back in the group above');
-  const [dnet] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportItem(dw, 'save'); })()]);
+  const [dnet] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportDrawing(); })()]);
   const back = JSON.parse(await readFile(await dnet.path(), 'utf8'));
   check(featuresOf(back, 'line').length === 4 && featuresOf(back, 'point').length === 1 && back.charts.groups.length === 1 && featuresOf(back, 'line').filter((f) => own(f).start || own(f).end).length === 4,
     'drawing: exported whole, the lines\' ends attached to the point');
