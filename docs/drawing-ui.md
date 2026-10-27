@@ -125,9 +125,8 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
 Clicks and drags snap to what is drawn within **6 px** on screen. The nearest target of the first
 kind found wins, in this order: a **vertex** (a point's centre, a corner of an outline or of an area,
 a line's vertex or free end), a **crossing** of two edges or legs, an **edge** (of an outline or an
-area, or a line's leg). Hidden elements are not snapped to. The target is marked: a ring on a vertex,
-a cross at a crossing, a dot on an edge. While the Line tool is on, every point and free end is
-ringed, and every vertex with a smaller ring.
+area, or a line's leg). Hidden elements are not snapped to. The target under the pointer is marked
+(nothing else): a ring on a vertex, a cross at a crossing, a dot on an edge.
 
 A line's end attaches to what it snaps to, and follows it from then on (a label's anchor points the
 same way):

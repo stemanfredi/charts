@@ -476,8 +476,8 @@ export class Drawing extends DrawStore {
     for (let i = 1; i < pts.length; i++) length += inverse(pts[i - 1], pts[i]).s;
     return { pts, length, snapped };
   }
-  // while the Line tool is on: every point, every line's free end and vertex as a snap target (a
-  // vertex smaller), and what a click would join marked; the line being drawn
+  // what is being drawn: a shape, a sector, a polygon, or the line (what a click would join is marked
+  // by snap.js, under the pointer only)
   draftFeatures() {
     const sh = this.draftShape();
     if (sh) {
@@ -499,14 +499,7 @@ export class Drawing extends DrawStore {
     if (poly) return [{ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: poly.pts.length > 2 ? pathOf(poly.pts, true) : poly.pts } },
       ...this.draft.pts.map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
     if (this.tool !== 'line') return [];
-    const pt = (kind, coordinates) => ({ type: 'Feature', properties: { kind }, geometry: { type: 'Point', coordinates } });
-    const f = this.doc.points.filter((n) => isShown(this.doc, n)).map((n) => pt('snap', n.position));
-    for (const sg of this.doc.lines) {
-      if (!isShown(this.doc, sg)) continue;
-      for (const e of [sg.start, sg.end]) if (!e.element) f.push(pt('snap', e.position)); // its free ends: lines can meet there
-      for (const v of sg.vertices) f.push(pt('snapv', v.position));
-    }
-    const l = this.draftLine();
+    const l = this.draftLine(), f = [];
     if (!l) return f;
     f.push({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: l.pts } });
     for (const p of l.pts.slice(0, this.cursor ? -1 : undefined)) f.push({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: p } });

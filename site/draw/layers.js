@@ -123,10 +123,6 @@ export const DRAW_LAYERS = [
   // the line being drawn (Line tool)
   { id: 'draw-draft', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'draft'], layout: { 'line-join': 'round' },
     paint: { 'line-color': CASING, 'line-width': 2, 'line-dasharray': [3, 2] } },
-  // snap targets while drawing a line: every point and free end a ring, each vertex a smaller one
-  { id: 'draw-snap', type: 'circle', source: 'drawover', filter: ['in', ['get', 'kind'], ['literal', ['snap', 'snapv', 'snaphot']]],
-    paint: { 'circle-radius': ['match', ['get', 'kind'], 'snaphot', 9, 'snapv', 4, 6], 'circle-opacity': 0,
-      'circle-stroke-color': ['match', ['get', 'kind'], 'snaphot', SEL, CASING], 'circle-stroke-width': ['match', ['get', 'kind'], 'snaphot', 3, 1.5] } },
   // where a click or a drag snaps (snap.js): a ring on a vertex, a dot on an edge, a cross at a crossing
   { id: 'draw-snapto', type: 'circle', source: 'drawover', filter: ['in', ['get', 'kind'], ['literal', ['snapvertex', 'snapedge']]],
     paint: { 'circle-radius': ['match', ['get', 'kind'], 'snapvertex', 8, 4], 'circle-color': SEL, 'circle-opacity': ['match', ['get', 'kind'], 'snapvertex', 0, 1],
