@@ -2,14 +2,12 @@
 // it), its look and properties; it gets new IDs and numbered names, and keeps the attachments between
 // the elements copied together (ends attached to an element left behind are free; a label on one keeps
 // pointing at it, if it is in the drawing, else is free where it pointed). The clipboard holds the
-// elements as the document does, in this browser (local storage), so they paste into another drawing
-// too. Pure, but for the storage (guarded).
+// elements as the document does, in this page, so they paste into another drawing opened in it too.
+// Pure.
 
 import { find, elements, membersOf, newId, idsOf, KIND, nextName } from './document.js';
 import { unrollTo } from '../geo.js';
-import { store } from '../dom.js';
 
-const KEY = 'charts.clipboard';
 const clone = (x) => structuredClone(x);
 
 // The elements ids as a clipboard: { items: [{ kind, el }] } (for a group, everything in it; the
@@ -24,8 +22,6 @@ export function copyOf(doc, ids) {
   const items = elements(doc).filter((x) => want.has(x.el.id)).map(({ kind, el }) => ({ kind, el: clone(el) }));
   return { items };
 }
-export const keep = (clip) => store.set(KEY, JSON.stringify(clip)); // not kept: the copy stays in this page
-export function kept() { const v = store.json(KEY); return Array.isArray(v?.items) ? v : null; }
 
 // every position an element has (to move it), as [object, key] pairs
 function places(kind, el) {

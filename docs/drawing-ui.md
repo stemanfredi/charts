@@ -401,7 +401,7 @@ None act while typing in a field, except Esc and Enter. About lists them from `s
 pastes it with its middle at the pointer (else the map's centre); Ctrl/⌘ D duplicates it 20 px beside
 itself. One undo step; the copy is selected. A copy keeps its group, look and properties, gets new
 numbered names, and keeps the attachments between the elements copied together; ends attached to an
-element left behind are free. The clipboard is kept in this browser, so it pastes into another drawing.
+element left behind are free. The clipboard is kept in this page, so it pastes into another drawing opened in it.
 
 ## 9. Presets
 

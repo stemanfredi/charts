@@ -17,7 +17,7 @@ import { labelFeatures } from './labels.js';
 import { inverse, cornersOf, pathOf, sector, circle } from '../geodesy.js';
 import { snapAt, stepped, neighbours, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
-import { copyOf, paste, centreOf, keep, kept } from './clipboard.js';
+import { copyOf, paste, centreOf } from './clipboard.js';
 import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, resizeSide, handleTo, moved } from './drag.js';
 
 // the ID of the line being drawn, as measured for its values: always the same, so the traces cached by
@@ -268,10 +268,9 @@ export class Drawing extends DrawStore {
   copy() {
     if (!this.sel.size) return 0;
     this.clip = copyOf(this.doc, [...this.sel]);
-    keep(this.clip);
     return this.clip.items.length;
   }
-  paste(clip = kept() ?? this.clip, at = null) {
+  paste(clip = this.clip, at = null) {
     const c = clip && centreOf(clip);
     if (!c) return 0;
     const pt = at ?? this.lastPoint ?? this.map.project(this.map.getCenter());
