@@ -741,16 +741,16 @@ export function drawView(root, ctx) {
     const weight = (k) => (k < con.roots.length
       ? F.number(() => con.roots[k].weight, (v) => { con.roots[k].weight = v; redo(); }, `Weight of ${names[k]}`, { above: true, title: 'Its pull: at 2, every group is as if half as far from it; at 1, the plain shortest' })
       : h('span', { class: 'fvalue', title: 'A new root weighs 1: set it once made' }, '1'));
-    return [row('', segOf('Tree or chain', [['tree', 'Tree', 'root → hub → each point'], ['chain', 'Chain', 'root → point → next point …']], con.pattern, (v) => { con.pattern = v; redo(); })),
+    return [row('Pattern', segOf('Tree or chain', [['tree', 'Tree', 'root → hub → each point'], ['chain', 'Chain', 'root → point → next point …']], con.pattern, (v) => { con.pattern = v; redo(); })),
       row('Group size', pair(segOf('Group size', [['auto', 'Auto', `any size: the cheapest cut${con.pattern === 'tree' ? ` (trees of up to ${MAX_TREE})` : ''}`], ['set', 'Set', `points at most per ${what}`]], con.groupSize === 'auto' ? 'auto' : 'set', (v) => { con.groupSize = v === 'auto' ? 'auto' : 3; redo(); }), '',
         con.groupSize === 'auto' ? [] : F.number(() => con.groupSize, (v) => { con.groupSize = v; redo(); }, 'Group size', { whole: true, above: true, max: con.pattern === 'tree' ? MAX_TREE : Infinity, title: `Points at most per ${what}${con.pattern === 'tree' ? ` (up to ${MAX_TREE})` : ''}` }))),
       con.pattern === 'tree' ? row('Min. branch', withUnit(F.dist(() => con.minBranch, (m) => { con.minBranch = m; redo(); }, 'Shortest branch', { zero: true,
         title: 'Each hub at least this far from its points and from its root. 0: where the lines are shortest, on a point if need be' }))) : null,
-      h('div', { class: 'fblock' }, h('h3', {}, `Roots (${c.roots.length})`),
-        h('p', { class: 'note' }, 'Click the map for a new root, or a point to use it; again, or ×, drops it. A weight above 1 pulls groups to it.'),
-        names.map((name, k) => h('div', { class: 'frow' }, k < con.roots.length ? link(con.roots[k].id) : h('span', { class: 'fvalue' }, `${name}: ${con.newRoots[k - con.roots.length][1].toFixed(5)}, ${con.newRoots[k - con.roots.length][0].toFixed(5)}`),
-          h('span', { class: 'funit' }, 'weight'), weight(k),
-          h('button', { type: 'button', class: 'x', 'aria-label': `Drop ${name}`, onclick: drop(k) }, '×')))),
+      // the roots, a table: a point's name (a link), or a new root's place; its weight; × drops it
+      h('div', { class: 'fblock' }, h('h3', { title: 'Click the map for a new root, or a point to use it; again, or ×, drops it. A weight above 1 pulls groups to it.' }, `Roots (${c.roots.length})`),
+        names.length ? listGrid({ name: 'roots', plain: true, head: true, columns: [{ head: 'Root', width: 170 }, { head: 'Weight', width: 70, cls: 'n', title: 'Its pull: at 2, every group is as if half as far from it; at 1, the plain shortest' }, { width: 40 }],
+          rows: names.map((name, k) => ({ cells: [k < con.roots.length ? link(con.roots[k].id) : fvalue(name, { title: `${con.newRoots[k - con.roots.length][1].toFixed(5)}, ${con.newRoots[k - con.roots.length][0].toFixed(5)}` }),
+            weight(k), h('button', { type: 'button', class: 'x', 'aria-label': `Drop ${name}`, title: 'Drop it', onclick: drop(k) }, '×')] })) }) : null),
       h('p', { class: 'note fsummary' }, summary, unused.length ? ` Not used: ${unused.join(', ')} (no group is cheapest from it; a weight above 1 would pull some).` : '')];
   }
   const sameConnection = (c) => c && c.pattern === con.pattern && c.groupSize === con.groupSize && c.minBranch === con.minBranch && !con.newRoots.length
@@ -791,10 +791,10 @@ export function drawView(root, ctx) {
       editing ? null : row('In group', select('Group', [['', 'none (at the top)'], ...doc.groups.map((g) => [g.id, groupPath(drawing.doc, g)])], dform.groupId ?? '', (v) => { dform.groupId = v || null; }, { title: 'Where its own group goes' })),
       h('p', { class: 'note fsummary' }, points.length ? `${copies(points.length)}.` : `No copy fits: ${arc ? 'the part' : 'the line'} is shorter than the margins, or the spacing too long.`),
       differs ? h('p', { class: 'note warn' }, `Another number of points (${editing.points.length} now): they are made anew${was ? ', and connected again' : ''}. Changes made to those by hand are lost; Undo brings them back.`) : null,
-      h('div', { class: 'fblock' }, h('h3', {}, check('Connect to roots', dform.connect, (v) => { dform.connect = v; redo(); }, { title: 'Straight lines from roots to the points, attached to them: Tree, through a hub (which then follows its points); Chain, point to point. The points are cut into groups along the line, each to the root it is cheapest from.' })),
+      row('Connect', check('', dform.connect, (v) => { dform.connect = v; redo(); }, { 'aria-label': 'Connect to roots', title: 'Straight lines from roots to the points, attached to them: Tree, through a hub (which then follows its points); Chain, point to point. The points are cut into groups along the line, each to the root it is cheapest from.' })),
       dform.connect ? connectRows(c) : null,
       was && dform.connect && !sameConnection(was) ? h('p', { class: 'note warn' }, 'Its lines and hubs are made again. Changes made to those by hand are lost; Undo brings them back.') : null,
-      was && !dform.connect ? h('p', { class: 'note warn' }, 'Its lines and hubs go (its roots stay).') : null),
+      was && !dform.connect ? h('p', { class: 'note warn' }, 'Its lines and hubs go (its roots stay).') : null,
       formButtons(editing ? 'Apply' : 'Create', ok, () => {
         let r, k = null;
         drawing.change((d) => {
@@ -933,6 +933,7 @@ export function drawView(root, ctx) {
   // for the selection (with nothing selected, Zoom to all of it; none while a form is open).
   function renderHead(xs = drawing.selected()) {
     inspTitle.textContent = title;
+    inspTitle.title = title; // whole, where the head cuts it
     const ids = xs.map((x) => x.el.id), every = ids.length ? ids : elements(drawing.doc).map((x) => x.el.id);
     const act = (paths, aria, title, run) => h('button', { type: 'button', class: 'hact', 'aria-label': aria, title, onclick: run }, icon(...paths));
     inspActs.replaceChildren(...(form ? [] : [

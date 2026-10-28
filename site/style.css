@@ -223,7 +223,7 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .vpair { flex: 1 1 0; gap: 4px; }
 .vcell > :is(input:not([type=checkbox]):not([type=color]), select, textarea, .seg),
 .vpair > :is(input:not([type=checkbox]):not([type=color]), select, .seg) { flex: 1 1 0; width: auto !important; min-width: 0 !important; }
-.vsep { flex: none; color: var(--soft); font-size: 12px; }
+.vsep { flex: none; color: var(--soft); font-size: 12px; padding: 0 2px; }
 .vsep:empty { display: none; }
 .vcell .fvalue, .vcell .funit { min-width: 0; }
 .vcell .fvalue { flex: 1 1 auto; }

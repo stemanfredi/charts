@@ -36,8 +36,9 @@ export const currentOf = (name) => stateOf(name).current;
 // width (px), frozen, title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty
 // last row (typing in it adds one), or null; actions(i): { label, buttons (any nodes) } for row i, or null (none: no bar); keys: { insert(i),
 // remove(i) }; current(i): row i made current (or null: none), as it is and when it changes. plain: a
-// table read, not edited (the totals): no head, no current row; its rows' cls say what they are.
-export function listGrid({ name, columns, rows, add = null, actions = null, keys = {}, current = () => {}, plain = false }) {
+// table read, not edited (the totals): no current row, and no head unless head says so; its rows' cls
+// say what they are.
+export function listGrid({ name, columns, rows, add = null, actions = null, keys = {}, current = () => {}, plain = false, head = !plain }) {
   const st = stateOf(name);
   if (st.current != null && st.current >= rows.length) st.current = null;
   // the frozen columns' offsets, from the left
@@ -73,7 +74,7 @@ export function listGrid({ name, columns, rows, add = null, actions = null, keys
   if (add) body.append(h('tr', { 'data-r': rows.length, class: 'ladd' }, ...add.map((kids, k) => cell('td', k, kids))));
   const table = h('table', { class: plain ? 'lgrid plain' : 'lgrid', 'data-grid': name, 'data-rows': rows.length }, // its rows another number: a table of its own (morph)
     h('colgroup', {}, ...columns.map((c) => h('col', { width: c.width }))),
-    plain ? null : h('thead', {}, h('tr', {}, ...columns.map((c, k) => cell('th', k, c.head ?? '', c.title ? { title: c.title } : {})))),
+    head ? h('thead', {}, h('tr', {}, ...columns.map((c, k) => cell('th', k, c.head ?? '', c.title ? { title: c.title } : {})))) : null,
     body);
   table.style.width = `${columns.reduce((t, c) => t + c.width, 0)}px`;
   // keys: in a cell being typed in, ↑ ↓ (and Enter) to the row above or below, the same column; Insert

@@ -789,7 +789,7 @@ await section('the drawing', async () => {
   const gsp = dw.locator('input[aria-label=Spacing]');
   await gsp.fill('2 km');
   await gsp.press('Enter');
-  await dw.click('.dinspect label:has-text("Connect to roots") input');
+  await dw.click('.dinspect input[aria-label="Connect to roots"]');
   await dw.mouse.click(DX + 420, 700); // the circle's centre: a root (a click on a point uses it)
   const mb = dw.locator('input[aria-label="Shortest branch"]'); // Tree: each branch at least this long
   await mb.fill('300 m');
