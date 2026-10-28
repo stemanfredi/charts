@@ -127,7 +127,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     for (const { part } of rounds) {
       const rg = ringOf(n, part);
       if (want.base) base.push({ type: 'Feature', properties: { id: n.id, kind: 'ring', z: Z.get(n.id), fill: part.fill ? 1 : 0, fc: st.fill.color, fo: st.fill.opacity,
-        ...lineProps(st.stroke, part.strokeColor || st.stroke.color, part.strokeDash || st.stroke.dash) }, geometry: roundGeometry(part, rg) });
+        ...lineProps(st.stroke, st.stroke.color, st.stroke.dash) }, geometry: roundGeometry(part, rg) });
       if (!outer || part.radius > outer.part.radius) outer = { part, rg };
     }
     // its halo round its outermost round part (a point with an outline: round that); its parts dragged
@@ -175,7 +175,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
       const o = outlineOf(n.position, n.bearing, part.length * k, part.width * k, part.kind);
       if (i === main.i) mainCorners = o.corners;
       if (want.zoom) zoomed.push({ type: 'Feature', properties: { id: n.id, kind: 'shape', z: Z.get(n.id), fill: part.fill ? 1 : 0, fc: st.fill.color, fo: st.fill.opacity,
-        ...lineProps(st.stroke, part.strokeColor || st.stroke.color, k > 1 ? 'dotted' : part.strokeDash || st.stroke.dash), ...(k > 1 ? { enlarged: k } : {}) }, geometry: { type: 'Polygon', coordinates: [o.ring] } });
+        ...lineProps(st.stroke, st.stroke.color, k > 1 ? 'dotted' : st.stroke.dash), ...(k > 1 ? { enlarged: k } : {}) }, geometry: { type: 'Polygon', coordinates: [o.ring] } });
       if (i === main.i) halo = o.ring;
       corners.push(...o.corners.map((p, c) => ({ p, role: 'corner', ref: `${i}:${c}` })));
       corners.push(...o.corners.map((p, c) => ({ p: along(p, o.corners[(c + 1) % 4], 0.5), role: 'side', ref: `${i}:${c}` }))); // the middle of each side: that side alone

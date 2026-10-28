@@ -6,7 +6,7 @@
 import { h, svg, typing, NARROW, store } from '../dom.js';
 import { popup } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, styleOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, ARCED, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, ARCED, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
 import { labelText, labelValues, TOKENS } from './labels.js';
@@ -586,30 +586,13 @@ export function drawView(root, ctx) {
     const el = now(id), u = ctx.units();
     const fits = (m) => drawable(now(id), m);
     const at = (i, fn) => drawing.change((d) => { fn(find(d, id).el.parts[i]); reattach(d, id); }); // part i as it is now; what points at its corners stays where it was
-    const pointStroke = styleOf(drawing.doc, el).stroke.color;
     // a part as another kind, its reach kept: a round one's radius, an outline's half length
     const asKind = (part, kind) => {
       const reach = part.radius ?? part.length / 2;
       const next = makePart(kind, ROUND.includes(kind) ? { radius: reach, aperture: part.aperture } : { length: 2 * reach, width: part.width ?? reach });
-      return { ...next, fill: kind !== 'arc' && part.fill, shown: part.shown, name: part.name, strokeColor: part.strokeColor, strokeDash: part.strokeDash }; // an arc: never filled
+      return { ...next, fill: kind !== 'arc' && part.fill, shown: part.shown, name: part.name }; // an arc: never filled
     };
     const adder = (aria, text) => select(aria, [['', text], ...PART_KINDS.map((k) => [k, PART_NAME[k]])], '', (k) => { if (k) set(id, (x) => addPart(x, k)); }, { title: 'A circle, a sector or an outline about the point, to scale' });
-    const strokeOf = (part, i) => {
-      const own = part.strokeColor || part.strokeDash;
-      const swatch = h('span', { class: 'swatch' });
-      swatch.style.background = part.strokeColor || pointStroke; // CSSOM: the page's CSP allows no style attribute
-      const summary = h('summary', { title: own ? 'This part has its own stroke' : 'Stroke: as the point (click to give this part its own)', class: own ? 'own' : '', 'aria-label': `Part ${i + 1} stroke` }, swatch);
-      // its pop-up placed by the window, out of the grid that scrolls sideways (which would cut it)
-      const place = (e) => { if (!e.target.open) return; const r = summary.getBoundingClientRect(), pop = e.target.querySelector('.pop'); pop.style.left = `${Math.max(8, r.right - 200)}px`; pop.style.top = `${r.bottom + 4}px`; };
-      return h('details', { class: 'rstroke', ontoggle: place },
-        summary,
-        h('div', { class: 'pop' },
-          h('label', {}, 'Colour ', h('input', { type: 'color', value: part.strokeColor || pointStroke,
-            oninput: (e) => drawing.preview((d) => { find(d, id).el.parts[i].strokeColor = e.target.value; }), // seen as it is picked
-            onchange: (e) => at(i, (y) => { y.strokeColor = e.target.value; }) })),
-          h('label', {}, 'Dash ', select(`Part ${i + 1} dash`, [['', 'as the point'], ...DASHES.map((d) => [d, d])], part.strokeDash ?? '', (v) => at(i, (y) => { y.strokeDash = v || null; }))),
-          h('button', { type: 'button', class: 'small', onclick: () => at(i, (y) => { y.strokeColor = null; y.strokeDash = null; }) }, 'Use the point\'s')));
-    };
     const box = (i, key, aria) => check('', el.parts[i][key], (v) => at(i, (y) => { y[key] = v; }), { 'aria-label': `Part ${i + 1} ${aria}` });
     const dist = (i, key, aria) => distField(() => now(id).parts[i][key], (m) => at(i, (y) => { y[key] = m; }), aria, (m) => (m >= MAX_RADIUS || (key === 'radius' && !fits(m)) ? 'too large' : null));
     // its size, a pair: a round part's radius (a sector's aperture beside it), an outline's length × width
@@ -621,11 +604,11 @@ export function drawView(root, ctx) {
     const removeAt = (i) => drawing.change((d) => { removePartOf(d, id, i); reattach(d, id); });
     const table = listGrid({ name: `${id}:parts`,
       columns: [{ head: '', width: 22, frozen: true, cls: 'num' }, { head: 'Kind', width: 108, frozen: true }, { head: 'Size', width: 176, title: 'A radius (a sector: and its aperture), or a length × a width' },
-        { head: 'Fill', width: 52 }, { head: 'Shown', width: 52 }, { head: '', width: 52, title: 'Its own stroke' }, { head: 'Name', width: 110 }],
-      rows: el.parts.map((part, i) => ({ cells: [`${i + 1}`, kind(part, i), size(part, i), part.kind === 'arc' ? null : box(i, 'fill', 'filled'), box(i, 'shown', 'shown'), strokeOf(part, i), // an arc: never filled
+        { head: 'Fill', width: 52 }, { head: 'Shown', width: 52 }, { head: 'Name', width: 110 }],
+      rows: el.parts.map((part, i) => ({ cells: [`${i + 1}`, kind(part, i), size(part, i), part.kind === 'arc' ? null : box(i, 'fill', 'filled'), box(i, 'shown', 'shown'), // an arc: never filled
         field(() => part.name, (t) => t, (v) => at(i, (y) => { y.name = v; }), { 'aria-label': `Part ${i + 1} name`, placeholder: 'name' })],
       cls: part.radius && !fits(part.radius) ? 'warn' : null })),
-      add: [null, adder('Add a part', 'add a part…'), null, null, null, null, null],
+      add: [null, adder('Add a part', 'add a part…'), null, null, null, null],
       actions: (i) => ({ label: `Part ${i + 1}`, buttons: [act('Distribute along it…', 'Copies placed round this part; they follow it', () => openDistribution({ element: id, part: i })), act('Delete', 'Take this part away (Ctrl/⌘ Delete)', () => removeAt(i))] }),
       keys: { remove: removeAt } });
     const far = el.parts.find((part) => part.radius && !fits(part.radius));

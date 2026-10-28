@@ -11,8 +11,8 @@ const { fmtArea, fmtDist } = await import('../../site/format.js');
 
 // a round part (a circle, or a sector given its aperture), its other fields as given
 const C = (radius, more = {}) => ({ ...makePart(more.aperture ? 'sector' : 'circle', { radius, aperture: more.aperture }), ...more });
-// three circles: the first filled, the second its own stroke, the third hidden
-const PARTS = (more = {}) => [C(500, more), C(1000, { fill: false, strokeColor: '#ff0000', strokeDash: 'dotted', ...more }), C(2000, { fill: false, shown: false, ...more })];
+// three circles: the first filled, the second not, the third hidden
+const PARTS = (more = {}) => [C(500, more), C(1000, { fill: false, ...more }), C(2000, { fill: false, shown: false, ...more })];
 const STYLE = { fill: { color: '#112233', opacity: 0.2 }, stroke: { color: '#445566' } };
 // a point with three circles (the last hidden), its own fill and stroke
 const ringedDoc = () => {
@@ -24,10 +24,10 @@ const ringedDoc = () => {
 const turn = (rg) => { let a = 0; for (let i = 0; i < rg.length - 1; i++) a += rg[i][0] * rg[i + 1][1] - rg[i + 1][0] * rg[i][1]; return a; };
 const kindsOf = (fs) => fs.map((x) => [x.properties.id, x.properties.kind]);
 
-test('round parts: one polygon per shown part, filled as each says, own stroke kept', () => {
+test('round parts: one polygon per shown part, filled as each says, in the point\'s stroke', () => {
   const f = drawFeatures(ringedDoc()).features;
   const rings = f.filter((x) => x.properties.kind === 'ring');
-  assert.deepEqual(rings.map((x) => [x.properties.fill, x.properties.sc, x.properties.dash]), [[1, '#445566', 'solid'], [0, '#ff0000', 'dotted']]);
+  assert.deepEqual(rings.map((x) => [x.properties.fill, x.properties.sc, x.properties.dash]), [[1, '#445566', 'solid'], [0, '#445566', 'solid']]);
   assert.equal(rings[0].properties.fc, '#112233');
   near(inverse([12, 41], rings[1].geometry.coordinates[0][10]).s, 1000, 1e-3, 'on the circle');
   assert.deepEqual(f.filter((x) => x.properties.kind === 'symbol').map((x) => x.properties.symbol), ['diamond']);
@@ -36,7 +36,7 @@ test('round parts: one polygon per shown part, filled as each says, own stroke k
 test('a new point: a diamond with one circle of 1 km; a dot: no parts', () => {
   const doc = emptyDoc(0);
   const p = addPoint(doc, [12, 41]), d = addDot(doc, [12.1, 41]);
-  assert.deepEqual([p.symbol, p.parts, p.bearing], ['diamond', [{ kind: 'circle', fill: true, shown: true, name: '', strokeColor: null, strokeDash: null, radius: 1000 }], 0]);
+  assert.deepEqual([p.symbol, p.parts, p.bearing], ['diamond', [{ kind: 'circle', fill: true, shown: true, name: '', radius: 1000 }], 0]);
   assert.deepEqual(['outline', 'radii', 'aperture'].filter((k) => k in p), []);
   assert.deepEqual([d.symbol, d.parts], ['dot', []]);
   const f = drawFeatures(doc).features;
@@ -163,11 +163,11 @@ test('several outlines on one point: each drawn, filled as it says; corners name
   const doc = emptyDoc(0);
   const h = addShape(doc, [12, 40]);
   h.id = 'h';
-  h.parts = [makePart('rectangle', { length: 100, width: 50 }), { ...makePart('ellipse', { length: 200, width: 80 }), fill: false, strokeDash: 'dashed' }];
+  h.parts = [makePart('rectangle', { length: 100, width: 50 }), { ...makePart('ellipse', { length: 200, width: 80 }), fill: false }];
   doc.look.minSize = 12;
   const at = (zoom) => drawFeatures(doc, new Set(['h']), null, { zoom }).features;
   const close = at(20), shapes = close.filter((x) => x.properties.kind === 'shape');
-  assert.deepEqual(shapes.map((x) => [x.properties.fill, x.properties.dash, x.properties.enlarged]), [[1, 'solid', undefined], [0, 'dashed', undefined]]);
+  assert.deepEqual(shapes.map((x) => [x.properties.fill, x.properties.dash, x.properties.enlarged]), [[1, 'solid', undefined], [0, 'solid', undefined]]);
   near(inverse([12, 40], shapes[0].geometry.coordinates[0][0]).s, Math.hypot(100, 50) / 2, 1e-3, 'the rectangle at real size');
   assert.deepEqual(close.filter((x) => x.properties.kind === 'handle').map((x) => [x.properties.role, x.properties.ref]),
     [...[0, 1].flatMap((i) => [...[0, 1, 2, 3].map((c) => ['corner', `${i}:${c}`]), ...[0, 1, 2, 3].map((c) => ['side', `${i}:${c}`])]), ['rotate', 0]]);

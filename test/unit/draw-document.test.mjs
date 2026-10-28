@@ -34,7 +34,7 @@ function sample() {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [12, 41]), b = addPoint(doc, [12.2, 41.1]);
   b.bearing = 30;
-  Object.assign(b.parts[0], { kind: 'sector', aperture: 120, shown: false, name: 'inner', strokeColor: '#00ff00', strokeDash: 'dotted' });
+  Object.assign(b.parts[0], { kind: 'sector', aperture: 120, shown: false, name: 'inner' });
   addPart(b, 'sector');
   addPart(b, 'triangle');
   addShape(doc, [12.1, 41], 'ellipse').bearing = 45;
@@ -225,10 +225,10 @@ test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () =>
   const st = { stroke: '#FF0000', 'stroke-width': 99, 'stroke-opacity': 2, fill: 'red' };
   const { doc, report } = read(collection([
     F('p1', 'Point', [0, 0], { kind: 'point', symbol: 'star', bearing: -90, look: { minSize: -3, stroke: { dash: 'wavy' }, text: { name: 'yes' } },
-      parts: [{ kind: 'circle', radius: 100 }, { kind: 'circle', radius: 200, strokeDash: 'wavy' }, { kind: 'circle', radius: 0 }, { kind: 'circle', radius: 2e7 }, 'x',
+      parts: [{ kind: 'circle', radius: 100 }, { kind: 'circle', radius: 200 }, { kind: 'circle', radius: 0 }, { kind: 'circle', radius: 2e7 }, 'x',
         { kind: 'sector', radius: 300, aperture: 400 }] }, st),
     F('p2', 'Point', [0, 0], { kind: 'point', look: { minSize: 900 },
-      parts: [{ kind: 'hovercraft', length: 10, width: 4 }, { kind: 'sector', radius: 5, aperture: 0 }, { kind: 'circle', radius: 1, fill: false, shown: false, name: 7, strokeColor: 'red' },
+      parts: [{ kind: 'hovercraft', length: 10, width: 4 }, { kind: 'sector', radius: 5, aperture: 0 }, { kind: 'circle', radius: 1, fill: false, shown: false, name: 7 },
         { kind: 'circle', radius: 2, fill: 'no', shown: 0 }] }),
     F('p3', 'Point', [0, 0], { kind: 'point', parts: [{ kind: 'rectangle', length: 0, width: 4 }, { kind: 'sector', radius: 50 }, { kind: 'sector', radius: 60, aperture: 360 },
       { kind: 'ellipse', length: 10, width: 4, aperture: 30, radius: 9 }, { kind: 'sector', radius: 70, aperture: 45, length: 3 }, { kind: 'triangle', length: 10 }] }),
@@ -238,7 +238,7 @@ test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () =>
   ]));
   const [p1, p2, p3] = doc.points, [s1, s2, s3] = doc.lines;
   assert.deepEqual([p1.symbol, p1.bearing, p1.look.minSize, p1.look.text, d.lookOf(doc, p1).text.name], ['none', 270, undefined, undefined, false]); // not valid: left out, the drawing's applies
-  assert.deepEqual(p1.parts.map((x) => [x.kind, x.radius, x.strokeDash, x.fill, x.shown]), [['circle', 100, null, true, true], ['circle', 200, null, true, true], ['circle', 300, null, true, true]]); // a sector of 360° or more: a circle
+  assert.deepEqual(p1.parts.map((x) => [x.kind, x.radius, x.fill, x.shown]), [['circle', 100, true, true], ['circle', 200, true, true], ['circle', 300, true, true]]); // a sector of 360° or more: a circle
   assert.ok(!('aperture' in p1.parts[2]));
   assert.deepEqual([p1.look.fill, p1.look.stroke], [undefined, { color: '#ff0000', width: 20, opacity: 1 }]); // the bad colour and dash dropped: the group's, else the defaults
   assert.deepEqual([p2.symbol, p2.look.minSize], ['none', 200]);
@@ -248,8 +248,8 @@ test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () =>
   assert.deepEqual([s1.look.offset, s1.startHandle, s1.endHandle, s1.mode], [-d.MAX_OFFSET, null, [10, 20], 'fixed']); // clamped either side
   assert.deepEqual([s2.look.offset, s3.look.offset], [d.MAX_OFFSET, undefined]); // true or false is not a number of pixels
   for (const re of [/unknown symbol "star"/, /bearing -90 read as 270/, /aperture 400 read as a full circle/, /aperture: not an angle above 0; a circle/, /look minSize: not a number of pixels/,
-    /unknown dash "wavy"/, /look text name: not true or false, ignored/, /part 2: unknown dash, the point's used/, /part 3 skipped: radius not between/, /part 4 skipped: radius not between/, /part 5 skipped: not an object/,
-    /part 1 skipped: unknown kind "hovercraft"/, /part 3 name: number made text/, /part 3 stroke colour: not a #rrggbb/, /part 1 skipped: length or width not above 0/, /part 2: a sector with no aperture; a circle/,
+    /unknown dash "wavy"/, /look text name: not true or false, ignored/, /part 3 skipped: radius not between/, /part 4 skipped: radius not between/, /part 5 skipped: not an object/,
+    /part 1 skipped: unknown kind "hovercraft"/, /part 3 name: number made text/, /part 1 skipped: length or width not above 0/, /part 2: a sector with no aperture; a circle/,
     /part 6 skipped: length or width not above 0/, /stroke width 99 clamped to 20/, /stroke opacity 2 clamped to 1/, /fill colour: not a #rrggbb/,
     /Offset: not a number/, /startHandle: not \[east, north\]/]) warned(report, re);
   assert.equal(report.warnings.filter((w) => /aperture/.test(w)).length, 3); // those three; a sector of exactly 360°: a circle, quietly
@@ -273,10 +273,10 @@ test('parts: named by their place, without IDs; an ID in the file is ignored and
 
 test('parts in the file: only what differs from the defaults, sizes rounded; no outline, radii or aperture on a point', () => {
   const doc = emptyDoc(NOW);
-  addPoint(doc, [0, 0], { bearing: 10, parts: [makePart('circle', { radius: 100.00049 }), { ...makePart('sector', { radius: 200, aperture: 33.333333 }), fill: false, shown: false, name: 'b', strokeColor: '#00ff00', strokeDash: 'dotted' },
+  addPoint(doc, [0, 0], { bearing: 10, parts: [makePart('circle', { radius: 100.00049 }), { ...makePart('sector', { radius: 200, aperture: 33.333333 }), fill: false, shown: false, name: 'b' },
     makePart('underwater-vehicle', { length: 12.34567, width: 2.5 })] });
   const c = toFile(doc).features[0].properties.charts;
-  assert.deepEqual(c.parts, [{ kind: 'circle', radius: 100 }, { kind: 'sector', radius: 200, aperture: 33.3333, fill: false, shown: false, name: 'b', strokeColor: '#00ff00', strokeDash: 'dotted' },
+  assert.deepEqual(c.parts, [{ kind: 'circle', radius: 100 }, { kind: 'sector', radius: 200, aperture: 33.3333, fill: false, shown: false, name: 'b' },
     { kind: 'underwater-vehicle', length: 12.346, width: 2.5 }]);
   assert.ok(!('outline' in c) && !('radii' in c) && !('aperture' in c));
   const back = again(doc).doc.points[0];
@@ -497,14 +497,14 @@ test('operations: new elements, names, parts, IDs', () => {
   b.name = 'Point 7';
   assert.equal(nextName(doc, 'point'), 'Point 8');
   const h = addShape(doc, [12, 41]);
-  assert.deepEqual([h.name, h.symbol, h.parts], ['Shape 1', 'none', [{ kind: 'rectangle', fill: true, shown: true, name: '', strokeColor: null, strokeDash: null, length: 100, width: 50 }]]);
+  assert.deepEqual([h.name, h.symbol, h.parts], ['Shape 1', 'none', [{ kind: 'rectangle', fill: true, shown: true, name: '', length: 100, width: 50 }]]);
   assert.equal(addShape(doc, [12, 41], 'ellipse').parts[0].kind, 'ellipse');
   doc.points.pop();
   assert.equal(nextName(doc, 'point', 'Shape'), 'Shape 2');
   const j = addDot(doc, [12, 42]);
   assert.deepEqual([j.symbol, j.parts, d.pointKind(j), d.pointKind(a), d.pointKind(h)], ['dot', [], 'point', 'circle', 'rectangle']);
   const rr = addPart(a);
-  assert.deepEqual(rr, { kind: 'circle', fill: false, shown: true, name: '', strokeColor: null, strokeDash: null, radius: 2000 }); // no ID; twice the last, not filled
+  assert.deepEqual(rr, { kind: 'circle', fill: false, shown: true, name: '', radius: 2000 }); // no ID; twice the last, not filled
   assert.equal(d.pointKind(a), 'rings');
   assert.equal(d.followedPart(a), 0);
   a.parts[0].fill = false; // none filled: the first followed

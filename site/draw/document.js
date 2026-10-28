@@ -53,7 +53,7 @@ export const ARCED = new Set(['sector', 'arc']); // a round part with an apertur
 export const PART_KINDS = [...ROUND, ...OUTLINES];
 export const isRound = (part) => ROUND.includes(part.kind);
 export function makePart(kind, size = {}) {
-  const part = { kind, fill: true, shown: true, name: '', strokeColor: null, strokeDash: null };
+  const part = { kind, fill: true, shown: true, name: '' };
   if (ROUND.includes(kind)) part.radius = size.radius ?? NEW_RADIUS; else { part.length = size.length ?? 100; part.width = size.width ?? 50; }
   if (ARCED.has(kind)) part.aperture = size.aperture ?? 90;
   if (kind === 'arc') part.fill = false;

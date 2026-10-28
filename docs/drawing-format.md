@@ -189,7 +189,7 @@ element. Editing a group's look in the panel sets the value on each element in i
 A point's parts (`charts.parts`), a list of entries, each drawn to scale about it:
 
 ```json
-{ "kind": "sector", "radius": 5000, "aperture": 90, "fill": true, "shown": true, "name": "", "strokeColor": null, "strokeDash": null }
+{ "kind": "sector", "radius": 5000, "aperture": 90, "fill": true, "shown": true, "name": "" }
 ```
 
 | Field | Notes |
@@ -201,7 +201,6 @@ A point's parts (`charts.parts`), a list of entries, each drawn to scale about i
 | `fill` | `false`: drawn as an outline only. Default `true`. |
 | `shown` | `false`: kept but not drawn. Default `true`. |
 | `name` | free text |
-| `strokeColor`, `strokeDash` | `null`: the point's stroke |
 
 A part has no ID: it is named by its place in the list, from 1 ("part 2" in the report); references
 name it from 0 (§7.4). A point keeps at most 100 parts (warning). An entry of an unknown kind, or whose size is not a distance in range, is
@@ -607,7 +606,6 @@ What a value is when the file leaves it out. Writing it with this value means th
 | group | `name`; `properties`; `visible` | `""`; `[]`; `true` |
 | group | `groupId` | `null` (at the top) |
 | part | `fill`; `shown`; `name` | `true`; `true`; `""` |
-| part | `strokeColor`, `strokeDash` | `null`: the point's |
 | point | `bearing` | `0` |
 | point | `symbol` | `"none"`; `"diamond"` for a feature without `charts` |
 | point | `parts` | `[]` |

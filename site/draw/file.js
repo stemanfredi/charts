@@ -315,8 +315,8 @@ function lean(o, d) {
   return out;
 }
 const partOut = (r) => lean({ kind: r.kind, radius: r.radius && r3(r.radius), aperture: r.aperture && r4(r.aperture), length: r.length && r3(r.length), width: r.width && r3(r.width),
-  fill: r.fill, shown: r.shown, name: r.name, strokeColor: r.strokeColor, strokeDash: r.strokeDash },
-{ radius: undefined, aperture: undefined, length: undefined, width: undefined, fill: true, shown: true, name: '', strokeColor: null, strokeDash: null });
+  fill: r.fill, shown: r.shown, name: r.name },
+{ radius: undefined, aperture: undefined, length: undefined, width: undefined, fill: true, shown: true, name: '' });
 const VIEW_D = { center: null, zoom: null, bearing: 0, layers: null, data: null, units: 'km', bearings: false };
 const VERTEX_D = { handleIn: null, handleOut: null, name: '', properties: [] };
 const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };

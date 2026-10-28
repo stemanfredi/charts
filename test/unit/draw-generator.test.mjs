@@ -356,7 +356,7 @@ test('a distribution follows its line; one moved by hand stops; Edit moves them,
   // rule's new copy, but those whose parts were changed by hand since: they keep their own
   const n0 = array.points.length;
   ns[1].parts.push({ ...makePart('circle', { radius: 2000 }), fill: false });
-  Object.assign(ns[0].parts[0], { fill: false, shown: false, name: 'kept', strokeColor: '#00ff00', strokeDash: 'dotted' });
+  Object.assign(ns[0].parts[0], { fill: false, shown: false, name: 'kept' });
   const own = [structuredClone(ns[0].parts), structuredClone(ns[1].parts)];
   assert.deepEqual(editDistribution(doc, array.id, { offset: 200, aperture: 90, radius: 750 }), { distribution: array, remade: false });
   assert.equal(array.points.length, n0);

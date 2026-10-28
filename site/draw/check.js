@@ -147,9 +147,7 @@ export function parts(list, c) {
     const bad = !isObj(r) ? 'not an object' : !PART_KINDS.includes(r.kind) ? `unknown kind "${String(r.kind).slice(0, 20)}"`
       : round ? (!size(r.radius) ? 'radius not between 0 and 10 000 km' : null) : !size(r.length) || !size(r.width) ? 'length or width not above 0' : null;
     if (bad) { c.warn(`part ${n} skipped: ${bad}`); return; }
-    const part = { kind: r.kind, fill: r.fill !== false, shown: r.shown !== false, name: text(r.name, c, `part ${n} name`),
-      strokeColor: r.strokeColor == null ? null : colour(r.strokeColor, null, c, `part ${n} stroke colour`),
-      strokeDash: r.strokeDash == null ? null : DASHES.includes(r.strokeDash) ? r.strokeDash : (c.warn(`part ${n}: unknown dash, the point's used`), null) };
+    const part = { kind: r.kind, fill: r.fill !== false, shown: r.shown !== false, name: text(r.name, c, `part ${n} name`) };
     if (round) part.radius = r.radius; else { part.length = r.length; part.width = r.width; }
     if (ARCED.has(r.kind)) {
       const a = aperture(r.aperture, c);

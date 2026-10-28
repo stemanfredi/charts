@@ -238,7 +238,7 @@ sets it on each (as for several selected). A hidden group hides everything in it
   whose outline marks it), then its
   **Parts**, always its own, a list: each its place, its kind (circle, sector, an outline; changing it
   keeps its reach), its size (a radius, a sector's with its aperture; an outline's length × width, its
-  area in the tooltip), **Fill**, **Shown**, its own stroke colour and dash, a name. The empty last row
+  area in the tooltip), **Fill**, **Shown**, a name. The empty last row
   ("add a part…") adds one (a round one twice the last round one's radius); its bar: **Distribute
   along it…**, **Delete**. When outlines are drawn enlarged, it says so.
   With parts: **Distribute along…** (§6). Then **Save as preset…** (§9).
