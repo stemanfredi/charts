@@ -204,7 +204,12 @@ export class Drawing extends DrawStore {
       if (this.draft) this.onChange('draft');
       return;
     }
-    if (this.tool === 'point' || this.tool === 'shape') { this.snapFor(e.point, e.originalEvent); this.renderMarks(); return; } // where a click would place it
+    if (this.tool === 'point' || this.tool === 'shape') { // where a click would place it; the cursor kept current, so a shape's preview starts at its first click, not at the last shape's end
+      const r = this.snapFor(e.point, e.originalEvent);
+      this.cursor = { point: e.point, p: r.position, snap: r, shift: !!e.originalEvent?.shiftKey };
+      this.renderMarks();
+      return;
+    }
     if (this.snapMark && !this.drag) { this.snapMark = null; this.renderMarks(); }
     if (this.repointing || this.boxNext) { this.map.getCanvas().style.cursor = 'crosshair'; return; }
     // picking roots (the form's Connect): over a point, it is taken (or dropped); elsewhere, a new
@@ -440,7 +445,9 @@ export class Drawing extends DrawStore {
   boxing() { return BOX.has(this.variant.shape); }
   shapeClick(point, e) {
     if (!this.draft) {
-      this.draft = { pts: [this.snapFor(point, e).position] };
+      const r = this.snapFor(point, e);
+      this.draft = { pts: [r.position] };
+      this.cursor = { point, p: r.position, snap: r, shift: !!e?.shiftKey }; // its preview from here, until the pointer moves
       if (this.variant.shape?.startsWith('preset:')) return this.finishShape(null); // a preset of the user's has its size: one click
       this.renderMarks();
       return this.onChange('draft');
