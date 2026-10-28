@@ -183,11 +183,8 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow .dname { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 0 4px; min-height: var(--row); }
 .drow input.dname { border: 1px solid var(--accent); border-radius: 4px; background: #fff; }
 .drow .val { flex: none; font-family: var(--mono); font-size: 11px; color: var(--soft); white-space: nowrap; }
-/* a row's eye, at its end: shown or hidden (crossed); with a mouse, a shown one's eye only on the row
-   pointed at or selected */
-@media (hover: hover) {
-  .drow:not(:hover, :focus-within, .sel, .droot) .deye[aria-pressed="true"] { visibility: hidden; } /* the drawing's: always (it is for everything) */
-}
+/* a row's eye, at its end, always there (nothing comes and goes as the pointer runs down the tree):
+   shown, or hidden (crossed) */
 /* the list's head: the drawing's title, the eye for all of it, its fold */
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
 .dinspect { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 0 16px; overscroll-behavior: contain; display: flex; flex-direction: column; }

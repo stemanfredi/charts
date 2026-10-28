@@ -82,9 +82,9 @@ const fillLayer = (kind, source) => ({
 });
 // the hover band, never on the element's own stroke, clear of it by 3 px: outside a polygon's outline
 // (negative offset: the left of a counter-clockwise ring, its outside on screen), on both sides of a
-// line: the mark's blue on its white casing
+// line: one line of the mark's blue (no casing: it read as white lines either side of it)
 const BAND = 2;
-const HALO = [['case', MARK_CASE, BAND + 2, HOVER], ['line', MARK, BAND, HOVER]];
+const HALO = [['line', MARK, BAND, 0.8]];
 const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([part, colour, width, opacity]) => ({
   id: `draw-mark-${part}-${geom.toLowerCase()}${sides.length > 1 ? (side > 0 ? '-r' : '-l') : ''}`, type: 'line', source: 'drawover',
   filter: ['all', ['==', ['get', 'kind'], 'hover'], ['==', ['geometry-type'], geom]],
