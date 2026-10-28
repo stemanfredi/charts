@@ -1,8 +1,8 @@
 // The panels' fields (Tools, Layers). A field applies on Enter or when it loses focus, never
 // on each key; a value it cannot read stays marked, is not applied, and note() says why; Esc puts
 // back what it showed and leaves it. A read gives the value to apply, or undefined: not valid (null
-// is a value: "none", "the default"). A distance's or an angle's get() null (several elements that
-// differ): the field empty, "mixed" its placeholder.
+// is a value: "none", "the default"). A distance's, an angle's or a coordinate's get() null (several
+// elements that differ): the field empty, "mixed" its placeholder.
 
 import { h } from './dom.js';
 import { parseCoord, parseDist, distText, UNIT_M } from './format.js';
@@ -91,10 +91,10 @@ export function fields({ note, units }) {
   }, put, { 'aria-label': aria, class: 'angle', inputmode: 'decimal', placeholder: 'mixed', nudge: (t, up, big) => { const v = num(t.replace('°', '')); return Number.isFinite(v) ? `${+(v + (up ? 1 : -1) * (big ? 10 : 1)).toFixed(4)}` : null; }, bad: wrap ? 'degrees' : `degrees between ${lo} and ${hi}` });
   // one coordinate (axis 'lat' or 'lon'): decimal degrees, degrees and minutes, DMS, a hemisphere letter;
   // fixed: its decimals always shown (a table's column: 6, a decimetre)
-  const coord = (axis, get, put, aria = axis === 'lat' ? 'Latitude' : 'Longitude', fixed = null) => field(() => (fixed == null ? `${+get().toFixed(7)}` : get().toFixed(fixed)), (t) => {
+  const coord = (axis, get, put, aria = axis === 'lat' ? 'Latitude' : 'Longitude', fixed = null) => field(() => { const v = get(); return v == null ? '' : fixed == null ? `${+v.toFixed(7)}` : v.toFixed(fixed); }, (t) => {
     const v = parseCoord(t, axis);
     return v === null || (axis === 'lat' && Math.abs(v) > MAX_LAT) ? undefined : v;
-  }, put, { 'aria-label': aria, class: 'coord', bad: axis === 'lat' ? 'a latitude between −85.05 and 85.05 (N or S)' : 'a longitude between −180 and 180 (E or W)',
+  }, put, { 'aria-label': aria, class: 'coord', placeholder: 'mixed', bad: axis === 'lat' ? 'a latitude between −85.05 and 85.05 (N or S)' : 'a longitude between −180 and 180 (E or W)',
     title: 'Decimal degrees, degrees and minutes (37 17.48N) or DMS' });
   // a position [lon, lat]: its latitude, then its longitude, each applied alone (fixed: decimals shown)
   const position = (get, put, aria = '', fixed = null) => [

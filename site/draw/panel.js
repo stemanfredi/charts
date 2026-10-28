@@ -617,6 +617,9 @@ export function drawView(root, ctx) {
     const out = [];
     if (pts.length > 1) {
       const nowPts = () => pts.map((x) => now(x.el.id)).filter(Boolean);
+      // their position, each axis alone: a latitude typed puts them all on that parallel, their longitudes kept
+      const axis = (k, aria) => F.coord(k ? 'lat' : 'lon', () => same(nowPts(), (p) => p.position[k]), (v) => each(pts, (p) => { p.position[k] = v; }), aria, 6);
+      out.push(row('Position', pair(axis(1, 'Latitude of each point'), '·', axis(0, 'Longitude of each point'))));
       out.push(row('Bearing', angleField(() => same(nowPts(), (p) => p.bearing), (v) => each(pts, (p) => { p.bearing = v; }), 'Bearing (degrees true) of each point'), funit('°T')));
       if (pts.every((x) => !mainOutline(x.el))) out.push(row('Symbol', segOf('Symbol of each point', SYMBOLS.map((sy) => [sy, sy === 'none' ? '∅' : icon(...SYMBOL_ICON[sy]), SYMBOL_TITLE[sy]]), same(pts, (x) => x.el.symbol), (sy) => each(pts, (p) => { p.symbol = sy; }))));
       // their parts, part by part, as far as every point has one

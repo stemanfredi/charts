@@ -178,7 +178,8 @@ read in that one).
 - **What several share** (two or more selected, or a group's members under **Each member**): each
   row sets all of them, "mixed" where they differ. Points: Bearing, Symbol, and their **Parts** part
   by part as far as every point has one (its kind, size, across, fill: a radius typed sets each
-  circle's). Lines: Path. Points, lines and areas: Guide. Labels: Leader.
+  circle's), and Position each axis alone (a latitude typed puts them all on that parallel, their
+  longitudes kept). Lines: Path. Points, lines and areas: Guide. Labels: Leader.
 - **The look's cascade:** an element's own value, else the drawing's Display, else the default; **↺**
   gives a field back. Fill and Stroke are rows (a colour, its opacity in %), Width (px) and Dash
   their own. Where several differ a field says "mixed" and a change writes only that field. A group
