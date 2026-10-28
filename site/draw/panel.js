@@ -94,7 +94,7 @@ export function drawView(root, ctx) {
   drawing.presets = loadPresets();
   const TOOLS = { point: ['Point', 'Place points: click on the map'], line: ['Line', 'Draw a line: click its start, its bends, then a point, a corner, an edge or a vertex to end there (attached), or Enter'],
     shape: ['Shape', 'Place a shape of the outline chosen, or draw a polygon'], label: ['Label', 'Place a label: click a point, a shape, an area or a line to point at it, or anywhere for free text'],
-    measure: ['Measure', 'Measure a distance: a line kept as a guide showing its lengths'] };
+    measure: ['Measure', 'Measure a distance, or an area (a click on the first point closes it); Keep puts it in the drawing'] };
   // the kinds each tool makes (its sub-rail), each with a short tooltip. Shape: round a centre, the
   // outlines to scale, the polygon, the vehicles, the user's presets with extent
   const presetsOf = (tool) => drawing.presets.filter((x) => presetTool(x) === tool).map((x) => [`preset:${x.name}`, `${x.name}: a preset of yours (right-click: rename or delete)`]);
@@ -142,10 +142,21 @@ export function drawView(root, ctx) {
     props: touchBtn('Properties', 'Its properties (I)', () => ctx.frame.setProps(true)),
   };
   const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' }, Object.values(touch));
+  // what Measure measured, at the map's foot (drawing-ui.md §3): its values, Keep, ×
+  const mText = h('span', {});
+  const measureCard = h('div', { class: 'mcard', role: 'status', hidden: true }, mText,
+    h('button', { type: 'button', title: 'Keep it in the drawing, as a guide showing its values', onclick: () => drawing.keepMeasurement() }, 'Keep'),
+    h('button', { type: 'button', class: 'x', 'aria-label': 'Clear', title: 'Clear (Esc)', onclick: () => drawing.clearMeasurement() }, '×'));
+  document.body.append(measureCard);
+  function renderMeasure() {
+    const m = drawing.measured(), u = ctx.units();
+    measureCard.hidden = !m;
+    if (m) mText.textContent = m.closed ? `Area ${fmtArea(m.area, u)} · perimeter ${fmtDist(m.length, u)}` : `Distance ${fmtDist(m.length, u)}${m.legs > 1 ? ` · ${plural(m.legs, 'leg')}` : ''}`;
+  }
   document.body.append(touchbar); // over the map, at its foot (above a phone's sheet)
   function renderTouch() {
     const sel = drawing.sel.size > 0, tool = !!drawing.tool;
-    touch.done.hidden = !(['line', 'polygon'].includes(drawing.tool) && drawing.draft);
+    touch.done.hidden = !(['line', 'polygon', 'measure'].includes(drawing.tool) && drawing.draft);
     touch.back.hidden = !tool && !sel;
     touch.del.hidden = touch.dup.hidden = !sel || tool;
     touch.snap.hidden = !tool;
@@ -1364,11 +1375,13 @@ export function drawView(root, ctx) {
     redoBtn.disabled = !drawing.redos.length;
     renderTouch();
     renderSubrail();
+    renderMeasure();
   }
   return {
     render(what) {
       if (what === 'tool') return renderTools();
       if (what === 'draft') return renderTouch();
+      if (what === 'measured') return renderMeasure();
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
         note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the box');

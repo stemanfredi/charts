@@ -338,6 +338,13 @@ button.small[aria-pressed="true"] { background: var(--accent); border-color: var
 .dnote { position: absolute; z-index: 10; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); bottom: calc(var(--status-h) + 10px); display: flex; align-items: center; justify-content: space-between; gap: 8px;
   background: var(--ink); color: #fff; border-radius: 8px; padding: 6px 6px 6px 12px; box-shadow: var(--shadow); font-size: 12.5px; }
 .dnote button { border: 1px solid rgba(255,255,255,.4); background: none; color: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }
+/* what Measure measured (draw/panel.js): its values, Keep, ×; at the map's foot, the note above it */
+.mcard { position: absolute; z-index: 10; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); bottom: calc(var(--status-h) + 10px);
+  display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 12.5px; }
+.mcard button { min-height: var(--row); padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.mcard .x { border: 0; width: var(--row); padding: 0; font-size: 18px; }
+body:has(.mcard:not([hidden])) .dnote { bottom: calc(var(--status-h) + 64px); }
+@media (max-width: 719px) { body:is(.has-left, .has-right) .mcard { bottom: calc(var(--sheet-h) + 8px); } }
 dialog.dreport { max-width: min(560px, calc(100vw - 32px)); }
 dialog.dreport ul { max-height: 40vh; overflow-y: auto; margin: 0; padding-left: 18px; font-size: 12px; }
 dialog.dreport .fbuttons { margin-top: 14px; }

@@ -148,10 +148,13 @@ added to or taken from what it is on, it stays where it was (the nearest vertex,
 
 ## 3. Measure
 
-Measure is a shortcut: the Line tool with **Guide** and **Show values** ticked (its ends attach as a
-line's do). The result is an ordinary element, a line "Distance 1", drawn in Measure's
-colour (magenta, dashed). Unticking Guide makes it part of the drawing. There is no Measure apart
-from this: its values are the drawing's own (§2.1, Values while drawing).
+Measure (M) measures without drawing. Each click is a point, snapped as a line's are; each leg's
+length and the total show as it is drawn. Enter or a double-click ends it; a click on its first
+point closes it, for its area and perimeter. What was measured stays on the map, not in the
+drawing, with a card at the map's foot saying it ("Distance 12.84 km · 3 legs", "Area … ·
+perimeter …"), until Esc, the next measurement or the tool's end. **Keep** on the card puts it in
+the drawing: a line "Distance 1" or an area, a guide showing its values, drawn in Measure's colour
+(magenta, dashed); unticking Guide then makes it part of the drawing.
 
 ## 4. The list
 

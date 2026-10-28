@@ -14,7 +14,7 @@ import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, 
 import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures, ringOf } from './features.js';
 import { lineTrace, nearestAlong, positionsOf } from './lines.js';
 import { labelFeatures } from './labels.js';
-import { inverse, cornersOf, pathOf, sector, circle } from '../geodesy.js';
+import { inverse, cornersOf, pathOf, sector, circle, areaOf } from '../geodesy.js';
 import { snapAt, stepped, neighbours, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
 import { copyOf, paste, centreOf } from './clipboard.js';
@@ -45,7 +45,7 @@ export class Drawing extends DrawStore {
     // what is being drawn: a line { start (a point's ID or a position), pts }; a polygon or a sector
     // { pts }; a shape { pts: [its centre] }
     this.draft = null;
-    this.pressed = null; // the tools row's button of the tool on (measuring: Measure's: what it makes is a guide showing its values)
+    this.pressed = null; // the bar's button of the tool on
     this.cursor = null;
     map.on('click', (e) => this.click(e));
     map.on('mousemove', (e) => this.pointer(e));
@@ -157,6 +157,7 @@ export class Drawing extends DrawStore {
   click(e) {
     const p = [e.lngLat.lng, e.lngLat.lat];
     if (this.tool === 'line') return this.lineClick(e.point, e.originalEvent);
+    if (this.tool === 'measure') return this.measureClick(e.point, e.originalEvent);
     if (this.tool === 'shape') return this.shapeClick(e.point, e.originalEvent);
     if (this.tool === 'polygon') return this.polygonClick(e.point, e.originalEvent);
     if (this.tool === 'sector') return this.sectorClick(e.point, e.originalEvent);
@@ -190,7 +191,7 @@ export class Drawing extends DrawStore {
   }
   pointer(e) {
     this.lastPoint = e.point; // where a paste goes
-    if (this.tool === 'line' || this.tool === 'polygon' || this.tool === 'sector' || (this.tool === 'shape' && this.draft)) {
+    if (['line', 'polygon', 'measure', 'sector'].includes(this.tool) || (this.tool === 'shape' && this.draft)) {
       let r = this.snapFor(e.point, e.originalEvent, this.tool === 'shape' ? {} : this.tool === 'sector' ? { from: this.draft?.pts[0] ?? null } : this.lastLeg()); // as on the click: a shape's size, Shift steps nothing; a sector's edges step round its centre
       if (this.closesPolygon(e.point)) { r = { position: this.draft.pts[0], to: null, kind: 'vertex' }; this.snapMark = { kind: 'vertex', position: r.position }; } // a click closes it
       this.cursor = { point: e.point, p: r.position, snap: r, shift: !!e.originalEvent?.shiftKey };
@@ -228,10 +229,8 @@ export class Drawing extends DrawStore {
     this.variant[button] = v;
     this.start(button);
   }
-  // the tools row's button of the tool on (Shape › polygon draws with 'polygon', Measure › distance
-  // with 'line'…); Select area is the list's
+  // the bar's button of the tool on (Shape › polygon draws with 'polygon'…)
   get button() { return this.pressed; }
-  get measuring() { return this.pressed === 'measure'; }
 
   // ---- tools -----------------------------------------------------------------------------
   start(tool) {
@@ -239,7 +238,7 @@ export class Drawing extends DrawStore {
     clearTimeout(this.dblZoom); // stop()'s, which would turn it on again after this
     const v = this.variant[tool];
     this.pressed = tool;
-    this.tool = tool === 'shape' && ['polygon', 'sector'].includes(v) ? v : tool === 'measure' ? 'line' : tool;
+    this.tool = tool === 'shape' && ['polygon', 'sector'].includes(v) ? v : tool;
     this.map.doubleClickZoom.disable();
     this.map.getCanvas().style.cursor = 'crosshair';
     this.onChange('tool');
@@ -250,6 +249,7 @@ export class Drawing extends DrawStore {
     this.tool = null;
     this.pressed = null;
     this.draft = null;
+    this.measurement = null;
     this.renderMarks();
     this.map.getCanvas().style.cursor = '';
     this.dblZoom = setTimeout(() => this.map.doubleClickZoom.enable(), 0);
@@ -347,7 +347,7 @@ export class Drawing extends DrawStore {
       // a free end waiting for its point (resolve): made now, once for both ends if they are the same
       const start = d.start?.pending ? attachTo(doc, d.start.pending) : d.start;
       const end = !to?.pending ? to : JSON.stringify(to.pending) === JSON.stringify(d.start?.pending) ? start : attachTo(doc, to.pending);
-      seg = addLine(doc, start, pts, end, this.measuring ? { ...measured(), name: nextName(doc, 'line', 'Distance') } : {});
+      seg = addLine(doc, start, pts, end);
     });
     this.select([seg.id]);
     this.onChange('draft');
@@ -362,7 +362,7 @@ export class Drawing extends DrawStore {
   cancelDraft() { this.draft = null; this.renderMarks(); this.onChange('draft'); }
   // the polygon being drawn, three corners or more, and point on its first corner: a click closes it
   closesPolygon(point) {
-    const pts = this.tool === 'polygon' && this.draft?.pts;
+    const pts = (this.tool === 'polygon' || this.tool === 'measure') && this.draft?.pts;
     if (!pts || pts.length < 3) return false;
     const q = this.map.project(pts[0]);
     return Math.hypot(q.x - point.x, q.y - point.y) <= SNAP_PX;
@@ -383,28 +383,67 @@ export class Drawing extends DrawStore {
     if (!d || d.pts.length < 3) return;
     this.draft = null;
     let g;
-    this.change((doc) => { g = addArea(doc, d.pts, this.measuring ? measured() : {}); });
+    this.change((doc) => { g = addArea(doc, d.pts); });
     this.select([g.id]);
     this.onChange('draft');
   }
-  // the keys' (keyEvents): Enter or a double-click ends the line or polygon being drawn; Esc drops
-  // it, or else ends the tool
-  finish() { if (this.tool === 'line') this.finishLine(); else if (this.tool === 'polygon') this.finishPolygon(); }
+  // Measure (drawing-ui.md §3): a click a point, snapped (the leg's length and the total shown as it
+  // is drawn); Enter or a double-click ends it, a click on its first point closes it (its area and
+  // perimeter). What is measured stays on the map, not in the drawing, until Esc, the next
+  // measurement or the tool's end; Keep makes it a guide showing its values.
+  measureClick(point, e) {
+    if (this.closesPolygon(point)) return this.finishMeasure(true);
+    const p = this.snapFor(point, e, this.lastLeg()).position;
+    if (!this.draft) { this.measurement = null; this.draft = { pts: [] }; }
+    const last = this.draft.pts.at(-1);
+    if (!last || last[0] !== p[0] || last[1] !== p[1]) this.draft.pts.push(p);
+    this.renderMarks();
+    this.onChange('draft');
+  }
+  finishMeasure(closed = false) {
+    const pts = this.draft?.pts ?? [];
+    if (pts.length < (closed ? 3 : 2)) return;
+    this.draft = null;
+    this.measurement = { pts, closed };
+    this.renderMarks();
+    this.onChange('measured');
+  }
+  // what was measured: { closed, length (a closed one's: its perimeter), legs, area }, or null
+  measured() {
+    const m = this.measurement;
+    if (!m) return null;
+    const ring = m.closed ? pathOf(m.pts, true) : m.pts;
+    return { closed: m.closed, length: ring.slice(1).reduce((t, q, i) => t + inverse(ring[i], q).s, 0), legs: ring.length - 1, area: m.closed ? areaOf(ring) : null };
+  }
+  keepMeasurement() {
+    const m = this.measurement;
+    if (!m) return;
+    let el;
+    this.change((doc) => { el = m.closed ? addArea(doc, m.pts, guideWithValues()) : addLine(doc, m.pts[0], m.pts.slice(1, -1), m.pts.at(-1), { ...guideWithValues(), name: nextName(doc, 'line', 'Distance') }); });
+    this.clearMeasurement();
+    this.select([el.id]);
+  }
+  clearMeasurement() { this.measurement = null; this.renderMarks(); this.onChange('measured'); }
+  // the keys' (keyEvents): Enter or a double-click ends the line, polygon or measurement being drawn;
+  // Esc drops it, or else what was measured, or else ends the tool
+  finish() { if (this.tool === 'line') this.finishLine(); else if (this.tool === 'polygon') this.finishPolygon(); else if (this.tool === 'measure') this.finishMeasure(); }
   escape() {
     if (this.tool === 'sector' && this.draft?.pts.length) return this.undoPoint(); // one click back
-    if (this.draft && (this.draft.start || this.draft.pts.length)) this.cancelDraft(); else this.stop();
+    if (this.draft && (this.draft.start || this.draft.pts.length)) this.cancelDraft();
+    else if (this.measurement) this.clearMeasurement();
+    else this.stop();
   }
-  finishesOnDoubleClick() { return this.tool === 'line' || this.tool === 'polygon'; }
-  // Shape (and Measure › ring), in two clicks: the centre; then the size, the pointer showing it (a
+  finishesOnDoubleClick() { return ['line', 'polygon', 'measure'].includes(this.tool); }
+  // Shape, in two clicks: the centre; then the size, the pointer showing it (a
   // circle's radius, an outline's front); a rectangle or an ellipse (place.js BOX) corner to corner
   // instead (Shift: a square, a circle). A second click on the first: the default size, centred there.
   // Facing north always (the bearing is set afterwards); a preset of the user's, which has its size, in
   // one click.
-  boxing() { return !this.measuring && BOX.has(this.variant.shape); }
+  boxing() { return BOX.has(this.variant.shape); }
   shapeClick(point, e) {
     if (!this.draft) {
       this.draft = { pts: [this.snapFor(point, e).position] };
-      if (!this.measuring && this.variant.shape?.startsWith('preset:')) return this.finishShape(null); // a preset of the user's has its size: one click
+      if (this.variant.shape?.startsWith('preset:')) return this.finishShape(null); // a preset of the user's has its size: one click
       this.renderMarks();
       return this.onChange('draft');
     }
@@ -429,8 +468,7 @@ export class Drawing extends DrawStore {
     this.draft = null;
     let el;
     this.change((doc) => {
-      el = this.measuring ? addPoint(doc, c, { ...measured(), name: nextName(doc, 'point', 'Ring'), symbol: 'none', parts: [makePart('circle', { radius: Math.round((d || 1000) * 1000) / 1000 })] })
-        : placeKind(doc, c, this.variant.shape, this.presets, d);
+      el = placeKind(doc, c, this.variant.shape, this.presets, d);
     });
     this.select([el.id]);
     this.onChange('draft');
@@ -445,8 +483,7 @@ export class Drawing extends DrawStore {
       setLook(el, 'text.values', true);
       return { doc, el, centre: el.position, to: q };
     }
-    const el = this.measuring ? addPoint(doc, d.pts[0], { symbol: 'none', parts: [makePart('circle', { radius: g.s || 1 })] })
-      : placeKind(doc, d.pts[0], this.variant.shape, this.presets, g.s);
+    const el = placeKind(doc, d.pts[0], this.variant.shape, this.presets, g.s);
     setLook(el, 'text.values', true);
     return { doc, el, centre: d.pts[0], to: q };
   }
@@ -483,6 +520,12 @@ export class Drawing extends DrawStore {
     const pts = [...d.pts, ...(this.cursor ? [this.cursor.p] : [])];
     return { pts };
   }
+  // the measurement being drawn, to the cursor, or the one made: { pts, closed }, or null
+  draftMeasure() {
+    if (this.tool !== 'measure') return null;
+    if (this.draft) return { pts: [...this.draft.pts, ...(this.cursor ? [this.cursor.p] : [])], closed: false };
+    return this.measurement ?? null;
+  }
   // the line being drawn, to the cursor: its points
   draftLine() {
     const d = this.draft;
@@ -513,6 +556,9 @@ export class Drawing extends DrawStore {
     const poly = this.draftPolygon();
     if (poly) return [{ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: poly.pts.length > 2 ? pathOf(poly.pts, true) : poly.pts } },
       ...this.draft.pts.map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
+    const m = this.draftMeasure();
+    if (m) return [{ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: m.closed ? pathOf(m.pts, true) : m.pts } },
+      ...(this.draft?.pts ?? m.pts).map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
     if (this.tool !== 'line') return [];
     const l = this.draftLine(), f = [];
     if (!l) return f;
@@ -532,16 +578,17 @@ export class Drawing extends DrawStore {
       return valueFeatures({ ...this.doc, points: [], lines: [], areas: [], [KIND[dragged.kind].list]: [shows(dragged.el)] }, u, b); // it alone
     }
     if (sh) return valueFeatures(sh.doc, u, b);
-    const poly = this.draftPolygon();
+    const poly = this.draftPolygon() ?? this.draftMeasure();
     if (poly && poly.pts.length > 1) {
-      const doc = emptyDoc(0);
-      if (poly.pts.length > 2) addArea(doc, poly.pts, measured()); else addLine(doc, poly.pts[0], [], poly.pts[1], { ...measured(), id: DRAFT_ID });
+      const doc = emptyDoc(0), ps = poly.pts;
+      if (ps.length > 2 && poly.closed !== false) addArea(doc, ps, guideWithValues());
+      else addLine(doc, ps[0], ps.slice(1, -1), ps.at(-1), { ...guideWithValues(), id: DRAFT_ID });
       return valueFeatures(doc, u, b);
     }
     const l = this.tool === 'line' && this.draftLine();
     if (!l || l.pts.length < 2) return [];
     const doc = emptyDoc(0);
-    addLine(doc, l.pts[0], l.pts.slice(1, -1), l.pts.at(-1), { ...measured(), id: DRAFT_ID });
+    addLine(doc, l.pts[0], l.pts.slice(1, -1), l.pts.at(-1), { ...guideWithValues(), id: DRAFT_ID });
     return valueFeatures(doc, u, b);
   }
 
@@ -800,5 +847,5 @@ export class Drawing extends DrawStore {
 }
 
 const ALL_PARTS = { base: true, zoom: true, marks: true }, MARKS_ONLY = { marks: true };
-const measured = () => ({ guide: true, look: { text: { values: true } } }); // what Measure's tools make: guides showing their values
+const guideWithValues = () => ({ guide: true, look: { text: { values: true } } }); // what Measure's Keep makes; how what is drawn shows its values
 
