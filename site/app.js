@@ -91,24 +91,16 @@ function writeHash() {
   clearTimeout(hashTimer);
   if (ready) hashTimer = setTimeout(writeHashNow, 250);
 }
+// the address: the view as a drawing's file has it (viewOf, written by viewToAddress: one grammar), the
+// time and the depth only while a layer uses them; then the page's own, the groups open in Layers and
+// whether Layers is the left panel's tab
 function writeHashNow() {
   clearTimeout(hashTimer);
   if (!ready) return;
-  const c = map.getCenter();
   const q = new URLSearchParams();
-  q.set('v', [map.getZoom().toFixed(2), c.lat.toFixed(5), c.lng.toFixed(5), Math.round(map.getBearing())].join('/'));
-  q.set('on', [...state.on].filter((id) => byId[id].group !== 'data').join(','));
-  for (const [slot, key] of [['colour', 'col'], ['arrows', 'arr']]) if (state[slot]) q.set(key, state[slot]);
-  const variants = Object.entries(state.variant).filter(([k, v]) => byId[k].group !== 'data' && v !== Object.keys(byId[k].variants)[0]);
-  if (variants.length) q.set('var', variants.map((kv) => kv.join(':')).join(','));
-  const ops = Object.entries(state.opacity).filter(([k, v]) => v !== byId[k].opacity);
-  if (ops.length) q.set('op', ops.map(([k, v]) => `${k}:${v}`).join(','));
-  if (timeOn().length) q.set('t', new Date(state.time).toISOString().slice(0, 13));
-  if (depthOn().length && state.depth) q.set('dz', state.depth);
-  const per = Object.entries(state.period).filter(([id, v]) => state.on.has(id) && v !== DENSITY[id].defaultPeriod);
-  if (per.length) q.set('per', per.map((kv) => kv.join(':')).join(','));
-  if (display.units !== 'km') q.set('u', display.units);
-  if (display.bearings) q.set('brg', '1');
+  viewToAddress(viewOf(), q);
+  if (!timeOn().length) q.delete('t');
+  if (!depthOn().length) q.delete('dz');
   q.set('g', [...state.open].join(','));
   q.set('menu', frame.tab === 'layers' ? '1' : '0');
   drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
@@ -305,7 +297,9 @@ function viewToAddress(v, q) {
   q.set('v', [(v.zoom ?? map.getZoom()).toFixed(2), c[1].toFixed(5), c[0].toFixed(5), Math.round(v.bearing > 180 ? v.bearing - 360 : v.bearing)].join('/'));
   if (v.layers) {
     q.set('on', v.layers.map((l) => l.id).join(','));
-    const kv = (key) => v.layers.filter((l) => l[key] !== undefined).map((l) => `${l.id}:${l[key]}`).join(',');
+    // what differs from the layer's default only (a file's layer lacking one: its default)
+    const dflt = { variant: (l) => (byId[l.id]?.variants ? Object.keys(byId[l.id].variants)[0] : undefined), opacity: (l) => byId[l.id]?.opacity, period: (l) => DENSITY[l.id]?.defaultPeriod };
+    const kv = (key) => v.layers.filter((l) => l[key] !== undefined && l[key] !== dflt[key](l)).map((l) => `${l.id}:${l[key]}`).join(',');
     for (const [key, p] of [['variant', 'var'], ['opacity', 'op'], ['period', 'per']]) { const s = kv(key); if (s) q.set(p, s); else q.delete(p); }
   }
   if (v.data) {
