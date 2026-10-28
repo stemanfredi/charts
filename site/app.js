@@ -1294,8 +1294,13 @@ map.on('moveend', writeHash);
 let moveRaf = 0; // once per frame while moving: the graticule's edge labels follow the frame, the scale note and units the view
 map.on('move', () => { cancelAnimationFrame(moveRaf); moveRaf = requestAnimationFrame(() => { updateGraticule(); scaleNote(); scaleUnits(); }); });
 map.on('zoomend', renderZoom);
-map.on('dataloading', () => document.body.classList.add('loading'));
-map.on('idle', () => document.body.classList.remove('loading'));
+// the Layers tab's spinner: the map's layers loading for longer than a moment (the sources set here,
+// the drawing's, the graticule, my location, as the pointer or the map moves, load nothing: they
+// blinked it)
+let loadingSoon = 0;
+const setHere = (id) => !id || id.startsWith('draw') || id === 'graticule' || id === 'mylocation';
+map.on('dataloading', (e) => { if (!setHere(e.sourceId) && !loadingSoon) loadingSoon = setTimeout(() => document.body.classList.add('loading'), 400); });
+map.on('idle', () => { clearTimeout(loadingSoon); loadingSoon = 0; document.body.classList.remove('loading'); });
 window.addEventListener('hashchange', () => location.reload());
 window.map = map; // the browser tests drive the map through it; handy from the console too
 window.drawing = drawing; // likewise the drawing

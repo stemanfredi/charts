@@ -585,6 +585,19 @@ await section('the drawing', async () => {
   d = await saved();
   const allAgain = await isAll();
   check(wasAll && hidden === false && (pt0().visible ?? true) === true && allAgain, 'drawing: the list\'s eye hides all, then shows all');
+  // the Layers tab's spinner: the drawing's own sources, set as the hover moves, never switch it on
+  const blinks = await dw.evaluate(async () => {
+    let n = 0;
+    const o = new MutationObserver(() => { if (document.body.classList.contains('loading')) n++; });
+    o.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    for (const x of [...drawing.doc.points, ...drawing.doc.lines, ...drawing.doc.points]) { drawing.setHover(x.id); await new Promise((r) => setTimeout(r, 120)); }
+    drawing.setHover(null);
+    await new Promise((r) => setTimeout(r, 500));
+    o.disconnect();
+    return n;
+  });
+  const spinBox = await dw.evaluate(() => { document.body.classList.add('loading'); const r = document.querySelector('.tabs .spin').getBoundingClientRect(); document.body.classList.remove('loading'); return `${r.width}×${r.height}`; });
+  check(blinks === 0 && spinBox === '12×12', `the Layers tab's spinner stays off while the hover moves over the drawing (${blinks}); shown, a 12 px ring (${spinBox})`);
   const [dex] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportDrawing(); })()]);
   const savedFile = JSON.parse(await readFile(await dex.path(), 'utf8'));
   const ruler = measuredOf(savedFile).find((f) => f.geometry.type === 'LineString' && f.geometry.coordinates[0][0] === 12);
