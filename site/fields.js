@@ -26,8 +26,12 @@ export function fields({ note, units }) {
   // the arrows step it, each step applied
   function field(show, read, apply, { bad, nudge, ...attrs } = {}) {
     const input = h('input', { value: show(), spellcheck: 'false', ...attrs });
-    const shown = input.value, title = input.title;
+    let shown = input.value; // what Esc puts back
+    const title = input.title;
     let applied = shown; // what it applied last: the same text again (Enter, then the blur that follows) is not applied twice
+    // morph (dom.js): typed in and not applied yet; or the text it shows now
+    input.edited = () => input.value !== applied;
+    input.reset = (t) => { shown = applied = input.value = t; ok(); };
     const ok = () => { input.classList.remove('bad'); input.removeAttribute('aria-invalid'); input.title = title; };
     input.addEventListener('change', () => {
       if (input.value === applied) return;

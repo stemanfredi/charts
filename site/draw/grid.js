@@ -60,7 +60,7 @@ export function listGrid({ name, columns, rows, add = null, actions = () => null
     body.append(tr);
   });
   if (add) body.append(h('tr', { 'data-r': rows.length, class: 'ladd' }, ...add.map((kids, k) => cell('td', k, kids))));
-  const table = h('table', { class: 'lgrid', 'data-grid': name },
+  const table = h('table', { class: 'lgrid', 'data-grid': name, 'data-rows': rows.length }, // its rows another number: a table of its own (morph)
     h('colgroup', {}, ...columns.map((c) => h('col', { width: c.width }))),
     h('thead', {}, h('tr', {}, ...columns.map((c, k) => cell('th', k, c.head ?? '', c.title ? { title: c.title } : {})))),
     body);

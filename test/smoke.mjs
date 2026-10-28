@@ -1008,6 +1008,27 @@ await section('the drawing', async () => {
   check(pageOne[0] === 100 && pageOne[1] === '1–100 of 502' && pageTwo[0] === '101–200 of 502' && pageTwo[1] && Date.now() - t0 < 5000,
     `drawing: a long line's vertices a page at a time (${pageOne}; ${pageTwo}; ${Date.now() - t0} ms)`);
   await dw.evaluate((id) => drawing.remove([id]), longId);
+  // Properties updated in place (dom.js morph): Tab, or a click into another field, from a field just
+  // applied lands there; the same in a list
+  const fl = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.3], [[12.05, 40.32]], [12.1, 40.3]); }); drawing.select([l.id]); return l.id; });
+  const focused = () => dw.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+  await dw.click('.dinspect input[aria-label="Name"]');
+  await dw.keyboard.type('Q');
+  await dw.keyboard.press('Tab');
+  const afterTab = await focused();
+  await dw.click('.dinspect input[aria-label="Name"]');
+  await dw.keyboard.type('R');
+  await dw.click('.dinspect input[aria-label="Offset (px)"]');
+  await dw.keyboard.type('2');
+  await dw.keyboard.press('Enter');
+  const clicked = await dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).look.offset, fl);
+  await dw.click('.dinspect input[aria-label="Vertex 1 latitude"]');
+  await dw.keyboard.press('Control+A');
+  await dw.keyboard.type('40.33');
+  await dw.keyboard.press('Tab');
+  const inList = await focused();
+  check(afterTab === 'Group' && clicked === 2 && inList === 'Vertex 1 longitude', `Properties in place: Tab from a field applied (${afterTab}), a click into the next (Offset ${clicked}), Tab in a list (${inList})`);
+  await dw.evaluate((id) => drawing.remove([id]), fl);
   check(!dw.errors.length, `drawing: no errors ${dw.errors.join(' | ')}`);
   await dw.close();
 });

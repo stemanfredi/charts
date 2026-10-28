@@ -3,7 +3,7 @@
 // selected, the drawing itself) and edits it with fields. Fields apply on Enter or when they lose
 // focus, one undo step each.
 
-import { h, svg, typing } from '../dom.js';
+import { h, svg, typing, morph } from '../dom.js';
 import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
 import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
@@ -421,6 +421,7 @@ export function drawView(root, ctx) {
   const profiles = new Map(); // line id → { key (its trace), prof (null while being read), failed }
   const profileShown = new Set();
   let profileCursor = null; // (d: metres along, or null) → the chart's cursor there
+  let profileBuilt = 0;
   const W = 360, H = 110;
   // depths as said: metres below the surface, positive
   const fmtDepth = (z) => (z >= -1 ? 'under 1 m' : `${Math.floor(-z)} m`);
@@ -465,7 +466,7 @@ export function drawView(root, ctx) {
     };
     chart.addEventListener('pointermove', (e) => { const r = chart.getBoundingClientRect(); profileCursor(((e.clientX - r.left) / r.width) * length); });
     chart.addEventListener('pointerleave', () => profileCursor(null));
-    return h('div', { class: 'fblock' }, h('h3', {}, 'Profile', close),
+    return h('div', { class: 'fblock', 'data-key': `profile ${++profileBuilt}` }, h('h3', {}, 'Profile', close), // profileCursor is this one's: never kept by morph
       row('Depth', h('span', { class: 'fvalue' }, `${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}`), at),
       chart,
       row('Seabed', h('span', { class: 'fvalue', title: 'Each step\'s length counting the change in depth: a lower bound, as relief finer than the depth grid (about 460 m) is not in it' },
@@ -864,17 +865,24 @@ export function drawView(root, ctx) {
       h('table', { class: 'vtable totals' }, h('tbody', {}, rows)),
       h('p', { class: 'note' }, `Guides and measurements are left out; lines running together each count${hidden ? '; hidden ones are counted' : ''}.`));
   }
+  // Built again on each change, and put in place of what it shows (dom.js morph): what stays the same
+  // stays, with its focus, caret and scroll, so Tab and a click from a field just applied land where
+  // they go. Something else shown (another selection, a form): built anew.
+  let shows = null;
   function renderInspector() {
-    // a field being edited is applied first, to the element it belongs to
-    if (inspector.contains(document.activeElement)) document.activeElement.blur();
     placesRead.clear();
     const xs = drawing.selected();
     if (form && selKey() !== form.sel) closeForm();
+    const what = `${form ? `${form.kind}:${form.sel}` : ''}|${selKey()}`;
+    // a field being edited, when something else is to be shown, is applied first, to the element it belongs to
+    if (what !== shows && inspector.contains(document.activeElement)) document.activeElement.blur();
     const kids = form ? (form.kind === 'distribute' ? distributionForm() : connectForm()) : !xs.length ? drawingInspector()
       : xs.length > 1 ? severalInspector(xs)
         : { point: pointInspector, area: areaInspector, line: lineInspector, group: groupInspector, label: labelInspector }[xs[0].kind](xs[0].el.id);
     const top = inspector.scrollTop;
-    inspector.replaceChildren(...kids.flat().filter(Boolean));
+    if (what === shows) morph(inspector, h('div', {}, kids.flat().filter(Boolean)));
+    else inspector.replaceChildren(...kids.flat().filter(Boolean));
+    shows = what;
     inspector.scrollTop = top;
     renderHead(xs);
     tree.markDrawing(showDrawing && !xs.length);
@@ -946,6 +954,7 @@ export function drawView(root, ctx) {
       if (what === 'tool') return renderTools();
       if (what === 'draft') return tools.renderTouch();
       if (what === 'measured') return tools.renderMeasure();
+      if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
         note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the box');

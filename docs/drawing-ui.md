@@ -131,7 +131,9 @@ two points, **Connect…**), a group, or the drawing (title, description, author
 drawing's look; **Totals** by group or by a property, Copy). A field applies on Enter or when left,
 one undo step; a value that does not read stays marked and is not applied; Esc puts it back. ↑ ↓
 nudge a number by its last digit (Shift: ten). Distances show to the decimetre (m), the metre (km) or
-about 2 m (NM); what is typed is kept as typed.
+about 2 m (NM); what is typed is kept as typed. Properties is updated in place as the drawing changes
+(a field being typed in keeps its text and the focus; Tab and a click go where they go), and
+follows a drag on the map as it moves.
 
 - **Rows**: a label, one value or a pair (latitude · longitude, colour · opacity), and a last column
   for an action (detach, attach, ↺); actions of a value are buttons in a row under it.
