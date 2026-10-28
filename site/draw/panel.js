@@ -143,20 +143,16 @@ export function drawView(root, ctx) {
     const num = (f, aria, lo, hi) => F.number(() => same(f), (v) => put(f, v), aria, { min: lo, max: hi, placeholder: 'mixed', bad: `a number from ${lo} to ${hi}` });
     const tick = (f, text, title) => row(text, check('', same(f), (v) => put(f, v), { 'aria-label': text, title }), back(f));
     const dashSelect = () => select('Dash', DASHES.map((d) => [d, d]), dash, (v) => put('stroke.dash', v));
-    // Fill and Stroke: a small matrix when both are there (the same columns, two rows); a line's stroke
-    // alone: two rows of pairs (§2: no one-row matrix)
-    const both = shown('fill.color') && shown('stroke.color');
+    // Fill and Stroke: a small matrix, the same columns for both (a line: its Stroke row alone)
     const matrix = () => h('table', { class: 'lmatrix' },
       h('thead', {}, h('tr', {}, h('th'), h('th', {}, 'Colour'), h('th', {}, 'Opacity'), h('th', {}, 'Width'), h('th', {}, 'Dash'), h('th'))),
       h('tbody', {},
-        h('tr', {}, h('th', {}, 'Fill'), h('td', {}, ...colour('fill.color', 'Fill colour')), h('td', {}, num('fill.opacity', 'Fill opacity', 0, 1)), h('td'), h('td'), h('td', {}, back('fill.color', 'fill.opacity'))),
+        shown('fill.color') ? h('tr', {}, h('th', {}, 'Fill'), h('td', {}, ...colour('fill.color', 'Fill colour')), h('td', {}, num('fill.opacity', 'Fill opacity', 0, 1)), h('td'), h('td'), h('td', {}, back('fill.color', 'fill.opacity'))) : null,
         h('tr', {}, h('th', {}, 'Stroke'), h('td', {}, ...colour('stroke.color', 'Stroke colour')), h('td', {}, num('stroke.opacity', 'Stroke opacity', 0, 1)),
           h('td', {}, num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH)), h('td', {}, dashSelect()), h('td', {}, back('stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash')))));
     const dash = same('stroke.dash');
     return h('div', { class: 'fblock' }, h('h3', {}, title),
-      both ? matrix() : null,
-      !both && shown('stroke.color') ? row('Stroke', pair(colour('stroke.color', 'Stroke colour'), '·', num('stroke.opacity', 'Stroke opacity', 0, 1)), back('stroke.color', 'stroke.opacity')) : null,
-      !both && shown('stroke.width') ? row('Width', pair([num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH), h('span', { class: 'funit' }, 'px')], '·', dashSelect()), back('stroke.width', 'stroke.dash')) : null,
+      shown('stroke.color') ? matrix() : null,
       shown('text.size') ? row('Text size', segOf('Text size', [['small', 'S', 'Small'], ['medium', 'M', 'Medium'], ['large', 'L', 'Large']], same('text.size'), (v) => put('text.size', v)), back('text.size')) : null,
       shown('text.color') ? row('Text colour', pair(colour('text.color', 'Text colour'), 'on',
         segOf('Background', [['halo', 'Halo', 'A white halo round the letters'], ['box', 'Box', 'A white box with a border in the text\'s colour']], same('text.background'), (v) => put('text.background', v))),
