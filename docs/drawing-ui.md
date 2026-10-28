@@ -59,6 +59,9 @@ are fitted to the part of the map the bar and the panels leave free.
 A button pressed (a tool, a kind, a choice) is blue; a panel's toggle shown, pale blue; magenta is
 the map's (measurements, the search's pin).
 
+**Sizes**: with a mouse the bar is 35 px with 28 px buttons, the panels' rows 24 px and their heads
+30 px; with a finger every target is 44 px. Text comes in five sizes: 11, 12, 13, 14 and 16 px.
+
 **With a finger** (any screen): a row of buttons over the map's foot, at its left, **Done** (a line or
 polygon being drawn), **Back** (what is half drawn, else the tool, else the selection), **Delete** and
 **Duplicate** (with a selection), **Snap** (while a tool is on; off places exactly where tapped, as
@@ -217,7 +220,7 @@ lengths, area and perimeter, or radii on the map); **Offset** (lines; §7);
 screen). A field shows what
 they are drawn with; where several differ it says "mixed", and a change writes only that field.
 
-**Rows**: a property grid, ruled across the panel, 28 px with a mouse (44 with a finger): each a
+**Rows**: a property grid, ruled across the panel, 24 px with a mouse (44 with a finger): each a
 label, one value or a pair read as one (latitude · longitude, colour · opacity, start · end…), and a
 last column for × or ↺; a row never wraps. A field shows no box until it is pointed at or typed in;
 lists are tables of the same cells. A list longer than 100 rows shows them a page at a time (‹ rows

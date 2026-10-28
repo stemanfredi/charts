@@ -4,7 +4,7 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
-  --bar-h: 37px;        /* the bar across the top (its edge inside it) */
+  --bar-h: 35px;        /* the bar across the top (its edge inside it) */
   --lw: 260px; --rw: 320px; --sheet-h: 52vh; /* the panels' widths, a phone's sheet's height: frame.js */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
@@ -44,15 +44,15 @@ svg { flex: none; }
 .side, .props { position: absolute; z-index: 8; top: var(--bar-h); bottom: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
 .side { left: 0; width: var(--lw); border-right: 1px solid var(--line); }
 .props { right: 0; width: var(--rw); border-left: 1px solid var(--line); }
-@media (pointer: fine) { .side, .props { --row: 28px; } }
+@media (pointer: fine) { .side, .props { --row: 24px; } } /* dense rows with a mouse (a grid of cells), 44 with a finger */
 .side > .dview, .side > #menu { flex: 1 1 auto; min-height: 0; }
 .edge { position: absolute; z-index: 3; top: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
 .edge.left { right: -4px; } .edge.right { left: -4px; }
 .edge:hover, .edge:active { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px 5px, transparent 5px); }
 .grip { display: none; }
-.tabs { flex: none; display: flex; min-height: 36px; border-bottom: 1px solid var(--line); }
+.tabs { flex: none; display: flex; min-height: 30px; border-bottom: 1px solid var(--line); }
 @media (pointer: coarse) { .tabs { min-height: 45px; } } /* 44 px tabs above the border */
-.tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; font: 600 12.5px/1 var(--font); color: var(--soft); }
+.tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; font: 600 12px/1 var(--font); color: var(--soft); }
 .tabs button:hover { color: var(--ink); }
 .tabs button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
 @media (min-width: 720px) { /* beside the panels: the map's controls, its bottom row, find a place, the legends */
@@ -83,7 +83,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 /* a group's heading: a band, as the inspector's */
 #menu summary {
   display: flex; align-items: center; gap: 8px; min-height: var(--row); padding: 0 8px 0 12px; cursor: pointer; user-select: none; background: var(--bg2); border-bottom: 1px solid var(--line2);
-  font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); list-style: none;
+  font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); list-style: none;
 }
 #menu summary::-webkit-details-marker { display: none; }
 #menu summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; }
@@ -155,7 +155,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .chip .chipname { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; min-height: var(--row); padding: 0 2px 0 8px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip .chipname svg { width: 14px; height: 14px; color: var(--accent); flex: none; }
 .chip .x { width: var(--row); height: var(--row); font-size: 16px; }
-.note { margin: 2px 4px; font-size: 11.5px; color: var(--soft); }
+.note { margin: 2px 4px; font-size: 11px; color: var(--soft); }
 
 /* ---- the drawing: its tree (the left panel's Elements), its inspector (the right panel) ---- */
 .dview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; }
@@ -188,8 +188,8 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect > :not(.vrow, h3, .lgridbox, .lmatrix, .fblock) { margin-left: 12px; margin-right: 12px; }
 .dinspect > :is(.frow:not(.vrow), .note, .fbuttons) { padding: 4px 0; }
 .dinspect > * { flex-shrink: 0; } /* a row as tall as what it holds, the inspector scrolling */
-.dinspect h2 { font-size: 13.5px; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dinspect h3 { display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0; min-height: var(--row); padding: 0 8px 0 12px; background: var(--bg2); border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
+.dinspect h2 { font-size: 13px; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dinspect h3 { display: flex; align-items: center; justify-content: space-between; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0; min-height: var(--row); padding: 0 8px 0 12px; background: var(--bg2); border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
 .dinspect h3 .hbtns { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; }
 /* a heading that folds its section: the word and its arrow, one target */
 .dinspect h3 .hfold { display: flex; align-items: center; gap: 6px; min-height: var(--row); min-width: var(--row); border: 0; background: none; padding: 0 8px 0 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
@@ -236,7 +236,7 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .vcell > .fcheck, .vpair > .fcheck { flex: none; min-width: var(--row); justify-content: center; padding: 0; } /* a box alone: a whole target */
 /* the look's Fill and Stroke, a small matrix of the same columns */
 .lmatrix { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
-.lmatrix th { font-weight: 400; color: var(--soft); text-align: left; font-size: 10.5px; padding: 0 6px; }
+.lmatrix th { font-weight: 400; color: var(--soft); text-align: left; font-size: 11px; padding: 0 6px; }
 .lmatrix :is(th, td) { border-bottom: 1px solid var(--line2); border-right: 1px solid var(--line2); height: var(--row); }
 .lmatrix :is(th, td):last-child { border-right: 0; }
 .lmatrix thead th { background: var(--bg2); height: 24px; }
@@ -266,14 +266,14 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .fvalue { font-family: var(--mono); font-size: 12px; }
 button.small.link { border-color: transparent; background: none; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.small.link:hover { border-color: var(--line); }
-.fcheck.small { font-size: 11.5px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
+.fcheck.small { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
 /* the drawing's totals: sections (Lines, Areas, Points), a group's row with its lines under it,
    a connection's lines summed by what they are, each section's total */
 .vtable { width: 100%; border-collapse: collapse; font-size: 12px; }
 .vtable td { padding: 1px 2px; vertical-align: middle; }
 .vtable.totals td { padding: 3px 4px; border-top: 1px solid var(--line2); }
 .vtable.totals td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.vtable.totals tr.sec td { border-top: 0; padding-top: 10px; padding-bottom: 1px; font-size: 10.5px; color: var(--soft); text-transform: uppercase; letter-spacing: .04em; }
+.vtable.totals tr.sec td { border-top: 0; padding-top: 10px; padding-bottom: 1px; font-size: 11px; color: var(--soft); text-transform: uppercase; letter-spacing: .04em; }
 .vtable.totals tr.sec:first-child td { padding-top: 2px; }
 .vtable.totals tr.grp td { font-weight: 600; }
 .vtable.totals tr.acts { cursor: pointer; }
@@ -292,7 +292,7 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid :is(th, td) { border-bottom: 1px solid var(--line2); border-right: 1px solid var(--line2); }
 .lgrid :is(th, td):last-child { border-right: 0; }
 .lgrid thead th { background: var(--bg2); height: 24px; }
-.lgrid th { font-weight: 400; font-size: 10.5px; color: var(--soft); text-align: left; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lgrid th { font-weight: 400; font-size: 11px; color: var(--soft); text-align: left; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lgrid td { padding: 0; height: var(--row); vertical-align: middle; white-space: nowrap; }
 .lgrid td.num { padding: 0 4px; }
 .lgrid td.num, .lgrid th.num { font-family: var(--mono); font-size: 11px; color: var(--soft); text-align: right; }
@@ -337,11 +337,11 @@ button.small[aria-pressed="true"] { background: var(--accent); border-color: var
 .dinspect .seg svg { width: 16px; height: 16px; }
 /* radii: filled (radio), shown, name, value, own stroke, remove */
 .dnote { position: absolute; z-index: 10; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); bottom: calc(var(--status-h) + 10px); display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  background: var(--ink); color: #fff; border-radius: 8px; padding: 6px 6px 6px 12px; box-shadow: var(--shadow); font-size: 12.5px; }
+  background: var(--ink); color: #fff; border-radius: 8px; padding: 6px 6px 6px 12px; box-shadow: var(--shadow); font-size: 12px; }
 .dnote button { border: 1px solid rgba(255,255,255,.4); background: none; color: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }
 /* what Measure measured (draw/panel.js): its values, Keep, ×; at the map's foot, the note above it */
 .mcard { position: absolute; z-index: 10; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); bottom: calc(var(--status-h) + 10px);
-  display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 12.5px; }
+  display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 12px; }
 .mcard button { min-height: var(--row); padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 .mcard .x { border: 0; width: var(--row); padding: 0; font-size: 18px; }
 body:has(.mcard:not([hidden])) .dnote { bottom: calc(var(--status-h) + 64px); }
@@ -365,13 +365,13 @@ body.finding .search { display: flex; }
 .results { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; max-height: 60vh; overflow-y: auto; }
 .results ul { list-style: none; margin: 0; padding: 0; }
 .results li { min-height: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
-.results li small { color: var(--soft); font-size: 11.5px; }
+.results li small { color: var(--soft); font-size: 11px; }
 .results li[aria-selected="true"], .results li:hover { background: var(--sel); }
 .results li.none { cursor: default; color: var(--soft); background: none; }
 .pin { width: 18px; height: 18px; border-radius: 50%; background: var(--magenta); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 /* the depth at a clicked point */
 .depthpop .maplibregl-popup-content { padding: 8px 26px 8px 10px; font: 13px/1.35 var(--font); color: var(--ink); }
-.depthpop b { display: block; font-size: 15px; }
+.depthpop b { display: block; font-size: 14px; }
 .depthpop small { color: var(--soft); }
 
 
@@ -389,7 +389,7 @@ body.finding .search { display: flex; }
 }
 .status > *, .readout > *, .credits > * { pointer-events: auto; }
 .pos, .scalenote { background: rgba(255,255,255,.85); border-radius: 4px; padding: 1px 6px; }
-.pos { font: 11.5px var(--mono); color: var(--ink); white-space: nowrap; }
+.pos { font: 11px var(--mono); color: var(--ink); white-space: nowrap; }
 .pos:empty { display: none; }
 .scalenote { color: var(--warn); }
 .scalenote:empty { display: none; }
@@ -407,7 +407,7 @@ body.finding .search { display: flex; }
 /* ---- about ---- */
 dialog { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 30px rgba(20,30,40,.25); max-width: min(460px, calc(100vw - 32px)); padding: 16px 20px; color: var(--ink); }
 dialog::backdrop { background: rgba(20,30,40,.35); }
-dialog h2 { margin: 0 0 8px; font-size: 17px; }
+dialog h2 { margin: 0 0 8px; font-size: 16px; }
 dialog h3 { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); }
 dialog .keys { margin: 0; padding-left: 18px; }
 kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg2); }
@@ -443,7 +443,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
    end find a place and Properties' toggle ---- */
 .bar { position: absolute; z-index: 9; left: 0; right: 0; top: 0; height: var(--bar-h); display: flex; align-items: center; gap: 2px; padding: 0 6px 1px;
   background: var(--bg2); box-shadow: inset 0 -1px var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
-.bar > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
+.bar > button { position: relative; width: 28px; height: 28px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
 .bar > button svg { width: 18px; height: 18px; }
 .bar > button:hover { background: var(--line2); }
 .bar > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
@@ -457,7 +457,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 /* a tool's kinds: a row under its button, over the panel while they are picked */
 .subrail { position: absolute; top: calc(100% + 4px); display: flex; gap: 2px; padding: 4px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
-.subrail button { min-width: 32px; min-height: 32px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
+.subrail button { min-width: 28px; min-height: 28px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
 .subrail button:hover { background: var(--line2); }
 .subrail button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .subrail svg { width: 18px; height: 18px; }
@@ -474,8 +474,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
   .grip::after { content: ""; width: 36px; height: 4px; border-radius: 2px; background: #c3ccd3; }
   body:is(.has-left, .has-right) :is(.zoom, .touchbar:not([hidden])) { bottom: calc(var(--sheet-h) + 8px); }
 }
-.dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
-.dinsphead .ititle { flex: 1; min-width: 0; padding: 0 6px; font: 600 13.5px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.dinsphead .ititle { flex: 1; min-width: 0; padding: 0 6px; font: 600 13px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dinsphead .iacts { display: inline-flex; align-items: center; gap: 0; }
 /* the drawings menu (the rail's ☰): the drawings in this browser, + New, the file, the view's outputs, About */
 .dmenu { position: fixed; z-index: 20; width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); --row: 36px; }
