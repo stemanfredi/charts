@@ -192,13 +192,15 @@ const PART_ORDER = ['trunk', 'branch', 'root link', 'link'];
 //   { lines: { rows: [{ key, lines: [{ id, length }], parts: [{ part, count, length }], count, length, hidden }],
 //              count, length, hidden }, areas: { rows: [{ id, area, perimeter }], count, area, perimeter, hidden },
 //     points: { count, hidden, kinds: Map kind → count (by a property: its value → count) } }
-export function breakdown(doc, by = null) {
+// only: a Set of the ids to count (a group's members), else all of them
+export function breakdown(doc, by = null, only = null) {
+  const counted = (el) => !el.guide && (!only || only.has(el.id)); // only: the ids counted (a group's members), else all
   const keyOf = (el) => (by ? el.properties.find((p) => p.key === by)?.value ?? '' : groupsOf(doc, el)[0]?.id ?? '');
   const made = madeLines(doc), rows = new Map();
   const rowOf = (key) => { if (!rows.has(key)) rows.set(key, { key, lines: [], parts: new Map(), count: 0, length: 0, hidden: false }); return rows.get(key); };
   const lines = { count: 0, length: 0, hidden: false };
   for (const s of doc.lines) {
-    if (s.guide) continue;
+    if (!counted(s)) continue;
     const len = lineTrace(doc, s).length, r = rowOf(keyOf(s)), m = made.get(s.id);
     if (m) { const p = r.parts.get(m.part) || { part: m.part, count: 0, length: 0 }; p.count++; p.length += len; r.parts.set(m.part, p); } else r.lines.push({ id: s.id, length: len });
     r.count++; r.length += len; lines.count++; lines.length += len;
@@ -206,7 +208,7 @@ export function breakdown(doc, by = null) {
   }
   const areas = { rows: [], count: 0, area: 0, perimeter: 0, hidden: false };
   for (const g of doc.areas) {
-    if (g.guide) continue;
+    if (!counted(g)) continue;
     const area = areaOf(pathOf(g.points, true)), perimeter = perimeterOf(g.points);
     areas.rows.push({ id: g.id, area, perimeter });
     areas.count++; areas.area += area; areas.perimeter += perimeter;
@@ -214,7 +216,7 @@ export function breakdown(doc, by = null) {
   }
   const points = { count: 0, hidden: false, kinds: new Map() }; // kinds: by kind, or by the property's values
   for (const p of doc.points) {
-    if (p.guide) continue;
+    if (!counted(p)) continue;
     const k = by ? keyOf(p) : pointKind(p);
     points.kinds.set(k, (points.kinds.get(k) || 0) + 1);
     points.count++;

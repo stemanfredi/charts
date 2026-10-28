@@ -178,6 +178,10 @@ follows a drag on the map as it moves.
   an area's or outline's corner or edge, as the tables number them), or its **Position**; **Along**, on
   a line; **Text offset**, where its text was dragged to (↺: back); **Leader**, when attached. Look:
   text size, colour, background (halo or box).
+- A **group**: **In group** (the group it is in, as every element's), **Members** as the tree counts
+  them (everything in it, its subgroups' too) and its subgroups, with an eye for all of them;
+  **Select members**; **Totals** as the drawing's, its members only, by subgroup (Copy); **Look ·
+  sets each member** (a group has no look of its own).
 - **Guide** (points, lines, areas): faint and dashed, left out of the totals.
 
 ## 6. Distribute along and Connect: rules

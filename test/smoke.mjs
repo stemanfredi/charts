@@ -733,6 +733,12 @@ await section('the drawing', async () => {
   }, top);
   check(nested?.members === 2 && nested.selected && /\bd1\b/.test(nested.row) && /\bd2\b/.test(nested.member),
     `drawing: a group of a group's members is a subgroup of it, indented further (${JSON.stringify(nested)})`);
+  // the group above in Properties: its members counted as the tree does, its totals as a table
+  await dw.evaluate((t) => drawing.select([t]), top);
+  const gprops = await dw.evaluate((t) => [document.querySelector('.dinspect .frow:has(.flabel) .fvalue')?.textContent ?? '', document.querySelector(`.dlist [data-id="${t}"] .val`)?.textContent ?? '',
+    !!document.querySelector('.dinspect .vtable.totals'), [...document.querySelectorAll('.dinspect h3')].map((x) => x.textContent).join()], top);
+  check(gprops[0].split(' ')[0] === gprops[1].split(' ')[0] && / · 1 subgroup$/.test(gprops[0]) && gprops[2] && /Look · sets each member/.test(gprops[3]),
+    `group: its members as the tree counts them, and its subgroups (${gprops[0]}; tree ${gprops[1]}); its totals a table; its Look said to set each member (${gprops[3]})`);
   await dw.evaluate((id) => drawing.remove([id]), nested?.id);
   check(await dw.evaluate((t) => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === t), top), 'drawing: a subgroup deleted alone: its lines back in the group above');
   const [dnet] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportDrawing(); })()]);
@@ -1098,7 +1104,7 @@ await section('the drawing', async () => {
   await dw.keyboard.type('40.33');
   await dw.keyboard.press('Tab');
   const inList = await focused();
-  check(afterTab === 'Group' && clicked === 2 && inList === 'Point 2 longitude', `Properties in place: Tab from a field applied (${afterTab}), a click into the next (Offset ${clicked}), Tab in a list (${inList})`);
+  check(afterTab === 'In group' && clicked === 2 && inList === 'Point 2 longitude', `Properties in place: Tab from a field applied (${afterTab}), a click into the next (Offset ${clicked}), Tab in a list (${inList})`);
   await dw.evaluate((id) => drawing.remove([id]), fl);
   check(!dw.errors.length, `drawing: no errors ${dw.errors.join(' | ')}`);
   await dw.close();

@@ -25,7 +25,7 @@ import { listGrid, setCurrent, currentOf } from './grid.js';
 import { fmtArea, fmtBrg, fmtDist, rowsText, plural } from '../format.js';
 import { drawingsMenu } from './files.js';
 import { createTools } from './tools.js';
-import { createTree, countOf, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
+import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
 import { KIND_ICON, UI_ICON } from './icons.js';
 
 // what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
@@ -168,7 +168,7 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     const gs = ids.map((id) => find(doc, id)?.el.groupId ?? null), same = gs.every((g) => g === gs[0]) ? gs[0] : undefined;
     const fits = doc.groups.filter((g) => ids.every((id) => canHold(doc, g.id, id)));
-    return row('Group', select('Group', [['', 'none'], ...fits.map((g) => [g.id, groupPath(drawing.doc, g)])], same === undefined ? null : same ?? '', (v) => {
+    return row('In group', select('In group', [['', 'none'], ...fits.map((g) => [g.id, groupPath(drawing.doc, g)])], same === undefined ? null : same ?? '', (v) => {
       drawing.change((d) => { for (const id of ids) setGroup(d, id, v || null); });
     }));
   }
@@ -574,16 +574,20 @@ export function drawView(root, ctx) {
   }
 
   function groupInspector(id) {
-    const doc = drawing.doc, u = ctx.units();
-    const direct = membersOf(doc, id), subs = direct.filter((x) => x.kind === 'group').length;
+    const doc = drawing.doc;
+    const direct = membersOf(doc, id);
     const below = membersOf(doc, id, true).filter((x) => x.kind !== 'group'); // everything in it, its subgroups' too
-    const t = fx().totals.groups.get(id), shownEye = eyeFor(drawing, icon, () => membersOf(drawing.doc, id, true), 'members');
+    const shownEye = eyeFor(drawing, icon, () => membersOf(drawing.doc, id, true), 'members');
     shownEye.render();
+    // its members as the tree counts them (everything in it, its subgroups' too), and its subgroups
+    const allSubs = membersOf(doc, id, true).length - below.length;
+    // its totals as the drawing's, its members only, by subgroup (its own: under its name)
+    const totalsOf = below.length ? totalsBlock(null, (gid) => (gid ? groupPath(doc, doc.groups.find((g) => g.id === gid)) : ''), breakdown(doc, null, new Set(below.map((x) => x.el.id))), '') : null;
     return [...commonTop('group', id),
-      row('Members', h('span', { class: 'fvalue' }, [`${direct.length - subs}`, subs ? plural(subs, 'group') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
+      row('Members', h('span', { class: 'fvalue' }, [plural(below.length, 'element'), allSubs ? plural(allSubs, 'subgroup') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
       row('', h('button', { type: 'button', class: 'small', title: 'Everything in it, its groups\' too', disabled: !below.length, onclick: () => drawing.select(below.map((x) => x.el.id)) }, 'Select members')),
-      t ? row('Totals', h('span', { class: 'fvalue' }, countOf(t, u))) : null,
-      lookBlock([item(id)]), ...commonBottom('group', id)];
+      totalsOf,
+      lookBlock([item(id)], null, 'Look · sets each member'), ...commonBottom('group', id)];
   }
 
   // The selection as chips: each element's kind and name (a click selects it alone), its × taking it
@@ -857,11 +861,12 @@ export function drawView(root, ctx) {
   // chain's root links and the links between points); the areas; the points by kind. A group's rows
   // fold; Copy gives every row tab-separated, in metres, for a spreadsheet
   const MADE_PART = { trunk: 'trunks, root → hub', branch: 'branches, hub → point', 'root link': 'root → first point', link: 'between points' };
-  function totalsBlock(by, groupName) {
-    const b = fx().breakdown, u = ctx.units(), doc = drawing.doc;
+  // b: what is counted (the drawing's, or a group's: breakdown's only); key: the property it is by, or ''
+  function totalsBlock(by, groupName, b = fx().breakdown, key = totalsBy) {
+    const u = ctx.units(), doc = drawing.doc;
     // a group holding a connection: its pattern and roots beside the name (two are both "Connection")
     const made = (k) => { const c = k && connections(doc).find((x) => x.groupId === k); return c ? ` (${c.pattern}, from ${c.roots.map((r) => label('point', now(r.id))).join(', ')})` : ''; };
-    const keyName = (k) => (totalsBy ? (k ? `“${k}”` : `No ${totalsBy}`) : groupName(k) + made(k));
+    const keyName = (k) => (key ? (k ? `“${k}”` : `No ${key}`) : groupName(k) + made(k));
     const td = (x, cls = '') => h('td', { class: cls }, x), num = (x) => td(x, 'num');
     // a row that acts (folds a group, selects an element): the whole row the target, by pointer or keys
     const acts = (cls, title, fn, ...cells) => h('tr', { class: `${cls} acts`, role: 'button', tabindex: 0, title, onclick: fn, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } } }, ...cells);
@@ -869,7 +874,7 @@ export function drawView(root, ctx) {
     const rows = [], copy = []; // copy: [section, group, name, count, length m, area m², perimeter m]
     const nameOf = (kind, id) => label(kind, find(doc, id).el);
     const lineRows = [...b.lines.rows].sort((p, q) => (!p.key) - (!q.key) || keyName(p.key).localeCompare(keyName(q.key)));
-    const one = lineRows.length === 1 && !lineRows[0].key && !totalsBy; // nothing grouped: no group rows (by a property, the row says "No …")
+    const one = lineRows.length === 1 && (!lineRows[0].key || !groupName) && !key; // nothing grouped: no group rows (by a property, the row says "No …")
     if (b.lines.count) {
       rows.push(sec('Lines', '', 'Length'));
       for (const r of lineRows) {
@@ -892,12 +897,12 @@ export function drawView(root, ctx) {
     }
     if (b.points.count) {
       rows.push(sec('Points', 'Count', ''));
-      for (const [k, c] of [...b.points.kinds].sort((p, q) => q[1] - p[1])) { const name = totalsBy ? keyName(k) : POINT_KIND_NAME[k] ?? OUTLINE_NAME[k] ?? k; rows.push(h('tr', { class: 'item top' }, td(name), num(String(c)), td(''))); copy.push(['Points', '', name, c, '', '', '']); }
+      for (const [k, c] of [...b.points.kinds].sort((p, q) => q[1] - p[1])) { const name = key ? keyName(k) : POINT_KIND_NAME[k] ?? OUTLINE_NAME[k] ?? k; rows.push(h('tr', { class: 'item top' }, td(name), num(String(c)), td(''))); copy.push(['Points', '', name, c, '', '', '']); }
       rows.push(h('tr', { class: 'all' }, td('All points'), num(String(b.points.count)), td('')));
       copy.push(['Points', '', 'All points', b.points.count, '', '', '']);
     }
     const hidden = b.lines.hidden || b.areas.hidden || b.points.hidden;
-    const head = ['Section', totalsBy ? totalsBy : 'Group', 'Name', 'Count', 'Length (m)', 'Area (m²)', 'Perimeter (m)'];
+    const head = ['Section', key || 'Group', 'Name', 'Count', 'Length (m)', 'Area (m²)', 'Perimeter (m)'];
     const r1 = (v) => (typeof v === 'number' ? String(Math.round(v * 1000) / 1000) : v);
     return h('div', { class: 'fblock' }, h('h3', {}, 'Totals', copyBtn(() => [head, copy.map((c) => c.map(r1))])),
       by ? row('By', by) : null,
