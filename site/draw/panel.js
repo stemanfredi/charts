@@ -310,9 +310,8 @@ export function drawView(root, ctx) {
     const pg = paged(`${id}:corners`, n), abs = (r) => pg.rows[r];
     const U = colUnitText();
     const table = listGrid({ name: pg.name,
-      columns: [{ head: '#', width: 34, frozen: true, cls: 'num' }, { head: 'Lat', width: 88, cls: 'n' }, { head: 'Lon', width: 92, cls: 'n' },
-        { head: `Edge ${U}`, width: 76, cls: 'n', title: 'The straight edge from the corner before (corner 1: from the last): its length (typed: this corner moves, the edges either side of it change)' },
-        { head: 'Brg °T', width: 60, cls: 'n', title: 'The edge\'s bearing, degrees true (typed: this corner moves)' }],
+      columns: [...PLACE_COLUMNS, { head: `Edge ${U}`, width: 56, cls: 'n', title: 'The straight edge from the corner before (corner 1: from the last): its length (typed: this corner moves, the edges either side of it change)' },
+        { head: 'Brg °T', width: 52, cls: 'n', title: 'The edge\'s bearing, degrees true (typed: this corner moves)' }],
       rows: pg.rows.map((i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...legFields(id, (x) => x.points, i, setAreaEdge, 'Corner')] })),
       actions: (r, i = abs(r)) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAt(i)), act('Delete', 'Take this corner away (Ctrl/⌘ Delete); three are kept', () => drop(i), n <= 3)] }),
       keys: { insert: (r) => insertAt(abs(r)), remove: (r) => drop(abs(r)) },
@@ -397,6 +396,9 @@ export function drawView(root, ctx) {
   const legFields = (id, places, k, put, what) => [
     F.dist(() => legOf(placesNow(id, places), k).s, (m) => set(id, (x) => put(x, k, { s: m })), `${what} ${k + 1} leg length`, { in: colUnit() }),
     F.angle(() => legOf(placesNow(id, places), k).azi, (a) => set(id, (x) => put(x, k, { azi: a })), `${what} ${k + 1} leg bearing (degrees true)`, { fixed: 1 })];
+  // a table of places' first columns, # pinned; with its leg and bearing 304 px, inside Properties' 320
+  // with a scroll bar: degrees in 6 decimals, distances to the metre (up to 999 km), bearings to a tenth
+  const PLACE_COLUMNS = [{ head: '#', width: 28, frozen: true, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
   // a table's distances: one unit for the column (its head says it), km or NM as the display's
   const colUnit = () => (ctx.units() === 'nm' ? 'nm' : 'km');
   const colUnitText = () => (ctx.units() === 'nm' ? 'NM' : 'km');
@@ -543,9 +545,8 @@ export function drawView(root, ctx) {
     const pg = paged(`${id}:points`, N), abs = (r) => pg.rows[r];
     const U = colUnitText();
     const table = listGrid({ name: pg.name,
-      columns: [{ head: '#', width: 34, frozen: true, cls: 'num' }, { head: 'Lat', width: 88, cls: 'n' }, { head: 'Lon', width: 92, cls: 'n' },
-        { head: `Leg ${U}`, width: 76, cls: 'n', title: 'The straight leg from the point before: its length (typed: this point moves, the legs either side of it change)' },
-        { head: 'Brg °T', width: 60, cls: 'n', title: 'The leg\'s bearing, degrees true (typed: this point moves)' },
+      columns: [...PLACE_COLUMNS, { head: `Leg ${U}`, width: 56, cls: 'n', title: 'The straight leg from the point before: its length (typed: this point moves, the legs either side of it change)' },
+        { head: 'Brg °T', width: 52, cls: 'n', title: 'The leg\'s bearing, degrees true (typed: this point moves)' },
         { head: `Along ${U}`, width: 80, cls: 'num', title: 'The distance from its start' }, { head: 'Name', width: 110 }],
       rows: pg.rows.map(rowAt),
       actions: (rr, k = abs(rr)) => (k === 0 ? { label: 'Point 1, its start', buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(-1)), ...endActs('start')] }
