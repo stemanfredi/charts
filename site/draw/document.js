@@ -71,7 +71,6 @@ export const KIND = {
   area: { list: 'areas', name: 'Area' }, label: { list: 'labels', name: 'Label' },
 };
 export const KINDS = Object.keys(KIND);
-const LIST = Object.fromEntries(KINDS.map((k) => [k, KIND[k].list]));
 // labels (docs/drawing-format.md §7.7): their leader's end, text size, background
 export const LEADERS = ['arrow', 'none']; // a line to what it points at, an arrow head there; or none
 export const LABEL_SIZES = ['small', 'medium', 'large'];
@@ -89,7 +88,7 @@ export const isoNow = (now) => new Date(now).toISOString().replace(/\.\d{3}Z$/, 
 // every ID in use: elements and rules
 export function idsOf(doc) {
   const ids = new Set();
-  for (const k of KINDS) for (const el of doc[LIST[k]]) ids.add(el.id);
+  for (const k of KINDS) for (const el of doc[KIND[k].list]) ids.add(el.id);
   for (const x of doc.rules) ids.add(x.id);
   return ids;
 }
@@ -113,10 +112,10 @@ export function emptyDoc(now = Date.now()) {
 
 // every element as { kind, el }, kinds in KINDS order
 export function elements(doc) {
-  return KINDS.flatMap((kind) => doc[LIST[kind]].map((el) => ({ kind, el })));
+  return KINDS.flatMap((kind) => doc[KIND[kind].list].map((el) => ({ kind, el })));
 }
 export function find(doc, id) {
-  for (const kind of KINDS) { const el = doc[LIST[kind]].find((x) => x.id === id); if (el) return { kind, el }; }
+  for (const kind of KINDS) { const el = doc[KIND[kind].list].find((x) => x.id === id); if (el) return { kind, el }; }
   return null;
 }
 export const kindName = (kind) => KIND[kind].name;
@@ -134,7 +133,7 @@ export function label(kind, el) {
 // "Base" counts as 1
 export function nextName(doc, kind, base = KIND[kind].name) {
   const re = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: (\\d+))?$`);
-  const used = doc[LIST[kind]].map((e) => re.exec(e.name)).filter(Boolean).map((m) => (m[1] ? +m[1] : 1));
+  const used = doc[KIND[kind].list].map((e) => re.exec(e.name)).filter(Boolean).map((m) => (m[1] ? +m[1] : 1));
   return `${base} ${used.length ? Math.max(...used) + 1 : 1}`;
 }
 // What kind of point it is, for its name and icon: its largest outline's kind; else, by its round
@@ -281,7 +280,7 @@ export function remove(doc, ids, withMembers = false) {
     if (all.has(el.id) || !el.groupId || !all.has(el.groupId)) continue;
     moves.push([el, groupsOf(doc, el).find((g) => !all.has(g.id))?.id ?? null]);
   }
-  for (const kind of KINDS) doc[LIST[kind]] = doc[LIST[kind]].filter((el) => !all.has(el.id));
+  for (const kind of KINDS) doc[KIND[kind].list] = doc[KIND[kind].list].filter((el) => !all.has(el.id));
   for (const [el, gid] of moves) el.groupId = gid;
   const freed = (r) => ({ position: [...r.position], element: null });
   for (const s of doc.lines) for (const key of ['start', 'end']) if (s[key].element && all.has(s[key].element)) s[key] = freed(s[key]);
@@ -336,14 +335,14 @@ export function moveBefore(doc, id, beforeId) {
   if (!x || !b || x.kind !== b.kind || id === beforeId) return;
   setGroup(doc, id, b.el.groupId ?? null);
   if ((x.el.groupId ?? null) !== (b.el.groupId ?? null)) return; // it could not go there (a group into itself)
-  const list = doc[LIST[x.kind]];
+  const list = doc[KIND[x.kind].list];
   list.splice(list.indexOf(x.el), 1);
   list.splice(list.indexOf(b.el), 0, x.el);
 }
 export function moveStep(doc, id, dir) {
   const x = find(doc, id);
   if (!x) return;
-  const list = doc[LIST[x.kind]], sibs = list.filter((e) => (e.groupId ?? null) === (x.el.groupId ?? null)), y = sibs[sibs.indexOf(x.el) + dir];
+  const list = doc[KIND[x.kind].list], sibs = list.filter((e) => (e.groupId ?? null) === (x.el.groupId ?? null)), y = sibs[sibs.indexOf(x.el) + dir];
   if (!y) return;
   const i = list.indexOf(x.el), j = list.indexOf(y);
   [list[i], list[j]] = [y, x.el];

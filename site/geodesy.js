@@ -71,14 +71,8 @@ export function sector(c, r, bearing, aperture) {
   pts.push(c);
   return pts;
 }
-// A rectangle length × width about c, its length along azimuth bearing: the corners at the half
-// diagonal from the centre (front right, back right, back left, front left), the edges geodesics.
-// Returns { corners, ring } (ring closed and densified).
-export function rectangle(c, bearing, length, width) {
-  const corners = cornersOf(c, bearing, length, width);
-  return { corners, ring: pathOf(corners, true, 1000) };
-}
-// its corners alone (no ring)
+// A rectangle's corners, length × width about c, its length along azimuth bearing: at the half
+// diagonal from the centre (front right, back right, back left, front left)
 export function cornersOf(c, bearing, length, width) {
   const half = Math.hypot(length, width) / 2, off = (Math.atan2(width, length) * 180) / Math.PI;
   return [bearing + off, bearing + 180 - off, bearing + 180 + off, bearing - off].map((a) => destination(c, a, half));

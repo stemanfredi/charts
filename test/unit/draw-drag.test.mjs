@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
 const { radiusTo, bearingTo, sectorEdgeTo, resizeRect, moved, rotateHandle } = await import('../../site/draw/drag.js');
-const { inverse, destination, rectangle } = await import('../../site/geodesy.js');
+const { inverse, destination, cornersOf } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');
 
 const C = [12, 40];
@@ -30,11 +30,11 @@ test('an end of a sector\'s arc dragged: the other end stays; across north; at l
 
 test('resize a rectangle from each corner: the opposite corner stays put; Shift keeps proportions; Alt the centre', () => {
   const shape = { center: C, bearing: 30, length: 120, width: 40 };
-  const { corners } = rectangle(C, 30, 120, 40);
+  const corners = cornersOf(C, 30, 120, 40);
   for (let i = 0; i < 4; i++) {
     const p = destination(corners[i], 30 + i * 25, 15); // the corner dragged somewhere near
     const r = resizeRect(shape, corners, i, p);
-    const after = rectangle(r.center, 30, r.length, r.width).corners;
+    const after = cornersOf(r.center, 30, r.length, r.width);
     near(inverse(after[(i + 2) % 4], corners[(i + 2) % 4]).s, 0, 0.005, `corner ${(i + 2) % 4} fixed`);
     near(inverse(after[i], p).s, 0, 0.05, `corner ${i} under the pointer`);
   }

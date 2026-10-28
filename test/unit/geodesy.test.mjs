@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
-const { inverse, destination, circle, sector, rectangle, reachesPole, pathOf } = await import('../../site/geodesy.js');
+const { inverse, destination, circle, sector, cornersOf, reachesPole, pathOf } = await import('../../site/geodesy.js');
 
 const norm = (a) => ((a % 360) + 360) % 360;
 // the difference between two azimuths, the short way round
@@ -47,9 +47,9 @@ test('sector: from the centre, its edges at bearing ± aperture / 2, its arc at 
   nearAngle(inverse(c, w.at(-2)).azi, 20, 1e-9, 'edge after north');
 });
 
-test('rectangle: corners at the half diagonal, sides at length and width', () => {
+test('cornersOf: a rectangle\'s corners at the half diagonal, sides at length and width', () => {
   const c = [12.1, 40.2], L = 120, W = 40;
-  const { corners, ring } = rectangle(c, 30, L, W);
+  const corners = cornersOf(c, 30, L, W), ring = pathOf(corners, true, 1000);
   for (const p of corners) near(inverse(c, p).s, Math.hypot(L, W) / 2, 1e-6, 'half diagonal');
   near(inverse(corners[0], corners[1]).s, L, 1e-3, 'right side'); // front right → back right
   near(inverse(corners[1], corners[2]).s, W, 1e-3, 'back');

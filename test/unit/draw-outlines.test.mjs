@@ -6,7 +6,7 @@ const { OUTLINES } = await import('../../site/draw/document.js');
 const { OUTLINE_NAME, unitOutline, outlineOf } = await import('../../site/draw/outlines.js');
 const { OUTLINES: DOC_OUTLINES, makePart } = await import('../../site/draw/document.js');
 const { enlargement } = await import('../../site/draw/features.js');
-const { inverse, rectangle, areaOf, ccw } = await import('../../site/geodesy.js');
+const { inverse, cornersOf, pathOf, areaOf, ccw } = await import('../../site/geodesy.js');
 const { CIRC } = await import('../../site/geo.js');
 
 const C = [12, 40], B = 30, L = 120, W = 40;
@@ -33,7 +33,7 @@ test('every outline: symmetric, clockwise, reaching the length and width exactly
 });
 
 test('areas: the rectangle as before; the ellipse π/4 of it; the vehicles in between', () => {
-  assert.deepEqual(outlineOf(C, B, L, W).ring, rectangle(C, B, L, W).ring);
+  assert.deepEqual(outlineOf(C, B, L, W).ring, pathOf(cornersOf(C, B, L, W), true, 1000));
   near(areaOf(outlineOf(C, B, L, W, 'ellipse').ring), (Math.PI / 4) * L * W, 0.002 * L * W, 'ellipse');
   for (const o of ['surface-vehicle', 'underwater-vehicle']) { const a = areaOf(outlineOf(C, B, L, W, o).ring); assert.ok(a > 0.75 * L * W && a < L * W, `${o}: ${a}`); }
   const air = areaOf(outlineOf(C, B, L, W, 'aerial-vehicle').ring);
