@@ -175,11 +175,13 @@ read in that one).
   chooses) and **Detach** (it stays where it is). An area's **corners** the same, 1 to n, corner 1's
   edge from the last. The row current is ringed on the map; a point pressed on the map makes its row
   current, on its page.
-- **What several share** (two or more selected, or a group's members under **Each member**): each
-  row sets all of them, "mixed" where they differ. Points: Bearing, Symbol, and their **Parts** part
-  by part as far as every point has one (its kind, size, across, fill: a radius typed sets each
-  circle's), and Position each axis alone (a latitude typed puts them all on that parallel, their
-  longitudes kept). Lines: Path. Points, lines and areas: Guide. Labels: Leader.
+- **What several share** (two or more selected, or a group's members under **Each member**): every
+  row two or more of them have, "mixed" where they differ; a value set there goes to each that has
+  it. Points: Position each axis alone (a latitude typed puts them all on that parallel, their
+  longitudes kept), Bearing, Symbol (those without an outline), and their **Parts** part by part,
+  every row two or more points have: its kind (changed, each keeps its reach), size (each round
+  part's radius and each outline's length at once), across (a sector's aperture, an outline's width,
+  each where two or more have one), fill. Lines: Path. Points, lines and areas: Guide. Labels: Leader.
 - **The look's cascade:** an element's own value, else the drawing's Display, else the default; **↺**
   gives a field back. Fill and Stroke are rows (a colour, its opacity in %), Width (px) and Dash
   their own. Where several differ a field says "mixed" and a change writes only that field. A group

@@ -232,16 +232,16 @@ export function drawView(root, ctx) {
   // A point's parts, each named by its place in the list: its kind (changing it keeps its reach), its
   // name, Fill, Shown, its own stroke, ×; its size (a radius, a sector's aperture; an outline's length
   // and width, its area). "+ Part" adds one.
+  // a part as another kind, its reach kept: a round one's radius, an outline's half length
+  const asKind = (part, kind) => {
+    const reach = part.radius ?? part.length / 2;
+    const next = makePart(kind, ROUND.includes(kind) ? { radius: reach, aperture: part.aperture } : { length: 2 * reach, width: part.width ?? reach });
+    return { ...next, fill: part.fill, shown: part.shown, name: part.name };
+  };
   function partsBlock(id) {
     const el = now(id), u = ctx.units(), U = colUnitText();
     const fits = (m) => drawable(now(id), m);
     const at = (i, fn) => drawing.change((d) => { fn(find(d, id).el.parts[i]); reattach(d, id); }); // part i as it is now; what points at its corners stays where it was
-    // a part as another kind, its reach kept: a round one's radius, an outline's half length
-    const asKind = (part, kind) => {
-      const reach = part.radius ?? part.length / 2;
-      const next = makePart(kind, ROUND.includes(kind) ? { radius: reach, aperture: part.aperture } : { length: 2 * reach, width: part.width ?? reach });
-      return { ...next, fill: part.fill, shown: part.shown, name: part.name };
-    };
     const adder = (aria, text) => select(aria, [['', text], ...PART_KINDS.map((k) => [k, PART_NAME[k]])], '', (k) => { if (k) set(id, (x) => addPart(x, k)); }, { title: 'A circle, a sector or an outline about the point, to scale' });
     const box = (i, key, aria) => check('', el.parts[i][key], (v) => at(i, (y) => { y[key] = v; }), { 'aria-label': `Part ${i + 1} ${aria}` });
     const PARTS_COPY = ['#', 'Kind', 'Radius m', 'Aperture °', 'Length m', 'Width m', 'Fill', 'Shown', 'Name'];
@@ -606,10 +606,10 @@ export function drawView(root, ctx) {
       lookBlock([item(id)], null, 'Look · sets each member'), ...commonBottom('group', id)];
   }
 
-  // What several elements share (drawing-ui.md §5), each row set on all of them at once, "mixed"
-  // where they differ (as Look): two or more points, their Bearing, Symbol and Parts (part by part,
-  // as far as every point has one: its kind, size, across, fill); two or more lines, their Path;
-  // points, lines or areas, Guide. xs: the elements (several selected, or a group's members)
+  // What several elements share (drawing-ui.md §5): every row two or more of them have, "mixed"
+  // where they differ (as Look), a value set on each that has it. Two or more points: Position,
+  // Bearing, Symbol and Parts (part by part: its kind, size, across, fill); two or more lines, their
+  // Path; points, lines or areas, Guide. xs: the elements (several selected, or a group's members)
   function sharedRows(xs) {
     const pts = xs.filter((x) => x.kind === 'point'), lines = xs.filter((x) => x.kind === 'line'), geo = xs.filter((x) => ['point', 'line', 'area'].includes(x.kind));
     const same = (ys, f) => { const vs = ys.map(f); return vs.every((v) => v === vs[0]) ? vs[0] : null; };
@@ -621,25 +621,27 @@ export function drawView(root, ctx) {
       const axis = (k, aria) => F.coord(k ? 'lat' : 'lon', () => same(nowPts(), (p) => p.position[k]), (v) => each(pts, (p) => { p.position[k] = v; }), aria, 6);
       out.push(row('Position', pair(axis(1, 'Latitude of each point'), '·', axis(0, 'Longitude of each point'))));
       out.push(row('Bearing', angleField(() => same(nowPts(), (p) => p.bearing), (v) => each(pts, (p) => { p.bearing = v; }), 'Bearing (degrees true) of each point'), funit('°T')));
-      if (pts.every((x) => !mainOutline(x.el))) out.push(row('Symbol', segOf('Symbol of each point', SYMBOLS.map((sy) => [sy, sy === 'none' ? '∅' : icon(...SYMBOL_ICON[sy]), SYMBOL_TITLE[sy]]), same(pts, (x) => x.el.symbol), (sy) => each(pts, (p) => { p.symbol = sy; }))));
-      // their parts, part by part, as far as every point has one
-      const n = Math.min(...pts.map((x) => x.el.parts.length)), U = colUnitText();
+      const plain = pts.filter((x) => !mainOutline(x.el)); // a symbol: the points without an outline
+      if (plain.length > 1) out.push(row('Symbol', segOf('Symbol of each point', SYMBOLS.map((sy) => [sy, sy === 'none' ? '∅' : icon(...SYMBOL_ICON[sy]), SYMBOL_TITLE[sy]]), same(plain, (x) => x.el.symbol), (sy) => each(plain, (p) => { p.symbol = sy; }))));
+      // their parts, part by part: every row at least two points have; a cell set on those it applies to
+      // (a size: each round part's radius and each outline's length at once; across: a sector's aperture,
+      // an outline's width, each where two or more have one)
+      const U = colUnitText();
       const partsAt = (i) => nowPts().map((p) => p.parts[i]).filter(Boolean);
-      const at = (i, fn) => drawing.change((d) => { for (const x of pts) { const p = find(d, x.el.id).el; if (p.parts[i]) fn(p.parts[i]); reattach(d, x.el.id); } });
-      const kindAt = (i) => same(partsAt(i), (q) => q.kind);
-      const roundAt = (i) => same(partsAt(i), (q) => (q.radius != null));
+      const rows = Array.from({ length: Math.max(...pts.map((x) => x.el.parts.length)) }, (_, i) => i).filter((i) => partsAt(i).length > 1);
+      const at = (i, fn) => drawing.change((d) => { for (const x of pts) { const p = find(d, x.el.id).el; if (p.parts[i]) fn(p.parts[i], p); reattach(d, x.el.id); } });
       const tooFar = (m) => (m >= MAX_RADIUS ? 'too large' : null);
-      const sizeCell = (i) => (roundAt(i) === null ? null : roundAt(i)
-        ? distField(() => same(partsAt(i), (q) => q.radius), (m) => at(i, (q) => { if (q.radius != null) q.radius = m; }), `Part ${i + 1} radius of each`, tooFar, { in: colUnit() })
-        : distField(() => same(partsAt(i), (q) => q.length), (m) => at(i, (q) => { if (q.length != null) q.length = m; }), `Part ${i + 1} length of each`, tooFar, { in: colUnit() }));
-      const acrossCell = (i) => (kindAt(i) === 'sector' ? h('span', { class: 'vpair' }, angleField(() => same(partsAt(i), (q) => q.aperture), (v) => at(i, (q) => { q.aperture = v; }), `Part ${i + 1} aperture of each`, 0, 360, false), funit('°'))
-        : roundAt(i) === false ? distField(() => same(partsAt(i), (q) => q.width), (m) => at(i, (q) => { if (q.width != null) q.width = m; }), `Part ${i + 1} width of each`, tooFar, { in: colUnit() }) : null);
-      if (n) out.push(h('div', { class: 'fblock' }, h('h3', {}, 'Parts · of each point'),
+      const kindCell = (i) => select(`Part ${i + 1} kind of each`, PART_KINDS.map((k) => [k, PART_NAME[k]]), same(partsAt(i), (q) => q.kind), (v) => at(i, (q, p) => { p.parts[i] = asKind(q, v); }));
+      const sizeCell = (i) => distField(() => same(partsAt(i), (q) => q.radius ?? q.length), (m) => at(i, (q) => { if (q.radius != null) q.radius = m; else q.length = m; }), `Part ${i + 1} size of each`, tooFar, { in: colUnit() });
+      const acrossCell = (i) => {
+        const sectors = partsAt(i).filter((q) => q.aperture != null).length, outlines = partsAt(i).filter((q) => q.width != null).length;
+        return [sectors > 1 ? h('span', { class: 'vpair' }, angleField(() => same(partsAt(i).filter((q) => q.aperture != null), (q) => q.aperture), (v) => at(i, (q) => { if (q.aperture != null) q.aperture = v; }), `Part ${i + 1} aperture of each`, 0, 360, false), funit('°')) : null,
+          outlines > 1 ? distField(() => same(partsAt(i).filter((q) => q.width != null), (q) => q.width), (m) => at(i, (q) => { if (q.width != null) q.width = m; }), `Part ${i + 1} width of each`, tooFar, { in: colUnit() }) : null];
+      };
+      if (rows.length) out.push(h('div', { class: 'fblock' }, h('h3', { title: 'Each row every part the points have at that place; a value set on those it applies to' }, 'Parts · of each point'),
         listGrid({ name: 'shared:parts', plain: true, head: true,
           columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 }, { head: `Size ${U}`, width: 80, cls: 'n', title: 'A circle\'s or sector\'s radius, an outline\'s length' }, { head: `Across ${U}`, width: 64, cls: 'n', title: 'A sector\'s aperture (°), an outline\'s width' }, { head: 'Fill', width: 40 }],
-          rows: Array.from({ length: n }, (_, i) => ({ cells: [`${i + 1}`,
-            kindAt(i) !== null ? fvalue(PART_NAME[kindAt(i)]) : h('span', { class: 'mixed' }, 'mixed'),
-            sizeCell(i), acrossCell(i),
+          rows: rows.map((i) => ({ cells: [`${i + 1}`, kindCell(i), sizeCell(i), acrossCell(i),
             check('', same(partsAt(i), (q) => q.fill), (v) => at(i, (q) => { q.fill = v; }), { 'aria-label': `Part ${i + 1} filled, each` })] })) })));
     }
     if (lines.length > 1) out.push(row('Path', segOf('Path of each line', [[false, 'Straight', 'Geodesics, as measured'], [true, 'Smooth', 'A curve through its bends']], same(lines, (x) => !!x.el.smooth), (v) => each(lines, (l) => { l.smooth = v; }))));
