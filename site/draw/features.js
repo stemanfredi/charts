@@ -12,7 +12,6 @@ import { labelText } from './labels.js';
 import { resolve, along } from './attach.js';
 import { outlineOf, isVehicle, VEHICLE_MIN_FACTOR } from './outlines.js';
 import { fmtArea, fmtBrg, fmtDist } from '../format.js';
-import { AREA_SLOTS } from './layers.js';
 
 // a round part's polygon about its point: a circle, or a sector centred on the point's bearing
 export const ringOf = (p, part) => (part.kind === 'sector' ? sector(p.position, part.radius, p.bearing, part.aperture)
@@ -154,8 +153,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   for (const g of doc.areas) {
     if (!isShown(doc, g) || (!want.base && !want.zoom && !markOf(g.id))) continue;
     const st = styleOf(doc, g), rg = pathOf(g.points, true);
-    const slot = doc.areas.length - Z.get(g.id); // its place from the top: its own layers (layers.js slotLayers)
-    if (want.base) base.push({ type: 'Feature', properties: { id: g.id, kind: 'polygon', z: Z.get(g.id), ...(slot < AREA_SLOTS ? { slot } : {}), fill: 1, fc: st.fill.color, fo: st.fill.opacity, ...lineProps(st.stroke) }, geometry: { type: 'Polygon', coordinates: [rg] } });
+    if (want.base) base.push({ type: 'Feature', properties: { id: g.id, kind: 'polygon', z: Z.get(g.id), fill: 1, fc: st.fill.color, fo: st.fill.opacity, ...lineProps(st.stroke) }, geometry: { type: 'Polygon', coordinates: [rg] } });
     if (want.zoom && named(g)) name(zoomNames, g, { type: 'Point', coordinates: centroid(g.points) }, st.stroke.color, { ctr: 1 }); // with the outlines' names (a centre)
     if (mark(g.id, { type: 'Polygon', coordinates: [ccw(rg)] }, { sw: st.stroke.width }, () => g.points) && sel.has(g.id)) {
       handles(g.id, g.points.map((p, i) => ({ p, role: 'ppoint', ref: i })), true);

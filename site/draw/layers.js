@@ -80,13 +80,6 @@ const fillLayer = (kind, source) => ({
   layout: { 'fill-sort-key': Z },
   paint: { 'fill-color': ['get', 'fc'], 'fill-opacity': ['get', 'fo'] },
 });
-// Areas each drawn whole, its fill then its outline (as drawing tools and GIS draw a feature), in a pair
-// of layers of its own: slot k the k-th area from the top (features.js slot), its pair just under the
-// one above (drawing.js adds them as areas are added). Past AREA_SLOTS areas the rest share one pair,
-// under them (an outline there may show over another's fill).
-export const AREA_SLOTS = 250;
-export const slotLayers = (k) => [fillLayer('polygon', 'draw'), lineLayer('polygon', 'draw')].map((l) => ({ ...l, id: `${l.id}-${k}`, filter: ['all', l.filter, ['==', ['get', 'slot'], k]] }));
-const shared = (l) => ({ ...l, filter: ['all', l.filter, ['!', ['has', 'slot']]] });
 // the hover band, never on the element's own stroke, clear of it by 3 px: outside a polygon's outline
 // (negative offset: the left of a counter-clockwise ring, its outside on screen), on both sides of a
 // line: the mark's blue on its white casing
@@ -105,7 +98,7 @@ export const FINGER = typeof matchMedia === 'function' && matchMedia('(pointer: 
 const HANDLE_SIZE = FINGER ? 1.75 : 1;
 export const DRAW_LAYERS = [
   fillLayer('ring', 'draw'), lineLayer('ring', 'draw'),
-  shared(fillLayer('polygon', 'draw')), shared(lineLayer('polygon', 'draw')), // the areas past the slots (theirs come here, above)
+  fillLayer('polygon', 'draw'), lineLayer('polygon', 'draw'),
   // under the lines: the lines' click targets, invisible
   { id: 'draw-linehit', type: 'line', source: 'drawzoom', filter: ['==', ['get', 'kind'], 'linehit'], paint: { 'line-width': 10, 'line-opacity': 0, 'line-offset': OFF } },
   lineLayer('guide', 'drawzoom'), lineLayer('path', 'drawzoom'),

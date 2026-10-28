@@ -101,11 +101,3 @@ would say which.
   element's box at a zoom fit for its size and unioned from tile pieces, and
   the sea polygon reader lives in the clipping worker: a step's worth of work
   for a display nicety.
-- **One drawing order across kinds** *(to be confirmed)*: the tree's order
-  deciding which element covers which whatever their kind (a line under an
-  area, a circle over a rectangle), as drawing tools and desktop GIS do. Now
-  the order holds within a kind and the stacking between kinds is fixed
-  (drawing-ui.md §7). It means a pair of map layers per element, in the
-  tree's order, as areas already have (layers.js slotLayers): simple, but
-  the layer count grows with the drawing, so it would need a cap past which
-  the fixed stack comes back, and hit-testing reads many layers.

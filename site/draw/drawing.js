@@ -10,7 +10,7 @@ import { norm360 } from '../geo.js';
 import { serialise } from './file.js';
 import { DrawStore, settleGeometry } from './store.js';
 import { Saving } from './saving.js';
-import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, FINGER, AREA_SLOTS, slotLayers } from './layers.js';
+import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, FINGER } from './layers.js';
 import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures, ringOf } from './features.js';
 import { lineTrace, nearestAlong, positionsOf } from './lines.js';
 import { labelFeatures } from './labels.js';
@@ -112,7 +112,7 @@ export class Drawing extends DrawStore {
   render(parts = ALL_PARTS) {
     const p = drawParts(this.doc, this.sel, this.hover, { zoom: this.map.getZoom(), ctrl: this.handlesShown, midPx: MID_PX }, parts);
     const set = (id, features) => this.map.getSource(id)?.setData({ type: 'FeatureCollection', features });
-    if (parts.base) { this.areaSlots(); set('draw', p.base); this.values = null; this.labelTexts = null; }
+    if (parts.base) { set('draw', p.base); this.values = null; this.labelTexts = null; }
     if (parts.zoom) set('drawzoom', p.zoom);
     if (parts.base || parts.marks) set('drawvalue', [...(this.values ??= valueFeatures(this.doc, this.units(), this.bearings())), ...this.draftValues()]);
     if (parts.marks) {
@@ -150,16 +150,8 @@ export class Drawing extends DrawStore {
   offset() { return this.doc.lines.filter((s) => isShown(this.doc, s) && offsetOf(this.doc, s)).map((s) => s.id); }
   // the IDs under a screen point: those right under it first, then those within pad px (lines drawn
   // offset are a few px from each other: the one clicked must come first), each set topmost first
-  // each area's own pair of layers (layers.js slotLayers), added as areas are: slot k just under k − 1
-  areaSlots() {
-    this.slots ??= []; // their layers' ids, a pair per slot
-    if (!this.map.getLayer('draw-linehit')) return; // the style not loaded yet: the first render after it adds them
-    for (let k = this.slots.length / 2; k < Math.min(this.doc.areas.length, AREA_SLOTS); k++) {
-      for (const l of slotLayers(k)) { this.map.addLayer(l, k ? `draw-polygon-fill-${k - 1}` : 'draw-linehit'); this.slots.push(l.id); }
-    }
-  }
   hitAt(point, pad = 4) {
-    const layers = [...(this.slots ?? []), ...HIT_LAYERS].filter((id) => this.map.getLayer(id));
+    const layers = HIT_LAYERS.filter((id) => this.map.getLayer(id));
     const within = (r) => this.map.queryRenderedFeatures([[point.x - r, point.y - r], [point.x + r, point.y + r]], { layers }).map((f) => f.properties.id).filter(Boolean); // not a measurement being measured
     return [...new Set([...within(1), ...within(pad)])];
   }
