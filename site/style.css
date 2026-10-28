@@ -221,6 +221,7 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .vrow .vcell > .fvalue, .vrow .vcell > .funit { padding: 0 8px; }
 .vrow .vcell > button:not(.x) { align-self: center; margin: 0 2px; }
 .vrow :is(.vlast, .vcell) > .x, .lgrid .x { width: var(--row); height: var(--row); font-size: 16px; border-radius: 0; }
+.vrow .x[aria-pressed="true"] { background: var(--accent); color: #fff; } /* Attach to… waiting for its click */
 .vrow .flabel { width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vcell, .vpair { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .vpair { flex: 1 1 0; gap: 4px; }

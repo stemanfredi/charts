@@ -244,9 +244,10 @@ sets it on each (as for several selected). A hidden group hides everything in it
   the corner before, its length and bearing: typed, that corner and those after it move together, the
   closing edge following; its bar: **Insert after** (halfway to the next), **Delete** (while more than
   three are left)).
-- **Line:** **Start** and **End** (attached: what to, and which vertex or edge, with **Attach to…**
-  (the next click on the map chooses again; Esc or a right-click cancels) and a broken link, which detaches it: the end stays
-  where it is; free: its position, and **Attach to…**); Length (the drawn line's, curves
+- **Line:** **Start** and **End**, a row each: attached, what to (and which vertex or edge) and a
+  broken link, which detaches it (the end stays where it is); free, its position. At the row's end
+  **Attach to…** (a link icon, pressed while the next click on the map chooses; Esc or a
+  right-click cancels). Length (the drawn line's, curves
   included); **Depth profile** (pressed: the depth along
   the line, as the depth shading has it (GEBCO, cut to the coast), sampled at the grid's spacing, at
   most 1,000 places; the shallowest and the deepest; a chart whose place pointed at shows on the map,

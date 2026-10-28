@@ -40,6 +40,7 @@ const KIND_ICON = {
 // Detach, shown and hidden
 const UI_ICON = {
   drawing: ['M6 3h9l4 4v14H6z', 'M14 3v5h5'], // a page: the drawing itself
+  attach: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'], // a link
   zoom: ['M3 7V5a2 2 0 0 1 2-2h2', 'M17 3h2a2 2 0 0 1 2 2v2', 'M21 17v2a2 2 0 0 1-2 2h-2', 'M7 21H5a2 2 0 0 1-2-2v-2', 'M12 9v6', 'M9 12h6'],
   duplicate: ['M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2'],
   group: ['M3 7h7l2 2h9v10H3z', 'M12 11v6', 'M9 14h6'],
@@ -658,13 +659,14 @@ export function drawView(root, ctx) {
   // it is); free, its position typed, and Attach to…
   function refRow(text, id, key) {
     const r = now(id)[key], on = r.element && find(drawing.doc, r.element);
-    const attach = h('button', { type: 'button', class: 'small', 'aria-pressed': String(drawing.repointing?.id === id && drawing.repointing.key === key),
-      title: 'Then click a point, a vertex, an edge, a line or an area to attach it there, or anywhere for a position (Esc: cancel)',
-      onclick: () => { if (drawing.repointing?.id === id && drawing.repointing.key === key) drawing.cancelRepoint(); else drawing.startRepoint(id, key); renderInspector(); } }, 'Attach to…');
-    if (!on) { const [, lat, , lon] = F.position(() => now(id)[key].position, (q) => set(id, (x) => { x[key] = { position: q, element: null }; })); return [row(text, pair(lat, '·', lon)), row('', attach)]; }
-    // attached: what to (and where on it), Attach to…; × detaches it (it stays where it is)
-    return [row(text, link(on.el.id), partName(r) ? h('span', { class: 'funit' }, partName(r)) : null,
-      h('button', { type: 'button', class: 'x', title: 'Detach: keep it where it is, no longer following what it is attached to', 'aria-label': `Detach ${text.toLowerCase()}`, onclick: () => set(id, (x) => { x[key] = freeRef(x[key]); }) }, icon(...UI_ICON.detach))), row('', attach)];
+    // one row: free, its position; attached, what to (and where on it) and the broken link that
+    // detaches it (it stays where it is); at its end Attach to…, pressed while it waits for a click
+    const attach = h('button', { type: 'button', class: 'x', 'aria-pressed': String(drawing.repointing?.id === id && drawing.repointing.key === key), 'aria-label': `Attach ${text.toLowerCase()} to…`,
+      title: 'Attach to…: then click a point, a vertex, an edge, a line or an area to attach it there, or anywhere for a position (Esc: cancel)',
+      onclick: () => { if (drawing.repointing?.id === id && drawing.repointing.key === key) drawing.cancelRepoint(); else drawing.startRepoint(id, key); renderInspector(); } }, icon(...UI_ICON.attach));
+    if (!on) { const [, lat, , lon] = F.position(() => now(id)[key].position, (q) => set(id, (x) => { x[key] = { position: q, element: null }; })); return row(text, pair(lat, '·', lon), attach); }
+    return row(text, link(on.el.id), partName(r) ? h('span', { class: 'funit' }, partName(r)) : null,
+      h('button', { type: 'button', class: 'x', title: 'Detach: keep it where it is, no longer following what it is attached to', 'aria-label': `Detach ${text.toLowerCase()}`, onclick: () => set(id, (x) => { x[key] = freeRef(x[key]); }) }, icon(...UI_ICON.detach)), attach);
   }
 
   // a label: its text (with live values), what it points at, its leader and its look

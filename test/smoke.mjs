@@ -882,7 +882,7 @@ await section('the drawing', async () => {
   check(onLeg.end.element === host.id && onLeg.end.edge === 0 && onLeg.end.at > 0.2 && onLeg.end.at < 0.8 && onLeg.n === host.n,
     `attaching: a line's end on another line's leg, along it, no vertex added (${JSON.stringify(onLeg.end)})`);
   await dw.evaluate((id) => drawing.select([id]), onLeg.id);
-  await dw.click('.dinspect .frow:has(.flabel:text-is("End")) + .frow button:has-text("Attach to…")');
+  await dw.click('.dinspect .frow:has(.flabel:text-is("End")) button[aria-label="Attach end to…"]');
   const corner = await dw.evaluate(async (id) => { const { verticesOf } = await import('./draw/attach.js'); const q = map.project(verticesOf({ kind: 'point', el: drawing.doc.points.find((x) => x.id === id) })[2]); return [q.x, q.y]; }, sc.id);
   await dw.mouse.click(corner[0] + 2, corner[1] + 2);
   const moved2 = await dw.evaluate((id) => drawing.doc.lines.find((s) => s.id === id).end, onLeg.id);
