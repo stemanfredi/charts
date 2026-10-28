@@ -73,9 +73,9 @@ for (const [name, width, height, touch] of VIEWPORTS) {
             const x = Math.min(a.right, b.right) - Math.max(a.left, b.left), y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
             if (x <= 0.5 || y <= 0.5) continue;
             const pair = [keys[i], keys[j]];
-            if (pair.some((k) => ['bar', 'side', 'props'].includes(k))) { // allowed only if the bar or the panel is the one on top
+            if (pair.some((k) => ['bar', 'side', 'props', 'note'].includes(k))) { // allowed only if the bar, the panel or the note (centred on the window, a few seconds) is the one on top
               const cx = Math.max(a.left, b.left) + x / 2, cy = Math.max(a.top, b.top) + y / 2;
-              if (document.elementFromPoint(cx, cy)?.closest('#bar, #side, #props')) continue;
+              if (document.elementFromPoint(cx, cy)?.closest('#bar, #side, #props, .dnote')) continue;
             }
             overlaps.push(`${pair.join(' × ')} ${Math.round(x)}×${Math.round(y)}`);
           }

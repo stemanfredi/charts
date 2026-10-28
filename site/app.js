@@ -1102,7 +1102,7 @@ search(map, maplibregl.Marker, free); // the search box (find a place)
 
 // ---- depth at a point: a click on the sea says its depth and where it comes from --------------
 // As the depth shading has it (the sea's clipped tile: GEBCO, cut to the OSM coastline, the
-// Caspian from its own surface), rounded towards shallower (16.6 m reads 16 m); while the depth
+// Caspian from its own surface), rounded towards shallower (16.6 m reads 16 m), the place beside it; while the depth
 // shading or the isobaths are on, and not while measuring (a click there adds a point)
 const depthPopup = new maplibregl.Popup({ className: 'depthpop', maxWidth: '240px', focusAfterOpen: false });
 // The depth profiles read (a line's Depth profile pressed), by trace: the GIS export's seabed lengths
@@ -1126,8 +1126,8 @@ map.on('click', async (e) => {
   if (!Number.isFinite(v)) { depthPopup.remove(); return; } // land, a lake, inland water: no depth here
   const source = DEPTH_SOURCES.find(({ codes: [a, b] }) => code >= a && code <= b);
   // −1: shallower than 1 m, or sea the data calls dry (clip.js)
-  const depth = v >= -1 ? 'Shallow: under 1 m, or not known' : `${Math.floor(-v)} m`;
-  depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, depth),
+  const depth = v >= -1 ? 'Under 1 m' : `${Math.floor(-v)} m`;
+  depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, depth), h('span', { class: 'at' }, `${dm(lat, 'N', 'S')} ${dm(((lng + 540) % 360) - 180, 'E', 'W')}`),
     h('small', {}, ['GEBCO 2026', source?.label.toLowerCase()].filter(Boolean).join(' · ')))).addTo(map);
 });
 // cursor position readout
