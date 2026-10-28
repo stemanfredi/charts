@@ -333,11 +333,6 @@ one end to the other, an outline's ring.
 - **Connect…** (two or more points selected, placed by hand): the Connect half alone, the points taken
   in the order selected; its lines, hubs and new roots go in a **Connection** group in the points'
   group. **Edit…** makes it anew; lines edited by hand are replaced (Undo brings them back).
-- **Inflate**, on the **Made by** row of anything a tree connection made: a slider, 0 to 100 %, drawing
-  its trees bowed, display only (§7): each branch bows away from its hub's dominant direction (the
-  mean of its branches'), the more the farther off it heads, one along it staying straight; the trunk
-  arrives at the hub along that direction. Lines, hubs and points stay where they are; a line edited
-  by hand (a vertex added) is drawn as it is. Live while the slider moves, one undo step when let go.
 - **Deleting a root** makes its connection again with the roots left, in the same undo step as the
   delete; deleting the last one removes the connection's lines and hubs (the copies stay). A root
   moved by hand: its lines and hubs follow; nothing is planned again until Edit….
@@ -384,8 +379,7 @@ one end to the other, an outline's ring.
   - a label's text (its offset) and, for a free label or one on a line, its point.
 - **Display only** (never in lengths or exports): **Offset** (a line drawn this many pixels beside
   where it is, to the right of its direction, or to the left when negative, −50 to 50, as QGIS
-  offsets a line symbol; a line setting it shows ⇉ in the list); **Inflate** (a connection's
-  trees drawn bowed, §6); **Min. size** (a shape too small on screen drawn enlarged, dotted).
+  offsets a line symbol; a line setting it shows ⇉ in the list); **Min. size** (a shape too small on screen drawn enlarged, dotted).
   Names on the map are left out where they collide; labels are always drawn.
 
 ## 8. Keys

@@ -4,7 +4,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
-  { ignores: ['site/vendor/'] }, // the libraries, as npm ships them
+  { ignores: ['site/vendor/', '.tmp-*/'] }, // the libraries, as npm ships them; local scratch
   js.configs.recommended,
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   { files: ['site/**/*.js'], languageOptions: { globals: { ...globals.browser, ...globals.worker, geodesic: 'readonly' } } },

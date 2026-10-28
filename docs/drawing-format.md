@@ -396,7 +396,7 @@ or point (or its part) is gone, or all of whose copies are, is dropped.
 
 ```json
 {
-  "id": "c1", "kind": "connect", "groupId": "g7", "pattern": "tree", "groupSize": "auto", "minBranch": 200, "inflate": 0.5,
+  "id": "c1", "kind": "connect", "groupId": "g7", "pattern": "tree", "groupSize": "auto", "minBranch": 200,
   "roots": [ { "id": "o1", "weight": 2 } ], "pointIds": ["p20", "p21", "p22"],
   "hubs": [ { "pointId": "h1", "pointIds": ["p20", "p21", "p22"], "rootId": "o1", "pos": [12.45, 41.85] } ],
   "created": ["h1", "l40", "l41", "l42", "l43"]
@@ -409,7 +409,6 @@ or point (or its part) is gone, or all of whose copies are, is dropped.
 | `pattern` | `"tree"`: root → hub → each point; `"chain"`: root → the nearer end point → the next … Anything else is read as `"tree"`. |
 | `groupSize` | points at most per tree or chain (an integer; a tree's at most 32), or `"auto"`: any size (a tree of up to 32) |
 | `minBranch` | a tree's shortest branch, metres (0 when absent): every hub at least this far from its points and from its root |
-| `inflate` | 0–1 (0 when absent): its trees drawn bowed, display only (§7 of the interface): each branch bowed away from its hub's dominant direction (the mean of its branches') by its angle from it, the trunk arriving along it; at 1, a branch square to it bows by a quarter of its length |
 | `roots` | the points the lines start from, each `{ "id", "weight" }`; `weight` above 0 (missing: 1, which is not written) |
 | `pointIds` | the points connected, in the order they are cut into groups |
 | `hubs` | each hub made: its point, its tree's points and root, where it was last put |
@@ -629,6 +628,6 @@ What a value is when the file leaves it out. Writing it with this value means th
 | distribute | `spacing`, `count` | `null` |
 | distribute | `startMargin`, `endMargin`, `offset`; `side`; `radius`; `aperture`; `preset`; `copy`; `points` | `0`; `"left"`; `null` (500 m when made again); `null`; `null` (a circle); `null`; `[]` |
 | distribute point | `left` | `false` |
-| connect | `groupId`; `pattern`; `groupSize`; `minBranch`; `inflate` | `null`; `"tree"`; `"auto"`; `0`; `0` |
+| connect | `groupId`; `pattern`; `groupSize`; `minBranch` | `null`; `"tree"`; `"auto"`; `0` |
 | connect | `roots`, `pointIds`, `hubs`, `created` | `[]` |
 | connect root | `weight` | `1` |

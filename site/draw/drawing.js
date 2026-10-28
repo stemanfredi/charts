@@ -12,7 +12,6 @@ import { DrawStore, settleGeometry } from './store.js';
 import { Saving } from './saving.js';
 import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, FINGER, AREA_SLOTS, slotLayers } from './layers.js';
 import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures, ringOf } from './features.js';
-import { inflated } from './inflate.js';
 import { lineTrace, nearestAlong, positionsOf } from './lines.js';
 import { labelFeatures } from './labels.js';
 import { inverse, cornersOf, pathOf, sector, circle } from '../geodesy.js';
@@ -147,8 +146,6 @@ export class Drawing extends DrawStore {
   }
   // how much a point's outline is drawn enlarged now (1: real size)
   enlargement(point) { return enlargement(this.doc, point, this.map.getZoom()); }
-  // the lines drawn bowed (Inflate): their IDs
-  inflatedIds() { const bowed = inflated(this.doc); return this.doc.lines.filter((s) => bowed.has(s.id) && isShown(this.doc, s)).map((s) => s.id); }
   // the lines drawn beside their real geometry (Offset): their IDs
   offset() { return this.doc.lines.filter((s) => isShown(this.doc, s) && offsetOf(this.doc, s)).map((s) => s.id); }
   // the IDs under a screen point: those right under it first, then those within pad px (lines drawn

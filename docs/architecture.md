@@ -61,10 +61,9 @@ connections to roots linked to what they were made from. Drawings are saved
 in the browser as they change and never sent.
 
 **Display-only is kept apart from geometry.** What changes how a line is
-drawn without changing where it is (an offset beside its path, a tree's
-branches bowed) is a look, applied when the map's features are built
-(`features.js`, `inflate.js`), never written into positions. Lengths and
-exports always come from the real geometry.
+drawn without changing where it is (an offset beside its path) is a look,
+applied when the map's features are built (`features.js`), never written
+into positions. Lengths and exports always come from the real geometry.
 
 **One snapshot for every export.** The PNG and the GIS zip say what the map
 shows from a single capture of the page's state (`snapshot` in

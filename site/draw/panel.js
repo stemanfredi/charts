@@ -930,7 +930,6 @@ export function drawView(root, ctx) {
       ...[refRow('Start', id, 'start'), refRow('End', id, 'end')].flat(),
       row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u))),
       offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, the drawing's Offset. Its length is the real one.`) : null,
-      drawing.inflatedIds().includes(id) ? h('p', { class: 'note' }, 'Drawn bowed, its connection\'s Inflate. Its length is the real one.') : null,
       profileBlock(id),
       row('Curve', h('span', { class: 'fvalue' }, el.mode === 'auto' ? 'smooth' : 'as drawn')),
       row('', h('button', { type: 'button', class: 'small', title: 'Copies placed along this line, every so far or so many, which then follow it; they can be connected to roots', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…'),
@@ -1011,15 +1010,9 @@ export function drawView(root, ctx) {
     const text = a ? `Distribute along ${along ? label(along.kind, along.el) : 'what is gone'} · ${copies(a.points.length)}${c ? `, connected to ${plural(live(rootIds(c)), 'root')}` : ''}`
       : `Connection · ${c.pattern === 'chain' ? 'chains' : 'trees'}, ${plural(live(c.pointIds), 'point')} to ${plural(live(rootIds(c)), 'root')}`;
     const all = () => { const g = a ? a.groupId : c.groupId; drawing.select(membersOf(drawing.doc, g, true).filter((x) => x.kind !== 'group').map((x) => x.el.id)); };
-    // Inflate: the trees drawn bowed, display only; live while the slider moves, one undo step when it is let go
-    const pct = h('span', { class: 'fvalue' }, c ? `${Math.round(c.inflate * 100)} %` : '');
-    const setInflate = (v, live) => (live ? drawing.preview : drawing.change).call(drawing, (d) => { const x = connections(d).find((y) => y.id === c.id); if (x) x.inflate = v; });
-    const inflate = c && c.pattern === 'tree' ? row('Inflate', pair(h('input', { type: 'range', min: 0, max: 100, step: 5, value: Math.round(c.inflate * 100), 'aria-label': 'Inflate (%)',
-      title: 'Its trees drawn bowed: each branch away from the fan\'s middle direction, the trunk arriving along it. Display only: lengths stay real',
-      oninput: (e) => { setInflate(+e.target.value / 100, true); pct.textContent = `${e.target.value} %`; }, onchange: (e) => setInflate(+e.target.value / 100) }), pct)) : null;
     return [row('Made by', h('span', { class: 'fvalue', title: text }, text)),
       row('', h('button', { type: 'button', class: 'small', title: 'Its settings: the same number of copies moves them, another makes them anew', disabled: a && !along, onclick: () => (a ? openDistribution(a.along, a) : openConnect(c.pointIds, c)) }, 'Edit…'),
-        h('button', { type: 'button', class: 'small', title: 'Everything it made', onclick: all }, 'Select all')), inflate];
+        h('button', { type: 'button', class: 'small', title: 'Everything it made', onclick: all }, 'Select all'))];
   }
 
   // ---- the tools' forms (generator.js): Distribute along a line or an arc, connected to roots or not;
