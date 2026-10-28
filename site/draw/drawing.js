@@ -75,7 +75,7 @@ export class Drawing extends DrawStore {
       const parts = { zoom: zoomDependent(this.doc), marks: this.sel.size > 0 || !!this.hover };
       if (!parts.zoom && !parts.marks) return;
       cancelAnimationFrame(this.zoomRaf);
-      this.zoomRaf = requestAnimationFrame(() => { this.render(parts); if (parts.zoom) this.onChange('zoom'); });
+      this.zoomRaf = requestAnimationFrame(() => this.render(parts));
     });
   }
   // the store's (store.js): a change to the document draws and saves it; the selection and the hover

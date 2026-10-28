@@ -343,14 +343,9 @@ test('minimum display size: an outline too small on screen is drawn enlarged, do
   // zoomed in: real size, its own dash
   assert.equal(enlargement(doc, s, 17), 1);
   assert.equal(shape({ zoom: 17 }).properties.dash, 'dashed');
-  // off for the drawing (0), or for the outline alone; an outline's own value wins
+  // off for the drawing (0); twice the minimum, twice the size
   assert.equal(enlargement(drawing(0), s, 11), 1);
-  assert.equal(enlargement(doc, { ...s, look: { minSize: 0 } }, 11), 1);
-  near(enlargement(drawing(0), { ...s, look: { minSize: 24 } }, 11), 2 * k, 1e-9, 'its own minimum');
-  // a vehicle needs twice the room, unless it has its own minimum
-  const vehicle = [{ ...s.parts[0], kind: 'aerial-vehicle' }];
-  near(enlargement(doc, { ...s, parts: vehicle }, 11), 2 * k, 1e-9, 'a vehicle');
-  near(enlargement(doc, { ...s, parts: vehicle, look: { minSize: 12 } }, 11), k, 1e-9, 'a vehicle, its own minimum');
+  near(enlargement(drawing(24), s, 11), 2 * k, 1e-9, 'the drawing\'s minimum');
   // without an outline or a zoom (exports, tests): real size
   assert.equal(enlargement(doc, addPoint(doc, [12, 40]), 11), 1);
   assert.equal(shape({}).properties.enlarged, undefined);
@@ -458,8 +453,6 @@ test('zoomDependent: an outline that may be drawn enlarged', () => {
   assert.equal(zoomDependent(doc), true);
   doc.look.minSize = 0;
   assert.equal(zoomDependent(doc), false); // off for the drawing
-  h.look.minSize = 5;
-  assert.equal(zoomDependent(doc), true); // on for the outline
   h.visible = false;
   doc.look.minSize = 12;
   assert.equal(zoomDependent(doc), false);

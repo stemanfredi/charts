@@ -102,7 +102,7 @@ test('round trip: a drawing made by the operations survives its file unchanged, 
 test('round trip: values come back rounded as the file writes them', () => {
   const doc = emptyDoc(NOW);
   const p = addPoint(doc, [12.123456789, 41.987654321], { bearing: 45.123456, parts: [makePart('sector', { radius: 1000.12345, aperture: 90.000049 })] });
-  p.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 }, minSize: 7.12345 };
+  p.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 } };
   const s = addLine(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { look: { offset: 3.33333 } });
   addLabel(doc, lineRef(doc, s, 1500.12345)).offset = [10.12345, -20.98765];
   addArea(doc, [[0, 0], [1.123456789, 0], [1, 1]]);
@@ -240,13 +240,13 @@ test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () =>
   assert.deepEqual(p1.parts.map((x) => [x.kind, x.radius, x.fill, x.shown]), [['circle', 100, true, true], ['circle', 200, true, true], ['circle', 300, true, true]]); // a sector of 360° or more: a circle
   assert.ok(!('aperture' in p1.parts[2]));
   assert.deepEqual([p1.look.fill, p1.look.stroke], [undefined, { color: '#ff0000', width: 20, opacity: 1 }]); // the bad colour and dash dropped: the group's, else the defaults
-  assert.deepEqual([p2.symbol, p2.look.minSize], ['none', 200]);
+  assert.deepEqual([p2.symbol, p2.look.minSize], ['none', undefined]); // a point has none of its own
   assert.deepEqual(p2.parts, [makePart('circle', { radius: 5 }), { ...makePart('circle', { radius: 1 }), fill: false, shown: false, name: '7' }, makePart('circle', { radius: 2 })]); // Fill and Shown: on unless false
   assert.deepEqual(p3.parts, [makePart('circle', { radius: 50 }), makePart('circle', { radius: 60 }), makePart('ellipse', { length: 10, width: 4 }), makePart('sector', { radius: 70, aperture: 45 })]); // only a kind's own sizes kept
   assert.equal(p3.symbol, 'none');
   assert.deepEqual([s1.look.offset, s1.smooth], [-d.MAX_OFFSET, false]); // clamped either side
   assert.deepEqual([s2.look.offset, s3.look.offset], [d.MAX_OFFSET, undefined]); // true or false is not a number of pixels
-  for (const re of [/unknown symbol "star"/, /bearing -90 read as 270/, /aperture 400 read as a full circle/, /aperture: not an angle above 0; a circle/, /look minSize: not a number of pixels/,
+  for (const re of [/unknown symbol "star"/, /bearing -90 read as 270/, /aperture 400 read as a full circle/, /aperture: not an angle above 0; a circle/,
     /unknown dash "wavy"/, /look text name: not true or false, ignored/, /part 3 skipped: radius not between/, /part 4 skipped: radius not between/, /part 5 skipped: not an object/,
     /part 1 skipped: unknown kind "hovercraft"/, /part 3 name: number made text/, /part 1 skipped: length or width not above 0/, /part 2: a sector with no aperture; a circle/,
     /part 6 skipped: length or width not above 0/, /stroke width 99 clamped to 20/, /stroke opacity 2 clamped to 1/, /fill colour: not a #rrggbb/,
@@ -418,22 +418,15 @@ test('view: layers, variants and data checked against what the app offers', () =
   assert.equal(serialise(again(doc, known).doc), serialise(doc));
 });
 
-test('minimum display size: the drawing\'s value and a point\'s own, read, checked and written', () => {
-  const { doc, report } = read(collection([
-    F('a', 'Point', [12, 40], { kind: 'point', parts: [{ kind: 'rectangle', length: 10, width: 5 }] }),
-    F('b', 'Point', [12, 40], { kind: 'point', parts: [{ kind: 'rectangle', length: 10, width: 5 }], look: { minSize: 0 } }),
-    F('c', 'Point', [12, 40], { kind: 'point', look: { minSize: -3 } }),
-    F('d', 'Point', [12, 40], { kind: 'point', look: { minSize: 900 } }),
-  ], { look: { minSize: 20 } }));
-  assert.deepEqual(doc.look, { minSize: 20 });
-  assert.deepEqual(doc.points.map((p) => p.look.minSize), [undefined, 0, undefined, 200]);
-  assert.deepEqual(doc.points.map((p) => d.minSizeOf(doc, p)), [{ px: 20, own: false }, { px: 0, own: true }, { px: 20, own: false }, { px: 200, own: true }]);
-  warned(report, /look minSize: not a number of pixels/);
-  const plain = read(collection([], { view: {} })).doc;
-  assert.equal(d.lookOf(plain, plain).minSize, 12); // the default
-  const f = toFile(doc);
-  assert.deepEqual(f.features.map((x) => x.properties.charts.look?.minSize), [undefined, 0, undefined, 200]);
-  assert.deepEqual(f.charts.look, { minSize: 20 });
+test('minimum display size: the drawing\'s, read, checked and written; a point has none of its own', () => {
+  const { doc } = read(collection([
+    F('a', 'Point', [12, 40], { kind: 'point', parts: [{ kind: 'rectangle', length: 10, width: 5 }], look: { minSize: 0 } }),
+  ], { look: { minSize: 900 } }));
+  assert.deepEqual([doc.look, doc.points[0].look.minSize, d.minSizeOf(doc)], [{ minSize: 200 }, undefined, 200]); // clamped; the point's not read
+  const bad = read(collection([], { look: { minSize: -3 } }));
+  warned(bad.report, /look minSize: not a number of pixels/);
+  assert.equal(d.minSizeOf(bad.doc), 12); // the default
+  assert.deepEqual(toFile(doc).charts.look, { minSize: 200 });
 });
 
 test('rules (distribute, connect) are kept as records; defaults left out; an unknown kind or a distribution along nothing skipped', () => {
@@ -779,12 +772,10 @@ test('the look: the drawing\'s defaults, then its own (a group adds nothing); a 
   const m = addLine(doc, [0, 0], [], [1, 1], { guide: true, look: { text: { values: true } } });
   const s = addLine(doc, a.id, [], b.id);
   doc.look = { text: { name: true }, offset: 4, minSize: 20 };
-  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, m).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [true, false, 4, { px: 20, own: false }]);
+  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, m).text.name, offsetOf(doc, s), d.minSizeOf(doc)], [true, false, 4, 20]);
   makeGroup(doc, [a.id, s.id]);
   d.setLook(a, 'text.name', false); // its own, over the drawing's
-  d.setLook(a, 'minSize', 8);
-  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, b).text.name, offsetOf(doc, s), d.minSizeOf(doc, a)], [false, true, 4, { px: 8, own: true }]);
-  d.setLook(a, 'minSize', undefined);
+  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, b).text.name, offsetOf(doc, s)], [false, true, 4]);
   d.setLook(a, 'text.name', undefined); // taken back
   assert.deepEqual(a.look, {});
   const f = toFile(doc);

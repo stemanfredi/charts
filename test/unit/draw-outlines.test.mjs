@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
 const { OUTLINES } = await import('../../site/draw/document.js');
-const { OUTLINE_NAME, unitOutline, outlineOf, isVehicle } = await import('../../site/draw/outlines.js');
+const { OUTLINE_NAME, unitOutline, outlineOf } = await import('../../site/draw/outlines.js');
 const { OUTLINES: DOC_OUTLINES, makePart } = await import('../../site/draw/document.js');
 const { enlargement } = await import('../../site/draw/features.js');
 const { inverse, rectangle, areaOf, ccw } = await import('../../site/geodesy.js');
@@ -40,21 +40,16 @@ test('areas: the rectangle as before; the ellipse π/4 of it; the vehicles in be
   assert.ok(air > 0.1 * L * W && air < 0.5 * L * W, `aerial: ${air}`);
 });
 
-test('a vehicle drawn small is enlarged to twice the drawing\'s minimum; its own value still wins', () => {
+test('a vehicle drawn small is enlarged as any outline, by its largest', () => {
   const doc = (minSize) => ({ look: { minSize }, groups: [] }); // the drawing's look
-  const point = (kind, own) => ({ position: [0, 0], bearing: 0, parts: [makePart(kind, { length: 100, width: 20 })], groupId: null, look: own == null ? {} : { minSize: own } });
+  const point = (kind) => ({ position: [0, 0], bearing: 0, parts: [makePart(kind, { length: 100, width: 20 })], groupId: null, look: {} });
   // at zoom 10 on the equator, about 153 m a pixel: 100 m is 0.65 px
   const k = enlargement(doc(12), point('rectangle'), 10);
   near(k, 12 / (100 / (CIRC / (512 * 2 ** 10))), 1e-6, 'the long side drawn 12 px');
-  near(enlargement(doc(12), point('surface-vehicle'), 10) / k, 2, 1e-9, 'twice');
-  near(enlargement(doc(12), point('ellipse'), 10), k, 1e-9, 'an ellipse as a rectangle');
-  near(enlargement(doc(12), point('aerial-vehicle', 12), 10), k, 1e-9, 'its own value');
+  for (const kind of ['surface-vehicle', 'ellipse']) near(enlargement(doc(12), point(kind), 10), k, 1e-9, kind);
   assert.equal(enlargement(doc(0), point('underwater-vehicle'), 10), 1);
-  assert.ok(isVehicle('aerial-vehicle') && !isVehicle('ellipse'));
-  // several outlines: the largest decides, a vehicle among the smaller ones does not double it
-  const two = (big, small) => ({ ...point('rectangle'), parts: [makePart(small, { length: 50, width: 20 }), makePart(big, { length: 100, width: 20 })] });
-  near(enlargement(doc(12), two('rectangle', 'surface-vehicle'), 10), k, 1e-9, 'by the largest');
-  near(enlargement(doc(12), two('surface-vehicle', 'rectangle'), 10), 2 * k, 1e-9, 'the largest a vehicle');
+  const two = { ...point('rectangle'), parts: [makePart('surface-vehicle', { length: 50, width: 20 }), makePart('rectangle', { length: 100, width: 20 })] };
+  near(enlargement(doc(12), two, 10), k, 1e-9, 'by the largest');
 });
 
 test('enlargement: none for a point without an outline, one large enough on screen, or no zoom', () => {

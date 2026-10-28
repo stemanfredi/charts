@@ -137,7 +137,7 @@ Only the element's **own** values are written here: a value it takes from the dr
 | `group` | the ID of its group, at most one |
 | `visible` | `false`: hidden. Hidden elements are not drawn and not exported to GIS data, but they are in the file. A hidden group hides its members. |
 | `guide` | supporting geometry: drawn faint and dashed in one colour, left out of totals (not on labels). A guide showing its values is a **measurement**. |
-| `look` | the rest of its own look (§6), what no common style name holds: the stroke's `dash`, `text`, `offset`, `minSize` |
+| `look` | the rest of its own look (§6), what no common style name holds: the stroke's `dash`, `text`, `offset` |
 | `properties` | the user's properties as `[{ "key", "value" }]`. Written only when a key had to be renamed as a column; the reader then takes this list rather than the columns. |
 
 ## 6. The look, the cascade, parts
@@ -161,7 +161,7 @@ How an element is drawn is its **look**: one object, every field optional where 
 | `text.values` | its values drawn on the map: a line's legs, an area's area and perimeter, a point's round parts' radii |
 | `text.size`, `text.color`, `text.background` | a label's text: `"small"`, `"medium"` or `"large"`; its colour; `"halo"` or `"box"` |
 | `offset` | Offset: a line drawn this many pixels beside its geometry, to the right of its direction (negative: the left), −50 to 50; 0: on it. Display only, as QGIS offsets a line symbol. |
-| `minSize` | screen pixels, 0–200: an outline whose long side is shorter than this on screen is drawn enlarged (display only, dotted); 0: always real size. The drawing's counts twice for a vehicle. |
+| `minSize` | screen pixels, 0–200: an outline whose long side is shorter than this on screen is drawn enlarged (display only, dotted); 0: always real size. The drawing's only. |
 
 Where it is written: an element's colours, opacities and stroke width as the common style names
 (§5), the rest in its `charts.look`; the drawing's in `charts.look` (§3). Only what each sets itself.
@@ -307,7 +307,7 @@ An outline part (§6) of a point: `kind` one of `"rectangle"`, `"triangle"`, `"e
 `bearing`, `width` (above 0) across it. Each kind is a fixed silhouette stretched to them; its points
 are geodesic destinations from the centre and its edges geodesics. The triangle is isosceles, its
 apex at the front. Drawn small, a point's outlines are enlarged together, by what its largest needs to
-reach the minimum display size; a vehicle's to twice it.
+reach the minimum display size.
 
 ### 7.6 Area
 

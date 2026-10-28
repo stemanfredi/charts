@@ -16,7 +16,7 @@ export const FORMAT = 'charts-drawing';
 export const VERSION = 1; // the drawing's version: this code writes and reads it, and no other
 
 // a shape whose long side is shorter than this on screen (px) is drawn enlarged (display only);
-// 0 turns it off. The drawing's value, unless a shape has its own.
+// 0 turns it off. The drawing's setting.
 const MIN_DISPLAY_SIZE = 12;
 export const MAX_OFFSET = 50; // px: Offset's reach either side of a line
 export const MAX_MIN_SIZE = 200; // px: the largest minimum display size
@@ -183,12 +183,8 @@ export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.val
 export const labelColour = (doc, a) => lookOf(doc, a).text.color ?? LABEL_COLOUR;
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
 export const offsetOf = (doc, el) => lookOf(doc, el).offset;
-// A point's minimum display size: { px, own } (own: set on it, not the drawing's, so a vehicle does
-// not double it)
-export function minSizeOf(doc, p) {
-  const own = p.look.minSize;
-  return own != null ? { px: own, own: true } : { px: doc.look.minSize ?? MIN_DISPLAY_SIZE, own: false };
-}
+// the drawing's minimum display size (px)
+export const minSizeOf = (doc) => doc.look.minSize ?? MIN_DISPLAY_SIZE;
 // Set one field of x's own look (path: 'offset', 'fill.color', 'text.name'…); undefined takes it back
 // (the value then comes from the drawing, or the defaults).
 export function setLook(x, path, v) {
@@ -357,7 +353,7 @@ export const canHold = (doc, gid, id) => !gid || (gid !== id && !groupsOf(doc, f
 // The fields of a look each kind is drawn with
 const STYLE_FIELDS = ['fill.color', 'fill.opacity', 'stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash'];
 export const LOOK_FIELDS = {
-  point: [...STYLE_FIELDS, 'text.name', 'text.values', 'minSize'],
+  point: [...STYLE_FIELDS, 'text.name', 'text.values'],
   area: [...STYLE_FIELDS, 'text.name', 'text.values'],
   line: [...STYLE_FIELDS.slice(2), 'text.name', 'text.values', 'offset'],
   label: ['text.size', 'text.color', 'text.background'],

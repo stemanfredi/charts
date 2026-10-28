@@ -49,9 +49,7 @@ test('presets: a point\'s look kept under a name; stored; a file of them read ba
   assert.deepEqual([pre.name, Object.keys(pre.point).sort(), pre.point.symbol, pre.point.parts], ['Mine', ['look', 'parts', 'symbol'], 'diamond', p.parts]); // its parts, not its bearing
   assert.notEqual(pre.point.parts[0], p.parts[0], 'a copy');
   assert.equal(pre.point.look.stroke.color, '#e8590c');
-  assert.ok(!('minSize' in pre.point.look)); // the drawing's: not its own
-  p.look.minSize = 30;
-  assert.equal(presetOf(doc, p, 'Mine').point.look.minSize, 30);
+  assert.ok(!('minSize' in pre.point.look)); // the drawing's
   const back = readPresets(presetsFile([pre, { name: '' }, { name: 'x' }, pre]));
   assert.deepEqual(back.map((x) => x.name), ['Mine']);
   assert.deepEqual(back[0].point.parts, p.parts);

@@ -242,7 +242,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .lmatrix td { white-space: nowrap; }
 .funit { color: var(--soft); font-size: 12px; }
 .mixed { font-size: 11px; color: var(--warn); }
-.fenlarged { font-size: 11.5px; color: var(--warn); }
 /* the Select area tool's rectangle, on the map */
 .dbox { position: absolute; border: 1.5px solid #1c7ed6; background: rgba(28, 126, 214, .1); /* the marks' blue (draw/layers.js) */ pointer-events: none; z-index: 2; }
 /* a group's row: a caret folds its members */

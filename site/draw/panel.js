@@ -10,7 +10,7 @@ import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKin
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
 import { labelText, labelValues, TOKENS } from './labels.js';
-import { OUTLINE_NAME, outlineOf, isVehicle } from './outlines.js';
+import { OUTLINE_NAME, outlineOf } from './outlines.js';
 import { lineTrace, totals, breakdown, nearestAlong, positionsOf } from './lines.js';
 import { profileCsv } from './profile.js';
 import { COPY_RADIUS, distribute, lines, plan, planConnection, makeDistribution, editDistribution, connect, reconnect, unconnect, alongTrace, alongOf,
@@ -105,7 +105,7 @@ export function drawView(root, ctx) {
   const variants = (tool) => ({
     point: [['symbol', 'Symbol: the same size at every zoom'], ...presetsOf('point')],
     shape: [['circle', 'Circle: a distance round a centre'], ['rings', 'Rings: distances round a centre'], ['sector', 'Sector: part of a circle, in three clicks'],
-      outline('rectangle'), outline('ellipse'), outline('triangle'), ['polygon', 'Polygon: corner by corner'], ...OUTLINES.filter(isVehicle).map(outline), ...presetsOf('shape')],
+      outline('rectangle'), outline('ellipse'), outline('triangle'), ['polygon', 'Polygon: corner by corner'], ...OUTLINES.filter((k) => k.endsWith('-vehicle')).map(outline), ...presetsOf('shape')],
   })[tool] || [];
   const current = (tool) => drawing.variant[tool];
   // A tool's button pressed: on, or off when it is on. Its kinds are a column beside the rail, open
@@ -263,7 +263,7 @@ export function drawView(root, ctx) {
     if (kind === 'point') {
       // its largest outline's size, its first filled round part's radius (its kind: its icon and name)
       const o = mainOutline(el)?.part, r = el.parts[followedPart(el)];
-      const shape = o ? [`${fmtDist(o.length, u)} × ${fmtDist(o.width, u)}`, enlarged(el)] : [];
+      const shape = o ? [`${fmtDist(o.length, u)} × ${fmtDist(o.width, u)}`] : [];
       return [...shape, r ? `${r.kind === 'sector' ? `${+r.aperture.toFixed(1)}° ` : ''}r ${fmtDist(r.radius, u)}` : ''].filter(Boolean).join(' · ');
     }
     if (kind === 'area') return [el.guide ? 'guide' : '', fmtArea(areaOf(pathOf(el.points, true)), u)].filter(Boolean).join(' · ');
@@ -272,11 +272,6 @@ export function drawView(root, ctx) {
     if (kind === 'label') return labelText(drawing.doc, el, u).split('\n')[0];
     const t = facts.totals.groups.get(el.id), n = t ? t.points + t.lines + t.areas : 0;
     return [n ? plural(n, 'element') : 'empty', offset].filter(Boolean).join(' · ');
-  }
-  // an outline drawn larger than its real size at this zoom says so
-  function enlarged(point) {
-    const k = drawing.enlargement(point);
-    return k > 1 ? `shown ×${k < 10 ? k.toFixed(1) : Math.round(k)}` : '';
   }
 
   // one row of the list: a group's fold (or its room), its kind, its name, a short value, its eye (shown
@@ -455,7 +450,7 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     xs = [...new Map(xs.flatMap((x) => (x.kind === 'group' ? membersOf(doc, x.el.id, true).filter((m) => m.kind !== 'group') : [x])).map((x) => [x.el.id ?? 'drawing', x])).values()];
     if (!xs.length && !extra.length) return null; // an empty group
-    const has = (x, f) => (x.kind === 'drawing' || LOOK_FIELDS[x.kind].includes(f)) && (f !== 'minSize' || x.kind !== 'point' || !!mainOutline(x.el));
+    const has = (x, f) => x.kind === 'drawing' || LOOK_FIELDS[x.kind].includes(f);
     const shown = (f) => (!fields || fields.includes(f)) && xs.some((x) => has(x, f));
     const looks = xs.map((x) => (x.kind === 'label' ? { ...lookOf(doc, x.el), text: { ...lookOf(doc, x.el).text, color: labelColour(doc, x.el) } } : lookOf(doc, x.el)));
     const same = (f) => { const vs = xs.map((x, i) => (has(x, f) ? lookField(looks[i], f) : undefined)).filter((v) => v !== undefined); return vs.every((v) => v === vs[0]) ? vs[0] : null; };
@@ -497,7 +492,7 @@ export function drawView(root, ctx) {
       shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -MAX_OFFSET, max: MAX_OFFSET, placeholder: 'mixed', bad: `pixels from −${MAX_OFFSET} to ${MAX_OFFSET}`,
         title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as GIS tools offset a line: display only, lengths stay real' }), h('span', { class: 'funit' }, 'px'), back('offset')) : null,
       shown('minSize') ? row('Min. size', F.number(() => same('minSize'), (v) => put('minSize', v), 'Minimum size (px)', { max: MAX_MIN_SIZE, placeholder: 'mixed', bad: `pixels from 0 to ${MAX_MIN_SIZE}`,
-        title: 'Shapes shorter than this on screen are drawn enlarged, their outline dotted (0: always real size; a vehicle: twice the drawing\'s)' }), h('span', { class: 'funit' }, 'px'), back('minSize')) : null,
+        title: 'Shapes shorter than this on screen are drawn enlarged, their outline dotted (0: always real size)' }), h('span', { class: 'funit' }, 'px'), back('minSize')) : null,
       ...extra);
   }
   // the group an element (or a group) is in: none, or one of the drawing's that can hold them all;
@@ -593,8 +588,7 @@ export function drawView(root, ctx) {
       h('h3', {}, `Parts (${el.parts.length})`, h('span', { class: 'hbtns' }, FINGER ? adder('Add a part (heading)', '+') : null, copyBtn(() => [['#', 'Kind', 'Radius m', 'Aperture °', 'Length m', 'Width m', 'Fill', 'Shown', 'Name'],
         now(id).parts.map((q, i) => [i + 1, q.kind, q.radius ?? '', q.aperture ?? '', q.length ?? '', q.width ?? '', q.fill ? 'yes' : 'no', q.shown ? 'yes' : 'no', q.name])]))),
       table,
-      far ? h('p', { class: 'note warn' }, `Not drawn: a circle of ${fmtDist(far.radius, u)} there reaches a pole.`) : null,
-      mainOutline(el) ? h('span', { class: 'fenlarged', 'data-id': id }, enlarged(el)) : null);
+      far ? h('p', { class: 'note warn' }, `Not drawn: a circle of ${fmtDist(far.radius, u)} there reaches a pole.`) : null);
   }
 
   const kindOf = (id) => find(drawing.doc, id)?.kind;
@@ -1405,11 +1399,6 @@ export function drawView(root, ctx) {
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
         note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the box');
-      }
-      if (what === 'zoom') { // what an enlarged outline says, without rebuilding the fields (one may be being typed in)
-        for (const row of list.querySelectorAll('.drow')) { const x = find(drawing.doc, row.dataset.id); if (x?.kind === 'point' && mainOutline(x.el)) row.querySelector('.val').textContent = value('point', x.el); }
-        for (const el of inspector.querySelectorAll('.fenlarged')) { const sh = now(el.dataset.id); if (sh) el.textContent = enlarged(sh); }
-        return;
       }
       // a label just placed (and selected, so shown): its text ready to be typed
       if (what === 'placed') { const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return; }

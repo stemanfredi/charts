@@ -3,9 +3,6 @@
 
 import { destination, cornersOf, pathOf } from '../geodesy.js';
 export const OUTLINE_NAME = { rectangle: 'Rectangle', triangle: 'Triangle', ellipse: 'Ellipse', 'aerial-vehicle': 'Aerial vehicle', 'surface-vehicle': 'Surface vehicle', 'underwater-vehicle': 'Underwater vehicle' };
-// drawn small, a vehicle is enlarged to this many times the drawing's minimum display size
-export const VEHICLE_MIN_FACTOR = 2;
-export const isVehicle = (outline) => outline.endsWith('-vehicle');
 
 const R2D = 180 / Math.PI;
 // n + 1 points of a curve f(t), t from 0 to 1

@@ -109,8 +109,9 @@ export function ownStyle(s, c, fill) {
   return out;
 }
 // A look as the file has it (an element's own, the drawing's): what it sets, each value
-// checked; what is not valid is left out (warned). fill: whether it can have one (a line cannot).
-export function look(l, c, fill = true) {
+// checked; what is not valid is left out (warned). fill: whether it can have one (a line cannot);
+// drawing: the drawing's (its minimum display size).
+export function look(l, c, fill = true, drawing = false) {
   if (l === undefined || l === null) return {};
   if (!isObj(l)) { c.warn('look: not an object, ignored'); return {}; }
   const out = ownStyle({ fill: l.fill, stroke: l.stroke }, c, fill);
@@ -128,7 +129,7 @@ export function look(l, c, fill = true) {
   }
   const a = offset(l.offset, c);
   if (a !== null) out.offset = a;
-  if (l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
+  if (drawing && l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
   return out;
 }
 // a point's parts (document.js makePart), each named by its place in the list (part 1, 2…)

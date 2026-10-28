@@ -10,7 +10,7 @@ import { rotateHandle } from './drag.js';
 import { lineTrace, anchorsOf, positionsOf, pointsAlong } from './lines.js';
 import { labelText } from './labels.js';
 import { resolve, along } from './attach.js';
-import { outlineOf, isVehicle, VEHICLE_MIN_FACTOR } from './outlines.js';
+import { outlineOf } from './outlines.js';
 import { fmtArea, fmtBrg, fmtDist } from '../format.js';
 
 // a round part's polygon about its point: a circle, or a sector centred on the point's bearing
@@ -23,13 +23,12 @@ export const drawable = (p, r) => !reachesPole(p.position, r);
 export const shapeOf = (p, i = mainOutline(p)?.i) => { const o = p.parts[i]; return { center: p.position, bearing: p.bearing, length: o.length, width: o.width, outline: o.kind }; };
 
 // How much larger than their real size a point's outlines are drawn at map zoom: 1 when its largest's
-// long side is at least its minimum display size on screen (its look's: its own, else
-// the drawing's, twice it for a vehicle, whose silhouette needs more room to be read), more when
-// shorter; all its outlines by the same. Display only: lengths, totals and exports use the real sizes.
+// long side is at least the drawing's minimum display size on screen, more when shorter; all its
+// outlines by the same. Display only: lengths, totals and exports use the real sizes.
 export function enlargement(doc, p, zoom) {
   const o = mainOutline(p)?.part;
   if (!o) return 1;
-  const m = minSizeOf(doc, p), min = m.own ? m.px : m.px * (isVehicle(o.kind) ? VEHICLE_MIN_FACTOR : 1);
+  const min = minSizeOf(doc);
   if (!min || zoom == null) return 1;
   const px = Math.max(o.length, o.width) / metresPerPixel(zoom, p.position[1]);
   return px < min ? min / px : 1;
@@ -242,7 +241,7 @@ export function drawFeatures(doc, sel = new Set(), hover = null, display = {}) {
 }
 // whether anything drawn changes with the zoom: an outline that may be drawn enlarged
 export function zoomDependent(doc) {
-  return doc.points.some((p) => mainOutline(p) && isShown(doc, p) && minSizeOf(doc, p).px > 0);
+  return doc.points.some((p) => mainOutline(p) && isShown(doc, p)) && minSizeOf(doc) > 0;
 }
 // whether an element shows its values (its look's)
 const showsValues = (doc, el) => lookOf(doc, el).text.values;

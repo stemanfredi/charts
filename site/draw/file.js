@@ -77,7 +77,7 @@ function read(raw, app, known, now, report) {
       doc.meta = { title: text(m.title, c, 'title'), description: text(m.description, c, 'description'), author: text(m.author, c, 'author') };
     }
     if (app.view != null) doc.view = readView(app.view, known, ctx('view'));
-    doc.look = look(app.look, ctx('look'));
+    doc.look = look(app.look, ctx('look'), true, true);
     for (const x of Array.isArray(app.groups) ? app.groups : []) {
       const g = attempt('group', x?.id, (c) => {
         if (!isObj(x)) c.skip('not an object');

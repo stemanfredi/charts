@@ -167,7 +167,7 @@ from this: its values are the drawing's own (§2.1, Values while drawing).
 - Names and icons say what an element is: a point is a **Point**, **Circle**, **Rings**, **Sector**,
   or its outline's name (**Rectangle**, **Ellipse**…); an area is an **Area**; then **Line**,
   **Label**, **Group**. An unnamed one shows as its kind and place.
-- The value: a shape's size ("shown ×7.0" when drawn enlarged), its first filled round part's radius (and a
+- The value: a shape's size, its first filled round part's radius (and a
   sector's aperture), an area's area, a line's length ("guide" when it is one), a label's text, a
   group's count of elements (everything in it, its subgroups' too; the whole count in its tooltip).
 - **A box:** Shift-drag on the map with no tool on: what lies entirely inside is added to the
@@ -206,7 +206,8 @@ longitude in its list.
 kinds have: **Fill** (colour, opacity; not on lines); **Stroke** (colour, opacity; width, dash);
 **Text** (labels: size S, M, L; colour on Halo or Box); **Name on the map**; **Show values** (its
 lengths, area and perimeter, or radii on the map); **Offset** (lines; §7);
-**Min. size** (shapes: drawn enlarged, dotted, when shorter than this on screen). A field shows what
+**Min. size** (the drawing's only: shapes drawn enlarged, dotted, when shorter than this on
+screen). A field shows what
 they are drawn with; where several differ it says "mixed", and a change writes only that field.
 
 **Rows**: a property grid, ruled across the panel, 28 px with a mouse (44 with a finger): each a
@@ -230,7 +231,7 @@ sets it on each (as for several selected). A hidden group hides everything in it
   keeps its reach), its size (a radius, a sector's with its aperture; an outline's length × width, its
   area in the tooltip), **Fill**, **Shown**, a name. The empty last row
   ("add a part…") adds one (a round one twice the last round one's radius); its bar: **Distribute
-  along it…**, **Delete**. When outlines are drawn enlarged, it says so.
+  along it…**, **Delete**.
   With parts: **Distribute along…** (§6). Then **Save as preset…** (§9).
 - **Area:** area and perimeter; its corners (latitude, longitude; from corner 2 on, the **Edge** from
   the corner before, its length and bearing: typed, that corner and those after it move together, the

@@ -11,7 +11,6 @@ import { DRAW_LAYERS } from './draw/layers.js';
 import { savedView } from './draw/saving.js';
 import { drawView } from './draw/panel.js';
 import { profileOf } from './draw/profile.js';
-import { isShown } from './draw/document.js';
 import { circle } from './geodesy.js';
 import { norm360, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
@@ -1257,9 +1256,7 @@ function snapshot(src) {
     timeText: !timed ? '' : hr ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
       : new Date(t).toLocaleDateString([], { dateStyle: 'medium', timeZone: 'UTC' }),
     depthText: depth == null ? '' : depthWords(depth),
-    // drawn shapes too small to see, drawn enlarged: the picture says they are not to scale
-    drawText: [drawing.doc.points.some((pt) => isShown(drawing.doc, pt) && drawing.enlargement(pt) > 1) ? 'small shapes shown enlarged, not to scale' : '',
-      drawing.offset().length ? 'lines drawn offset, not to scale' : ''].filter(Boolean).join(' · '),
+    drawText: drawing.offset().length ? 'lines drawn offset, not to scale' : '',
     // for files read elsewhere: in UTC
     dataText: !timed ? '' : `data ${hr ? `at ${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC` : `of ${dayOf(t)} (UTC)`}${depth == null ? '' : `, ${depthWords(depth)}`}`,
   };
