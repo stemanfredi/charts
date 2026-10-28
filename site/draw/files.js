@@ -1,19 +1,24 @@
-// The drawings menu (the bar's ☰, docs/drawing-ui.md §10): the drawings in this browser (the one open
-// marked; each opened where it was drawn, or deleted for good, asked first), + New, the file in and out
-// (a drawing's GeoJSON, the presets'), then ctx.menuExtras (the view's outputs, About). An imported
-// file gets a report first.
+// The bar's file group (docs/drawing-ui.md §1, §10): Open (the drawings in this browser, the one open
+// marked, each opened where it was drawn or deleted for good, asked first; + New; a file from the
+// computer), the drawing's title (typed over: renamed), Download (the drawing's GeoJSON, the view's
+// outputs, the presets) and Copy link. Where the bar has no room for them (COMPACT: a phone, a tablet),
+// Open's menu holds them all, and About. An imported file gets a report first.
 
-import { h } from '../dom.js';
+import { h, COMPACT } from '../dom.js';
 import { popup, dialog, ask, note } from '../menu.js';
 import { parse } from './file.js';
 import { elements, isMeasurement, mainOutline } from './document.js';
 import { presetsFile, readPresets, savePresets } from './presets.js';
 import { plural } from '../format.js';
 
-// drawing (drawing.js); ctx: { download(text, name), openDrawing(id), onImport(doc, report), known,
-// menuExtras(close) }; deleteIcon: the bin's svg, made anew for each row; presetsChanged(): the
-// tools' kinds shown again. Returns { toggle(button), importFile(file) }.
-export function drawingsMenu(drawing, ctx, deleteIcon, presetsChanged) {
+const FILE_ICON = ['M6 3h8l4 4v14H6z', 'M14 3v4h4'], OPEN_ICON = ['M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z'];
+
+// drawing (drawing.js); ctx: { icon, download(text, name), openDrawing(id), onImport(doc, report),
+// known, outputs (the view's, menu items), copyLink(), about(), linkIcon, aboutIcon }; deleteIcon: the
+// bin's svg, made anew for each row; presetsChanged(): the tools' kinds shown again. Returns { buttons (the bar's),
+// renderTitle(), importFile(file) }.
+export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
+  const { icon } = ctx;
   const fileInput = h('input', { type: 'file', accept: '.geojson,.json,application/geo+json,application/json', hidden: true, onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
   // the file: the drawing (its measurements too) and the view, as GeoJSON
   function exportFile() {
@@ -22,37 +27,61 @@ export function drawingsMenu(drawing, ctx, deleteIcon, presetsChanged) {
     const title = drawing.doc.meta.title.normalize('NFKD').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'chart';
     ctx.download(text, `${title}-${when}.geojson`);
   }
-  const menuEl = h('div', { class: 'dmenu', role: 'menu', 'aria-label': 'Drawings in this browser', hidden: true });
+  // one menu, opened from Open or from Download, with what that button holds
+  const menuEl = h('div', { class: 'dmenu', role: 'menu', hidden: true });
   document.body.append(menuEl, fileInput);
-  const drawings = popup(menuEl, { choose: false, // the view's outputs say how they went in it, open meanwhile
+  const menu = popup(menuEl, { choose: false, // the view's outputs say how they went in it, open meanwhile
     place: (b) => { const r = b.getBoundingClientRect(); Object.assign(menuEl.style, { top: `${r.bottom + 4}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - 360))}px` }); },
   });
-  const toggleDrawings = (b) => (menuEl.hidden ? openDrawingsMenu(b) : drawings.close());
-  const closeDrawingsMenu = () => drawings.close();
-  function openDrawingsMenu(from) {
+  const close = () => menu.close();
+  const item = (text, title, run, paths = null) => h('button', { type: 'button', role: 'menuitem', title, onclick: () => { close(); run(); } }, paths && icon(...paths), h('span', {}, text));
+  const sep = () => h('div', { class: 'dsep' });
+  // Open: the drawings in this browser, + New, a file from the computer
+  function openItems() {
     const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`);
     const when = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const del = async (x) => {
-      closeDrawingsMenu();
+      close();
       if (!await ask('Delete the drawing', `Delete “${x.title || 'Untitled'}” for good? It cannot be brought back.`, [['yes', 'Delete']])) return;
       drawing.saving.remove(x.id);
       note('Drawing deleted');
     };
-    const pick = (run) => () => { closeDrawingsMenu(); run(); };
-    menuEl.replaceChildren(h('ul', { class: 'drawings' }, drawing.saving.list().map((x) => h('li', { class: x.open ? 'open' : '' },
-      h('button', { type: 'button', role: 'menuitem', class: 'dname', 'aria-current': x.open ? 'true' : null, title: x.open ? 'The drawing open' : 'Open it, where it was drawn',
-        onclick: pick(() => { if (!x.open) ctx.openDrawing(x.id); }) }, x.title || 'Untitled'),
-      h('span', { class: 'val' }, [when(x.modified), x.size ? kb(x.size) : ''].filter(Boolean).join(' · ')),
-      h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, deleteIcon())))),
-    h('button', { type: 'button', role: 'menuitem', class: 'dnew', title: 'A new, empty drawing (this one stays in the list)', onclick: pick(newDrawing) }, '+ New drawing'),
-    // the drawing's file, and the presets': in and out (a file dropped on the map is imported too)
-    h('div', { class: 'dfile' },
-      h('button', { type: 'button', role: 'menuitem', title: 'A drawing\'s file, any GeoJSON, or a presets file: a drawing is added to these and opened; presets join the Point and Shape tools', onclick: pick(() => fileInput.click()) }, 'Import…'),
-      h('button', { type: 'button', role: 'menuitem', title: 'This drawing, with the view and layers, as a GeoJSON file to share or keep', onclick: pick(exportFile) }, 'Export drawing (GeoJSON)'),
-      h('button', { type: 'button', role: 'menuitem', title: 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', onclick: pick(() => ctx.download(presetsFile(drawing.presets), 'presets.json')) }, 'Export presets (JSON)')),
-    ...ctx.menuExtras(closeDrawingsMenu)); // the view's outputs and About
-    drawings.open(from, true);
+    return [h('button', { type: 'button', role: 'menuitem', class: 'dnew', title: 'A new, empty drawing (this one stays in the list)', onclick: () => { close(); newDrawing(); } }, '+ New drawing'),
+      h('ul', { class: 'drawings' }, drawing.saving.list().map((x) => h('li', { class: x.open ? 'open' : '' },
+        h('button', { type: 'button', role: 'menuitem', class: 'dname', 'aria-current': x.open ? 'true' : null, title: x.open ? 'The drawing open' : 'Open it, where it was drawn',
+          onclick: () => { close(); if (!x.open) ctx.openDrawing(x.id); } }, x.title || 'Untitled'),
+        h('span', { class: 'val' }, [when(x.modified), x.size ? kb(x.size) : ''].filter(Boolean).join(' · ')),
+        h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, deleteIcon())))),
+      sep(),
+      // a file dropped on the map is opened too
+      item('Open a file…', 'A drawing\'s file, any GeoJSON, or a presets file: a drawing is added to these and opened; presets join the Point and Shape tools', () => fileInput.click(), OPEN_ICON)];
   }
+  // Download: the drawing, the view's outputs, the presets
+  const downloadItems = () => [item('Drawing (GeoJSON)', 'This drawing, with the view and layers, as a GeoJSON file to share or keep', exportFile, FILE_ICON), sep(), ...ctx.outputs,
+    item('Presets (JSON)', 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', () => ctx.download(presetsFile(drawing.presets), 'presets.json'), FILE_ICON)];
+  function toggle(b, items) {
+    if (!menuEl.hidden && b.getAttribute('aria-expanded') === 'true') return close();
+    menuEl.setAttribute('aria-label', b.getAttribute('aria-label'));
+    menuEl.replaceChildren(...items());
+    menu.open(b, true);
+  }
+  // the bar's buttons: Open (COMPACT: ☰, everything), the title, Download, Copy link
+  const barBtn = (cls, label, paths, onclick, more = {}) => h('button', { type: 'button', class: cls, 'aria-label': label, title: label, onclick, ...more }, icon(...paths));
+  const openBtn = barBtn('filebtn', 'Open', OPEN_ICON, () => toggle(openBtn, () => (COMPACT.matches
+    ? [...openItems(), sep(), ...downloadItems(), sep(), item('Copy link', 'Copy a link to this exact view', ctx.copyLink, ctx.linkIcon), item('About', 'About this chart', ctx.about, ctx.aboutIcon)]
+    : openItems())), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+  openBtn.append(icon('M4 6h16', 'M4 12h16', 'M4 18h16')); // COMPACT's: ☰ (style.css shows one of the two)
+  const downloadBtn = barBtn('dlbtn', 'Download', ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], () => toggle(downloadBtn, downloadItems), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+  const linkBtn = barBtn('linkbtn', 'Copy link', ctx.linkIcon, () => ctx.copyLink());
+  // the title, typed over: renamed on Enter or when left (an undo puts it back); Esc: as it was
+  const titleIn = h('input', { class: 'dtitle', placeholder: 'Untitled drawing', 'aria-label': 'Title of the drawing', title: 'The drawing\'s title: type to rename', spellcheck: 'false' });
+  const renderTitle = () => { if (document.activeElement !== titleIn) titleIn.value = drawing.doc.meta.title || ''; };
+  titleIn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') titleIn.blur();
+    else if (e.key === 'Escape') { e.stopPropagation(); titleIn.value = drawing.doc.meta.title || ''; titleIn.blur(); }
+  });
+  titleIn.addEventListener('blur', () => { if (titleIn.value !== (drawing.doc.meta.title || '')) drawing.change((doc) => { doc.meta.title = titleIn.value; }); });
+  renderTitle();
   function newDrawing() {
     drawing.saving.add();
     note('New drawing');
@@ -83,5 +112,5 @@ export function drawingsMenu(drawing, ctx, deleteIcon, presetsChanged) {
       doc ? h('p', { class: 'note' }, 'It is added to the drawings in this browser and opened; this one stays in the list.') : null);
     if (go) ctx.onImport(doc, report);
   }
-  return { toggle: toggleDrawings, importFile };
+  return { buttons: [openBtn, titleIn, downloadBtn, linkBtn], renderTitle, importFile };
 }

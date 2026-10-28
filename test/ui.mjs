@@ -43,8 +43,7 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 44], [], [13, 44.5], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
       // the left panel (on a phone closed to start with): open on Elements; an element (or the drawing)
       // selected, its properties shown (on a phone in place of the tree)
-      if (typeof menu === 'string' && await page.locator('#side').isHidden()) await page.click('#bar .pleft');
-      if (typeof menu === 'string') await page.click('.tabs [data-tab=elements]');
+      if (typeof menu === 'string' && await page.locator('#bar .ptab[data-tab=elements]').getAttribute('aria-pressed') !== 'true') await page.click('#bar .ptab[data-tab=elements]');
       if (menu === 'drawing') await page.click('.droot .dname');
       if (menu === 'draw') await page.click('.dlist .drow .dname');
       if (menu === 'line') await page.click('.dlist .drow:has(.kind[title=Line]) .dname');

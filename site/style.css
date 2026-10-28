@@ -60,17 +60,12 @@ svg { flex: none; }
 :is(.side, .props) > .edge.left { right: -4px; } :is(.side, .props) > .edge.right { left: -4px; }
 :is(.side, .props) > .edge:is(:hover, :active) { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px 5px, transparent 5px); }
 .grip { display: none; }
-.tabs { flex: none; display: flex; min-height: 30px; border-bottom: 1px solid var(--line); }
-@media (pointer: coarse) { .tabs { min-height: 45px; } } /* 44 px tabs above the border */
-.tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; font: 600 12px/1 var(--font); color: var(--soft); }
-.tabs button:hover { color: var(--ink); }
-.tabs button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
 @media (min-width: 720px) { /* between the panels: the map's foot, its bottom row, find a place */
   body.has-left .foot { left: var(--lw); }
   body.has-right .foot { right: var(--rw); }
   body.has-left .status { left: var(--lw); }
   body.has-right .status { right: var(--rw); }
-  body.has-right .search { right: calc(var(--rw) + 8px); }
+  body.has-right .search { right: calc(var(--rw) + 8px); } /* behind its lens (COMPACT): beside Properties */
 }
 /* the time shown and the depth, in a box over its chip: ‹ time › Now, then the depth (on the next line if need be) */
 .timepop { position: fixed; z-index: 9; padding: 6px; }
@@ -374,6 +369,13 @@ dialog.dreport button.done { background: var(--accent); border-color: var(--acce
 .search input::-webkit-search-cancel-button { display: none; }
 .search:focus-within { border-color: var(--accent); }
 body.finding .search { display: flex; }
+/* a computer's: in the bar, always shown; the lens not needed */
+.bar > .search { position: relative; top: auto; right: auto; display: flex; flex: 0 1 320px; min-width: 160px; width: auto; min-height: 30px; margin: 0 4px; box-shadow: none; }
+.bar > .search input, .bar > .dtitle { height: 28px; } /* the bar's 28 px; a finger's 44 */
+.bar > .search .x { width: 28px; height: 28px; }
+@media (pointer: coarse) { .bar > .search { min-height: 46px; } .bar > .search input, .bar > .dtitle { height: 44px; } .bar > .search .x { width: 44px; height: 44px; } }
+@media (min-width: 720px) and (pointer: fine), (min-width: 1280px) { #b-find { display: none; } }
+@media (min-width: 720px) and (max-width: 899px) { .bar > .dtitle { display: none; } .bar > .search { min-width: 140px; } } /* a narrow window: the title in Open's menu */
 .results { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; padding: 4px; max-height: 60vh; overflow-y: auto; }
 .results ul { list-style: none; margin: 0; padding: 0; }
 .results li { min-height: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
@@ -452,8 +454,8 @@ svg.profile .pdepth { fill: none; stroke: #335f97; stroke-width: 1.5; stroke-lin
 svg.profile .pmax, svg.profile .pmin { fill: #335f97; }
 svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 
-/* ---- the bar (drawing-ui.md §1): ☰ and the left panel's toggle, the tools, Undo and Redo; at its
-   end find a place and Properties' toggle ---- */
+/* ---- the bar (drawing-ui.md §1): the file group, Layers and Elements, Undo and Redo, the tools; at its
+   end find a place, About and Properties' toggle ---- */
 .bar { position: absolute; z-index: 9; left: 0; right: 0; top: 0; height: var(--bar-h); display: flex; align-items: center; gap: 2px; padding: 0 6px 1px;
   background: var(--bg2); box-shadow: inset 0 -1px var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
 .bar > button { position: relative; width: 28px; height: 28px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
@@ -463,6 +465,20 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .bar > :is(.ptoggle, #b-find)[aria-pressed="true"], .bar > #b-find[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
 .bar > button:disabled { opacity: .35; cursor: default; background: none; }
 /* a tool with kinds: a small corner mark (its button shows the kind in use) */
+/* the file group: Open (a phone's ☰: the second icon), the drawing's title typed over, Download, Copy link */
+.bar > .filebtn svg + svg { display: none; }
+.bar > .dtitle { flex: 0 1 180px; min-width: 60px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; font: 600 13px/1 var(--font); color: var(--ink); text-overflow: ellipsis; }
+.bar > .dtitle:hover { border-color: var(--line); }
+.bar > .dtitle:focus { border-color: var(--accent); background: var(--bg); outline: 0; }
+/* COMPACT (dom.js: a phone, or a finger's buttons under 1,280 px): the file group and About in Open's
+   menu, its ☰; the search behind its lens */
+@media (max-width: 719px), (pointer: coarse) and (max-width: 1279px) {
+  .bar > :is(.dtitle, .dlbtn, .linkbtn, .aboutbtn) { display: none; }
+  .bar > .filebtn svg:first-child { display: none; }
+  .bar > .filebtn svg + svg { display: block; }
+}
+/* Layers' spinner: in its button's corner */
+.bar > .ptab .spin { position: absolute; right: 2px; top: 2px; width: 9px; height: 9px; border-width: 1.5px; }
 .bar > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
 /* dividers between the tools' groups: short, centred */
 .tsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; flex: none; }
@@ -483,7 +499,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
    tall as dragged at its grip, the map's controls and the touch row above it */
 @media (max-width: 719px) {
   :root { --sheet: min(var(--sheet-h), calc(100vh - var(--bar-h) - 160px)); } /* the sheet as tall as dragged, the map's foot and some map left */
-  .bar > :is(.tsep, .grow, .urbtn, .pright) { display: none; } /* Properties: the touch row's */
+  .bar > :is(.tsep, .grow, .urbtn, .pright, .selbtn, .boxbtn) { display: none; } /* the touch row's: Properties, Undo, Back (Select), Box */
+  .kinds { max-width: calc(100vw - 12px); flex-wrap: wrap; } /* a tool's kinds on two lines rather than off the screen */
   .bar { justify-content: space-between; }
   .side, .props { top: auto; left: 0; right: 0; width: auto; height: var(--sheet); border: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; box-shadow: 0 -4px 16px rgba(20, 30, 40, .14); }
   :is(.side, .props) > .edge { display: none; }
@@ -495,15 +512,12 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .dinsphead .ititle { flex: 1; min-width: 0; padding: 0 6px; font: 600 13px/1.2 var(--font); }
 .dinsphead .iacts { display: inline-flex; align-items: center; gap: 0; }
-/* the drawings menu (the bar's ☰): the drawings in this browser, + New, the file, the view's outputs, About */
+/* the bar's Open and Download menus (a phone's ☰ both): + New, the drawings in this browser, a file; what is downloaded */
 .dmenu { position: fixed; z-index: 20; width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; --row: 36px; }
 @media (pointer: coarse) { .dmenu { --row: 44px; } }
 .dmenu .drawings .hact:hover { color: var(--err); } /* Delete for good */
-.dmenu .dnew { display: block; width: 100%; min-height: var(--row); margin-top: 4px; padding: 0 8px; border: 0; border-top: 1px solid var(--line2); border-radius: 0 0 6px 6px; background: none; text-align: left; color: var(--accent); font: inherit; }
+.dmenu .dnew { display: block; width: 100%; min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; color: var(--accent); font: inherit; }
 .dmenu .dnew:hover, .dmenu .drawings .dname:hover { background: var(--line2); }
-.dmenu .dfile { display: flex; flex-direction: column; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line2); }
-.dmenu .dfile button { min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font: inherit; color: var(--ink); }
-.dmenu .dfile button:hover { background: var(--line2); }
 .dmenu .dsep { height: 1px; background: var(--line2); margin: 4px 0; }
 .dmenu > button[role="menuitem"] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--row); padding: 0 8px; border: 0; border-radius: 6px; background: none; text-align: left; font: inherit; color: var(--ink); }
 .dmenu > button[role="menuitem"]:hover { background: var(--line2); }

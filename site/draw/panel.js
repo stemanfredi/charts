@@ -23,7 +23,7 @@ import { mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetTool } from './presets.js';
 import { listGrid, setCurrent, currentOf } from './grid.js';
 import { fmtArea, fmtBrg, fmtDist, rowsText, plural } from '../format.js';
-import { drawingsMenu } from './files.js';
+import { fileGroup } from './files.js';
 import { createTools } from './tools.js';
 import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
 import { KIND_ICON, UI_ICON } from './icons.js';
@@ -37,8 +37,8 @@ const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle
 const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'underwater-vehicle': 'Diameter' }; // a shape's width, as said of each outline
 
 // root: the left panel's Elements tab. ctx: { drawing, map, icon, units() ('km' | 'nm'), known, bar
-// (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), menuExtras(close) (the ☰ menu's foot), onImport(doc, report)
-// (applies an imported document), openDrawing(id), download(text, name), profile(trace) }
+// (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), outputs, copyLink(), about(), linkIcon (files.js),
+// onImport(doc, report) (applies an imported document), openDrawing(id), download(text, name), profile(trace) }
 export function drawView(root, ctx) {
   const { drawing, map, icon } = ctx;
   const F = fields({ note, units: ctx.units }), { field } = F; // fields.js: each applies on Enter or when left
@@ -49,8 +49,8 @@ export function drawView(root, ctx) {
   const fx = () => facts || computeFacts();
 
   drawing.presets = loadPresets();
-  const files = drawingsMenu(drawing, ctx, () => icon(...UI_ICON.delete), () => renderTools());
-  const tools = createTools(drawing, ctx, { del, toggleFiles: (b) => files.toggle(b) });
+  const files = fileGroup(drawing, ctx, () => icon(...UI_ICON.delete), () => renderTools());
+  const tools = createTools(drawing, ctx, { del, fileBtns: files.buttons });
   const { renderTools } = tools;
 
   // ---- the tree (tree.js), its first row the drawing ------------------------------------------
@@ -847,13 +847,13 @@ export function drawView(root, ctx) {
     const by = select('Totals by', [['', 'group'], ...keys.map((k) => [k, k])], totalsBy || '', (v) => { totalsBy = v; computeFacts(); renderInspector(); });
     const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look?.offset != null); // where Offset is set on an element
     title = `Drawing · ${m.title?.trim() || 'Untitled drawing'}`;
-    const titleField = Object.assign(meta('title', 'Title'), { placeholder: 'Untitled drawing' }); // what the tree and ☰ call it while it has none
+    const titleField = Object.assign(meta('title', 'Title'), { placeholder: 'Untitled drawing' }); // what the tree and the bar call it while it has none
     return [row('Title', titleField), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
       lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'offset', 'minSize'], 'Display', [
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Leg bearings', check('', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { 'aria-label': 'Leg bearings', title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }))]),
       n > 1 ? totalsBlock(keys.length ? by : null, groupName) : null,
-      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Export drawing (GeoJSON), in the drawings menu, keeps it as a file.') : null,
+      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Download › Drawing (GeoJSON), in the bar, keeps it as a file.') : null,
       drawing.saving.otherTab ? h('p', { class: 'note warn' }, 'The drawing was changed in another tab. Saving here replaces that version. ', h('button', { type: 'button', class: 'small', onclick: () => location.reload() }, 'Reload')) : null];
   }
   // The Totals view (docs/drawing-ui.md §5): the lines by group (or by a property's values), each
@@ -1016,6 +1016,7 @@ export function drawView(root, ctx) {
       if (form && what === 'doc') formPreview(); // the form's preview follows the drawing (an undo, its line edited)
       if (what === 'doc') for (const id of profiles.keys()) if (!find(drawing.doc, id)) { profiles.delete(id); profileShown.delete(id); } // a line gone: its profile too
       renderTools();
+      files.renderTitle();
     },
     importFile: (f) => files.importFile(f), // a file dropped on the map (app.js)
     press: tools.press, cycle: tools.cycle, // the tools' keys (app.js)

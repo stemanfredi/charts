@@ -1,12 +1,12 @@
-// The drawing's tools (docs/drawing-ui.md §1, §2): their buttons in the bar (☰, Select, Point, Line,
-// Shape, Label, Measure, Undo, Redo), a tool's kinds in a row under its button, the touch row over
+// The drawing's tools (docs/drawing-ui.md §1, §2): their buttons in the bar (Undo, Redo, Select, Box
+// select, Point, Line, Shape, Label, Measure), a tool's kinds in a row under its button, the touch row over
 // the map's foot (with a finger). A tool with kinds remembers the one chosen last; its key pressed
 // again moves to the next (app.js).
 
 import { h, NARROW } from '../dom.js';
 
 // room in the bar for every kind of a tool, with a mouse (a finger: the bigger buttons do not fit)
-const WIDE = typeof matchMedia === 'function' ? matchMedia('(min-width: 1100px) and (pointer: fine)') : { matches: false };
+const WIDE = typeof matchMedia === 'function' ? matchMedia('(min-width: 1280px) and (pointer: fine)') : { matches: false };
 import { ask, askText } from '../menu.js';
 import { OUTLINES } from './document.js';
 import { OUTLINE_NAME } from './outlines.js';
@@ -15,9 +15,9 @@ import { keyOf, MOD } from '../keys.js';
 import { KIND_ICON, POINT_ICON, SELECT_ICON, BOX_ICON } from './icons.js';
 
 // drawing (drawing.js); ctx: { icon, units(), bar, frame, measureIcon }; del(ids): delete, asked
-// first (the touch row's); toggleFiles(button): the drawings menu. Returns { press, cycle,
+// first (the touch row's); fileBtns: the bar's file group (files.js). Returns { press, cycle,
 // renderTools, renderTouch }.
-export function createTools(drawing, ctx, { del, toggleFiles }) {
+export function createTools(drawing, ctx, { del, fileBtns }) {
   const { icon } = ctx;
   // the bar's hints: a name and its key, no more (drawing-ui.md says the rest)
   const TOOLS = { point: ['Point'], line: ['Line'], shape: ['Shape'], label: ['Label'], measure: ['Measure'] };
@@ -55,9 +55,7 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
   const redoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Redo', title: `Redo (${MOD} Shift Z)`, onclick: () => drawing.redo() }, icon('m15 14 5-5-5-5', 'M20 9H10a6 6 0 0 0 0 12h3'));
   const sep = () => h('span', { class: 'tsep', 'aria-hidden': 'true' });
   const kindsRow = h('div', { class: 'kinds', role: 'group', hidden: true });
-  // the bar's own: ☰, the drawings and the file; Select
-  const fileBtn = h('button', { type: 'button', class: 'filebtn', 'aria-label': 'File', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
-    title: 'File', onclick: () => toggleFiles(fileBtn) }, icon('M4 6h16', 'M4 12h16', 'M4 18h16'));
+  // Select
   const selectBtn = h('button', { type: 'button', class: 'selbtn', 'aria-label': 'Select', title: 'Select',
     onclick: () => { drawing.stop(); drawing.boxSelect(false); } }, icon(...SELECT_ICON));
   // Select's other kind: the next drag on the map draws a box, what lies inside selected; then Select
@@ -138,11 +136,11 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     savePresets(drawing.presets);
     renderTools();
   }
-  // The bar (drawing-ui.md §1): ☰ and the left panel's toggle; Undo, Redo (history, not tools); Select
+  // The bar (drawing-ui.md §1): the file group (files.js); Layers and Elements (the left panel's tabs); Undo, Redo (history, not tools); Select
   // and Box select; what makes elements (a tool's kinds in its place when there is room); Measure; at
   // its end Properties' toggle (app.js puts find a place before it)
   const makes = toolBtns.filter((b) => b.dataset.tool !== 'measure').flatMap((b) => [b, inline[b.dataset.tool]].filter(Boolean)), measure = toolBtns.find((b) => b.dataset.tool === 'measure');
-  ctx.bar.replaceChildren(fileBtn, ctx.frame.leftBtn, sep(), undoBtn, redoBtn, sep(), selectBtn, boxBtn, sep(), ...makes, sep(), measure, h('span', { class: 'grow' }), ctx.frame.rightBtn, kindsRow);
+  ctx.bar.replaceChildren(...fileBtns, sep(), ...ctx.frame.tabBtns, sep(), undoBtn, redoBtn, sep(), selectBtn, boxBtn, sep(), ...makes, sep(), measure, h('span', { class: 'grow' }), ctx.frame.rightBtn, kindsRow);
   function renderTools() {
     const on = drawing.button;
     selectBtn.setAttribute('aria-pressed', String(!on && !drawing.boxNext));

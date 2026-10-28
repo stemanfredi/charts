@@ -14,10 +14,10 @@ import { profileOf } from './draw/profile.js';
 import { circle } from './geodesy.js';
 import { norm360, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
-import { $, h, svg, typing, NARROW } from './dom.js';
+import { $, h, svg, typing, NARROW, COMPACT } from './dom.js';
 import { choice } from './fields.js';
 import { keyEntry, openKey, keyList } from './keys.js';
-import { popup } from './menu.js';
+import { popup, note } from './menu.js';
 import { createFrame } from './frame.js';
 import { search } from './search.js';
 import { gisExport } from './gis.js';
@@ -746,7 +746,8 @@ for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(.
 // the frame (frame.js): the bar, the left panel (Elements, Layers), the right one (Properties)
 let drawPanel = null; // the drawing's view (below): told when the frame changes
 const frame = createFrame({ left: $('#side'), right: $('#props'), icon, onChange: () => { writeHash(); drawPanel?.render('tool'); },
-  tabs: [{ id: 'elements', label: 'Elements', body: $('#dview') }, { id: 'layers', label: h('span', {}, 'Layers ', h('span', { class: 'spin', 'aria-hidden': 'true' })), body: $('#menu') }] });
+  tabs: [{ id: 'layers', label: 'Layers', paths: ['m12 3 9 5-9 5-9-5z', 'm3 13 9 5 9-5'], badge: h('span', { class: 'spin', 'aria-hidden': 'true' }), body: $('#menu') },
+    { id: 'elements', label: 'Elements', paths: ['M9 6h11', 'M9 12h11', 'M9 18h11', 'M4.5 6h.01', 'M4.5 12h.01', 'M4.5 18h.01'], body: $('#dview') }] });
 // ---- layers panel -----------------------------------------------------------
 const menu = $('#menu');
 const rows = {};
@@ -978,20 +979,18 @@ function renderUnits() {
   scaleUnits();
 }
 
-// ---- the view's outputs, in the drawing's ☰ menu: each says how it went on itself ("Copied",
-// "Saving…", "Failed"), the menu open meanwhile
+// ---- the view's outputs, in the bar's Download menu: each says how it went on itself ("Saving…",
+// "Failed"), the menu open meanwhile
 const output = (id, iconName, text, title, run) => h('button', { type: 'button', role: 'menuitem', id, title, onclick: (e) => run(e.currentTarget) }, icon(...ICON[iconName]), h('span', {}, text));
-const outputs = [output('link', 'link', 'Copy link', 'Copy a link to this exact view', (b) => copyLink(b)),
-  output('png', 'png', 'Picture (PNG)', 'Download the view as a picture', (b) => exportPng(b)),
+const outputs = [output('png', 'png', 'Picture (PNG)', 'Download the view as a picture', (b) => exportPng(b)),
   output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b))];
 
 // ---- the drawing (draw/panel.js): its tools in the bar, the tree, its properties -------------------
 drawPanel = drawView($('#dview'), {
   drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units,
   measureIcon: ICON.ruler, free: () => free(), bar: $('#bar'), props: $('#props'), frame,
-  // the ☰ menu's foot: the view's outputs and About
-  menuExtras: (close) => [h('div', { class: 'dsep' }), ...outputs,
-    h('button', { type: 'button', role: 'menuitem', class: 'mabout', onclick: () => { close(); $('#about').showModal(); showVersion(); } }, 'About')],
+  // the bar's file group (draw/files.js): the view's outputs in Download, Copy link, About (a phone's ☰)
+  outputs, copyLink: () => copyLink(), about: () => openAbout(), linkIcon: ICON.link, aboutIcon: ICON.info,
   // an imported drawing added to the list and opened, with its view and layers; one of the list opened
   // where it was drawn
   onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
@@ -1014,11 +1013,15 @@ function free() {
   }
   return p;
 }
-// find a place: the search field behind its lens, shown while it is used (the lens, or /); gone when
-// left. The lens in the bar, before Properties; on a phone, whose bar is full, with the map's controls
-const findBtn = $('#b-find');
-const placeFind = () => (NARROW.matches ? $('#mapctl').prepend(findBtn) : frame.rightBtn.before(findBtn));
-NARROW.addEventListener?.('change', placeFind);
+// find a place: a field in the bar, before About and Properties (/ goes to it); where the bar has no
+// room (COMPACT), behind a lens with the map's controls, shown while it is used, gone when left
+const findBtn = $('#b-find'), searchBox = $('#search');
+$('#mapctl').prepend(findBtn);
+const openAbout = () => { about.showModal(); showVersion(); };
+const aboutBtn = h('button', { type: 'button', class: 'aboutbtn', 'aria-label': 'About', title: 'About', onclick: openAbout }, icon(...ICON.info));
+frame.rightBtn.before(aboutBtn);
+const placeFind = () => (COMPACT.matches ? document.body.insertBefore(searchBox, $('#timepop')) : aboutBtn.before(searchBox));
+COMPACT.addEventListener?.('change', placeFind);
 placeFind();
 const setFinding = (on) => { document.body.classList.toggle('finding', on); findBtn.setAttribute('aria-expanded', String(on)); if (on) $('#q').focus(); };
 findBtn.addEventListener('click', () => setFinding(!document.body.classList.contains('finding')));
@@ -1032,9 +1035,9 @@ mapBox.addEventListener('drop', (e) => {
   e.preventDefault();
   drawPanel.importFile(f);
 });
-async function copyLink(b) {
+async function copyLink() {
   writeHashNow(); // the link must be the view as it is now
-  try { await navigator.clipboard.writeText(location.href); flash(b, 'Copied'); } catch { prompt('Copy this link', location.href); }
+  try { await navigator.clipboard.writeText(location.href); note('Link copied'); } catch { prompt('Copy this link', location.href); }
 }
 // a button's own label and tooltip, kept while it says something else for a moment (flash: the text,
 // and why in its tooltip)
@@ -1090,8 +1093,6 @@ window.addEventListener('keydown', (e) => {
 });
 // the tooltips and About say the keys
 $('#about .keys').replaceChildren(...keyList());
-frame.leftBtn.title = `Elements (${openKey('elements')}) and Layers (${openKey('layers')})`;
-frame.rightBtn.title = `Properties (${openKey('props')})`;
 findBtn.title = `Find a place (${openKey('search')})`;
 
 search(map, maplibregl.Marker, free); // the search box (find a place)

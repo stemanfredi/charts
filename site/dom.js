@@ -18,6 +18,9 @@ export const store = {
 };
 // a phone's width: the panels one bottom sheet at a time, closed to start with
 export const NARROW = typeof matchMedia === 'function' ? matchMedia('(max-width: 719px)') : { matches: false };
+// a bar without room for the file group and the search field (a phone, or a finger's 44 px buttons
+// under 1,280 px): Open's menu (☰) holds them all, the search behind its lens (style.css says the same)
+export const COMPACT = typeof matchMedia === 'function' ? matchMedia('(max-width: 719px), (pointer: coarse) and (max-width: 1279px)') : { matches: false };
 // whether el (a key's target) is a field taking text: a box ticked, a colour or a slider is not,
 // so the keys stay the page's
 export const typing = (el) => !!el?.closest?.('input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]), select, textarea');

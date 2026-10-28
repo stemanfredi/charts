@@ -26,15 +26,18 @@ async function open(hash, inCtx = ctx) {
   return page;
 }
 const visible = (page, id) => page.evaluate((id) => map.getLayoutProperty(id, 'visibility'), id);
-// one of the view's outputs (link, png, zip), in the bar's ☰ (the menu stays open while an export runs; each item says how it went)
+// one of the view's outputs: the link (the bar's own button), png, zip (in the bar's Download menu, which
+// stays open while an export runs; each item says how it went)
 const exportItem = async (page, id) => {
-  if (!(await page.isVisible('.dmenu'))) await page.click('#bar .filebtn');
+  if (id === 'link') return page.click('#bar .linkbtn');
+  if (!(await page.isVisible(`.dmenu #${id}`))) await page.click('#bar .dlbtn');
   await page.click(`#${id}`);
 };
 // the time line: behind the time chip on the bottom row
 const timeOpen = async (page) => { if (!(await page.isVisible('#when'))) await page.click('#shown'); };
-// the search: behind its lens
-const findOpen = (page) => page.click('#b-find');
+// the search: a field in the bar (a phone: behind its lens)
+const findOpen = async (page) => page.click((await page.isVisible('#b-find')) ? '#b-find' : '#q');
+
 
 // name → bytes, every entry of a zip (central directory: name and local header offset), and its item.json
 function files(zz) {
@@ -90,7 +93,7 @@ await section('URL state, Link, Measure, a bad link', async () => {
   // URL state: view and layers survive a reload; Link copies the current view. Measure: what it
   // measured goes in the drawing, a guide showing its values, selected
   const p = await open('#v=9/35.9/14.4/0&on=chart,coastline,depth,isobaths&u=nm');
-  await p.evaluate(() => { if (!document.querySelector('#side').hidden) document.querySelector('#bar .pleft').click(); }); // the left panel closed: the clicks below land on the map
+  await p.evaluate(() => { if (!document.querySelector('#side').hidden) document.querySelector('#bar .ptab[aria-pressed=true]').click(); }); // the left panel closed: the clicks below land on the map
   await p.keyboard.press('m'); // Measure, a distance
   await p.mouse.click(300, 300);
   await p.mouse.move(420, 340);
@@ -123,15 +126,39 @@ await section('the frame', async () => {
   // the bar always there across the top; Layers the left panel's tab (menu=1 in the address), its
   // key closing it; its toggle opening it again where it was
   const pv = await open('#v=6/41/12/0&menu=1');
-  const now = () => pv.evaluate(() => [!document.querySelector('#side').hidden && document.querySelector('.tabs [aria-selected=true]')?.dataset.tab, Math.round(document.querySelector('#bar').getBoundingClientRect().top),
+  const now = () => pv.evaluate(() => [!document.querySelector('#side').hidden && document.querySelector('#bar .ptab[aria-pressed=true]')?.dataset.tab, Math.round(document.querySelector('#bar').getBoundingClientRect().top),
     new URLSearchParams(location.hash.slice(1)).get('menu')]);
   const opened = await now();
   await pv.keyboard.press('l');
   await pv.waitForTimeout(400);
   const closed = await now();
-  await pv.click('#bar .pleft');
+  await pv.click('#bar .ptab[data-tab=layers]');
   const back = await now();
-  check(opened.join() === 'layers,0,1' && closed.join() === 'false,0,0' && back[0] === 'layers', `Layers a tab of the left panel, closed by its key, opened again by the bar's toggle; the bar at the top (${opened}; ${closed}; ${back})`);
+  check(opened.join() === 'layers,0,1' && closed.join() === 'false,0,0' && back[0] === 'layers', `Layers a tab of the left panel, closed by its key, opened again by its button in the bar; the bar at the top (${opened}; ${closed}; ${back})`);
+  // the drawing's title in the bar: typed over, renamed on Enter (an undo puts it back)
+  await pv.fill('#bar .dtitle', 'Survey');
+  await pv.keyboard.press('Enter');
+  const named = await pv.evaluate(() => drawing.doc.meta.title);
+  await pv.evaluate(() => drawing.undo());
+  const unnamed = await pv.evaluate(() => [drawing.doc.meta.title, document.querySelector('#bar .dtitle').value]);
+  check(named === 'Survey' && unnamed.join() === ',', `the drawing renamed from the bar's title, back with an undo (${named}; ${unnamed})`);
+  // every button of the bar on the screen, from a phone's width up, with a mouse and with a finger (44 px
+  // buttons: under 1,280 px the file group and the search in Open's menu and behind the lens)
+  const fitsAt = async (page, widths) => {
+    const fits = [];
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(200);
+      fits.push(await page.evaluate(() => [...document.querySelectorAll('#bar > *')].every((e) => !e.offsetParent || e.getBoundingClientRect().right <= innerWidth) && document.documentElement.scrollWidth <= innerWidth
+        && [...document.querySelectorAll('#bar > button')].every((b) => !b.offsetParent || [...b.querySelectorAll('svg')].some((i) => i.getBoundingClientRect().width > 0)))); // each button shown with its icon
+    }
+    return fits;
+  };
+  const mouse = await fitsAt(pv, [390, 720, 1024, 1440]);
+  const tctx = await browser.newContext({ viewport: { width: 820, height: 800 }, hasTouch: true, isMobile: true });
+  const finger = await fitsAt(await open('#v=6/41/12/0', tctx), [390, 820, 1180, 1280]);
+  await tctx.close();
+  check([...mouse, ...finger].every(Boolean), `the bar within the window, each button with its icon, with a mouse at 390, 720, 1024, 1440 px (${mouse}) and a finger at 390, 820, 1180, 1280 (${finger})`);
   await pv.close();
 });
 
@@ -251,9 +278,8 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   await cm.click('#when [data-now]');
   await cm.waitForTimeout(500);
   check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'Now goes back to now');
-  // About, in the right-hand column
-  await cm.click('#bar .filebtn');
-  await cm.click('.dmenu .mabout');
+  // About, the bar's ⓘ
+  await cm.click('#bar .aboutbtn');
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
   check(await cm.evaluate(() => !document.querySelector('#nostart')), 'the map started: the notice that it did not is gone');
@@ -498,13 +524,12 @@ await section('the drawing', async () => {
   const DX = 260; // the left panel covers the map's left: the clicks below, written for the whole map, moved right of it
   await dw.evaluate(() => { // both panels on, the left on Elements (an earlier section may have changed them)
     if (document.querySelector('#bar .pright').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .pright').click();
-    if (document.querySelector('#side').hidden) document.querySelector('#bar .pleft').click();
-    document.querySelector('.tabs [data-tab=elements]').click();
+    if (document.querySelector('#bar .ptab[data-tab=elements]').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .ptab[data-tab=elements]').click();
   });
-  // the drawing's file out: from the drawings menu
+  // the drawing's file out: from the bar's Download menu
   const exportDrawing = async () => {
-    await dw.click('#bar .filebtn');
-    await dw.click('.dmenu button:text-is("Export drawing (GeoJSON)")');
+    await dw.click('#bar .dlbtn');
+    await dw.click('.dmenu button:has-text("Drawing (GeoJSON)")');
   };
   await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 40.1], [], [12.05, 40.12], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
   // the drawing open, as saved in this browser (one key each, the open one's in charts.drawings.current): GeoJSON
@@ -517,21 +542,21 @@ await section('the drawing', async () => {
   const sub = await dw.locator('#bar .kinds.inline:not([hidden]) button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds in the bar, round a centre first, then the outlines, then the vehicles (${sub})`);
-  // the bar across the top, the kind in use pressed in it; the left panel open, hidden by the bar's
-  // toggle, back with E; Properties hidden with nothing selected (it has nothing to show); the bar's
-  // order: ☰, the panel, Undo, Redo, Select, Box select, then the tools
+  // the bar across the top, the kind in use pressed in it; the left panel open on Elements, hidden by
+  // its button, back with E; Properties hidden with nothing selected (it has nothing to show); the
+  // bar's order: the file group (Open, the title, Download, Copy link), Layers, Elements, Undo…
   const layoutNow = () => dw.evaluate(() => [document.querySelector('#bar .kinds.inline button[aria-pressed=true]')?.getAttribute('aria-label') ?? '', !!document.querySelector('#bar button[data-tool=shape]')?.offsetParent,
     !document.querySelector('#side').hidden, Math.round(document.querySelector('#bar').getBoundingClientRect().top), document.querySelector('#props').hidden]);
   const onTool = await layoutNow();
   const order = await dw.evaluate(() => [...document.querySelectorAll('#bar > button')].slice(0, 6).map((b) => b.getAttribute('aria-label')).join());
   const longHints = await dw.evaluate(() => [...document.querySelectorAll('#bar button[title]')].map((b) => b.title).filter((t) => t.length > 30));
   check(!longHints.length, `tools: the bar's hints a name and its key, no more (${longHints.join(' | ') || 'none longer than 30'})`);
-  await dw.click('#bar .pleft');
+  await dw.click('#bar .ptab[data-tab=elements]');
   const hiddenE = await layoutNow();
   await dw.keyboard.press('e');
   const shownE = await layoutNow();
-  check(onTool.join() === 'Circle,false,true,0,true' && !hiddenE[2] && shownE[2] && order === 'File,Elements and Layers,Undo,Redo,Select,Box select',
-    `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by the bar's toggle, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
+  check(onTool.join() === 'Circle,false,true,0,true' && !hiddenE[2] && shownE[2] && order === 'Open,Download,Copy link,Layers,Elements,Undo',
+    `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by its button, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
   // a kind clicked in the bar: the tool on with it; the key again: the next kind
   await dw.click('#bar .kinds.inline button[aria-label="Rings"]');
   const pickedIn = (await layoutNow())[0];
@@ -611,8 +636,8 @@ await section('the drawing', async () => {
     o.disconnect();
     return n;
   });
-  const spinBox = await dw.evaluate(() => { document.body.classList.add('loading'); const r = document.querySelector('.tabs .spin').getBoundingClientRect(); document.body.classList.remove('loading'); return `${r.width}×${r.height}`; });
-  check(blinks === 0 && spinBox === '12×12', `the Layers tab's spinner stays off while the hover moves over the drawing (${blinks}); shown, a 12 px ring (${spinBox})`);
+  const spinBox = await dw.evaluate(() => { document.body.classList.add('loading'); const r = document.querySelector('#bar .ptab .spin').getBoundingClientRect(); document.body.classList.remove('loading'); return `${r.width}×${r.height}`; });
+  check(blinks === 0 && spinBox === '9×9', `the Layers button's spinner stays off while the hover moves over the drawing (${blinks}); shown, a 9 px ring in its corner (${spinBox})`);
   const [dex] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportDrawing(); })()]);
   const savedFile = JSON.parse(await readFile(await dex.path(), 'utf8'));
   const ruler = measuredOf(savedFile).find((f) => f.geometry.type === 'LineString' && f.geometry.coordinates[0][0] === 12);
@@ -623,7 +648,7 @@ await section('the drawing', async () => {
   savedFile.features = [...savedFile.features.filter((f) => !measuredOf(savedFile).includes(f)), ruler];
   const exported = JSON.stringify(savedFile);
   const measuredNow = () => dw.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).map((x) => x.el.start?.position ?? x.el.position ?? x.el.points[0]); });
-  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the bar's ☰, nothing asked
+  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the bar's Open, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
   await dw.setInputFiles('input[type=file][accept*=geojson]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
@@ -665,7 +690,7 @@ await section('the drawing', async () => {
   // attached to it), the totals
   await dw.locator('.dinsphead .ititle').click();
   await dw.keyboard.press('Escape'); // nothing selected: the drawing's own inspector
-  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the bar's ☰, nothing asked
+  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the bar's Open, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length);
   await dw.keyboard.press('g');
   await dw.mouse.click(DX + 200, 500);
@@ -1127,7 +1152,7 @@ await section('with a finger, on a phone', async () => {
   const freeTap = await fp.evaluate(() => [drawing.snapOff, drawing.doc.points.length]);
   await fp.click('.touchbar button:has-text("Back")'); // the tool ends
   const afterBack = await fp.evaluate(() => drawing.tool);
-  await fp.click('#bar .pleft');
+  await fp.click('#bar .ptab[data-tab=elements]');
   const colOpen = await shown();
   await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
   await fp.click('.touchbar button:has-text("Properties")'); // Properties: the tree makes way

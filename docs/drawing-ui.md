@@ -5,7 +5,7 @@ show (the layout's rules, snapping and attaching, order, the look's cascade, the
 storage). The file is in `drawing-format.md`.
 
 Code: `site/frame.js` the frame; `site/draw/`: `panel.js` the inspector, `tree.js`, `tools.js`,
-`files.js` (the drawings menu), `drawing.js` the map side, `snap.js`, `attach.js`, `drag.js`,
+`files.js` (the bar's file group), `drawing.js` the map side, `snap.js`, `attach.js`, `drag.js`,
 `features.js` what the map draws and its handles, `generator.js` the rules, `clipboard.js`,
 `presets.js`, `place.js` what Point and Shape place; `site/keys.js`.
 
@@ -13,18 +13,21 @@ Code: `site/frame.js` the frame; `site/draw/`: `panel.js` the inspector, `tree.j
 
 One layout at every width (`site/frame.js`).
 
-- **The bar**, across the top: **☰** (the drawings in this browser, the drawing's file, the view's
-  outputs, About), the left panel's toggle; **Undo**, **Redo** (history, not tools); **Select** and
-  **Box select**; **Point**, **Line**, **Shape**, **Label**; **Measure**; at its end **find a place**
-  (the lens or /) and the **Properties** toggle. With a mouse and room (a window from 1,100 px), a
-  tool's kinds are buttons in the bar in its place (Shape's ten), each the tool on with that kind.
+- **The bar**, across the top: the file group, **Open** (the drawings in this browser, + New, **Open
+  a file…**), the drawing's **title** (typed over: renamed), **Download** (the drawing's GeoJSON, a
+  picture, GIS data, the presets), **Copy link**; **Layers** and **Elements** (the left panel's
+  tabs); **Undo**, **Redo** (history, not tools); **Select** and **Box select**; **Point**, **Line**,
+  **Shape**, **Label**; **Measure**; at its end **find a place** (a field; / goes to it), **About**
+  and the **Properties** toggle. Under 900 px the title is left out (Open's menu marks the drawing
+  open). With a finger under 1,280 px (a tablet), as on a phone: **☰** in place of Open holds the
+  file group and About, find a place is behind its lens with the map's controls. With a mouse and room (a window from 1,280 px), a tool's kinds are buttons in the bar in its place (Shape's ten), each the tool on with that kind.
   Otherwise the tool's one button shows the kind in use and a corner mark; its kinds are a row under
   it as it goes on, shut once one is picked or the map is clicked. Its key again: the next kind.
 - **Box select** (B): the next drag on the map, a mouse's or a finger's, draws a box; what lies
   inside is selected, then Select again. A drag with Select moves the map; Shift-drag is the box too.
-- **The left panel**: tabs **Elements** (the tree, §4) and **Layers** (`menu=1` in the address).
-  Its toggle, **E** and **L** open it on a tab, or close it when it shows that tab. At first it is
-  open on Layers.
+- **The left panel**: **Layers** (`menu=1` in the address) or **Elements** (the tree, §4), as its
+  button in the bar (or **L**, **E**) chose: pressed again, it closes. At first it is open on Layers;
+  Layers' button turns while the map's layers load.
 - **Properties** (the inspector, §5), on the right: a switch of the user's (its toggle, **I**, or a
   double-click on an element). While on, it shows what is selected (or the drawing, its row
   clicked) and goes when nothing is; selecting never turns it on. Its head: what it shows, then
@@ -32,22 +35,23 @@ One layout at every width (`site/frame.js`).
 - Each panel is as wide as dragged at its inner edge (left 200–480 px, right 260–600; a
   double-click: 260 and 320); widths, the tab and the switch are remembered in this browser. Where
   both would leave less than 480 px of map, Properties, while shown, takes the room and the left
-  panel comes back after; the first time in a visit a note says so, and the left's toggle (or E, L)
-  then brings it back, Properties off.
+  panel comes back after; the first time in a visit a note says so, and Layers or Elements (or L,
+  E) then brings it back, Properties off.
 - **The map's foot**: one strip above the bottom row, between the panels (a phone: above its sheet).
   At its left, stacked: the note, the legends, the touch row; at its right **the map's controls**: my
   position, north (only when turned); no zoom buttons. Nothing else sits there, so nothing overlaps.
   The bottom row between the panels: credits, the time shown (a chip: ‹ hour ›, **Now**, the
   depth), the cursor's position, the scale (a click switches km and NM).
 - **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`), never the
-  drawing. The drawing goes out as a file (**Export drawing (GeoJSON)**, with the view) and comes in
-  by **Import…** or a file dropped on the map, after a report (what it holds, what was skipped and
+  drawing. The drawing goes out as a file (**Download** › **Drawing (GeoJSON)**, with the view) and
+  comes in by **Open a file…** or a file dropped on the map, after a report (what it holds, what was skipped and
   why); a presets file adds its presets (§9).
 - The note (the foot's top) says for a few seconds what just happened (with **Undo** where it
   applies).
 
-**On a phone** (under 720 px) the bar holds ☰, the left panel's toggle and the tools; Undo and
-Properties are in the touch row, find a place with the map's controls. The panels are one bottom
+**On a phone** (under 720 px) the bar holds **☰** (Open's menu with Download's, Copy link and About),
+Layers, Elements and the tools; Select (Back), Box, Undo and Properties are in the touch row, find
+a place with the map's controls; a tool's kinds wrap rather than leave the screen. The panels are one bottom
 sheet at a time (half the screen; as tall as its grip is dragged, short of the bar, the map's foot and
 some map; closed when dragged to the bottom).
 Both start closed. Zoom to and a place found are fitted to the map the bar and the panels leave.
@@ -120,7 +124,7 @@ the drawing.
 ## 4. The tree
 
 - Its first row is the drawing: its title ("Untitled drawing" while it has none; a click selects it:
-  Properties, when on, show it; a double-click renames it, as in the ☰ menu), how many elements it
+  Properties, when on, show it; a double-click renames it, as the bar's title does), how many elements it
   holds, and an eye for everything listed.
 - Then groups first, what is in each one step further in (a group folds), then the rest. A row: the
   element's icon (a point by what it looks like), its name (else its kind and place), a short value
@@ -268,7 +272,7 @@ lives in this page, so it pastes into another drawing opened in it.
 **Save as preset…** (a point's Properties) keeps its symbol, parts, fill and stroke under a name. One
 with parts joins Shape's kinds, one without Point's. Placing one makes a point named after it, with
 the preset's name as a property; a right-click on it among the kinds renames or deletes it. Presets
-live in this browser only; **Export presets (JSON)** and **Import…** move them.
+live in this browser only; **Download** › **Presets (JSON)** and **Open a file…** move them.
 
 ## 10. Deleting, and drawings in this browser
 
@@ -276,7 +280,7 @@ live in this browser only; **Export presets (JSON)** and **Import…** move them
   where they were; labels on it stay, free. A group with members asks first: the group only (what is
   in it goes to the group above), or everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.
-  **☰** lists the drawings in this browser (last change, size): a click opens one where it was drawn,
-  a bin deletes it for good (asked first); **+ New drawing** adds one.
-- When the browser refuses to save, Properties says so (Export drawing keeps it as a file); when
+  **Open** lists the drawings in this browser (last change, size): a click opens one where it was
+  drawn, a bin deletes it for good (asked first); **+ New drawing** adds one.
+- When the browser refuses to save, Properties says so (Download › Drawing keeps it as a file); when
   another tab saved the same drawing, it says so, with **Reload**.
