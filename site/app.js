@@ -747,7 +747,7 @@ for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(.
 let drawPanel = null; // the drawing's view (below): told when the frame changes
 const frame = createFrame({ left: $('#side'), right: $('#props'), icon, onChange: () => { writeHash(); drawPanel?.render('tool'); },
   tabs: [{ id: 'layers', label: 'Layers', paths: ['m12 3 9 5-9 5-9-5z', 'm3 13 9 5 9-5'], badge: h('span', { class: 'spin', 'aria-hidden': 'true' }), body: $('#menu') },
-    { id: 'elements', label: 'Elements', paths: ['M9 6h11', 'M9 12h11', 'M9 18h11', 'M4.5 6h.01', 'M4.5 12h.01', 'M4.5 18h.01'], body: $('#dview') }] });
+    { id: 'elements', label: 'Elements', paths: [['M4 5.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], 'M8 6h13', 'M4 8v2a2 2 0 0 0 2 2h2', 'M4 10v6a2 2 0 0 0 2 2h2', ['M10 11.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], ['M10 17.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], 'M14 12h7', 'M14 18h7'], body: $('#dview') }] });
 // ---- layers panel -----------------------------------------------------------
 const menu = $('#menu');
 const rows = {};

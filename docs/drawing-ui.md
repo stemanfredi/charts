@@ -14,12 +14,12 @@ Code: `site/frame.js` the frame; `site/draw/`: `panel.js` the inspector, `tree.j
 One layout at every width (`site/frame.js`).
 
 - **The bar**, across the top: the file group, **Open** (the drawings in this browser, + New, **Open
-  a file…**), the drawing's **title** (typed over: renamed), **Download** (the drawing's GeoJSON, a
+  a file…**), **Download** (the drawing's GeoJSON, a
   picture, GIS data, the presets), **Copy link**; **Layers** and **Elements** (the left panel's
   tabs); **Undo**, **Redo** (history, not tools); **Select** and **Box select**; **Point**, **Line**,
   **Shape**, **Label**; **Measure**; at its end **find a place** (a field; / goes to it), **About**
-  and the **Properties** toggle. Under 900 px the title is left out (Open's menu marks the drawing
-  open). With a finger under 1,280 px (a tablet), as on a phone: **☰** in place of Open holds the
+  and the **Properties** toggle. The drawing is named in Elements' first row and its Properties.
+  With a finger under 1,280 px (a tablet), as on a phone: **☰** in place of Open holds the
   file group and About, find a place is behind its lens with the map's controls. With a mouse and room (a window from 1,280 px), a tool's kinds are buttons in the bar in its place (Shape's ten), each the tool on with that kind.
   Otherwise the tool's one button shows the kind in use and a corner mark; its kinds are a row under
   it as it goes on, shut once one is picked or the map is clicked. Its key again: the next kind.
@@ -124,7 +124,7 @@ the drawing.
 ## 4. The tree
 
 - Its first row is the drawing: its title ("Untitled drawing" while it has none; a click selects it:
-  Properties, when on, show it; a double-click renames it, as the bar's title does), how many elements it
+  Properties, when on, show it; a double-click renames it, as any row), how many elements it
   holds, and an eye for everything listed.
 - Then groups first, what is in each one step further in (a group folds), then the rest. A row: the
   element's icon (a point by what it looks like), its name (else its kind and place), a short value

@@ -189,7 +189,7 @@ export function createTree(drawing, ctx, { facts, openDrawing }) {
     input.select();
   }
 
-  // the drawing renamed in its row, as an element is: its title (the bar's too)
+  // the drawing renamed in its row, as an element is: its title
   function renameDrawing() {
     const input = h('input', { class: 'dname', value: drawing.doc.meta.title || '', placeholder: 'Untitled drawing', 'aria-label': 'Title' });
     let done = false;

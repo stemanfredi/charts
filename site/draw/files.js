@@ -1,7 +1,6 @@
 // The bar's file group (docs/drawing-ui.md §1, §10): Open (the drawings in this browser, the one open
 // marked, each opened where it was drawn or deleted for good, asked first; + New; a file from the
-// computer), the drawing's title (typed over: renamed), Download (the drawing's GeoJSON, the view's
-// outputs, the presets) and Copy link. Where the bar has no room for them (COMPACT: a phone, a tablet),
+// computer), Download (the drawing's GeoJSON, the view's outputs, the presets) and Copy link. Where the bar has no room for them (COMPACT: a phone, a tablet),
 // Open's menu holds them all, and About. An imported file gets a report first.
 
 import { h, COMPACT } from '../dom.js';
@@ -16,7 +15,7 @@ const FILE_ICON = ['M6 3h8l4 4v14H6z', 'M14 3v4h4'], OPEN_ICON = ['M3 6.5A1.5 1.
 // drawing (drawing.js); ctx: { icon, download(text, name), openDrawing(id), onImport(doc, report),
 // known, outputs (the view's, menu items), copyLink(), about(), linkIcon, aboutIcon }; deleteIcon: the
 // bin's svg, made anew for each row; presetsChanged(): the tools' kinds shown again. Returns { buttons (the bar's),
-// renderTitle(), importFile(file) }.
+// importFile(file) }.
 export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
   const { icon } = ctx;
   const fileInput = h('input', { type: 'file', accept: '.geojson,.json,application/geo+json,application/json', hidden: true, onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
@@ -65,7 +64,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
     menuEl.replaceChildren(...items());
     menu.open(b, true);
   }
-  // the bar's buttons: Open (COMPACT: ☰, everything), the title, Download, Copy link
+  // the bar's buttons: Open (COMPACT: ☰, everything), Download, Copy link
   const barBtn = (cls, label, paths, onclick, more = {}) => h('button', { type: 'button', class: cls, 'aria-label': label, title: label, onclick, ...more }, icon(...paths));
   const openBtn = barBtn('filebtn', 'Open', OPEN_ICON, () => toggle(openBtn, () => (COMPACT.matches
     ? [...openItems(), sep(), ...downloadItems(), sep(), item('Copy link', 'Copy a link to this exact view', ctx.copyLink, ctx.linkIcon), item('About', 'About this chart', ctx.about, ctx.aboutIcon)]
@@ -73,15 +72,6 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
   openBtn.append(icon('M4 6h16', 'M4 12h16', 'M4 18h16')); // COMPACT's: ☰ (style.css shows one of the two)
   const downloadBtn = barBtn('dlbtn', 'Download', ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], () => toggle(downloadBtn, downloadItems), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const linkBtn = barBtn('linkbtn', 'Copy link', ctx.linkIcon, () => ctx.copyLink());
-  // the title, typed over: renamed on Enter or when left (an undo puts it back); Esc: as it was
-  const titleIn = h('input', { class: 'dtitle', placeholder: 'Untitled drawing', 'aria-label': 'Title of the drawing', title: 'The drawing\'s title: type to rename', spellcheck: 'false' });
-  const renderTitle = () => { if (document.activeElement !== titleIn) titleIn.value = drawing.doc.meta.title || ''; };
-  titleIn.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') titleIn.blur();
-    else if (e.key === 'Escape') { e.stopPropagation(); titleIn.value = drawing.doc.meta.title || ''; titleIn.blur(); }
-  });
-  titleIn.addEventListener('blur', () => { if (titleIn.value !== (drawing.doc.meta.title || '')) drawing.change((doc) => { doc.meta.title = titleIn.value; }); });
-  renderTitle();
   function newDrawing() {
     drawing.saving.add();
     note('New drawing');
@@ -112,5 +102,5 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
       doc ? h('p', { class: 'note' }, 'It is added to the drawings in this browser and opened; this one stays in the list.') : null);
     if (go) ctx.onImport(doc, report);
   }
-  return { buttons: [openBtn, titleIn, downloadBtn, linkBtn], renderTitle, importFile };
+  return { buttons: [openBtn, downloadBtn, linkBtn], importFile };
 }

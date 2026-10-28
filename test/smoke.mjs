@@ -135,13 +135,15 @@ await section('the frame', async () => {
   await pv.click('#bar .ptab[data-tab=layers]');
   const back = await now();
   check(opened.join() === 'layers,0,1' && closed.join() === 'false,0,0' && back[0] === 'layers', `Layers a tab of the left panel, closed by its key, opened again by its button in the bar; the bar at the top (${opened}; ${closed}; ${back})`);
-  // the drawing's title in the bar: typed over, renamed on Enter (an undo puts it back)
-  await pv.fill('#bar .dtitle', 'Survey');
+  // the drawing renamed by a double-click on its row, the tree's first (an undo puts it back)
+  await pv.click('#bar .ptab[data-tab=elements]');
+  await pv.dblclick('.droot .dname');
+  await pv.keyboard.type('Survey');
   await pv.keyboard.press('Enter');
   const named = await pv.evaluate(() => drawing.doc.meta.title);
   await pv.evaluate(() => drawing.undo());
-  const unnamed = await pv.evaluate(() => [drawing.doc.meta.title, document.querySelector('#bar .dtitle').value]);
-  check(named === 'Survey' && unnamed.join() === ',', `the drawing renamed from the bar's title, back with an undo (${named}; ${unnamed})`);
+  const unnamed = await pv.evaluate(() => [drawing.doc.meta.title, document.querySelector('.droot .dname').textContent]);
+  check(named === 'Survey' && unnamed.join() === ',Untitled drawing', `the drawing renamed by a double-click on its row, back with an undo (${named}; ${unnamed})`);
   // every button of the bar on the screen, from a phone's width up, with a mouse and with a finger (44 px
   // buttons: under 1,280 px the file group and the search in Open's menu and behind the lens)
   const fitsAt = async (page, widths) => {

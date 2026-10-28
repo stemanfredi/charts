@@ -371,11 +371,11 @@ dialog.dreport button.done { background: var(--accent); border-color: var(--acce
 body.finding .search { display: flex; }
 /* a computer's: in the bar, always shown; the lens not needed */
 .bar > .search { position: relative; top: auto; right: auto; display: flex; flex: 0 1 320px; min-width: 160px; width: auto; min-height: 30px; margin: 0 4px; box-shadow: none; }
-.bar > .search input, .bar > .dtitle { height: 28px; } /* the bar's 28 px; a finger's 44 */
+.bar > .search input { height: 28px; } /* the bar's 28 px; a finger's 44 */
 .bar > .search .x { width: 28px; height: 28px; }
-@media (pointer: coarse) { .bar > .search { min-height: 46px; } .bar > .search input, .bar > .dtitle { height: 44px; } .bar > .search .x { width: 44px; height: 44px; } }
+@media (pointer: coarse) { .bar > .search { min-height: 46px; } .bar > .search input { height: 44px; } .bar > .search .x { width: 44px; height: 44px; } }
+@media (min-width: 720px) and (max-width: 899px) { .bar > .search { min-width: 140px; } } /* a narrow window: the tools first */
 @media (min-width: 720px) and (pointer: fine), (min-width: 1280px) { #b-find { display: none; } }
-@media (min-width: 720px) and (max-width: 899px) { .bar > .dtitle { display: none; } .bar > .search { min-width: 140px; } } /* a narrow window: the title in Open's menu */
 .results { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; padding: 4px; max-height: 60vh; overflow-y: auto; }
 .results ul { list-style: none; margin: 0; padding: 0; }
 .results li { min-height: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
@@ -465,15 +465,12 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .bar > :is(.ptoggle, #b-find)[aria-pressed="true"], .bar > #b-find[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
 .bar > button:disabled { opacity: .35; cursor: default; background: none; }
 /* a tool with kinds: a small corner mark (its button shows the kind in use) */
-/* the file group: Open (a phone's ☰: the second icon), the drawing's title typed over, Download, Copy link */
+/* the file group: Open (a phone's ☰: the second icon), Download, Copy link */
 .bar > .filebtn svg + svg { display: none; }
-.bar > .dtitle { flex: 0 1 180px; min-width: 60px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none; font: 600 13px/1 var(--font); color: var(--ink); text-overflow: ellipsis; }
-.bar > .dtitle:hover { border-color: var(--line); }
-.bar > .dtitle:focus { border-color: var(--accent); background: var(--bg); outline: 0; }
 /* COMPACT (dom.js: a phone, or a finger's buttons under 1,280 px): the file group and About in Open's
    menu, its ☰; the search behind its lens */
 @media (max-width: 719px), (pointer: coarse) and (max-width: 1279px) {
-  .bar > :is(.dtitle, .dlbtn, .linkbtn, .aboutbtn) { display: none; }
+  .bar > :is(.dlbtn, .linkbtn, .aboutbtn) { display: none; }
   .bar > .filebtn svg:first-child { display: none; }
   .bar > .filebtn svg + svg { display: block; }
 }

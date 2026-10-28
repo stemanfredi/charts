@@ -1016,7 +1016,6 @@ export function drawView(root, ctx) {
       if (form && what === 'doc') formPreview(); // the form's preview follows the drawing (an undo, its line edited)
       if (what === 'doc') for (const id of profiles.keys()) if (!find(drawing.doc, id)) { profiles.delete(id); profileShown.delete(id); } // a line gone: its profile too
       renderTools();
-      files.renderTitle();
     },
     importFile: (f) => files.importFile(f), // a file dropped on the map (app.js)
     press: tools.press, cycle: tools.cycle, // the tools' keys (app.js)
