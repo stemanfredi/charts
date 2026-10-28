@@ -596,12 +596,52 @@ export function drawView(root, ctx) {
     // its members as the tree counts them (everything in it, its subgroups' too), and its subgroups
     const allSubs = membersOf(doc, id, true).length - below.length;
     // its totals as the drawing's, its members only, by subgroup (its own: under its name)
+    const shared = below.length > 1 ? sharedRows(below) : [];
     const totalsOf = below.length ? totalsBlock(null, (gid) => (gid ? groupPath(doc, doc.groups.find((g) => g.id === gid)) : ''), breakdown(doc, null, new Set(below.map((x) => x.el.id))), '', `${id}:totals`) : null;
     return [...commonTop('group', id),
       row('Members', h('span', { class: 'fvalue' }, [plural(below.length, 'element'), allSubs ? plural(allSubs, 'subgroup') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
       totalsOf,
       actionsRow(ruleActs(id), h('button', { type: 'button', class: 'small', title: 'Everything in it, its groups\' too', disabled: !below.length, onclick: () => drawing.select(below.map((x) => x.el.id)) }, 'Select members')),
+      ...(shared.length ? [h('div', { class: 'fblock' }, h('h3', {}, 'Each member'), ...shared)] : []),
       lookBlock([item(id)], null, 'Look · sets each member'), ...commonBottom('group', id)];
+  }
+
+  // What several elements share (drawing-ui.md §5), each row set on all of them at once, "mixed"
+  // where they differ (as Look): two or more points, their Bearing, Symbol and Parts (part by part,
+  // as far as every point has one: its kind, size, across, fill); two or more lines, their Path;
+  // points, lines or areas, Guide. xs: the elements (several selected, or a group's members)
+  function sharedRows(xs) {
+    const pts = xs.filter((x) => x.kind === 'point'), lines = xs.filter((x) => x.kind === 'line'), geo = xs.filter((x) => ['point', 'line', 'area'].includes(x.kind));
+    const same = (ys, f) => { const vs = ys.map(f); return vs.every((v) => v === vs[0]) ? vs[0] : null; };
+    const each = (ys, fn) => drawing.change((d) => { for (const y of ys) fn(find(d, y.el.id).el, d); });
+    const out = [];
+    if (pts.length > 1) {
+      const nowPts = () => pts.map((x) => now(x.el.id)).filter(Boolean);
+      out.push(row('Bearing', angleField(() => same(nowPts(), (p) => p.bearing), (v) => each(pts, (p) => { p.bearing = v; }), 'Bearing (degrees true) of each point'), funit('°T')));
+      if (pts.every((x) => !mainOutline(x.el))) out.push(row('Symbol', segOf('Symbol of each point', SYMBOLS.map((sy) => [sy, sy === 'none' ? '∅' : icon(...SYMBOL_ICON[sy]), SYMBOL_TITLE[sy]]), same(pts, (x) => x.el.symbol), (sy) => each(pts, (p) => { p.symbol = sy; }))));
+      // their parts, part by part, as far as every point has one
+      const n = Math.min(...pts.map((x) => x.el.parts.length)), U = colUnitText();
+      const partsAt = (i) => nowPts().map((p) => p.parts[i]).filter(Boolean);
+      const at = (i, fn) => drawing.change((d) => { for (const x of pts) { const p = find(d, x.el.id).el; if (p.parts[i]) fn(p.parts[i]); reattach(d, x.el.id); } });
+      const kindAt = (i) => same(partsAt(i), (q) => q.kind);
+      const roundAt = (i) => same(partsAt(i), (q) => (q.radius != null));
+      const tooFar = (m) => (m >= MAX_RADIUS ? 'too large' : null);
+      const sizeCell = (i) => (roundAt(i) === null ? null : roundAt(i)
+        ? distField(() => same(partsAt(i), (q) => q.radius), (m) => at(i, (q) => { if (q.radius != null) q.radius = m; }), `Part ${i + 1} radius of each`, tooFar, { in: colUnit() })
+        : distField(() => same(partsAt(i), (q) => q.length), (m) => at(i, (q) => { if (q.length != null) q.length = m; }), `Part ${i + 1} length of each`, tooFar, { in: colUnit() }));
+      const acrossCell = (i) => (kindAt(i) === 'sector' ? h('span', { class: 'vpair' }, angleField(() => same(partsAt(i), (q) => q.aperture), (v) => at(i, (q) => { q.aperture = v; }), `Part ${i + 1} aperture of each`, 0, 360, false), funit('°'))
+        : roundAt(i) === false ? distField(() => same(partsAt(i), (q) => q.width), (m) => at(i, (q) => { if (q.width != null) q.width = m; }), `Part ${i + 1} width of each`, tooFar, { in: colUnit() }) : null);
+      if (n) out.push(h('div', { class: 'fblock' }, h('h3', {}, 'Parts · of each point'),
+        listGrid({ name: 'shared:parts', plain: true, head: true,
+          columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 }, { head: `Size ${U}`, width: 80, cls: 'n', title: 'A circle\'s or sector\'s radius, an outline\'s length' }, { head: `Across ${U}`, width: 64, cls: 'n', title: 'A sector\'s aperture (°), an outline\'s width' }, { head: 'Fill', width: 40 }],
+          rows: Array.from({ length: n }, (_, i) => ({ cells: [`${i + 1}`,
+            kindAt(i) !== null ? fvalue(PART_NAME[kindAt(i)]) : h('span', { class: 'mixed' }, 'mixed'),
+            sizeCell(i), acrossCell(i),
+            check('', same(partsAt(i), (q) => q.fill), (v) => at(i, (q) => { q.fill = v; }), { 'aria-label': `Part ${i + 1} filled, each` })] })) })));
+    }
+    if (lines.length > 1) out.push(row('Path', segOf('Path of each line', [[false, 'Straight', 'Geodesics, as measured'], [true, 'Smooth', 'A curve through its bends']], same(lines, (x) => !!x.el.smooth), (v) => each(lines, (l) => { l.smooth = v; }))));
+    if (geo.length > 1) out.push(row('Guide', check('', same(geo, (x) => x.el.guide), (v) => each(geo, (g) => { g.guide = v; }), { 'aria-label': 'Guide', title: 'Supporting geometry: drawn faint and dashed, left out of the totals' })));
+    return out;
   }
 
   // a new group of ids, in the nearest group they are all in; it is selected
@@ -614,8 +654,9 @@ export function drawView(root, ctx) {
     // two points: how far apart, and the bearing from the first to the second
     const between = xs.length === 2 && xs.every((x) => x.kind === 'point') ? inverse(xs[0].el.position, xs[1].el.position) : null;
     title = `${xs.length} elements · ${Object.entries(counts).map(([k, n]) => plural(n, kindName(k).toLowerCase())).join(', ')}`;
-    return [between ? row('Distance', distValue(between.s)) : null,
-    between ? row('Bearing', fvalue(norm360(between.azi).toFixed(1), { title: `From ${label(xs[0].kind, xs[0].el)}` }), funit('°T')) : null,
+    return [between ? row('Apart', distValue(between.s, { title: 'From the first to the second' })) : null,
+    between ? row('Bearing 1→2', fvalue(norm360(between.azi).toFixed(1), { title: `From ${label(xs[0].kind, xs[0].el)} to ${label(xs[1].kind, xs[1].el)}` }), funit('°T')) : null,
+    ...sharedRows(xs),
     xs.some((x) => x.kind === 'label') ? leaderRow(xs.filter((x) => x.kind === 'label')) : null,
     actionsRow(pointIds.length > 1 ? h('button', { type: 'button', class: 'small', title: 'Join these points to roots with straight lines: trees through hubs, or chains', onclick: () => openConnect(pointIds) }, 'Connect…') : null),
     lookBlock(xs),

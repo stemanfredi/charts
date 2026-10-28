@@ -139,8 +139,9 @@ the drawing.
 
 ## 5. Properties
 
-It shows one element, several (its head counts them by kind; one Look for all, the distance and
-bearing between two points, **Connect…**), a group, or the drawing (title, description, author;
+It shows one element, several (its head counts them by kind; what they share, set on all at once;
+one Look for all; how far apart two points are, and the bearing from the first to the second;
+**Connect…**), a group, or the drawing (title, description, author;
 **Display**, the drawing's look; **Totals** by group or by a property, Copy). A field applies on Enter
 or when left, one undo step; a value that does not read stays marked and is not applied; Esc puts it
 back. ↑ ↓ nudge a number by its last digit (Shift: ten). Distances show to the decimetre (m), the
@@ -174,6 +175,10 @@ read in that one).
   chooses) and **Detach** (it stays where it is). An area's **corners** the same, 1 to n, corner 1's
   edge from the last. The row current is ringed on the map; a point pressed on the map makes its row
   current, on its page.
+- **What several share** (two or more selected, or a group's members under **Each member**): each
+  row sets all of them, "mixed" where they differ. Points: Bearing, Symbol, and their **Parts** part
+  by part as far as every point has one (its kind, size, across, fill: a radius typed sets each
+  circle's). Lines: Path. Points, lines and areas: Guide. Labels: Leader.
 - **The look's cascade:** an element's own value, else the drawing's Display, else the default; **↺**
   gives a field back. Fill and Stroke are rows (a colour, its opacity in %), Width (px) and Dash
   their own. Where several differ a field says "mixed" and a change writes only that field. A group

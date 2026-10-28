@@ -1,7 +1,8 @@
 // The panels' fields (Tools, Layers). A field applies on Enter or when it loses focus, never
 // on each key; a value it cannot read stays marked, is not applied, and note() says why; Esc puts
 // back what it showed and leaves it. A read gives the value to apply, or undefined: not valid (null
-// is a value: "none", "the default").
+// is a value: "none", "the default"). A distance's or an angle's get() null (several elements that
+// differ): the field empty, "mixed" its placeholder.
 
 import { h } from './dom.js';
 import { parseCoord, parseDist, distText, UNIT_M } from './format.js';
@@ -72,22 +73,22 @@ export function fields({ note, units }) {
   // it), or in a table's head
   const dist = (get, put, aria, { zero = false, check = () => null, in: fixed = null, ...attrs } = {}) => {
     let unit;
-    const input = field(() => { if (fixed) { unit = fixed; return (get() / UNIT_M[fixed]).toFixed(3); } const t = distText(get(), units()); unit = t.unit; return zero && !get() ? '0' : `${t.value}`; }, (t) => {
+    const input = field(() => { const v = get(); if (v == null) { unit = fixed || (units() === 'nm' ? 'nm' : 'km'); return ''; } if (fixed) { unit = fixed; return (v / UNIT_M[fixed]).toFixed(3); } const t = distText(v, units()); unit = t.unit; return zero && !v ? '0' : `${t.value}`; }, (t) => {
       const m = zero && t.trim() === '0' ? 0 : parseDist(t, unit);
       return m === null || (zero ? m < 0 : m <= 0) || check(m) ? undefined : m;
     }, put, { 'aria-label': aria, class: 'dist', nudge: (t, up, big) => stepped(t, up, big, 0), bad: zero ? 'a distance, 0 or more, with m, km or NM' : 'a distance above 0, with m, km or NM',
-      title: 'A distance in the unit beside it (another may be typed: 500 m, 1.2 km, 0.8 NM)', ...attrs });
+      title: 'A distance in the unit beside it (another may be typed: 500 m, 1.2 km, 0.8 NM)', placeholder: 'mixed', ...attrs });
     input.unitText = () => UNIT_TEXT[unit];
     return input;
   };
   // degrees: wrap (a bearing: any number, read modulo 360), else strictly between lo and hi; fixed:
   // its decimals always shown (a table's column)
-  const angle = (get, put, aria, { lo = 0, hi = 360, wrap = true, fixed = null } = {}) => field(() => (fixed == null ? `${+get().toFixed(4)}` : get().toFixed(fixed)), (t) => {
+  const angle = (get, put, aria, { lo = 0, hi = 360, wrap = true, fixed = null } = {}) => field(() => { const v = get(); return v == null ? '' : fixed == null ? `${+v.toFixed(4)}` : v.toFixed(fixed); }, (t) => {
     const v = num(t.replace('°', ''));
     if (t.trim() === '' || !Number.isFinite(v)) return undefined;
     if (wrap) return norm360(v);
     return v > lo && v < hi ? v : undefined;
-  }, put, { 'aria-label': aria, class: 'angle', inputmode: 'decimal', nudge: (t, up, big) => { const v = num(t.replace('°', '')); return Number.isFinite(v) ? `${+(v + (up ? 1 : -1) * (big ? 10 : 1)).toFixed(4)}` : null; }, bad: wrap ? 'degrees' : `degrees between ${lo} and ${hi}` });
+  }, put, { 'aria-label': aria, class: 'angle', inputmode: 'decimal', placeholder: 'mixed', nudge: (t, up, big) => { const v = num(t.replace('°', '')); return Number.isFinite(v) ? `${+(v + (up ? 1 : -1) * (big ? 10 : 1)).toFixed(4)}` : null; }, bad: wrap ? 'degrees' : `degrees between ${lo} and ${hi}` });
   // one coordinate (axis 'lat' or 'lon'): decimal degrees, degrees and minutes, DMS, a hemisphere letter;
   // fixed: its decimals always shown (a table's column: 6, a decimetre)
   const coord = (axis, get, put, aria = axis === 'lat' ? 'Latitude' : 'Longitude', fixed = null) => field(() => (fixed == null ? `${+get().toFixed(7)}` : get().toFixed(fixed)), (t) => {
