@@ -88,7 +88,7 @@ await section('the default view and the menu', async () => {
 
 await section('URL state, Link, Measure, a bad link', async () => {
   // URL state: view and layers survive a reload; Link copies the current view. Measure: what it
-  // measured on the map only, its card saying it; Keep makes it a guide showing its values
+  // measured goes in the drawing, a guide showing its values, selected
   const p = await open('#v=9/35.9/14.4/0&on=chart,coastline,depth,isobaths&u=nm');
   await p.evaluate(() => { if (!document.querySelector('#side').hidden) document.querySelector('#bar .pleft').click(); }); // the left panel closed: the clicks below land on the map
   await p.keyboard.press('m'); // Measure, a distance
@@ -97,14 +97,13 @@ await section('URL state, Link, Measure, a bad link', async () => {
   await p.waitForTimeout(200); // the values drawn
   const liveValues = await p.evaluate(() => map.querySourceFeatures('drawvalue').length);
   await p.mouse.dblclick(420, 340);
-  const card = await p.evaluate(() => [document.querySelector('.mcard span')?.textContent ?? '', drawing.doc.lines.length]);
-  await p.click('.mcard button:has-text("Keep")');
+  const made = await p.evaluate(() => [drawing.doc.lines.length, drawing.sel.has(drawing.doc.lines[0]?.id), drawing.tool]);
   await p.keyboard.press('Escape');
   await p.waitForTimeout(400);
   const kinds = (await p.evaluate(() => [...document.querySelectorAll('.dlist .drow .dname')].map((l) => l.textContent.split(' ')[0]))).sort().join();
   const measured = await p.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return [elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).length, map.querySourceFeatures('drawvalue').map((f) => f.properties.label)]; });
-  check(/^Distance [\d.]+ NM$/.test(card[0]) && card[1] === 0 && kinds === 'Distance' && measured[0] === 1 && measured[1].some((t) => /NM$/.test(t)) && liveValues > 0,
-    `Measure: a distance on its card, not in the drawing (${card}); kept, a guide showing its values in NM; the leg's length shown while drawing (${kinds}; ${measured[1].join(' | ')}; ${liveValues} live)`);
+  check(made.join() === '1,true,measure' && kinds === 'Distance' && measured[0] === 1 && measured[1].some((t) => /NM$/.test(t)) && liveValues > 0,
+    `Measure: a distance in the drawing, selected, the tool still on (${made}); a guide showing its values in NM; the leg's length shown while drawing (${kinds}; ${measured[1].join(' | ')}; ${liveValues} live)`);
   await p.evaluate(() => map.jumpTo({ center: [12, 41], zoom: 6 }));
   await exportItem(p, 'link');
   const link = await p.evaluate(() => navigator.clipboard.readText());

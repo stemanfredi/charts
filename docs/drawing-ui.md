@@ -46,8 +46,7 @@ Both start closed. Zoom to and a place found are fitted to the map the bar and t
 
 **With a finger**: a row over the map's foot: **Done** (a line, polygon or measurement being drawn),
 **Back** (one level, as Esc), **Delete** and **Duplicate** (a selection), **Snap** (a tool on; off
-places exactly where tapped, as Alt), **Undo** (a phone), **Properties** (a selection, Properties
-off). Handles are 14 px, grabbed within 22 px; snapping reaches 16 px; a + only on legs over 80 px; a
+places exactly where tapped, as Alt), **Undo** and **Properties** (a phone: a selection, Properties off). Handles are 14 px, grabbed within 22 px; snapping reaches 16 px; a + only on legs over 80 px; a
 second finger during a drag puts it back and lets the map pinch.
 
 **Colours and sizes**: pressed is blue, a panel shown pale blue, magenta the map's own (measurements,
@@ -103,15 +102,15 @@ edit of what it is on keeps it on the nearest vertex or edge.
 
 ## 3. Measure
 
-Measure measures without drawing: a click per point, snapped; each leg and the total shown. Enter or
-a double-click ends it; a click on its first point closes it (area and perimeter). It stays on the
-map, a card at the map's foot saying it, until Esc, the next measurement or the tool's end. **Keep**
-puts it in the drawing as a line "Distance 1" or an area: a guide showing its values, magenta and
-dashed; unticking Guide makes it part of the drawing.
+Measure: a click per point, snapped; each leg and the total shown. Enter or a double-click ends it; a
+click on its first point closes it (area and perimeter). What it measured goes in the drawing,
+selected, as a line "Distance 1" or an area: a guide showing its values, magenta and dashed. Saved,
+printed and exported with the drawing; Delete (or Undo) removes it; unticking Guide makes it part of
+the drawing.
 
 ## 4. The tree
 
-- Its first row is the drawing: its title (a click shows it in Properties, turning them on), how many
+- Its first row is the drawing: its title (a click selects it: Properties, when on, show it), how many
   elements it holds, and an eye for everything listed.
 - Then groups first, what is in each one step further in (a group folds), then the rest. A row: the
   element's icon (a point by what it looks like), its name (else its kind and place), a short value

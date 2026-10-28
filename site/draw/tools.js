@@ -1,7 +1,7 @@
 // The drawing's tools (docs/drawing-ui.md §1, §2): their buttons in the bar (☰, Select, Point, Line,
 // Shape, Label, Measure, Undo, Redo), a tool's kinds in a row under its button, the touch row over
-// the map's foot (with a finger), and the card saying what Measure measured. A tool with kinds
-// remembers the one chosen last; its key pressed again moves to the next (app.js).
+// the map's foot (with a finger). A tool with kinds remembers the one chosen last; its key pressed
+// again moves to the next (app.js).
 
 import { h, NARROW } from '../dom.js';
 import { ask, askText } from '../menu.js';
@@ -9,17 +9,16 @@ import { OUTLINES } from './document.js';
 import { OUTLINE_NAME } from './outlines.js';
 import { savePresets, presetTool } from './presets.js';
 import { keyOf, MOD } from '../keys.js';
-import { fmtArea, fmtDist, plural } from '../format.js';
 import { KIND_ICON, POINT_ICON, SELECT_ICON } from './icons.js';
 
 // drawing (drawing.js); ctx: { icon, units(), bar, frame, measureIcon }; del(ids): delete, asked
 // first (the touch row's); toggleFiles(button): the drawings menu. Returns { press, cycle,
-// renderTools, renderTouch, renderMeasure }.
+// renderTools, renderTouch }.
 export function createTools(drawing, ctx, { del, toggleFiles }) {
   const { icon } = ctx;
   const TOOLS = { point: ['Point', 'Place points: click on the map'], line: ['Line', 'Draw a line: click its start, its bends, then a point, a corner, an edge or a vertex to end there (attached), or Enter'],
     shape: ['Shape', 'Place a shape of the outline chosen, or draw a polygon'], label: ['Label', 'Place a label: click a point, a shape, an area or a line to point at it, or anywhere for free text'],
-    measure: ['Measure', 'Measure a distance, or an area (a click on the first point closes it); Keep puts it in the drawing'] };
+    measure: ['Measure', 'Measure a distance, or an area (a click on the first point closes it): it goes in the drawing'] };
   // the kinds each tool makes (its sub-rail), each with a short tooltip. Shape: round a centre, the
   // outlines to scale, the polygon, the vehicles, the user's presets with extent
   const presetsOf = (tool) => drawing.presets.filter((x) => presetTool(x) === tool).map((x) => [`preset:${x.name}`, `${x.name}: a preset of yours (right-click: rename or delete)`]);
@@ -67,17 +66,6 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     props: touchBtn('Properties', 'Its properties (I)', () => ctx.frame.setProps(true)),
   };
   const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' }, Object.values(touch));
-  // what Measure measured, at the map's foot (drawing-ui.md §3): its values, Keep, ×
-  const mText = h('span', {});
-  const measureCard = h('div', { class: 'mcard', role: 'status', hidden: true }, mText,
-    h('button', { type: 'button', title: 'Keep it in the drawing, as a guide showing its values', onclick: () => drawing.keepMeasurement() }, 'Keep'),
-    h('button', { type: 'button', class: 'x', 'aria-label': 'Clear', title: 'Clear (Esc)', onclick: () => drawing.clearMeasurement() }, '×'));
-  document.body.append(measureCard);
-  function renderMeasure() {
-    const m = drawing.measured(), u = ctx.units();
-    measureCard.hidden = !m;
-    if (m) mText.textContent = m.closed ? `Area ${fmtArea(m.area, u)} · perimeter ${fmtDist(m.length, u)}` : `Distance ${fmtDist(m.length, u)}${m.legs > 1 ? ` · ${plural(m.legs, 'leg')}` : ''}`;
-  }
   document.body.append(touchbar); // over the map, at its foot (above a phone's sheet)
   function renderTouch() {
     const sel = drawing.sel.size > 0, tool = !!drawing.tool;
@@ -87,7 +75,7 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     touch.snap.hidden = !tool;
     touch.snap.setAttribute('aria-pressed', String(!drawing.snapOff));
     touch.undo.hidden = !NARROW.matches || !drawing.undos.length;
-    touch.props.hidden = !sel || tool || ctx.frame.props;
+    touch.props.hidden = !NARROW.matches || !sel || tool || ctx.frame.props; // a phone's bar has no Properties toggle
     touchbar.hidden = Object.values(touch).every((b) => b.hidden);
   }
   function renderSubrail() {
@@ -139,7 +127,6 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     redoBtn.disabled = !drawing.redos.length;
     renderTouch();
     renderSubrail();
-    renderMeasure();
   }
-  return { press, cycle, renderTools, renderTouch, renderMeasure };
+  return { press, cycle, renderTools, renderTouch };
 }

@@ -60,7 +60,6 @@ export function drawView(root, ctx) {
   function openDrawing() {
     drawing.select([]);
     showDrawing = true;
-    ctx.frame.setProps(true);
     renderInspector();
   }
   const tree = createTree(drawing, ctx, { facts: () => facts, openDrawing });
@@ -953,7 +952,6 @@ export function drawView(root, ctx) {
     render(what) {
       if (what === 'tool') return renderTools();
       if (what === 'draft') return tools.renderTouch();
-      if (what === 'measured') return tools.renderMeasure();
       if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;

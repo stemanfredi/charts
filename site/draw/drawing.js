@@ -14,7 +14,7 @@ import { addIcons, measureText, HIT_LAYERS, MARK_LAYERS, HANDLE_LAYERS, CURSOR, 
 import { drawParts, enlargement, zoomDependent, GEOMETRY, shapeOf, valueFeatures, ringOf } from './features.js';
 import { lineTrace, nearestAlong, positionsOf } from './lines.js';
 import { labelFeatures } from './labels.js';
-import { inverse, cornersOf, pathOf, sector, circle, areaOf } from '../geodesy.js';
+import { inverse, cornersOf, pathOf, sector, circle } from '../geodesy.js';
 import { snapAt, stepped, neighbours, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
 import { copyOf, paste, centreOf } from './clipboard.js';
@@ -249,7 +249,6 @@ export class Drawing extends DrawStore {
     this.tool = null;
     this.pressed = null;
     this.draft = null;
-    this.measurement = null;
     this.renderMarks();
     this.map.getCanvas().style.cursor = '';
     this.dblZoom = setTimeout(() => this.map.doubleClickZoom.enable(), 0);
@@ -389,12 +388,12 @@ export class Drawing extends DrawStore {
   }
   // Measure (drawing-ui.md §3): a click a point, snapped (the leg's length and the total shown as it
   // is drawn); Enter or a double-click ends it, a click on its first point closes it (its area and
-  // perimeter). What is measured stays on the map, not in the drawing, until Esc, the next
-  // measurement or the tool's end; Keep makes it a guide showing its values.
+  // perimeter). What is measured goes in the drawing as a measurement (a guide showing its values),
+  // selected: saved and printed with it, deleted as anything else.
   measureClick(point, e) {
     if (this.closesPolygon(point)) return this.finishMeasure(true);
     const p = this.snapFor(point, e, this.lastLeg()).position;
-    if (!this.draft) { this.measurement = null; this.draft = { pts: [] }; }
+    if (!this.draft) this.draft = { pts: [] };
     const last = this.draft.pts.at(-1);
     if (!last || last[0] !== p[0] || last[1] !== p[1]) this.draft.pts.push(p);
     this.renderMarks();
@@ -404,33 +403,17 @@ export class Drawing extends DrawStore {
     const pts = this.draft?.pts ?? [];
     if (pts.length < (closed ? 3 : 2)) return;
     this.draft = null;
-    this.measurement = { pts, closed };
-    this.renderMarks();
-    this.onChange('measured');
-  }
-  // what was measured: { closed, length (a closed one's: its perimeter), legs, area }, or null
-  measured() {
-    const m = this.measurement;
-    if (!m) return null;
-    const ring = m.closed ? pathOf(m.pts, true) : m.pts;
-    return { closed: m.closed, length: ring.slice(1).reduce((t, q, i) => t + inverse(ring[i], q).s, 0), legs: ring.length - 1, area: m.closed ? areaOf(ring) : null };
-  }
-  keepMeasurement() {
-    const m = this.measurement;
-    if (!m) return;
     let el;
-    this.change((doc) => { el = m.closed ? addArea(doc, m.pts, guideWithValues()) : addLine(doc, m.pts[0], m.pts.slice(1, -1), m.pts.at(-1), { ...guideWithValues(), name: nextName(doc, 'line', 'Distance') }); });
-    this.clearMeasurement();
+    this.change((doc) => { el = closed ? addArea(doc, pts, guideWithValues()) : addLine(doc, pts[0], pts.slice(1, -1), pts.at(-1), { ...guideWithValues(), name: nextName(doc, 'line', 'Distance') }); });
     this.select([el.id]);
+    this.onChange('draft');
   }
-  clearMeasurement() { this.measurement = null; this.renderMarks(); this.onChange('measured'); }
   // the keys' (keyEvents): Enter or a double-click ends the line, polygon or measurement being drawn;
-  // Esc drops it, or else what was measured, or else ends the tool
+  // Esc drops it, or else ends the tool
   finish() { if (this.tool === 'line') this.finishLine(); else if (this.tool === 'polygon') this.finishPolygon(); else if (this.tool === 'measure') this.finishMeasure(); }
   escape() {
     if (this.tool === 'sector' && this.draft?.pts.length) return this.undoPoint(); // one click back
     if (this.draft && (this.draft.start || this.draft.pts.length)) this.cancelDraft();
-    else if (this.measurement) this.clearMeasurement();
     else this.stop();
   }
   finishesOnDoubleClick() { return ['line', 'polygon', 'measure'].includes(this.tool); }
@@ -520,11 +503,10 @@ export class Drawing extends DrawStore {
     const pts = [...d.pts, ...(this.cursor ? [this.cursor.p] : [])];
     return { pts };
   }
-  // the measurement being drawn, to the cursor, or the one made: { pts, closed }, or null
+  // the measurement being drawn, to the cursor: { pts, closed }, or null
   draftMeasure() {
-    if (this.tool !== 'measure') return null;
-    if (this.draft) return { pts: [...this.draft.pts, ...(this.cursor ? [this.cursor.p] : [])], closed: false };
-    return this.measurement ?? null;
+    if (this.tool !== 'measure' || !this.draft) return null;
+    return { pts: [...this.draft.pts, ...(this.cursor ? [this.cursor.p] : [])], closed: false };
   }
   // the line being drawn, to the cursor: its points
   draftLine() {
@@ -558,7 +540,7 @@ export class Drawing extends DrawStore {
       ...this.draft.pts.map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
     const m = this.draftMeasure();
     if (m) return [{ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: m.closed ? pathOf(m.pts, true) : m.pts } },
-      ...(this.draft?.pts ?? m.pts).map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
+      ...this.draft.pts.map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
     if (this.tool !== 'line') return [];
     const l = this.draftLine(), f = [];
     if (!l) return f;
@@ -847,5 +829,5 @@ export class Drawing extends DrawStore {
 }
 
 const ALL_PARTS = { base: true, zoom: true, marks: true }, MARKS_ONLY = { marks: true };
-const guideWithValues = () => ({ guide: true, look: { text: { values: true } } }); // what Measure's Keep makes; how what is drawn shows its values
+const guideWithValues = () => ({ guide: true, look: { text: { values: true } } }); // what Measure makes; how what is drawn shows its values
 
