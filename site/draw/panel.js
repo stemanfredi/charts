@@ -696,8 +696,9 @@ export function drawView(root, ctx) {
   // (an id: the one edited or made again, or null), and the selection it was opened with (another
   // closes it)
   let form = null;
-  const dform = { by: 'spacing', spacing: 1000, count: 10, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: COPY_RADIUS, aperture: null, part: null, preset: 'circle', copy: null, groupId: null, connect: false };
-  const con = { pattern: 'tree', groupSize: 'auto', minBranch: 0, roots: [], newRoots: [] };
+  const DFORM = { by: 'spacing', spacing: 1000, count: 10, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: COPY_RADIUS, aperture: null, part: null, preset: 'circle', copy: null, groupId: null, connect: false };
+  const CON = { pattern: 'tree', groupSize: 'auto', minBranch: 0, roots: [], newRoots: [] };
+  const dform = { ...DFORM }, con = { ...CON }; // a new form starts from these; one edited, from its rule's
   const dformParams = () => ({ spacing: dform.spacing, count: dform.by === 'count' ? dform.count : null, startMargin: dform.startMargin, endMargin: dform.endMargin, offset: dform.offset, side: dform.side, radius: dform.radius, aperture: dform.aperture, preset: dform.preset, copy: dform.copy, groupId: dform.groupId,
     along: form && { element: form.along.element, part: dform.part } });
   const conParams = () => ({ pattern: con.pattern, groupSize: con.groupSize, minBranch: con.minBranch, roots: con.roots.map((r) => ({ ...r })), newRoots: con.newRoots.map((q) => [...q]) });
@@ -713,7 +714,8 @@ export function drawView(root, ctx) {
   }
   function openDistribution(along, a = null) {
     const c = a && connectionOn(drawing.doc, a);
-    dform.part = along.part ?? null; // a new one: the part followed by default
+    Object.assign(dform, DFORM, { part: along.part ?? null }); // a new one: the defaults, round the part followed by default
+    Object.assign(con, CON);
     if (a) Object.assign(dform, { by: a.count ? 'count' : 'spacing', spacing: a.spacing || dform.spacing, count: a.count || a.points.length, startMargin: a.startMargin, endMargin: a.endMargin,
       offset: a.offset, side: a.side, radius: a.radius, aperture: a.aperture, preset: a.preset ?? 'circle', copy: a.copy });
     dform.connect = !!c;
@@ -721,7 +723,7 @@ export function drawView(root, ctx) {
     openForm({ kind: 'distribute', along: { element: along.element, part: along.part ?? null }, distributionId: a?.id ?? null, connectionId: c?.id ?? null });
   }
   function openConnect(pointIds, c = null) {
-    Object.assign(con, fromConnection(c), { newRoots: [] });
+    Object.assign(con, CON, fromConnection(c), { newRoots: [] });
     openForm({ kind: 'connect', pointIds: [...pointIds], connectionId: c?.id ?? null });
   }
   function closeForm() {
