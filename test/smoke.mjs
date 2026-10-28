@@ -26,9 +26,9 @@ async function open(hash, inCtx = ctx) {
   return page;
 }
 const visible = (page, id) => page.evaluate((id) => map.getLayoutProperty(id, 'visibility'), id);
-// one of the view's outputs (link, png, zip), in the rail's ☰ (the menu stays open while an export runs; each item says how it went)
+// one of the view's outputs (link, png, zip), in the bar's ☰ (the menu stays open while an export runs; each item says how it went)
 const exportItem = async (page, id) => {
-  if (!(await page.isVisible('.dmenu'))) await page.click('#dstrip .filebtn');
+  if (!(await page.isVisible('.dmenu'))) await page.click('#bar .filebtn');
   await page.click(`#${id}`);
 };
 // the time line: behind the time chip on the bottom row
@@ -91,7 +91,7 @@ await section('URL state, Link, Measure, a bad link', async () => {
   // guides showing their values (a distance: a line; a ring: a circle in two clicks), their values
   // drawn with the drawing's
   const p = await open('#v=9/35.9/14.4/0&on=chart,coastline,depth,isobaths&u=nm');
-  await p.keyboard.press('e'); // the column hidden: the clicks below land on the map
+  await p.evaluate(() => { if (!document.querySelector('#side').hidden) document.querySelector('#bar .pleft').click(); }); // the left panel closed: the clicks below land on the map
   await p.keyboard.press('m'); // Measure, a distance
   await p.mouse.click(300, 300);
   await p.mouse.move(420, 340);
@@ -119,16 +119,19 @@ await section('URL state, Link, Measure, a bad link', async () => {
   await bad.close();
 });
 
-await section('one side panel', async () => {
-  // the tools always there, in the left frame; Layers a panel on the right, its button opening and
-  // closing it, the frame staying
+await section('the frame', async () => {
+  // the bar always there across the top; Layers the left panel's tab (menu=1 in the address), its
+  // key closing it; its toggle opening it again where it was
   const pv = await open('#v=6/41/12/0&menu=1');
-  const now = () => pv.evaluate(() => [!!document.querySelector('#panel').offsetParent, !!document.querySelector('#dstrip').offsetParent, new URLSearchParams(location.hash.slice(1)).get('menu')]);
+  const now = () => pv.evaluate(() => [!document.querySelector('#side').hidden && document.querySelector('.tabs [aria-selected=true]')?.dataset.tab, Math.round(document.querySelector('#bar').getBoundingClientRect().top),
+    new URLSearchParams(location.hash.slice(1)).get('menu')]);
   const opened = await now();
-  await pv.click('#b-layers');
+  await pv.keyboard.press('l');
   await pv.waitForTimeout(400);
   const closed = await now();
-  check(opened.join() === 'true,true,1' && closed.join() === 'false,true,0', `Layers opened and closed by its button, the tools' frame always there (${opened}; ${closed})`);
+  await pv.click('#bar .pleft');
+  const back = await now();
+  check(opened.join() === 'layers,0,1' && closed.join() === 'false,0,0' && back[0] === 'layers', `Layers a tab of the left panel, closed by its key, opened again by the bar's toggle; the bar at the top (${opened}; ${closed}; ${back})`);
   await pv.close();
 });
 
@@ -163,8 +166,9 @@ await section('search', async () => {
   const sp = await open('#v=6/41/12/0&menu=0');
   // there: in the middle of the map's part left free by the left frame (from 1024 px wide), within tol degrees
   const near = (lat, lon, tol) => sp.evaluate(({ lat, lon, tol }) => {
-    const L = Math.max(0, ...['#dstrip', '#elements'].map((x) => document.querySelector(x)).filter((e) => !e.hidden).map((e) => e.getBoundingClientRect().right));
-    const c = map.unproject([(L + innerWidth) / 2, innerHeight / 2]);
+    const side = document.querySelector('#side'), props = document.querySelector('#props'), top = document.querySelector('#bar').offsetHeight;
+    const L = side.hidden ? 0 : side.getBoundingClientRect().right, R = props.hidden ? innerWidth : props.getBoundingClientRect().left;
+    const c = map.unproject([(L + R) / 2, (top + innerHeight) / 2]);
     return Math.abs(c.lat - lat) < tol && Math.abs(c.lng - lon) < tol;
   }, { lat, lon, tol });
   let photonCalls = 0;
@@ -248,7 +252,7 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   await cm.waitForTimeout(500);
   check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'Now goes back to now');
   // About, in the right-hand column
-  await cm.click('#dstrip .filebtn');
+  await cm.click('#bar .filebtn');
   await cm.click('.dmenu .mabout');
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');
   await cm.click('#about [data-close]');
@@ -489,12 +493,17 @@ await section('maritime zones', async () => {
 
 await section('the drawing', async () => {
   // the drawing: place, edit, undo, export, New, import, restore, the exports
-  const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=0'); // Layers closed: the map's right side clear for the clicks
-  const DX = 400; // from 1024 px wide the left frame (rail and column) covers the map's left: the clicks below, written for the whole map, moved right of it
-  await dw.evaluate(() => { if (document.querySelector('#elements').hidden) document.querySelector('#dstrip .coltoggle').click(); }); // open (an earlier section may have hidden it)
+  const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline&menu=0');
+  await dw.setViewportSize({ width: 1600, height: 800 }); // the map clear between the panels for the clicks below
+  const DX = 260; // the left panel covers the map's left: the clicks below, written for the whole map, moved right of it
+  await dw.evaluate(() => { // both panels on, the left on Elements (an earlier section may have changed them)
+    if (document.querySelector('#bar .pright').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .pright').click();
+    if (document.querySelector('#side').hidden) document.querySelector('#bar .pleft').click();
+    document.querySelector('.tabs [data-tab=elements]').click();
+  });
   // the drawing's file out: from the drawings menu
   const exportDrawing = async () => {
-    await dw.click('#dstrip .filebtn');
+    await dw.click('#bar .filebtn');
     await dw.click('.dmenu button:text-is("Export drawing (GeoJSON)")');
   };
   await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 40.1], [], [12.05, 40.12], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
@@ -507,24 +516,23 @@ await section('the drawing', async () => {
   const sub = await dw.locator('.subrail button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds, round a centre first, then the outlines, then the vehicles (${sub})`);
-  // from 1024 px wide: the rail docked at the left edge, the tool's kinds a column beside it, nothing
-  // folded away; the column (tree over inspector) open, hidden by the rail's toggle, back with E; the
-  // inspector showing the drawing with nothing selected
-  const layoutNow = () => dw.evaluate(() => [!!document.querySelector('#dstrip button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#dstrip .subrail')?.offsetParent,
-    !document.querySelector('#elements').hidden, Math.round(document.querySelector('#dstrip').getBoundingClientRect().left), document.querySelector('.dinsphead .ititle')?.textContent]);
+  // the bar across the top, the tool's kinds a row under it; the left panel open, hidden by the bar's
+  // toggle, back with E; Properties hidden with nothing selected (it has nothing to show)
+  const layoutNow = () => dw.evaluate(() => [!!document.querySelector('#bar button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#bar .subrail')?.offsetParent,
+    !document.querySelector('#side').hidden, Math.round(document.querySelector('#bar').getBoundingClientRect().top), document.querySelector('#props').hidden]);
   const onTool = await layoutNow();
-  await dw.click('#dstrip .coltoggle');
+  await dw.click('#bar .pleft');
   const hiddenE = await layoutNow();
   await dw.keyboard.press('e');
   const shownE = await layoutNow();
-  check(onTool.join() === 'true,true,true,0,Drawing' && !hiddenE[2] && shownE[2],
-    `tools: the rail at the left edge, the kinds beside it; the column open (the drawing in the inspector), hidden by the rail's toggle, back with E (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
+  check(onTool.join() === 'true,true,true,0,true' && !hiddenE[2] && shownE[2],
+    `tools: the bar at the top, the kinds under it; the left panel open, hidden by the bar's toggle, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
   // a kind picked: the column still open (until the tool ends), the tool's button showing it; Circle again
-  await dw.click('#dstrip .subrail button[aria-label="Rings"]');
-  const picked = await dw.evaluate(() => [!!document.querySelector('#dstrip .subrail')?.offsetParent, document.querySelector('#dstrip button[data-tool=shape]').dataset.shows]);
+  await dw.click('#bar .subrail button[aria-label="Rings"]');
+  const picked = await dw.evaluate(() => [!!document.querySelector('#bar .subrail')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('s');
-  await dw.click('#dstrip .subrail button[aria-label="Circle"]');
+  await dw.click('#bar .subrail button[aria-label="Circle"]');
   check(picked[0] && picked[1] === 'rings', `tools: a kind picked, the column stays open while the tool is on, the tool's button shows it (${picked})`);
   await dw.mouse.click(DX + 500, 400);
   await dw.mouse.click(DX + 500, 400); // its centre again: the default size
@@ -561,7 +569,7 @@ await section('the drawing', async () => {
   d = await saved();
   check(undone === 0 && pt0().bearing === 330, `drawing: undo and redo (bearing ${undone}, then 330)`);
   // the list's header box: all shown, a click hides them all; again, shows them all
-  const allBox = dw.locator('.dlisthead .deye');
+  const allBox = dw.locator('.droot .deye');
   const isAll = async () => (await allBox.getAttribute('aria-pressed')) === 'true';
   const wasAll = await isAll();
   await allBox.click();
@@ -583,7 +591,7 @@ await section('the drawing', async () => {
   savedFile.features = [...savedFile.features.filter((f) => !measuredOf(savedFile).includes(f)), ruler];
   const exported = JSON.stringify(savedFile);
   const measuredNow = () => dw.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).map((x) => x.el.start?.position ?? x.el.position ?? x.el.points[0]); });
-  await dw.click('#dstrip .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the rail's ☰, nothing asked
+  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the rail's ☰, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
   await dw.setInputFiles('#dview input[type=file]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
@@ -625,7 +633,7 @@ await section('the drawing', async () => {
   // attached to it), the totals
   await dw.locator('.dinsphead .ititle').click();
   await dw.keyboard.press('Escape'); // nothing selected: the drawing's own inspector
-  await dw.click('#dstrip .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the rail's ☰, nothing asked
+  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the rail's ☰, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length);
   await dw.keyboard.press('g');
   await dw.mouse.click(DX + 200, 500);
@@ -909,7 +917,7 @@ await section('the drawing', async () => {
   // the drawing's look (its Display, nothing selected): names on for every element that does not say
   // otherwise; a point's own switch still wins
   await dw.evaluate((id) => { drawing.change((doc) => { doc.points.find((n) => n.id === id).look = {}; }); drawing.select([]); }, nid);
-  await dw.click('.dtitle');
+  await dw.click('.droot .dname');
   await dw.locator('.dinspect .fblock:has(h3:text-is("Display")) input[aria-label="Names on map"]').check();
   const byDefault = await dw.evaluate((id) => [drawing.doc.look.text?.name, drawing.doc.points.find((n) => n.id === id).look.text], nid);
   await dw.waitForTimeout(300);
@@ -927,7 +935,7 @@ await section('the drawing', async () => {
   const val = dw.locator('.dinspect [data-grid$=":data"] input[aria-label=Value]').last();
   await val.fill('x');
   await val.press('Enter');
-  await dw.click('.dtitle');
+  await dw.click('.droot .dname');
   await dw.selectOption('.dinspect select[aria-label="Totals by"]', 'kind');
   const byKind = await dw.evaluate(() => [...document.querySelectorAll('.dinspect .vtable.totals td:first-child')].map((td) => td.textContent));
   check(byKind.some((t) => t.endsWith('“x”')) && byKind.some((t) => t.endsWith('No kind')), `drawing: a property added in Data, the totals by its key (${byKind.join(', ')})`);
@@ -1004,11 +1012,11 @@ await section('the drawing', async () => {
 });
 
 await section('with a finger, on a phone', async () => {
-  // with a finger, on a phone (drawing-ui.md §1): the column closed to start with, Layers and the
-  // column one at a time; the touch row over the map; handles larger
+  // with a finger, on a phone (drawing-ui.md §1): the sheet closed to start with, Elements and
+  // Properties in it one at a time; the touch row over the map; handles larger
   const fctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const fp = await open('#v=11/40.2/12.1/0&on=chart,coastline', fctx);
-  const shown = () => fp.evaluate(() => [!document.querySelector('#elements').hidden, !document.querySelector('#panel').hidden]);
+  const shown = () => fp.evaluate(() => [!document.querySelector('#side').hidden, !document.querySelector('#props').hidden]);
   const atStart = await shown();
   await fp.evaluate(() => drawing.setVariant('shape', 'circle'));
   await fp.touchscreen.tap(195, 300); // the centre…
@@ -1020,11 +1028,12 @@ await section('with a finger, on a phone', async () => {
   const freeTap = await fp.evaluate(() => [drawing.snapOff, drawing.doc.points.length]);
   await fp.click('.touchbar button:has-text("Back")'); // the tool ends
   const afterBack = await fp.evaluate(() => drawing.tool);
-  await fp.click('#dstrip .coltoggle');
+  await fp.click('#bar .pleft');
   const colOpen = await shown();
-  await fp.click('#b-layers'); // Layers: the column makes way
+  await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
+  await fp.click('.touchbar button:has-text("Properties")'); // Properties: the tree makes way
   const layersOpen = await shown();
-  await fp.click('#close');
+  await fp.evaluate(() => drawing.select([]));
   const handles = await fp.evaluate(() => map.getLayoutProperty('draw-handle', 'icon-size'));
   await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
   // a drag of the radius handle, then a second finger: everything back
@@ -1041,7 +1050,7 @@ await section('with a finger, on a phone', async () => {
   });
   const after = await fp.evaluate(() => [drawing.doc.points[0].parts[0].radius, !!drawing.drag]);
   check(atStart.join() === 'false,false' && placed === 1 && freeTap.join() === 'true,2' && afterBack === null && colOpen.join() === 'true,false' && layersOpen.join() === 'false,true',
-    `finger: the column closed to start with; a circle placed by two taps; Snap off; Back ends the tool; the column and Layers one at a time (${atStart}; ${placed}; ${freeTap}; ${afterBack}; ${colOpen}; ${layersOpen})`);
+    `finger: the sheet closed to start with; a circle placed by two taps; Snap off; Back ends the tool; Elements and Properties one at a time (${atStart}; ${placed}; ${freeTap}; ${afterBack}; ${colOpen}; ${layersOpen})`);
   check(handles === 1.75 && after[0] === rBefore && !after[1], `finger: handles drawn larger (${handles}); a second finger during a drag puts it back (${rBefore} → ${after[0]})`);
   check(!fp.errors.length, `finger: no errors ${fp.errors.join(' | ')}`);
   await fctx.close();

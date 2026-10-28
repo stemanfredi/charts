@@ -2,75 +2,78 @@
 
 How drawing and measuring look and behave. The file is in `drawing-format.md`.
 
-Code: `site/draw/` (`panel.js` the panel, `drawing.js` the map side, `snap.js`, `attach.js`,
+Code: `site/frame.js` the frame; `site/draw/` (`panel.js` the tools, the tree and the inspector, `drawing.js` the map side, `snap.js`, `attach.js`,
 `drag.js`, `features.js` what the map draws and its handles, `generator.js` Distribute along and Connect,
 `clipboard.js`, `presets.js`, `place.js` what Point and Shape place),
 `site/keys.js`.
 
 ## 1. The layout
 
-One layout at every width.
+One layout at every width (`site/frame.js` places it).
 
-- **The map's own controls**: a small column at the top right: **find a place** (its field shown while
-  it is used: the lens or /; gone when left), **Layers**, **my position**, **north** (only when the map
-  is turned). No zoom buttons: scroll, pinch or a double-click. The bottom row, from the rail's edge:
-  the credits, then the time shown (a chip while a layer that changes with time is on: a click opens
-  ‹ the hour › and **Now**, and the depth), the cursor's position and the scale.
-- **Layers**: a panel docked to the right edge, full height, over the map (the map's controls, the
-  search and the bottom row beside it); as the drawing's column, mirrored: its head, its section
-  bands, its rows. `menu=1` in the address opens it.
-- The view's outputs, in the rail's **☰** (each item says how it went, the menu staying open
-  meanwhile), with **About**: **Copy link** (the view and layers, and the display settings: units
-  `u=nm`, bearings `brg=1`; never the drawing), **Picture (PNG)**, **GIS data (ZIP)**.
-- **The drawing's file** goes in and out from the drawings menu (§10, the rail's ☰): **Import…** picks a
+- **The bar**, across the top: **☰** (the drawings in this browser and the drawing's file, §10; the
+  view's outputs; About), the left panel's toggle, then **Select** (on when no other tool is),
+  **Point**, **Line**, **Shape**, **Label**, then **Measure**, then **Undo** and **Redo**; at its end
+  **find a place** (its field shown while it is used: the lens or /; gone when left) and the
+  **Properties** toggle. A tool with kinds has a small corner mark and shows the kind in use; its
+  kinds are a row under its button, open while the tool is on; they go when the tool ends or
+  another starts.
+- **The left panel**, over the map: two tabs, **Elements** (the tree, §4, its first row the drawing
+  itself) and **Layers** (`menu=1` in the address opens it there). Its toggle in the bar, **E** and
+  **L** open it on a tab, or close it when it shows that tab.
+- **The right panel, Properties** (the inspector, §5), over the map: what is selected, or the
+  drawing when its row is clicked. It is a switch of the user's (its toggle at the bar's end, or
+  **I**; a double-click on an element turns it on): while on, it shows whenever something is
+  selected and goes when nothing is; selecting never turns it on. Its head says what it shows
+  ("Line · Line 1", "3 elements selected", "Drawing") with the actions on it, **Zoom to**,
+  **Duplicate**, **Group**, **Delete** (the drawing: Zoom to all of it).
+- Each panel is as wide as dragged at its inner edge (left 200–480 px, right 260–600; a
+  double-click there: the default, 260 and 320), remembered in this browser with which tab is open
+  and whether Properties is on.
+  Where both would leave the map less than 480 px, Properties, while shown, takes the room and the
+  left panel comes back when it goes. At first the left panel is open on Layers.
+- **The map's own controls**: a small stack at the bottom right, beside the right panel: **my
+  position**, **north** (only when the map is turned). No zoom buttons: scroll, pinch or a
+  double-click. The bottom row, between the panels: the credits, then the time shown (a chip while
+  a layer that changes with time is on: a click opens ‹ the hour › and **Now**, and the depth), the
+  cursor's position and the scale.
+- The view's outputs, in **☰** (each item says how it went, the menu staying open meanwhile), with
+  **About**: **Copy link** (the view and layers, and the display settings: units `u=nm`, bearings
+  `brg=1`; never the drawing), **Picture (PNG)**, **GIS data (ZIP)**.
+- **The drawing's file** goes in and out from the drawings menu (§10, **☰**): **Import…** picks a
   `.geojson` or `.json` file; **Export drawing (GeoJSON)** (the file, with the view); **Export presets
   (JSON)**. A file dropped on the map is imported too. A drawing's file (or any
   GeoJSON) gets a report: what it holds, what was skipped and why, the warnings; **Import** adds it to
   the drawings in this browser and opens it with its view. A presets file adds its presets instead (§9).
 - Units (km or NM) are switched by a click on the scale; bearings beside lengths in the drawing's **Display**
   (§5). Both apply to every value shown.
+- A note at the map's foot says for a few seconds what just happened (with **Undo** where it
+  applies).
 
-The drawing is the **left frame**, docked to the window's left edge, full height, always there. The
-rail is full height and the map's bottom row and legends start at its edge; the column, when shown,
-lies over everything (the map and its bottom row too):
+**On a phone** (narrower than 720 px) the bar holds ☰, the left panel's toggle and the tools (Undo
+and Properties are in the touch row, find a place in the map's stack), and the panels are one bottom
+sheet at a time (half the screen; as tall as its grip is dragged, closed when dragged down to the
+bottom), the map's stack and the touch row above it. Both start closed. Zoom to and a place found
+are fitted to the part of the map the bar and the panels leave free.
 
-- the **rail**, small icons: **☰** (the drawings in this browser and the drawing's file, §10),
-  **Select** (on when no other tool is), **Point**, **Line**,
-  **Shape**, **Label**, **Measure**, **Undo**, **Redo**, and at its foot the column's toggle (or
-  **E**). A tool with kinds has a small corner mark and shows the kind in use; its kinds are a column
-  beside the rail, level with the tool's button, open while the tool is on, over the column; they go when the tool ends or another starts;
-- the **column** beside it: the tree (§4) over the inspector (§5), a divider between them (dragged, or
-  ↑ ↓ when focused; its place remembered in this browser). Each half has a head: the tree's is the drawing's title
-  (a click shows the drawing in the inspector) and the eye for all; the inspector's says what it
-  shows ("Line · Line 1", "3 elements selected", "Drawing") with the actions on it, **Zoom
-  to**, **Duplicate**, **Group**, **Delete** (the drawing: Zoom to all of it). A chevron at the end of
-  each head folds that half to its head, the other taking the height (remembered in this browser).
-  The inspector shows what is selected, or the drawing itself with nothing selected. Selecting
-  never shows a hidden column. Under the inspector, a note says for a few seconds what just
-  happened (with **Undo** where it applies).
+A button pressed (a tool, a kind, a choice) is blue; a panel's toggle shown, pale blue; magenta is
+the map's (measurements, the search's pin).
 
-The column and Layers are each 300 px wide, or what the screen leaves beside the rail. **On a phone**
-(narrower than 720 px) they are open one at a time (opening one closes the other) and the column
-starts closed. Zoom to and a place found are fitted to the part of the map they leave free.
-
-A button pressed (a tool, a kind, a choice) is blue; magenta is the map's (measurements, the
-search's pin).
-
-**With a finger** (any screen): a row of buttons over the map's foot, **Done** (a line or polygon being drawn), **Back** (what is half drawn, else the
-tool, else the selection), **Delete** and **Duplicate** (with a selection), **Snap** (while a tool is
-on; off places exactly where tapped, as Alt). Handles are drawn at 14 px and grabbed within 22 px;
-snapping reaches 16 px; a + is added only along legs over 80 px; a second finger during a drag puts
-it back and lets the map pinch.
+**With a finger** (any screen): a row of buttons over the map's foot, at its left, **Done** (a line or
+polygon being drawn), **Back** (what is half drawn, else the tool, else the selection), **Delete** and
+**Duplicate** (with a selection), **Snap** (while a tool is on; off places exactly where tapped, as
+Alt), **Undo** (on a phone), **Properties** (with a selection, while Properties is off). Handles are
+drawn at 14 px and grabbed within 22 px; snapping reaches 16 px; a + is added only along legs over
+80 px; a second finger during a drag puts it back and lets the map pinch.
 
 ## 2. Tools
 
-The row: **Point** (P), **Line** (G), **Shape** (S), **Label** (T), **Measure** (M), then, after a
-divider, **Select**. **Undo** and **Redo** (greyed when
-there is nothing to undo or redo) are in the panel's header. One tool is on at a time; it stays on after
-each placement. A tool's button pressed again turns it off. A tool's key works from anywhere and
-opens the panel (not on a phone).
+In the bar (§1): **Select**, **Point** (P), **Line** (G), **Shape** (S), **Label** (T), **Measure**
+(M), **Undo** and **Redo** (greyed when there is nothing to undo or redo). One tool is on at a time;
+it stays on after each placement. A tool's button pressed again turns it off. A tool's key works
+from anywhere.
 
-A tool with two or more kinds shows them in a **sub-rail** under the row, as icons with tooltips. The
+A tool with two or more kinds shows them in a row under its button, as icons with tooltips. The
 tool remembers the kind chosen last; its key pressed again, while it is on, moves to the next kind.
 
 | Tool | Kinds | Makes |
@@ -120,7 +123,7 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
 - **Shift** turns the leg being drawn in 15° steps from the leg before (from north for the first, and
   for a sector's edges). **Alt** places freely: nothing snapped, nothing attached.
 - Esc or a right-click (not a right-drag) drops what is half drawn; else ends the tool; else cancels
-  **Attach to…** waiting for a click; else clears the selection (the column shown or not).
+  **Attach to…** waiting for a click; else clears the selection.
 
 ### 2.2 Snapping and attaching
 
@@ -152,8 +155,9 @@ from this: its values are the drawing's own (§2.1, Values while drawing).
 
 ## 4. The list
 
-- The list's head: the drawing's title (a click shows it in the inspector), the eye, the fold. The eye
-  is for every element listed (all shown: a click hides them all; else it shows them all).
+- The first row is the drawing: its title (a click shows it in Properties, turning them on), how
+  many elements it holds (what they are in its tooltip), and the eye for every element listed (all
+  shown: a click hides them all; else it shows them all).
 - One row per element: a group's fold, an icon, the name, a short value, and an eye at its end
   (crossed when hidden; with a mouse, a shown element's eye appears on the row pointed at or
   selected). The list is a tree: a group, then its subgroups and members one step further in; a
@@ -374,8 +378,9 @@ one end to the other, an outline's ring.
 | Key | Does |
 |---|---|
 | / | search |
-| L | Layers |
-| E | the column (tree and inspector) shown or hidden |
+| L | the left panel on Layers, or closed |
+| E | the left panel on Elements, or closed |
+| I | Properties on or off |
 | P, G, S, T, M | point, line, shape, label, measure |
 | Shift-drag | a box: what lies inside added to the selection |
 | a tool's key again | its next kind |
@@ -400,9 +405,9 @@ element left behind are free. The clipboard is kept in this page, so it pastes i
 ## 9. Presets
 
 **Save as preset…** (a point's inspector) keeps what is drawn about it under a name: symbol, parts,
-fill and stroke. A preset with parts joins the Shape sub-rail, after the built-in ones, one without
+fill and stroke. A preset with parts joins Shape's kinds, after the built-in ones, one without
 joins Point's; it becomes the tool's kind. Placing one makes a point with all of it, named
-after it, with the preset's name as a property. A right-click on it in the sub-rail renames or deletes
+after it, with the preset's name as a property. A right-click on it among the kinds renames or deletes
 it. Presets live in this browser only, never in a drawing's file; **Export presets (JSON)** and
 **Import…** (the drawing's menu, §10) move them to another browser (one of the same name is replaced).
 
@@ -414,7 +419,7 @@ it. Presets live in this browser only, never in a drawing's file; **Export prese
 - A group with members asks first: delete the group only (its members and subgroups go to the group
   above it, or to none, as they are), or the group and everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.
-  The rail's **☰**
+  The bar's **☰**
   opens a menu of the **drawings in this browser**, each with its last change and
   size: a click opens it where it was drawn; a bin deletes
   it for good, asked first; **+ New drawing** adds an empty one.

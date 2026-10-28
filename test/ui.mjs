@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// Layout check: at phone, tablet and desktop width, with the layers panel closed and open,
-//  - no two overlays overlap, except under the panel (which must then be on top);
+// Layout check: at phone, tablet and desktop width, with Layers closed and open and the drawing's views,
+//  - no two overlays overlap, except under the bar or a panel (which must then be on top);
 //  - nothing on screen leaves the viewport;
 //  - every visible control is a ≥ 44 × 44 px target (labels count for their checkbox).
 //   CHROME=/path/to/chrome npm run ui        Screenshots go to $UI_SHOTS if set.
 import { start } from './browser.mjs';
 
 // phone and tablet are touch devices (pointer: coarse, 44 px targets); desktop has a mouse (36 px; 28
-// in the drawing's column and Layers, 32 in the rail and the map's controls)
+// in the panels, 32 in the bar and the map's controls)
 const VIEWPORTS = [['phone', 390, 844, true], ['tablet', 820, 1180, true], ['desktop', 1280, 800, false]];
 // overlays that must not collide (screen-space boxes of floating UI)
 const OVERLAYS = {
-  search: '#search', zoom: '#zoom', panel: '#panel', legend: '#legends', status: '#status', strip: '#dstrip', elements: '#elements',
+  search: '#search', zoom: '#zoom', legend: '#legends', status: '#status', bar: '#bar', side: '#side', props: '#props',
 };
 
 // a drawing as the app saves it (GeoJSON, version 1): a point with two sectors, a rectangle, a line
@@ -41,19 +41,23 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       await page.goto(`${base}#v=5/45/14/0&menu=${typeof menu === 'string' ? 0 : menu}&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
       await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
       await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 44], [], [13, 44.5], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
-      // the column (on a phone closed to start with): open, its overlaps checked too
-      if (typeof menu === 'string' && await page.locator('#elements').isHidden()) await page.click('#dstrip .coltoggle');
+      // the left panel (on a phone closed to start with): open on Elements; an element (or the drawing)
+      // selected, its properties shown (on a phone from the touch row, in place of the tree)
+      if (typeof menu === 'string' && await page.locator('#side').isHidden()) await page.click('#bar .pleft');
+      if (typeof menu === 'string') await page.click('.tabs [data-tab=elements]');
+      if (menu === 'drawing') await page.click('.droot .dname');
       if (menu === 'draw') await page.click('.dlist .drow .dname');
       if (menu === 'line') await page.click('.dlist .drow:has(.kind[title=Line]) .dname');
       if (menu === 'label') await page.click('.dlist .drow:has(.kind[title=Label]) .dname');
+      if (await page.locator('.touchbar button:has-text("Properties")').isVisible()) await page.click('.touchbar button:has-text("Properties")');
       // the inspector's text: no element printed as text ("[object …]")
       if (typeof menu === 'string') check(!(await page.evaluate(() => document.querySelector('.dinspect').textContent.includes('[object'))), `${name}: the ${menu} inspector shows no "[object …]"`);
       await page.mouse.move(width / 2, height / 2); // shows the cursor readout
       await page.waitForTimeout(800);
       if (process.env.UI_SHOTS) await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}-${typeof menu === 'string' ? menu : menu ? 'menu' : 'map'}.png` });
       const r = await page.evaluate(({ OVERLAYS }) => {
-        // with a mouse 36 px, but 28 in the column and Layers (grids of rows) and 32 in the rail and the map's controls
-        const COARSE = matchMedia('(pointer: coarse)').matches, MIN = COARSE ? 44 : 36, minOf = (el) => (COARSE ? MIN : el.closest('.dview, #elements, #panel') ? 28 : el.closest('#dstrip, #zoom') ? 32 : MIN);
+        // with a mouse 36 px, but 28 in the panels (grids of rows) and 32 in the bar and the map's controls
+        const COARSE = matchMedia('(pointer: coarse)').matches, MIN = COARSE ? 44 : 36, minOf = (el) => (COARSE ? MIN : el.closest('#side, #props') ? 28 : el.closest('#bar, #zoom') ? 32 : MIN);
         const seen = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[hidden]') === null; };
         const boxes = {};
         for (const [k, sel] of Object.entries(OVERLAYS)) {
@@ -70,9 +74,9 @@ for (const [name, width, height, touch] of VIEWPORTS) {
             const x = Math.min(a.right, b.right) - Math.max(a.left, b.left), y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
             if (x <= 0.5 || y <= 0.5) continue;
             const pair = [keys[i], keys[j]];
-            if (pair.includes('panel') || pair.includes('elements')) { // allowed only if Layers (or the column) is the one on top
+            if (pair.some((k) => ['bar', 'side', 'props'].includes(k))) { // allowed only if the bar or the panel is the one on top
               const cx = Math.max(a.left, b.left) + x / 2, cy = Math.max(a.top, b.top) + y / 2;
-              if (document.elementFromPoint(cx, cy)?.closest('#panel, #elements')) continue;
+              if (document.elementFromPoint(cx, cy)?.closest('#bar, #side, #props')) continue;
             }
             overlaps.push(`${pair.join(' × ')} ${Math.round(x)}×${Math.round(y)}`);
           }

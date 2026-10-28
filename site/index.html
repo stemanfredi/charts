@@ -46,23 +46,12 @@
     </div>
   </div>
 
-  <!-- the map's own controls, top right: find a place, Layers, my position, north when turned -->
+  <!-- the map's own controls, bottom right: my position, north when turned (find a place too, on a phone) -->
   <div id="zoom" class="zoom" role="group" aria-label="Map controls">
     <button type="button" id="b-find" aria-label="Find a place" aria-expanded="false"><i data-icon="search"></i></button>
-    <button type="button" id="b-layers" aria-label="Layers" aria-controls="panel" aria-expanded="false"><i data-icon="layers"></i></button>
-    <span class="msep" aria-hidden="true"></span>
     <button type="button" id="locate" aria-pressed="false" aria-label="Show my location" title="Show my location"><i data-icon="locate"></i></button>
     <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><i data-icon="compass"></i></button>
   </div>
-
-  <aside id="panel" class="panel" aria-labelledby="panel-title" hidden>
-    <header>
-      <h1 id="panel-title">Layers</h1>
-      <span class="spin" aria-hidden="true"></span>
-      <button type="button" id="close" class="etoggle" aria-label="Close Layers" title="Close"><i data-icon="hide"></i></button>
-    </header>
-    <div id="menu"></div>
-  </aside>
   <!-- the time shown and the depth (the layers that use them), opened from its chip on the bottom row -->
   <div id="timepop" class="timepop" hidden>
     <div id="when" class="when" role="group" aria-label="Time and depth shown">
@@ -70,10 +59,11 @@
       <label class="depthsel" hidden><span>Depth</span><select aria-label="Depth below the surface"></select></label>
     </div>
   </div>
-  <!-- the drawing's left frame (drawing-ui.md §1): the rail of its tools, and the column (the tree over
-       the inspector) -->
-  <div id="dstrip" class="dstrip" role="toolbar" aria-label="Tools" aria-orientation="vertical"></div>
-  <aside id="elements" class="epanel" aria-label="Elements"><div id="dview" class="dview"></div></aside>
+  <!-- the frame (frame.js, drawing-ui.md §1): the bar across the top; the left panel, Elements and
+       Layers as tabs; the right panel, Properties -->
+  <div id="bar" class="bar" role="toolbar" aria-label="Tools"></div>
+  <aside id="side" class="side" aria-label="Elements and Layers"><div id="dview" class="dview"></div><div id="menu"></div></aside>
+  <aside id="props" class="props" aria-label="Properties" hidden></aside>
 
   <div id="legends" class="legends" aria-label="Legends"></div>
   <footer id="status" class="status"></footer>

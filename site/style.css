@@ -4,13 +4,13 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
-  --rail-w: 45px;       /* the drawing's rail, on the left (its edge inside it) */
-  --col-w: min(300px, calc(100vw - var(--rail-w))); /* its column beside it; Layers on the right as wide */
+  --bar-h: 37px;        /* the bar across the top (its edge inside it) */
+  --lw: 260px; --rw: 320px; --sheet-h: 52vh; /* the panels' widths, a phone's sheet's height: frame.js */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
 }
 @media (pointer: fine) { :root { --row: 36px; } }
-@media (pointer: coarse) { :root { --rail-w: 53px; } } /* a finger's targets: 44 px */
+@media (pointer: coarse) { :root { --bar-h: 49px; } } /* a finger's targets: 44 px */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
@@ -27,29 +27,40 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 svg { flex: none; }
 
-/* Layout (drawing-ui.md §1): the drawing a frame docked to the window's left edge, its rail and beside
-   it the column, over the map; the map's own controls a small column top right; Layers a panel docked
-   to the right edge, over the map; what you read on the map's edges (legends, credits and the scale at
-   the bottom). On a phone the column and Layers one at a time, as wide as the screen leaves. */
-.zoom { position: absolute; z-index: 6; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 2px; padding: 4px;
+/* Layout (drawing-ui.md §1, frame.js): the bar across the top; over the map, the left panel
+   (Elements, Layers) and the right one (Properties), each as wide as dragged; the map's own controls
+   a small stack bottom right, beside the right panel; what you read on the map's edges (legends,
+   credits and the scale at the bottom) between the panels. On a phone the panels are one bottom
+   sheet at a time. */
+.zoom { position: absolute; z-index: 6; right: 8px; bottom: calc(var(--status-h) + 8px); display: flex; flex-direction: column; gap: 2px; padding: 4px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 .zoom button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--ink); display: grid; place-items: center; }
 .zoom button svg { width: 18px; height: 18px; }
 .zoom button:hover { background: var(--line2); }
 .zoom button[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
 .zoom button[aria-pressed="true"] { background: var(--accent); color: #fff; } /* my location shown */
-.zoom .msep { align-self: center; width: 24px; height: 1px; background: var(--line); margin: 3px 0; } /* as the rail's */
 @media (pointer: coarse) { .zoom button { width: 44px; height: 44px; } }
-/* Layers: the drawing's column mirrored (its head, its bands, its rows); the map's controls beside it */
-.panel { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; width: var(--col-w); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-left: 1px solid var(--line); }
-@media (pointer: fine) { .panel { --row: 28px; } }
-.panel header { display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px; min-height: 36px; border-bottom: 1px solid var(--line); flex: none; }
-.panel h1 { margin: 0; font: 600 13.5px/1.2 var(--font); }
-#close { margin-left: auto; }
-@media (min-width: 720px) { /* on a phone it covers them: one at a time */
-  body:has(#panel:not([hidden])) .zoom { right: calc(var(--col-w) + 8px); }
-  body:has(#panel:not([hidden])) .status { right: var(--col-w); }
-  body:has(#panel:not([hidden])) .search { right: calc(var(--col-w) + 56px); }
+/* the panels: one look, each a column of a head and its body; the edge to drag inside the inner side */
+.side, .props { position: absolute; z-index: 8; top: var(--bar-h); bottom: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.side { left: 0; width: var(--lw); border-right: 1px solid var(--line); }
+.props { right: 0; width: var(--rw); border-left: 1px solid var(--line); }
+@media (pointer: fine) { .side, .props { --row: 28px; } }
+.side > .dview, .side > #menu { flex: 1 1 auto; min-height: 0; }
+.edge { position: absolute; z-index: 3; top: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
+.edge.left { right: -4px; } .edge.right { left: -4px; }
+.edge:hover, .edge:active { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px 5px, transparent 5px); }
+.grip { display: none; }
+.tabs { flex: none; display: flex; min-height: 36px; border-bottom: 1px solid var(--line); }
+@media (pointer: coarse) { .tabs { min-height: 45px; } } /* 44 px tabs above the border */
+.tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; font: 600 12.5px/1 var(--font); color: var(--soft); }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+@media (min-width: 720px) { /* beside the panels: the map's controls, its bottom row, find a place, the legends */
+  body.has-right .zoom { right: calc(var(--rw) + 8px); }
+  body.has-left .status { left: var(--lw); }
+  body.has-right .status { right: var(--rw); }
+  body.has-right .search { right: calc(var(--rw) + 8px); }
+  body.has-left .legends { left: calc(var(--lw) + 10px); }
 }
 /* the time shown and the depth, in a box over its chip: ‹ time › Now, then the depth (on the next line if need be) */
 .timepop { position: fixed; z-index: 9; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
@@ -146,17 +157,17 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .chip .x { width: var(--row); height: var(--row); font-size: 16px; }
 .note { margin: 2px 4px; font-size: 11.5px; color: var(--soft); }
 
-/* ---- Draw view: tools, the list, a divider, the inspector of what is selected ---- */
-.dview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; --dlist-h: 220px; }
-/* the list and the inspector: rows of 28 px with a mouse (a grid of cells), 44 with a finger */
-@media (pointer: fine) { .dview { --row: 28px; } }
-.dlistbox { flex: none; height: var(--dlist-h); min-height: 80px; display: flex; flex-direction: column; }
+/* ---- the drawing: its tree (the left panel's Elements), its inspector (the right panel) ---- */
+.dview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.dlistbox { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .dfilter { flex: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 12px; }
 .dfilter input { flex: 1 1 140px; min-width: 0; min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; }
 .dlist { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; overscroll-behavior: contain; }
 .drow { display: flex; align-items: center; gap: 2px; min-height: var(--row); padding: 0 4px 0 2px; }
 .drow:hover { background: var(--bg2); }
 .drow.sel { background: var(--sel); }
+.drow.droot { flex: none; padding-left: 6px; border-bottom: 1px solid var(--line2); }
+.drow.droot .dname { font-weight: 600; }
 .drow.drop { box-shadow: inset 0 2px 0 var(--accent); } /* dropped here: just before this row, or into its group */
 .drow.dim .dname, .drow.dim .kind { color: var(--soft); }
 .drow .kind { flex: none; color: var(--accent); display: grid; place-items: center; }
@@ -167,13 +178,10 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 /* a row's eye, at its end: shown or hidden (crossed); with a mouse, a shown one's eye only on the row
    pointed at or selected */
 @media (hover: hover) {
-  .drow:not(:hover, :focus-within, .sel) .deye[aria-pressed="true"] { visibility: hidden; }
+  .drow:not(:hover, :focus-within, .sel, .droot) .deye[aria-pressed="true"] { visibility: hidden; } /* the drawing's: always (it is for everything) */
 }
 /* the list's head: the drawing's title, the eye for all of it, its fold */
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
-.ddivider { flex: none; height: 9px; cursor: row-resize; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg2); position: relative; touch-action: none; }
-.ddivider::after { content: ""; position: absolute; left: 50%; top: 3px; width: 32px; height: 1.5px; margin-left: -16px; background: #c3ccd3; box-shadow: 0 2px 0 #c3ccd3; }
-.ddivider:hover, .ddivider:focus-visible { background: var(--sel); }
 .dinspect { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 0 16px; overscroll-behavior: contain; display: flex; flex-direction: column; }
 /* a property grid (docs/drawing-ui.md §5): rows ruled across the panel, a label column, fields
    without a box until pointed at or typed in; headings as bands; what is not a row inset */
@@ -327,7 +335,7 @@ button.small[aria-pressed="true"] { background: var(--accent); border-color: var
 .dinspect .seg button { display: grid; place-items: center; }
 .dinspect .seg svg { width: 16px; height: 16px; }
 /* radii: filled (radio), shown, name, value, own stroke, remove */
-.dnote { position: absolute; left: 12px; right: 12px; bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+.dnote { position: absolute; z-index: 10; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); bottom: calc(var(--status-h) + 10px); display: flex; align-items: center; justify-content: space-between; gap: 8px;
   background: var(--ink); color: #fff; border-radius: 8px; padding: 6px 6px 6px 12px; box-shadow: var(--shadow); font-size: 12.5px; }
 .dnote button { border: 1px solid rgba(255,255,255,.4); background: none; color: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }
 dialog.dreport { max-width: min(560px, calc(100vw - 32px)); }
@@ -338,7 +346,7 @@ dialog.dreport button.done { background: var(--accent); border-color: var(--acce
 
 /* ---- find a place (a place or coordinates): beside the map's controls, shown while it is used ---- */
 .search {
-  position: absolute; z-index: 7; top: 8px; right: 56px; width: min(360px, calc(100vw - var(--rail-w) - 72px));
+  position: absolute; z-index: 7; top: calc(var(--bar-h) + 8px); right: 8px; width: min(360px, calc(100vw - 16px));
   display: none; align-items: center; gap: 6px; padding: 0 0 0 12px; min-height: 46px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); color: var(--soft);
 }
@@ -360,14 +368,14 @@ body.finding .search { display: flex; }
 
 
 /* ---- legends, stacked bottom left above the credits ---- */
-.legends { position: absolute; z-index: 3; left: calc(var(--rail-w) + 10px); bottom: calc(var(--status-h) + 11px); /* 10 px from the rail, plus the outline drawn outside the canvases */ display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
+.legends { position: absolute; z-index: 3; left: 10px; bottom: calc(var(--status-h) + 11px); /* 10 px from the edge, plus the outline drawn outside the canvases */ display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
 .legends:empty { display: none; }
 .legends canvas { display: block; outline: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* an outline, not a border: it moves no pixel of the canvas */
 
 /* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */
 .status {
-  position: absolute; z-index: 5; left: var(--rail-w); right: 0; bottom: 0; pointer-events: none; /* from the rail's edge (the map runs under it) */
+  position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; pointer-events: none;
   display: flex; align-items: flex-end; gap: 4px 12px; padding: 0 10px 6px;
   font-size: 11px; color: var(--soft);
 }
@@ -409,10 +417,10 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
   .scalenote, .shown { order: 4; }
   .scalenote:not(:empty), .shown { margin-left: auto; }
 }
-/* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, Snap, over the map's foot */
+/* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, Snap, Undo, Properties, over the map's foot, at its left */
 .touchbar { display: none; }
 @media (pointer: coarse) {
-  .touchbar:not([hidden]) { position: absolute; z-index: 7; left: var(--rail-w); right: 0; bottom: calc(var(--status-h) + 8px); display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+  .touchbar:not([hidden]) { position: absolute; z-index: 7; left: 8px; right: 64px; bottom: calc(var(--status-h) + 8px); display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
   .touchbar button { pointer-events: auto; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow); }
   .touchbar button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 }
@@ -423,45 +431,44 @@ svg.profile .pdepth { fill: none; stroke: #335f97; stroke-width: 1.5; stroke-lin
 svg.profile .pmax, svg.profile .pmin { fill: #335f97; }
 svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 
-/* ---- the drawing's left frame (drawing-ui.md §1): the rail of its tools, then the column, the tree
-   over the inspector; the bottom row and the legends start after the rail ---- */
-.dstrip { position: absolute; z-index: 9; left: 0; top: 0; bottom: 0; /* full height: the map starts at its edge; above the column, which its kinds open over */ width: var(--rail-w); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 1px 6px 0;
-  background: var(--bg2); box-shadow: inset -1px 0 var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
-.dstrip > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
-.dstrip > button svg { width: 18px; height: 18px; }
-.dstrip > button:hover { background: var(--line2); }
-.dstrip > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-.dstrip > .coltoggle[aria-pressed="true"] { background: var(--sel); color: var(--accent); }
-.dstrip > button:disabled { opacity: .35; cursor: default; background: none; }
+/* ---- the bar (drawing-ui.md §1): ☰ and the left panel's toggle, the tools, Undo and Redo; at its
+   end find a place and Properties' toggle ---- */
+.bar { position: absolute; z-index: 9; left: 0; right: 0; top: 0; height: var(--bar-h); display: flex; align-items: center; gap: 2px; padding: 0 6px 1px;
+  background: var(--bg2); box-shadow: inset 0 -1px var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
+.bar > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
+.bar > button svg { width: 18px; height: 18px; }
+.bar > button:hover { background: var(--line2); }
+.bar > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.bar > :is(.ptoggle, #b-find)[aria-pressed="true"], .bar > #b-find[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
+.bar > button:disabled { opacity: .35; cursor: default; background: none; }
 /* a tool with kinds: a small corner mark (its button shows the kind in use) */
-.dstrip > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
+.bar > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
 /* dividers between the tools' groups: short, centred */
-.tsep { width: 24px; height: 1px; background: var(--line); margin: 3px 0; flex: none; }
-.dstrip > .grow { flex: 1; }
-/* a tool's kinds (its sub-rail): a column beside the rail, level with its button, over the column while they are picked */
-.subrail { position: absolute; top: 6px; left: calc(100% + 6px); display: flex; flex-direction: column; gap: 2px; padding: 4px;
+.tsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; flex: none; }
+.bar > .grow { flex: 1; }
+/* a tool's kinds: a row under its button, over the panel while they are picked */
+.subrail { position: absolute; top: calc(100% + 4px); display: flex; gap: 2px; padding: 4px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 .subrail button { min-width: 32px; min-height: 32px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
 .subrail button:hover { background: var(--line2); }
 .subrail button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .subrail svg { width: 18px; height: 18px; }
 .subrail .initials { font-size: 12px; font-weight: 600; }
-@media (pointer: coarse) { .dstrip > button, .subrail button { width: 44px; height: 44px; } }
-.epanel { position: absolute; z-index: 8; left: var(--rail-w); top: 0; bottom: 0; /* over everything, the map and its bottom row too */ width: var(--col-w); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border-right: 1px solid var(--line); }
-.epanel > .dview { flex: 1 1 auto; min-height: 0; }
-.dlisthead, .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
+@media (pointer: coarse) { .bar > button, .subrail button { width: 44px; height: 44px; } }
+/* a phone: the bar's tools alone (Undo in the touch row), no dividers; the panels a bottom sheet, as
+   tall as dragged at its grip, the map's controls and the touch row above it */
+@media (max-width: 719px) {
+  .bar > :is(.tsep, .grow, .urbtn, .pright) { display: none; } /* Properties: the touch row's */
+  .bar { justify-content: space-between; }
+  .side, .props { top: auto; left: 0; right: 0; width: auto; height: var(--sheet-h); border: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; box-shadow: 0 -4px 16px rgba(20, 30, 40, .14); }
+  .edge { display: none; }
+  .grip { display: grid; place-items: center; flex: none; height: 20px; cursor: row-resize; touch-action: none; }
+  .grip::after { content: ""; width: 36px; height: 4px; border-radius: 2px; background: #c3ccd3; }
+  body:is(.has-left, .has-right) :is(.zoom, .touchbar:not([hidden])) { bottom: calc(var(--sheet-h) + 8px); }
+}
+.dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .dinsphead .ititle { flex: 1; min-width: 0; padding: 0 6px; font: 600 13.5px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dinsphead .iacts { display: inline-flex; align-items: center; gap: 0; }
-/* a half folded: its head alone; the other half takes the height */
-.etoggle.fold svg { transition: transform .15s; }
-.etoggle.fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
-.dview.nolist .dlistbox { height: auto; flex: none; }
-.dview.nolist .dlistbox > :not(.dlisthead), .dview.nolist .ddivider { display: none; }
-.dview.noinsp .dlistbox { height: auto; flex: 1 1 auto; }
-.dview.noinsp .dinspect, .dview.noinsp .ddivider { display: none; }
-.dtitle { flex: 1; min-width: 0; min-height: var(--row); border: 0; border-radius: 6px; background: none; padding: 0 6px; text-align: left; font: 600 13.5px/1.2 var(--font); color: var(--ink);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.dtitle:hover { background: var(--line2); }
 /* the drawings menu (the rail's ☰): the drawings in this browser, + New, the file, the view's outputs, About */
 .dmenu { position: fixed; z-index: 20; width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); --row: 36px; }
 @media (pointer: coarse) { .dmenu { --row: 44px; } }

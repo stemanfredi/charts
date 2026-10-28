@@ -73,7 +73,7 @@ each vector layer clipped to the view, elevation and data values as GeoTIFF,
 a STAC item); `site/png.js` the picture with its text fields. Readers of the
 files learn the same facts as a viewer of the screen.
 
-**Visible failures.** A source that fails is marked in the Layers panel
+**Visible failures.** A source that fails is marked in the Layers tab
 instead of leaving blank tiles that could be read as data. An export that
 fails, or leaves out values it could not read, says so on its button. A
 drawing file that cannot be read says why.
@@ -88,7 +88,8 @@ necessarily says, the area looked at, and the place name typed into search.
 
 | For | Start at |
 |---|---|
-| The page, its state and the URL, panels, legends, the time line | `site/app.js` |
+| The page, its state and the URL, legends, the time line | `site/app.js` |
+| The frame: the bar, the side panels, a phone's sheet | `site/frame.js` |
 | A layer: its sources, variants, legend, credits | `site/catalog.js`, then `site/style.js` |
 | Elevation tiles, the coastline cut, inland water | `site/clip.js`, `site/gebco.js` |
 | Copernicus layers, their times and depths | `site/cmems.js`, `site/values.js` |

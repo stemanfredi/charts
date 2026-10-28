@@ -18,6 +18,7 @@ import { $, h, svg, typing, NARROW } from './dom.js';
 import { choice } from './fields.js';
 import { keyEntry, openKey, keyList } from './keys.js';
 import { popup } from './menu.js';
+import { createFrame } from './frame.js';
 import { search } from './search.js';
 import { gisExport } from './gis.js';
 import { chartCanvas, chartPng } from './png.js';
@@ -49,7 +50,7 @@ const state = {
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
   open: new Set(['base', 'sea']),
-  layers: window.innerWidth >= 1200, // the Layers panel open: by default where it leaves room
+  layers: null, // the address's menu=1: Layers open (menu=0: not); null: as the frame was left (frame.js)
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
@@ -109,7 +110,7 @@ function writeHashNow() {
   if (display.units !== 'km') q.set('u', display.units);
   if (display.bearings) q.set('brg', '1');
   q.set('g', [...state.open].join(','));
-  q.set('menu', state.layers ? '1' : '0');
+  q.set('menu', frame.tab === 'layers' ? '1' : '0');
   drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
   setHash(q);
 }
@@ -738,11 +739,9 @@ const icon = (...paths) => svg('svg', { viewBox: '0 0 24 24', width: 20, height:
   paths.map((d) => (Array.isArray(d) ? svg('path', { d: d[0], fill: d[1], stroke: d[1] }) : svg('path', { d }))));
 const ICON = {
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'],
-  layers: ['M12 3 3 8l9 5 9-5-9-5z', 'm3 13 9 5 9-5'],
   link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
   png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
   zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
-  hide: ['m9 18 6-6-6-6'], // a chevron to the right: the panel goes to its edge
   compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
   locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v5', 'M12 8h.01'],
@@ -750,6 +749,10 @@ const ICON = {
 };
 // the page's own buttons name their icon: <i data-icon="…">
 for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...ICON[el.dataset.icon]));
+// the frame (frame.js): the bar, the left panel (Elements, Layers), the right one (Properties)
+let drawPanel = null; // the drawing's view (below): told when the frame changes
+const frame = createFrame({ left: $('#side'), right: $('#props'), icon, onChange: () => { writeHash(); drawPanel?.render('tool'); },
+  tabs: [{ id: 'elements', label: 'Elements', body: $('#dview') }, { id: 'layers', label: h('span', {}, 'Layers ', h('span', { class: 'spin', 'aria-hidden': 'true' })), body: $('#menu') }] });
 // ---- layers panel -----------------------------------------------------------
 const menu = $('#menu');
 const rows = {};
@@ -988,12 +991,10 @@ const outputs = [output('link', 'link', 'Copy link', 'Copy a link to this exact 
   output('png', 'png', 'Picture (PNG)', 'Download the view as a picture', (b) => exportPng(b)),
   output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b))];
 
-// ---- the drawing (draw/panel.js): the rail and the column, on the left ---------------------------
-const drawPanel = drawView($('#dview'), {
+// ---- the drawing (draw/panel.js): its tools in the bar, the tree, its properties -------------------
+drawPanel = drawView($('#dview'), {
   drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units,
-  measureIcon: ICON.ruler, free: () => free(), strip: $('#dstrip'), elements: $('#elements'),
-  // the column shown: on a phone, Layers makes way for it (one at a time)
-  columnShown: () => { if (NARROW.matches) setLayers(false); },
+  measureIcon: ICON.ruler, free: () => free(), bar: $('#bar'), props: $('#props'), frame,
   // the ☰ menu's foot: the view's outputs and About
   menuExtras: (close) => [h('div', { class: 'dsep' }), ...outputs,
     h('button', { type: 'button', role: 'menuitem', class: 'mabout', onclick: () => { close(); $('#about').showModal(); showVersion(); } }, 'About')],
@@ -1005,28 +1006,26 @@ const drawPanel = drawView($('#dview'), {
   profile: (trace) => profileFor(trace),
 });
 
-// ---- Layers, find a place, about -----------------------------------------------------------------
-// Layers: a panel docked on the right, over the map (drawing-ui.md §1)
-const panel = $('#panel');
+// ---- find a place, about ------------------------------------------------------------------------
 // The padding that keeps what the map is fitted to (Zoom to, a place found) in the part not under the
-// left frame or Layers; 60 px of margin all round. Only for fitting: the map itself does not move.
+// bar and the panels (a phone's sheet); 60 px of margin all round. Only for fitting: the map itself
+// does not move.
 function free() {
-  const p = { top: 60, right: 60, bottom: 60, left: 60 };
-  p.left += Math.max(0, ...['#dstrip', '#elements'].map((s) => $(s)).filter((e) => !e.hidden).map((e) => e.getBoundingClientRect().right));
-  if (!panel.hidden) p.right += Math.max(0, innerWidth - panel.getBoundingClientRect().left);
+  const p = { top: 60 + $('#bar').offsetHeight, right: 60, bottom: 60, left: 60 };
+  const side = $('#side'), props = $('#props');
+  if (NARROW.matches) p.bottom += Math.max(...[side, props].map((e) => (e.hidden ? 0 : innerHeight - e.getBoundingClientRect().top)));
+  else {
+    if (!side.hidden) p.left += side.getBoundingClientRect().right;
+    if (!props.hidden) p.right += innerWidth - props.getBoundingClientRect().left;
+  }
   return p;
 }
-function setLayers(on) {
-  state.layers = on;
-  panel.hidden = !on;
-  $('#b-layers').setAttribute('aria-expanded', String(on));
-  if (on && NARROW.matches) drawPanel.setColumn(false); // on a phone: one at a time
-  writeHash();
-}
-$('#b-layers').addEventListener('click', () => setLayers(!state.layers));
-$('#close').addEventListener('click', () => setLayers(false));
-// find a place: the search field behind its lens, shown while it is used (the lens, or /); gone when left
+// find a place: the search field behind its lens, shown while it is used (the lens, or /); gone when
+// left. The lens in the bar, before Properties; on a phone, whose bar is full, with the map's controls
 const findBtn = $('#b-find');
+const placeFind = () => (NARROW.matches ? $('#zoom').prepend(findBtn) : frame.rightBtn.before(findBtn));
+NARROW.addEventListener?.('change', placeFind);
+placeFind();
 const setFinding = (on) => { document.body.classList.toggle('finding', on); findBtn.setAttribute('aria-expanded', String(on)); if (on) $('#q').focus(); };
 findBtn.addEventListener('click', () => setFinding(!document.body.classList.contains('finding')));
 $('#q').addEventListener('blur', () => setTimeout(() => { if (!$('#search').contains(document.activeElement)) setFinding(false); }, 250));
@@ -1091,13 +1090,14 @@ window.addEventListener('keydown', (e) => {
   const k = keyEntry(e.key);
   if (!k?.open && !k?.tool) return;
   if (k.open === 'search') { e.preventDefault(); setFinding(true); }
-  else if (k.open === 'elements') drawPanel.toggleElements();
-  else if (k.open === 'layers') setLayers(!state.layers);
+  else if (k.open === 'elements' || k.open === 'layers') frame.toggleTab(k.open);
+  else if (k.open === 'props') frame.setProps(!frame.props);
   else drawPanel.cycle(k.tool[1]); // on, or its next variant
 });
 // the tooltips and About say the keys
 $('#about .keys').replaceChildren(...keyList());
-$('#b-layers').title = `Layers (${openKey('layers')})`;
+frame.leftBtn.title = `Elements (${openKey('elements')}) and Layers (${openKey('layers')})`;
+frame.rightBtn.title = `Properties (${openKey('props')})`;
 findBtn.title = `Find a place (${openKey('search')})`;
 
 search(map, maplibregl.Marker, free); // the search box (find a place)
@@ -1290,7 +1290,8 @@ map.on('load', () => {
   renderMenu();
   renderUnits();
   ready = true;
-  setLayers(state.layers); // also writes the URL, now with everything applied
+  if (state.layers !== null) frame.setTab(state.layers ? 'layers' : frame.tab === 'layers' ? 'elements' : frame.tab); // the address's
+  writeHash(); // the URL, now with everything applied
   scaleNote();
   scaleUnits();
   renderCompass();
