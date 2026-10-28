@@ -8,7 +8,7 @@ import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
 import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
-import { labelValues, TOKENS } from './labels.js';
+import { labelValues, labelText, TOKENS } from './labels.js';
 import { OUTLINE_NAME, outlineOf } from './outlines.js';
 import { lineTrace, totals, breakdown, nearestAlong, positionsOf } from './lines.js';
 import { profileCsv } from './profile.js';
@@ -25,7 +25,7 @@ import { listGrid, setCurrent, currentOf } from './grid.js';
 import { fmtArea, fmtBrg, fmtDist, rowsText, plural } from '../format.js';
 import { drawingsMenu } from './files.js';
 import { createTools } from './tools.js';
-import { createTree, countOf, kindTitle, groupPath, eyeFor } from './tree.js';
+import { createTree, countOf, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
 import { KIND_ICON, UI_ICON } from './icons.js';
 
 // what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
@@ -152,9 +152,8 @@ export function drawView(root, ctx) {
     return h('div', { class: 'fblock' }, h('h3', {}, title),
       shown('stroke.color') ? matrix() : null,
       shown('text.size') ? row('Text size', segOf('Text size', [['small', 'S', 'Small'], ['medium', 'M', 'Medium'], ['large', 'L', 'Large']], same('text.size'), (v) => put('text.size', v)), back('text.size')) : null,
-      shown('text.color') ? row('Text colour', pair(colour('text.color', 'Text colour'), 'on',
-        segOf('Background', [['halo', 'Halo', 'A white halo round the letters'], ['box', 'Box', 'A white box with a border in the text\'s colour']], same('text.background'), (v) => put('text.background', v))),
-      back('text.color', 'text.background')) : null,
+      shown('text.color') ? row('Text colour', colour('text.color', 'Text colour'), back('text.color')) : null,
+      shown('text.background') ? row('Background', segOf('Background', [['halo', 'Halo', 'A white halo round the letters'], ['box', 'Box', 'A white box with a border in the text\'s colour']], same('text.background'), (v) => put('text.background', v)), back('text.background')) : null,
       shown('text.name') ? tick('text.name', xs.length > 1 || xs[0].kind === 'drawing' ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
       shown('text.values') ? tick('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
       shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -MAX_OFFSET, max: MAX_OFFSET, placeholder: 'mixed', bad: `pixels from −${MAX_OFFSET} to ${MAX_OFFSET}`,
@@ -207,7 +206,7 @@ export function drawView(root, ctx) {
   // group it is in
   const commonTop = (kind, id) => {
     const el = now(id);
-    title = `${kindTitle(kind, el)} · ${label(kind, el)}`;
+    title = `${kindTitle(kind, el)} · ${shownName(drawing.doc, kind, el, ctx.units())}`;
     return [...(ruleRow(id) ?? []), row('Name', textField(id, 'name', 'Name')), groupRow([id])];
   };
   // and its foot: its data, Guide and Visible (Delete: in the head)
@@ -335,7 +334,7 @@ export function drawView(root, ctx) {
       title: 'Attach to…: then click a point, a vertex, an edge, a line or an area to attach it there, or anywhere for a position (Esc: cancel)',
       onclick: () => { if (drawing.repointing?.id === id && drawing.repointing.key === key) drawing.cancelRepoint(); else drawing.startRepoint(id, key); renderInspector(); } }, icon(...UI_ICON.attach));
     if (!on) { const [, lat, , lon] = F.position(() => now(id)[key].position, (q) => set(id, (x) => { x[key] = { position: q, element: null }; })); return row(text, pair(lat, '·', lon), attach); }
-    return row(text, link(on.el.id), partName(r) ? h('span', { class: 'funit' }, partName(r)) : null,
+    return row(text, link(on.el.id), partName(r, on.kind) ? h('span', { class: 'funit' }, partName(r, on.kind)) : null,
       h('button', { type: 'button', class: 'x', title: 'Detach: keep it where it is, no longer following what it is attached to', 'aria-label': `Detach ${text.toLowerCase()}`, onclick: () => set(id, (x) => { x[key] = freeRef(x[key]); }) }, icon(...UI_ICON.detach)), attach);
   }
 
@@ -359,21 +358,26 @@ export function drawView(root, ctx) {
     const onLine = at?.element?.kind === 'line' && at.along !== undefined;
     const alongRow = onLine ? row('Along', F.dist(() => at.along, (m) => drawing.change((d) => { const a = find(d, id).el; a.anchor = lineRef(d, find(d, a.anchor.element).el, m); }), 'Distance along', { zero: true,
       title: `From its start, of ${fmtDist(at.length, u)}` })) : null;
+    // what it reads on the map, under its text, while a value fills it in
+    const reads = /\{\w+\}/.test(el.text) ? h('p', { class: 'note' }, `Reads: ${labelText(doc, el, u).split('\n').map((t) => t.trim()).filter(Boolean).join(' · ') || '(nothing)'}`) : null;
+    // its place: where it points (free: a position), along a line, and its text moved from there
+    const moved = el.offset[0] !== (el.anchor.element ? LABEL_OFFSET[0] : 0) || el.offset[1] !== (el.anchor.element ? LABEL_OFFSET[1] : 0);
     return [...commonTop('label', id),
-      row('Text', text),
+      row('Text', text), reads,
       tokens.length ? row('', ...tokens.map((k) => h('button', { type: 'button', class: 'small', title: `Insert, a live value: ${TOKEN_TEXT[k][1].toLowerCase()} (it follows edits and the units)`, onclick: () => insert(`{${k}}`) }, `+ ${TOKEN_TEXT[k][0]}`))) : null,
       ...[refRow(el.anchor.element ? 'Attached to' : 'Position', id, 'anchor')].flat(), alongRow,
-      leaderRow([item(id)]), lookBlock([item(id)]),
-      row('Placement', h('span', { class: 'fvalue', title: 'Pixels from its point: drag its text on the map' }, `${el.offset[0]}, ${el.offset[1]} px`),
-        h('button', { type: 'button', class: 'x', title: 'Back to where a new label goes', 'aria-label': 'Placement back to where a new label goes', onclick: () => set(id, (x) => { x.offset = x.anchor.element ? [...LABEL_OFFSET] : [0, 0]; }) }, '↺')),
+      row('Text offset', h('span', { class: 'fvalue', title: 'Pixels from where it points: drag its text on the map' }, `${el.offset[0]}, ${el.offset[1]} px`),
+        moved ? h('button', { type: 'button', class: 'x', title: 'Back to where a new label puts it', 'aria-label': 'Text offset back to where a new label puts it', onclick: () => set(id, (x) => { x.offset = x.anchor.element ? [...LABEL_OFFSET] : [0, 0]; }) }, '↺') : null),
+      el.anchor.element ? leaderRow([item(id)]) : null, // a free label points at nothing
+      lookBlock([item(id)]),
       ...commonBottom('label', id)];
   }
 
   // labels' leader: a line from the text to its point, an arrow head there, or none (one or several labels)
   function leaderRow(xs) {
     const on = xs.map((x) => x.el.leader !== 'none'), v = on.every((x) => x === on[0]) ? on[0] : null;
-    return row('', check('Leader', v, (x) => drawing.change((d) => { for (const y of xs) find(d, y.el.id).el.leader = x ? 'arrow' : 'none'; }),
-      { title: 'A line from the text to what it points at, an arrow head there' }));
+    return row('Leader', check('', v, (x) => drawing.change((d) => { for (const y of xs) find(d, y.el.id).el.leader = x ? 'arrow' : 'none'; }),
+      { 'aria-label': 'Leader', title: 'A line from the text to what it points at, an arrow head there' }));
   }
 
   // a line: its ends (each attached to a point, or free), length, curve, the table of its vertices
@@ -592,7 +596,7 @@ export function drawView(root, ctx) {
     if (key !== chipsOf) { chipsOf = key; chipsAll = false; }
     const shown = chipsAll ? xs : xs.slice(0, CHIPS);
     return h('div', { class: 'chips', 'aria-label': 'Selected' }, shown.map((x) => h('span', { class: 'chip' },
-      h('button', { type: 'button', class: 'chipname', title: 'Select this one only', onclick: () => drawing.select([x.el.id]) }, icon(...KIND_ICON[x.kind]), label(x.kind, x.el)),
+      h('button', { type: 'button', class: 'chipname', title: 'Select this one only', onclick: () => drawing.select([x.el.id]) }, icon(...KIND_ICON[x.kind]), shownName(drawing.doc, x.kind, x.el, ctx.units())),
       h('button', { type: 'button', class: 'x', 'aria-label': `Take ${label(x.kind, x.el)} out of the selection`, title: 'Take it out of the selection', onclick: () => drawing.select([x.el.id], 'toggle') }, '×'))),
     xs.length > shown.length ? h('button', { type: 'button', class: 'small', onclick: () => { chipsAll = true; renderInspector(); } }, `+${xs.length - shown.length} more`) : null);
   }

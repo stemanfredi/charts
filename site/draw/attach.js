@@ -177,7 +177,9 @@ export function splitKeeping(doc, lineId, index) {
 }
 
 // what a reference is on, in words: "", "vertex 2", "edge 3"
-export const partName = (r) => (r.vertex != null ? `vertex ${r.vertex + 1}` : r.edge != null ? `edge ${r.edge + 1}` : '');
+// where on what it is attached to, as the tables number it: a line's point or leg, an area's or an
+// outline's corner or edge
+export const partName = (r, kind) => (r.vertex != null ? `${kind === 'line' ? 'point' : 'corner'} ${r.vertex + 1}` : r.edge != null ? `${kind === 'line' ? 'leg' : 'edge'} ${r.edge + 1}` : '');
 
 // What a line's end becomes on a snap target (snap.js): a point's ID (its centre), a reference, or
 // null (nothing to attach to). On another line's free end, a point is made there and that end

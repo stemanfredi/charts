@@ -126,6 +126,7 @@ export const placeOf = (kind, el) => (kind === 'point' ? el.position : kind === 
 // what the panel calls an element: its name, or for an unnamed one its kind and where it is
 export function label(kind, el) {
   if (el.name?.trim()) return el.name;
+  if (kind === 'label') return el.text.split('\n')[0].trim() || 'Label'; // its text as written (tree.js shownName: as it reads)
   const at = placeOf(kind, el);
   return at ? `${KIND[kind].name} · ${at[1].toFixed(4)}, ${at[0].toFixed(4)}` : `${KIND[kind].name} ${el.id}`;
 }
@@ -253,7 +254,8 @@ export function removePart(p, i) { p.parts = p.parts.filter((_, k) => k !== i); 
 // up and to the right with a leader; at a free position, the text there, no leader.
 export function addLabel(doc, anchor) {
   const free = !anchor.element;
-  const a = { ...base(doc, 'label'), text: free ? 'Text' : '{name}', anchor: clone(anchor), offset: free ? [0, 0] : [...LABEL_OFFSET], leader: free ? 'none' : 'arrow' };
+  // no name: it goes by its text (tree.js shownName)
+  const a = { ...base(doc, 'label', undefined, ''), text: free ? 'Text' : '{name}', anchor: clone(anchor), offset: free ? [0, 0] : [...LABEL_OFFSET], leader: free ? 'none' : 'arrow' };
   doc.labels.push(a);
   return a;
 }

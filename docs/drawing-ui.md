@@ -84,12 +84,13 @@ off. Its key works from anywhere; again, while it is on, it moves to its next ki
 - **Sector**: the centre; the radius and one edge; the other edge, clockwise (back on the first: a
   circle). Esc goes one click back.
 - **Label**: points at what snapping finds (else an area's centre, a place on a line), or is free
-  text where clicked; its text selected, ready to type.
+  text where clicked; its text selected, ready to type. It has no name of its own: the tree and
+  Properties show it by its text as it reads (a name typed wins).
 - What is drawn or dragged shows its values on the map (legs, total, area, radius). Exact lengths and
-  bearings are typed afterwards, in the vertex and corner tables (§5).
+  bearings are typed afterwards, in the points' and corners' tables (§5).
 - **Shift**: 15° steps from the leg before (from north for the first). **Alt**: nothing snapped or
   attached.
-- **Esc** or a right-click steps back one level: what is half drawn, else what was measured, else the
+- **Esc** or a right-click steps back one level: what is half drawn, else the
   tool, else Attach to… waiting, else the selection.
 
 ### 2.2 Snapping and attaching
@@ -168,6 +169,11 @@ follows a drag on the map as it moves.
   sector centred on it, an outline facing it). **Distribute along…** goes round the part whose row
   is current (the form can choose another).
   **Data**: its properties as keys and values, folded while it has none of the user's.
+- A **label**: its text, with value codes ({name}, {along}…: **+ name** and the like insert them) and,
+  while it has any, what it **reads** under it; **Attached to** what and where (a line's point or leg,
+  an area's or outline's corner or edge, as the tables number them), or its **Position**; **Along**, on
+  a line; **Text offset**, where its text was dragged to (↺: back); **Leader**, when attached. Look:
+  text size, colour, background (halo or box).
 - **Guide** (points, lines, areas): faint and dashed, left out of the totals.
 
 ## 6. Distribute along and Connect: rules

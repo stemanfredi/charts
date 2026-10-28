@@ -22,6 +22,8 @@ export const countOf = (b, u) => [b.points ? `${plural(b.points, 'point')}${b.ri
 export const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[kind === 'area' ? 'polygon' : kind]);
 export const kindTitle = (kind, el) => (kind === 'point' ? (POINT_KIND_NAME[pointKind(el)] ?? OUTLINE_NAME[pointKind(el)]) : kindName(kind));
 // a group's name with the groups it is in: "A › B"
+// an element's name as shown: its own, else a label's text as it reads on the map (its first line)
+export const shownName = (doc, kind, el, units) => (kind === 'label' && !el.name?.trim() ? labelText(doc, el, units).split('\n')[0].trim() || 'Label' : label(kind, el));
 export const groupPath = (doc, g) => [...groupsOf(doc, g).reverse(), g].map((x) => label('group', x)).join(' › ');
 
 // An eye for all of xs() (what: what they are, for its label): every one shown, a click hides them
@@ -84,7 +86,7 @@ export function createTree(drawing, ctx, { facts, openDrawing }) {
   }
   function shown() {
     const f = filter.trim().toLowerCase();
-    return ordered().filter((x) => !f || label(x.kind, x.el).toLowerCase().includes(f) || x.el.properties.some((p) => p.value.toLowerCase().includes(f)));
+    return ordered().filter((x) => !f || shownName(drawing.doc, x.kind, x.el, ctx.units()).toLowerCase().includes(f) || x.el.properties.some((p) => p.value.toLowerCase().includes(f)));
   }
   function value(kind, el) {
     const u = ctx.units();
@@ -97,7 +99,7 @@ export function createTree(drawing, ctx, { facts, openDrawing }) {
     if (kind === 'area') return [el.guide ? 'guide' : '', fmtArea(areaOf(pathOf(el.points, true)), u)].filter(Boolean).join(' · ');
     const offset = el.look?.offset ? '⇉' : ''; // Offset set here: found again in the list
     if (kind === 'line') return [el.guide ? 'guide' : '', fmtDist(lineTrace(drawing.doc, el).length, u), offset].filter(Boolean).join(' · ');
-    if (kind === 'label') return labelText(drawing.doc, el, u).split('\n')[0];
+    if (kind === 'label') return el.name?.trim() ? labelText(drawing.doc, el, u).split('\n')[0] : ''; // unnamed: its text is its name already
     const t = facts().totals.groups.get(el.id), n = t ? t.points + t.lines + t.areas : 0;
     return [n ? plural(n, 'element') : 'empty', offset].filter(Boolean).join(' · ');
   }
@@ -120,7 +122,7 @@ export function createTree(drawing, ctx, { facts, openDrawing }) {
     const fold = kind === 'group' ? h('button', { type: 'button', class: 'dfold', 'aria-expanded': String(!folded.has(id)), 'aria-label': `Show the members of ${label(kind, el)}`,
       onclick: () => { if (folded.has(id)) folded.delete(id); else folded.add(id); render(); } }) : null;
     const t = kind === 'group' && facts().totals.groups.get(id);
-    return elementRow({ id, icon, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: label(kind, el), value: value(kind, el), valueTitle: t ? countOf(t, ctx.units()) : undefined,
+    return elementRow({ id, icon, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: shownName(drawing.doc, kind, el, ctx.units()), value: value(kind, el), valueTitle: t ? countOf(t, ctx.units()) : undefined,
       visible: el.visible, selected: drawing.sel.has(id) }, {
       select: (e) => clickRow(id, e), hover: (x) => drawing.setHover(x),
       visible: (v) => drawing.change((doc) => { find(doc, id).el.visible = v; }),

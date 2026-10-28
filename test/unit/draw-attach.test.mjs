@@ -46,7 +46,7 @@ test('where a reference is: a centre, a vertex, a place along an edge or a leg; 
     assert.equal(targetPosition(doc, bad), null, JSON.stringify(bad));
   }
   assert.deepEqual(resolve(doc, { position: [1, 2], element: null }), { position: [1, 2], element: null });
-  assert.deepEqual([partName({ vertex: 0 }), partName({ vertex: 2 }), partName({ edge: 0 }), partName({})], ['vertex 1', 'vertex 3', 'edge 1', '']);
+  assert.deepEqual([partName({ vertex: 0 }, 'line'), partName({ edge: 0 }, 'line'), partName({ vertex: 2 }, 'area'), partName({ edge: 0 }, 'point'), partName({})], ['point 1', 'leg 1', 'corner 3', 'edge 1', '']); // as the tables number them
 });
 
 test('ends follow what they are attached to: an outline turned, an area\'s corner moved, a vertex moved; gone, free where they were', () => {
