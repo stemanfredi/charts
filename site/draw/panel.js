@@ -3,13 +3,12 @@
 // selected, the drawing itself) and edits it with fields. Fields apply on Enter or when they lose
 // focus, one undo step each.
 
-import { h, svg, typing, NARROW } from '../dom.js';
-import { popup } from '../menu.js';
+import { h, svg, typing } from '../dom.js';
+import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
-import { parse } from './file.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
-import { labelText, labelValues, TOKENS } from './labels.js';
+import { labelValues, TOKENS } from './labels.js';
 import { OUTLINE_NAME, outlineOf } from './outlines.js';
 import { lineTrace, totals, breakdown, nearestAlong, positionsOf } from './lines.js';
 import { profileCsv } from './profile.js';
@@ -21,55 +20,20 @@ import { inverse, areaOf, pathOf, destination, perimeterOf } from '../geodesy.js
 import { moved } from './drag.js';
 import { norm360 } from '../geo.js';
 import { fields, choice, select, check } from '../fields.js';
-import { keyOf, mac, MOD } from '../keys.js';
-import { loadPresets, savePresets, presetOf, presetsFile, readPresets } from './presets.js';
+import { mac, MOD } from '../keys.js';
+import { loadPresets, savePresets, presetOf, presetTool } from './presets.js';
 import { listGrid } from './grid.js';
-import { fmtArea, fmtBrg, fmtDist, rowsText } from '../format.js';
+import { fmtArea, fmtBrg, fmtDist, rowsText, plural } from '../format.js';
+import { drawingsMenu } from './files.js';
+import { createTools } from './tools.js';
+import { createTree, countOf, kindTitle, groupPath, eyeFor } from './tree.js';
+import { KIND_ICON, UI_ICON } from './icons.js';
 
-const FILTER_FROM = 30; // the filter field appears past this many elements
 // what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
-const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-const countOf = (b, u) => [b.points ? `${plural(b.points, 'point')}${b.ringed && b.ringed < b.points ? `, ${b.ringed} with radii` : ''}` : '',
-  b.lines ? `${plural(b.lines, 'line')}, ${fmtDist(b.length, u)}` : '', b.areas ? plural(b.areas, 'area') : '', b.hidden ? 'incl. hidden' : ''].filter(Boolean).join(' · ');
-const KIND_ICON = {
-  point: ['m12 4 8 8-8 8-8-8z'], shape: ['M4 8h16v8H4z'], polygon: ['M5 7l7-4 7 5-2 11H7z'], line: ['M4 18 20 6'], group: ['M3 7h7l2 2h9v10H3z'],
-  label: ['M10 4h10v7H10z', 'M10 11 4 19'], // a text box and its leader
-  area: ['M4 4h3M10 4h4M17 4h3v3M20 10v4M20 17v3h-3M14 20h-4M7 20H4v-3M4 14v-4M4 7V4'], // a dashed box: Select area
-};
-// the column's and the actions' icons (as Lucide's): the column, Zoom to, Duplicate, Group, Delete,
-// Detach, shown and hidden
-const UI_ICON = {
-  drawing: ['M6 3h9l4 4v14H6z', 'M14 3v5h5'], // a page: the drawing itself
-  attach: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'], // a link
-  zoom: ['M3 7V5a2 2 0 0 1 2-2h2', 'M17 3h2a2 2 0 0 1 2 2v2', 'M21 17v2a2 2 0 0 1-2 2h-2', 'M7 21H5a2 2 0 0 1-2-2v-2', 'M12 9v6', 'M9 12h6'],
-  duplicate: ['M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2'],
-  group: ['M3 7h7l2 2h9v10H3z', 'M12 11v6', 'M9 14h6'],
-  delete: ['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6', 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2', 'M10 11v6', 'M14 11v6'],
-  detach: ['m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'm5.17 11.75-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71', 'M8 2v3', 'M2 8h3', 'M16 19v3', 'M19 16h3'],
-  eye: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
-  hidden: ['M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7', 'M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6', 'M14.1 14.1a3 3 0 1 1-4.2-4.2', 'M2 2l20 20'],
-  // a fold's
-  chevron: ['m6 9 6 6 6-6'],
-};
-// what each kind of point and shape looks like (the sub-rails, the list): those round a centre have it
-// marked, the outlines not
-const POINT_ICON = {
-  point: KIND_ICON.point, symbol: KIND_ICON.point,
-  circle: ['M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'M12 12h8', 'M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z'], // its radius drawn from its centre
-  rings: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z'],
-  sector: ['M5 19V5a14 14 0 0 1 14 14z'], // a quarter of a circle, its centre bottom left
-  rectangle: ['M4 8h16v8H4z'], ellipse: ['M12 7c5 0 9 2.2 9 5s-4 5-9 5-9-2.2-9-5 4-5 9-5z'], triangle: ['M12 4l8 15H4z'], polygon: KIND_ICON.polygon,
-  'aerial-vehicle': ['M12 3v18M4 12l8-3 8 3M9 19l3-1 3 1'], 'surface-vehicle': ['M12 3c3 2 4 5 4 8v9H8v-9c0-3 1-6 4-8z'], 'underwater-vehicle': ['M7 9h8a3 3 0 0 1 0 6H7l-3 2V7z'],
-};
 // an element's icon and what the panel calls its kind: a point by what it looks like (a circle, a
 // rectangle…); an area a polygon
-const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[kind === 'area' ? 'polygon' : kind]);
-const kindTitle = (kind, el) => (kind === 'point' ? (POINT_KIND_NAME[pointKind(el)] ?? OUTLINE_NAME[pointKind(el)]) : kindName(kind));
 const PART_NAME = { circle: 'Circle', sector: 'Sector', ...OUTLINE_NAME };
-// where a preset is placed from: Shape when it has extent (an outline, radii), else Point
-const presetTool = (x) => (x.point.parts.length ? 'shape' : 'point');
 const SYMBOL_ICON = { diamond: ['m12 4 8 8-8 8-8-8z'], square: ['M6 6h12v12H6z'], triangle: ['M12 4l9 15H3z'], dot: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'], none: [] };
-const SELECT_ICON = ['M5 3l14 8-6 2-2 6z']; // an arrow
 const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle', dot: 'Dot', none: 'None' };
 const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'underwater-vehicle': 'Diameter' }; // a shape's width, as said of each outline
 
@@ -78,9 +42,6 @@ const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'under
 // (applies an imported document), openDrawing(id), download(text, name), profile(trace) }
 export function drawView(root, ctx) {
   const { drawing, map, icon } = ctx;
-  let anchor = null; // the row a Shift-click range starts from
-  let filter = '';
-  const folded = new Set(); // groups folded in the list (this session)
   const F = fields({ note, units: ctx.units }), { field } = F; // fields.js: each applies on Enter or when left
   let facts = null; // the totals: computed once per rendering of the list, read by the inspector
   let totalsBy = ''; // the drawing's totals by group (''), or by the values of a property (its key)
@@ -88,282 +49,27 @@ export function drawView(root, ctx) {
   const computeFacts = () => (facts = { totals: totals(drawing.doc, totalsBy || null), breakdown: breakdown(drawing.doc, totalsBy || null) });
   const fx = () => facts || computeFacts();
 
-  // ---- tools ------------------------------------------------------------------------------
-  // The rail (drawing-ui.md §2): Select, Point, Line, Shape, Label, Measure, then Undo and Redo. A tool
-  // with variants shows them in its sub-rail; it remembers the one chosen last, and its key pressed
-  // again moves to the next (app.js).
   drawing.presets = loadPresets();
-  const TOOLS = { point: ['Point', 'Place points: click on the map'], line: ['Line', 'Draw a line: click its start, its bends, then a point, a corner, an edge or a vertex to end there (attached), or Enter'],
-    shape: ['Shape', 'Place a shape of the outline chosen, or draw a polygon'], label: ['Label', 'Place a label: click a point, a shape, an area or a line to point at it, or anywhere for free text'],
-    measure: ['Measure', 'Measure a distance, or an area (a click on the first point closes it); Keep puts it in the drawing'] };
-  // the kinds each tool makes (its sub-rail), each with a short tooltip. Shape: round a centre, the
-  // outlines to scale, the polygon, the vehicles, the user's presets with extent
-  const presetsOf = (tool) => drawing.presets.filter((x) => presetTool(x) === tool).map((x) => [`preset:${x.name}`, `${x.name}: a preset of yours (right-click: rename or delete)`]);
-  const outline = (k) => [k, `${OUTLINE_NAME[k]}: an outline to scale`];
-  const variants = (tool) => ({
-    point: [['symbol', 'Symbol: the same size at every zoom'], ...presetsOf('point')],
-    shape: [['circle', 'Circle: a distance round a centre'], ['rings', 'Rings: distances round a centre'], ['sector', 'Sector: part of a circle, in three clicks'],
-      outline('rectangle'), outline('ellipse'), outline('triangle'), ['polygon', 'Polygon: corner by corner'], ...OUTLINES.filter((k) => k.endsWith('-vehicle')).map(outline), ...presetsOf('shape')],
-  })[tool] || [];
-  const current = (tool) => drawing.variant[tool];
-  // A tool's button pressed: on, or off when it is on. Its kinds are a column beside the rail, open
-  // while the tool is on; the tool's button shows the kind in use (drawing-ui.md §1)
-  const press = (tool) => (drawing.button === tool ? drawing.stop() : drawing.start(tool));
-  // a variant chosen in the sub-rail: the tool on with it
-  const choose = (tool, v) => drawing.setVariant(tool, v);
-  // the next variant of a tool (its key pressed again), or the tool on
-  function cycle(tool) {
-    const vs = variants(tool).map(([v]) => v), on = drawing.button === tool;
-    if (!on || vs.length < 2) return press(tool);
-    choose(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
-  }
-  // the rail's tools
-  const toolBtns = Object.entries(TOOLS).map(([k, [text, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', 'aria-label': text, title: `${title} (${keyOf(k)})`,
-    onclick: () => press(k) }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k]))));
-  const undoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Undo', title: `Undo (${MOD} Z)`, onclick: () => drawing.undo() }, icon('M9 14 4 9l5-5', 'M4 9h10a6 6 0 0 1 0 12h-3'));
-  const redoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Redo', title: `Redo (${MOD} Shift Z)`, onclick: () => drawing.redo() }, icon('m15 14 5-5-5-5', 'M20 9H10a6 6 0 0 0 0 12h3'));
-  const sep = () => h('span', { class: 'tsep', 'aria-hidden': 'true' });
-  const subrail = h('div', { class: 'subrail', role: 'group', hidden: true });
-  // the bar's own: ☰, the drawings and the file; Select
-  const fileBtn = h('button', { type: 'button', class: 'filebtn', 'aria-label': 'File', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
-    title: 'The drawings in this browser, and the file: New, Import, Export', onclick: () => toggleDrawings(fileBtn) }, icon('M4 6h16', 'M4 12h16', 'M4 18h16'));
-  const selectBtn = h('button', { type: 'button', class: 'selbtn', 'aria-label': 'Select', title: `Select: a click on an element (Shift, ${MOD}: add or remove); Shift-drag a box on the map`,
-    onclick: () => drawing.stop() }, icon(...SELECT_ICON));
-  // With a finger (drawing-ui.md §1): what keys and a mouse do on a computer, each shown when it
-  // applies. Back steps back one level (what is half drawn, else the tool, else the selection); Snap
-  // off places as Alt does; Undo (the bar has no room for it on a phone); Properties, while off.
-  const touchBtn = (text, title, run) => h('button', { type: 'button', title, onclick: run }, text);
-  const touch = {
-    done: touchBtn('Done', 'End the line or close the polygon being drawn (Enter, or a double-click)', () => drawing.finish()),
-    back: touchBtn('Back', 'Back one step: what is half drawn, else the tool, else the selection (Esc)', () => (drawing.tool ? drawing.escape() : drawing.select([]))),
-    del: touchBtn('Delete', 'Delete the selection (Delete)', () => del([...drawing.sel])),
-    dup: touchBtn('Duplicate', `A copy of the selection beside it (${MOD} D)`, () => drawing.duplicate()),
-    snap: h('button', { type: 'button', title: 'Snap to what is drawn; off: placed exactly where tapped (Alt)', onclick: () => { drawing.snapOff = !drawing.snapOff; renderTools(); } }, 'Snap'),
-    undo: touchBtn('Undo', `Undo (${MOD} Z)`, () => drawing.undo()),
-    props: touchBtn('Properties', 'Its properties (I)', () => ctx.frame.setProps(true)),
-  };
-  const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' }, Object.values(touch));
-  // what Measure measured, at the map's foot (drawing-ui.md §3): its values, Keep, ×
-  const mText = h('span', {});
-  const measureCard = h('div', { class: 'mcard', role: 'status', hidden: true }, mText,
-    h('button', { type: 'button', title: 'Keep it in the drawing, as a guide showing its values', onclick: () => drawing.keepMeasurement() }, 'Keep'),
-    h('button', { type: 'button', class: 'x', 'aria-label': 'Clear', title: 'Clear (Esc)', onclick: () => drawing.clearMeasurement() }, '×'));
-  document.body.append(measureCard);
-  function renderMeasure() {
-    const m = drawing.measured(), u = ctx.units();
-    measureCard.hidden = !m;
-    if (m) mText.textContent = m.closed ? `Area ${fmtArea(m.area, u)} · perimeter ${fmtDist(m.length, u)}` : `Distance ${fmtDist(m.length, u)}${m.legs > 1 ? ` · ${plural(m.legs, 'leg')}` : ''}`;
-  }
-  document.body.append(touchbar); // over the map, at its foot (above a phone's sheet)
-  function renderTouch() {
-    const sel = drawing.sel.size > 0, tool = !!drawing.tool;
-    touch.done.hidden = !(['line', 'polygon', 'measure'].includes(drawing.tool) && drawing.draft);
-    touch.back.hidden = !tool && !sel;
-    touch.del.hidden = touch.dup.hidden = !sel || tool;
-    touch.snap.hidden = !tool;
-    touch.snap.setAttribute('aria-pressed', String(!drawing.snapOff));
-    touch.undo.hidden = !NARROW.matches || !drawing.undos.length;
-    touch.props.hidden = !sel || tool || ctx.frame.props;
-    touchbar.hidden = Object.values(touch).every((b) => b.hidden);
-  }
-  function renderSubrail() {
-    const tool = drawing.button;
-    const vs = variants(tool);
-    subrail.hidden = vs.length < 2;
-    subrail.setAttribute('aria-label', `${TOOLS[tool]?.[0] ?? ''}: what it makes`);
-    subrail.replaceChildren(...vs.map(([v, title]) => {
-      const preset = v.startsWith('preset:'), name = preset ? v.slice(7) : '';
-      return h('button', { type: 'button', 'aria-pressed': String(current(tool) === v), title, 'aria-label': preset ? name : title.split(':')[0].split(',')[0],
-        onclick: () => choose(tool, v), oncontextmenu: preset ? (e) => { e.preventDefault(); presetMenu(name); } : null },
-      preset ? h('span', { class: 'initials' }, name.slice(0, 2)) : icon(...(POINT_ICON[v] || KIND_ICON.point)));
-    }));
-    // under its tool's button, within the window
-    const from = toolBtns.find((x) => x.dataset.tool === tool);
-    subrail.style.left = from && !subrail.hidden ? `${Math.max(0, Math.min(from.offsetLeft - 5, innerWidth - subrail.offsetWidth - 6))}px` : '';
-  }
-  // a preset of the user's: renamed, or deleted
-  async function presetMenu(name) {
-    const a = await ask('Preset', `“${name}”`, [['delete', 'Delete'], ['rename', 'Rename…']]);
-    if (a === 'delete') drawing.presets = drawing.presets.filter((x) => x.name !== name);
-    if (a === 'rename') {
-      const to = (await askText('Rename the preset', 'Name', name))?.trim();
-      if (!to || drawing.presets.some((x) => x.name === to)) return;
-      drawing.presets = drawing.presets.map((x) => (x.name === name ? { ...x, name: to } : x));
-      for (const t of ['point', 'shape']) if (drawing.variant[t] === `preset:${name}`) drawing.variant[t] = `preset:${to}`;
-    }
-    if (a === 'delete') for (const [t, v] of [['point', 'symbol'], ['shape', 'circle']]) if (drawing.variant[t] === `preset:${name}`) drawing.variant[t] = v;
-    savePresets(drawing.presets);
-    renderTools();
-  }
+  const files = drawingsMenu(drawing, ctx, () => icon(...UI_ICON.delete), () => renderTools());
+  const tools = createTools(drawing, ctx, { del, toggleFiles: (b) => files.toggle(b) });
+  const { renderTools } = tools;
 
-  // ---- list ---------------------------------------------------------------------------------
-  const filterInput = h('input', { type: 'search', placeholder: 'Filter by name or value', 'aria-label': 'Filter the list', oninput: (e) => { filter = e.target.value; renderList(); } });
-  const selectShown = h('button', { type: 'button', class: 'small', title: 'Select every element the filter leaves in the list (Shift: add to the selection)',
-    onclick: (e) => drawing.select(shown().map((x) => x.el.id), e.shiftKey ? 'add' : 'replace') }, 'Select all shown');
-  // An eye for all of xs() (what: what they are, for its label): every one shown, a click hides them
-  // all; some or none, a click shows them all. render() when they change.
-  const showAll = (v, xs) => drawing.change((doc) => { for (const x of xs) find(doc, x.el.id).el.visible = v; });
-  const eyeFor = (xs, what) => {
-    const b = h('button', { type: 'button', class: 'deye', onclick: () => { const all = xs(); showAll(!all.every((x) => x.el.visible), all); } });
-    b.render = () => {
-      const all = xs(), on = all.filter((x) => x.el.visible).length, every = !!all.length && on === all.length;
-      b.setAttribute('aria-pressed', on && !every ? 'mixed' : String(every));
-      b.setAttribute('aria-label', `${every ? 'Hide' : 'Show'} all ${what}`);
-      b.title = every ? 'All shown: click to hide them all' : on ? 'Some hidden: click to show them all' : 'All hidden: click to show them all';
-      b.replaceChildren(icon(...(every ? UI_ICON.eye : UI_ICON.hidden)));
-    };
-    return b;
-  };
-  // the list's head: the drawing's title, the eye for every element listed, its fold; above the list, past FILTER_FROM elements, the filter and
-  // Select all shown
-  const listed = () => (filter ? shown() : drawElements());
-  const eyeAll = eyeFor(listed, 'listed');
-  const filterRow = h('div', { class: 'dfilter' }, filterInput, selectShown);
-  // the hover ends when the pointer leaves the list: a row rebuilt under it never says it was left
-  const list = h('ul', { class: 'dlist', 'aria-label': 'Elements', onpointerleave: () => drawing.setHover(null) });
-  // The tree's first row is the drawing (drawing-ui.md §4): its title, how much it holds, the eye for
-  // everything listed. A click shows it in Properties (turned on), as an element's row shows that
-  // element; it stays so until something is selected.
+  // ---- the tree (tree.js), its first row the drawing ------------------------------------------
+  // The drawing shown in Properties (its row clicked), until something is selected
   let showDrawing = false;
-  const rootName = h('button', { type: 'button', class: 'dname', title: 'The drawing: its title, its display, its totals', onclick: () => openDrawing() });
-  const rootVal = h('span', { class: 'val' });
-  const rootRow = h('div', { class: 'drow droot' }, h('span', { class: 'kind' }, icon(...UI_ICON.drawing)), rootName, rootVal, eyeAll);
   function openDrawing() {
     drawing.select([]);
     showDrawing = true;
     ctx.frame.setProps(true);
     renderInspector();
   }
-  const listBox = h('div', { class: 'dlistbox' }, rootRow, filterRow, list);
+  const tree = createTree(drawing, ctx, { facts: () => facts, openDrawing });
+  const renderList = () => { computeFacts(); tree.render(); };
+  const drawElements = () => elements(drawing.doc);
   // the inspector's head: what it shows, the actions on it (renderHead), its fold
   let title = ''; // what the inspector shows, said in its head (set by the inspector built)
   const inspTitle = h('span', { class: 'ititle' }), inspActs = h('span', { class: 'iacts' });
   const inspHead = h('div', { class: 'dinsphead' }, inspTitle, inspActs);
-
-  // the drawing's elements this view lists: all of them, measurements too
-  const drawElements = () => elements(drawing.doc);
-  // the elements in list order, as a tree: each group, then what is in it (its subgroups, then its
-  // members), one level further in; at the top, the groups, then the rest. depth: how far in.
-  function ordered() {
-    const all = drawElements(), out = [], seen = new Set();
-    const under = (gid, depth) => {
-      for (const g of drawing.doc.groups.filter((x) => (x.groupId ?? null) === gid && !seen.has(x))) {
-        seen.add(g);
-        out.push({ kind: 'group', el: g, depth });
-        if (!folded.has(g.id) || filter) under(g.id, depth + 1);
-      }
-      out.push(...all.filter((x) => x.kind !== 'group' && (x.el.groupId ?? null) === gid).map((x) => ({ ...x, depth })));
-    };
-    under(null, 0);
-    return out;
-  }
-  // a group's name with the groups it is in: "A › B"
-  const groupPath = (g) => [...groupsOf(drawing.doc, g).reverse(), g].map((x) => label('group', x)).join(' › ');
-  function shown() {
-    const f = filter.trim().toLowerCase();
-    return ordered().filter((x) => !f || label(x.kind, x.el).toLowerCase().includes(f) || x.el.properties.some((p) => p.value.toLowerCase().includes(f)));
-  }
-  function value(kind, el) {
-    const u = ctx.units();
-    if (kind === 'point') {
-      // its largest outline's size, its first filled round part's radius (its kind: its icon and name)
-      const o = mainOutline(el)?.part, r = el.parts[followedPart(el)];
-      const shape = o ? [`${fmtDist(o.length, u)} × ${fmtDist(o.width, u)}`] : [];
-      return [...shape, r ? `${r.kind === 'sector' ? `${+r.aperture.toFixed(1)}° ` : ''}r ${fmtDist(r.radius, u)}` : ''].filter(Boolean).join(' · ');
-    }
-    if (kind === 'area') return [el.guide ? 'guide' : '', fmtArea(areaOf(pathOf(el.points, true)), u)].filter(Boolean).join(' · ');
-    const offset = el.look?.offset ? '⇉' : ''; // Offset set here: found again in the list
-    if (kind === 'line') return [el.guide ? 'guide' : '', fmtDist(lineTrace(drawing.doc, el).length, u), offset].filter(Boolean).join(' · ');
-    if (kind === 'label') return labelText(drawing.doc, el, u).split('\n')[0];
-    const t = facts.totals.groups.get(el.id), n = t ? t.points + t.lines + t.areas : 0;
-    return [n ? plural(n, 'element') : 'empty', offset].filter(Boolean).join(' · ');
-  }
-
-  // one row of the list: a group's fold (or its room), its kind, its name, a short value, its eye (shown
-  // or hidden); selected by a click (Ctrl/⌘: adds or removes), outlined on the map while the pointer is
-  // over it
-  function elementRow({ id, icon, kindIcon, title, name, value = '', valueTitle, visible, selected }, on, more = {}) {
-    return h('li', { class: `drow${selected ? ' sel' : ''}${visible ? '' : ' dim'}${more.classes ? ` ${more.classes}` : ''}`, 'data-id': id, draggable: 'true',
-      onpointerenter: () => on.hover(id), onpointerleave: () => on.hover(null) },
-    more.fold || h('span', { class: 'dfold none', 'aria-hidden': 'true' }),
-    h('span', { class: 'kind', title }, icon(...kindIcon)),
-    h('button', { type: 'button', class: 'dname', title: `Select (${MOD}: add or remove)`, onclick: (e) => on.select(e), ...more.name }, name),
-    h('span', { class: 'val', title: valueTitle }, value),
-    h('button', { type: 'button', class: 'deye', 'aria-pressed': String(visible), 'aria-label': `Show ${name}`, title: visible ? 'Shown: click to hide' : 'Hidden: click to show',
-      onclick: () => on.visible(!visible) }, icon(...(visible ? UI_ICON.eye : UI_ICON.hidden))));
-  }
-  function rowOf({ kind, el, depth = 0 }) {
-    const id = el.id;
-    const fold = kind === 'group' ? h('button', { type: 'button', class: 'dfold', 'aria-expanded': String(!folded.has(id)), 'aria-label': `Show the members of ${label(kind, el)}`,
-      onclick: () => { if (folded.has(id)) folded.delete(id); else folded.add(id); renderList(); } }) : null;
-    const t = kind === 'group' && facts.totals.groups.get(id);
-    return elementRow({ id, icon, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: label(kind, el), value: value(kind, el), valueTitle: t ? countOf(t, ctx.units()) : undefined,
-      visible: el.visible, selected: drawing.sel.has(id) }, {
-      select: (e) => clickRow(id, e), hover: (x) => drawing.setHover(x),
-      visible: (v) => drawing.change((doc) => { find(doc, id).el.visible = v; }),
-    }, { fold, classes: [depth ? `d${Math.min(depth, 5)}` : '', kind === 'group' ? 'dgroup' : ''].filter(Boolean).join(' '),
-      name: { title: `Select (Shift: range, ${MOD}: add or remove). Double-click to rename.`, ondblclick: () => rename(id) } });
-  }
-
-  function renderList() {
-    computeFacts();
-    const rows = shown();
-    filterRow.hidden = drawElements().length <= FILTER_FROM && !filter; // nothing to show above the list: no room taken
-    list.replaceChildren(...rows.map(rowOf));
-    eyeAll.render();
-    rootName.textContent = drawing.doc.meta.title || 'Untitled drawing';
-    rootVal.textContent = plural(drawElements().filter((x) => x.kind !== 'group').length, 'element');
-    rootVal.title = countOf(facts.totals.all, ctx.units());
-    if (!rows.length) list.append(h('li', { class: 'empty' }, filter ? 'Nothing matches the filter.' : 'Nothing drawn yet: pick a tool, then click on the map.'));
-  }
-  // A row dragged (drawing-ui.md §4): dropped on a group's row, into that group; on a row of its
-  // kind, just before it (the drawing order: the first on top) and in its group; on another, in its
-  // group. One undo step.
-  let dragged = null;
-  const dropOn = (e) => { const r = e.target.closest?.('.drow[data-id]'); return r && dragged && r.dataset.id !== dragged ? r : null; };
-  list.addEventListener('dragstart', (e) => { dragged = e.target.closest?.('.drow')?.dataset.id ?? null; if (dragged) e.dataTransfer.effectAllowed = 'move'; });
-  list.addEventListener('dragover', (e) => { const r = dropOn(e); if (!r) return; e.preventDefault(); for (const x of list.querySelectorAll('.drop')) if (x !== r) x.classList.remove('drop'); r.classList.add('drop'); });
-  list.addEventListener('dragleave', (e) => e.target.closest?.('.drow')?.classList.remove('drop'));
-  list.addEventListener('dragend', () => { dragged = null; for (const x of list.querySelectorAll('.drop')) x.classList.remove('drop'); });
-  list.addEventListener('drop', (e) => {
-    const r = dropOn(e);
-    if (!r) return;
-    e.preventDefault();
-    const id = dragged, t = find(drawing.doc, r.dataset.id), x = find(drawing.doc, id);
-    drawing.change((doc) => {
-      if (t.kind === 'group') setGroup(doc, id, t.el.id);
-      else if (t.kind === x.kind) moveBefore(doc, id, t.el.id);
-      else setGroup(doc, id, t.el.groupId ?? null);
-    });
-  });
-  function clickRow(id, e) {
-    // a range starts from the row last clicked, or else from the last element selected (on the map)
-    if (!anchor || !drawing.sel.has(anchor)) anchor = [...drawing.sel].at(-1) ?? null;
-    if (e.shiftKey && anchor) {
-      const ids = shown().map((x) => x.el.id), a = ids.indexOf(anchor), b = ids.indexOf(id);
-      if (a >= 0 && b >= 0) return drawing.select(ids.slice(Math.min(a, b), Math.max(a, b) + 1));
-    }
-    anchor = id;
-    drawing.select([id], e.ctrlKey || e.metaKey ? 'toggle' : 'replace');
-  }
-  function rename(id) {
-    const row = list.querySelector(`[data-id="${CSS.escape(id)}"]`), x = find(drawing.doc, id);
-    if (!row || !x) return;
-    const btn = row.querySelector('.dname');
-    const input = h('input', { class: 'dname', value: x.el.name, 'aria-label': 'Name' });
-    let done = false;
-    const finish = (apply) => {
-      if (done) return;
-      done = true;
-      if (apply && input.value !== x.el.name) drawing.change((doc) => { find(doc, id).el.name = input.value; });
-      else renderList();
-    };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } });
-    input.addEventListener('blur', () => finish(true));
-    btn.replaceWith(input);
-    input.focus();
-    input.select();
-  }
 
   // ---- deleting -----------------------------------------------------------------------------
   async function del(ids) {
@@ -382,46 +88,7 @@ export function drawView(root, ctx) {
     const gone = drawing.dependents(ids, withMembers);
     const freed = doc.lines.filter((s) => !gone.has(s.id) && [s.start, s.end].some((e) => e.element && gone.has(e.element))).length;
     drawing.remove(ids, withMembers);
-    note(`Deleted ${what}${freed ? `; ${plural(freed, 'line')} attached to it now end${freed === 1 ? 's' : ''} where ${freed === 1 ? 'it' : 'they'} did` : ''}`, true);
-  }
-
-  // A dialog: its title, its body (body(done): what it shows; done(value) answers), its buttons
-  // ([value, text], the last the main one; a value may be a function, read when chosen), then cancel's
-  // (Cancel, Esc), then a note. Resolves to the value chosen, or null.
-  const askDialog = h('dialog', { class: 'dreport', 'aria-labelledby': 'dask-title' });
-  document.body.append(askDialog);
-  function dialog(title, body, buttons, cancel = 'Cancel', foot = null) {
-    return new Promise((resolve) => {
-      let answer = null;
-      const done = (v) => { answer = v; askDialog.close(); };
-      askDialog.replaceChildren(h('h2', { id: 'dask-title' }, title), body(done),
-        h('div', { class: 'fbuttons' }, buttons.map(([v, t], i) => h('button', { type: 'button', class: i === buttons.length - 1 ? 'done' : '', onclick: () => done(typeof v === 'function' ? v() : v) }, t)),
-          h('button', { type: 'button', onclick: () => askDialog.close() }, cancel)), foot);
-      askDialog.addEventListener('close', () => resolve(answer), { once: true });
-      askDialog.showModal();
-    });
-  }
-  // a question: resolves to the chosen button's value, or null
-  const ask = (title, text, buttons) => dialog(title, () => h('p', {}, text), buttons);
-  // a text asked for: resolves to it, or null
-  function askText(title, what, value = '') {
-    const input = h('input', { type: 'text', value, 'aria-label': what });
-    const asked = dialog(title, (done) => {
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); done(input.value); } });
-      return h('p', {}, h('label', {}, `${what} `, input));
-    }, [[() => input.value, 'OK']]);
-    input.select();
-    return asked;
-  }
-
-  // ---- the note: what just happened, for a few seconds -----------------------------------------
-  const noteEl = h('div', { class: 'dnote', role: 'status', hidden: true });
-  let noteTimer = 0;
-  function note(text, undo = false) {
-    clearTimeout(noteTimer);
-    noteEl.replaceChildren(...[h('span', {}, text), undo ? h('button', { type: 'button', onclick: () => { drawing.undo(); noteEl.hidden = true; } }, 'Undo') : null].filter(Boolean));
-    noteEl.hidden = false;
-    noteTimer = setTimeout(() => { noteEl.hidden = true; }, 5000);
+    note(`Deleted ${what}${freed ? `; ${plural(freed, 'line')} attached to it now end${freed === 1 ? 's' : ''} where ${freed === 1 ? 'it' : 'they'} did` : ''}`, () => drawing.undo());
   }
 
   // ---- inspector: fields ----------------------------------------------------------------------
@@ -508,7 +175,7 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     const gs = ids.map((id) => find(doc, id)?.el.groupId ?? null), same = gs.every((g) => g === gs[0]) ? gs[0] : undefined;
     const fits = doc.groups.filter((g) => ids.every((id) => canHold(doc, g.id, id)));
-    return row('Group', select('Group', [['', 'none'], ...fits.map((g) => [g.id, groupPath(g)])], same === undefined ? null : same ?? '', (v) => {
+    return row('Group', select('Group', [['', 'none'], ...fits.map((g) => [g.id, groupPath(drawing.doc, g)])], same === undefined ? null : same ?? '', (v) => {
       drawing.change((d) => { for (const id of ids) setGroup(d, id, v || null); });
     }));
   }
@@ -625,7 +292,7 @@ export function drawView(root, ctx) {
           const tool = presetTool(p);
           drawing.variant[tool] = `preset:${name}`;
           renderTools();
-          note(`Preset “${name}” in the ${TOOLS[tool][0]} tool`);
+          note(`Preset “${name}” in the ${tool === 'shape' ? 'Shape' : 'Point'} tool`);
         } }, 'Save as preset…')));
     return [...parts, ...commonBottom('point', id)];
   }
@@ -875,7 +542,7 @@ export function drawView(root, ctx) {
     const doc = drawing.doc, u = ctx.units();
     const direct = membersOf(doc, id), subs = direct.filter((x) => x.kind === 'group').length;
     const below = membersOf(doc, id, true).filter((x) => x.kind !== 'group'); // everything in it, its subgroups' too
-    const t = fx().totals.groups.get(id), shownEye = eyeFor(() => membersOf(drawing.doc, id, true), 'members');
+    const t = fx().totals.groups.get(id), shownEye = eyeFor(drawing, icon, () => membersOf(drawing.doc, id, true), 'members');
     shownEye.render();
     return [...commonTop('group', id),
       row('Members', h('span', { class: 'fvalue' }, [`${direct.length - subs}`, subs ? plural(subs, 'group') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
@@ -1087,7 +754,7 @@ export function drawView(root, ctx) {
       dform.copy ? row('Radius', h('span', { class: 'fvalue', title: 'The preset\'s own size' }, fmtDist(reach, ctx.units())))
         : row('Radius', F.dist(() => dform.radius, (m) => { dform.radius = m; redo(); }, 'Radius', { check: (m) => (m >= MAX_RADIUS ? 'too large' : null), title: dform.preset === 'circle' ? 'Each circle\'s, whatever the spacing' : 'Its largest part\'s reach, whatever the spacing' })),
       dform.preset === 'circle' ? row('Sector', segOf('Sector', [[null, 'None', 'circles'], ...[90, 180, 270].map((a) => [a, `${a}°`, arc ? 'facing outwards' : 'facing away from the line'])], dform.aperture, (v) => { dform.aperture = v; redo(); })) : null,
-      editing ? null : row('In group', select('Group', [['', 'none (at the top)'], ...doc.groups.map((g) => [g.id, groupPath(g)])], dform.groupId ?? '', (v) => { dform.groupId = v || null; }, { title: 'Where its own group goes' })),
+      editing ? null : row('In group', select('Group', [['', 'none (at the top)'], ...doc.groups.map((g) => [g.id, groupPath(drawing.doc, g)])], dform.groupId ?? '', (v) => { dform.groupId = v || null; }, { title: 'Where its own group goes' })),
       h('p', { class: 'note fsummary' }, points.length ? `${copies(points.length)}.` : `No copy fits: ${arc ? 'the part' : 'the line'} is shorter than the margins, or the spacing too long.`),
       differs ? h('p', { class: 'note warn' }, `Another number of points (${editing.points.length} now): they are made anew${was ? ', and connected again' : ''}. Changes made to those by hand are lost; Undo brings them back.`) : null,
       h('div', { class: 'fblock' }, h('h3', {}, check('Connect to roots', dform.connect, (v) => { dform.connect = v; redo(); }, { title: 'Straight lines from roots to the points, attached to them: Tree, through a hub (which then follows its points); Chain, point to point. The points are cut into groups along the line, each to the root it is cheapest from.' })),
@@ -1131,12 +798,11 @@ export function drawView(root, ctx) {
   }
 
   // nothing selected: the drawing itself
-  const fileInput = h('input', { type: 'file', accept: '.geojson,.json,application/geo+json,application/json', hidden: true, onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
   function drawingInspector() {
     const m = drawing.doc.meta;
     const meta = (key, aria, area) => F.text(() => m[key], (v) => drawing.change((doc) => { doc.meta[key] = v; }), aria, area ? 2 : 0);
     const n = drawElements().length;
-    const groupName = (gid) => (gid ? groupPath(drawing.doc.groups.find((g) => g.id === gid)) : 'Not grouped');
+    const groupName = (gid) => (gid ? groupPath(drawing.doc, drawing.doc.groups.find((g) => g.id === gid)) : 'Not grouped');
     const keys = [...new Set(elements(drawing.doc).flatMap((x) => x.el.properties.map((p) => p.key)))].sort((a, b) => a.localeCompare(b));
     if (totalsBy && !keys.includes(totalsBy)) { totalsBy = ''; computeFacts(); } // its key gone
     const by = select('Totals by', [['', 'group'], ...keys.map((k) => [k, k])], totalsBy || '', (v) => { totalsBy = v; computeFacts(); renderInspector(); });
@@ -1215,7 +881,7 @@ export function drawView(root, ctx) {
     inspector.replaceChildren(...kids.flat().filter(Boolean));
     inspector.scrollTop = top;
     renderHead(xs);
-    rootRow.classList.toggle('sel', showDrawing && !xs.length);
+    tree.markDrawing(showDrawing && !xs.length);
     ctx.frame.has(!!form || xs.length > 0 || showDrawing); // Properties shown while it has something, and is on
   }
   // The inspector's head (drawing-ui.md §5): what it shows, then Zoom to, Duplicate, Group and Delete
@@ -1226,7 +892,7 @@ export function drawView(root, ctx) {
     const act = (paths, aria, title, run) => h('button', { type: 'button', class: 'hact', 'aria-label': aria, title, onclick: run }, icon(...paths));
     inspActs.replaceChildren(...(form ? [] : [
       every.length ? act(UI_ICON.zoom, 'Zoom to', ids.length ? 'Zoom to: fit the map to it' : 'Zoom to: fit the map to the whole drawing', () => showOnMap(new Set(every))) : null,
-      ids.length ? act(UI_ICON.duplicate, 'Duplicate', `Duplicate: a copy beside it (${MOD} D)`, () => { const n = drawing.duplicate(); if (n) note(`Duplicated: ${plural(n, 'element')}`, true); }) : null,
+      ids.length ? act(UI_ICON.duplicate, 'Duplicate', `Duplicate: a copy beside it (${MOD} D)`, () => { const n = drawing.duplicate(); if (n) note(`Duplicated: ${plural(n, 'element')}`, () => drawing.undo()); }) : null,
       ids.length ? act(UI_ICON.group, 'Group', 'Group: a new group of it, in the group it is in', () => groupThem(ids)) : null,
       ids.length ? act(UI_ICON.delete, 'Delete', 'Delete (Delete)', () => del(ids)) : null,
     ].filter(Boolean)));
@@ -1237,84 +903,7 @@ export function drawView(root, ctx) {
     const b = boundsOf(drawing.doc, ids);
     if (b) map.fitBounds(b, { padding: ctx.free?.() ?? 60, maxZoom: 16 }); // clear of the panel
   }
-  // the file: the drawing (its measurements too) and the view, as GeoJSON
-  function exportFile() {
-    const text = drawing.text();
-    const when = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-    const title = drawing.doc.meta.title.normalize('NFKD').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'chart';
-    ctx.download(text, `${title}-${when}.geojson`);
-  }
-  // The drawings menu (the rail's ☰): the drawings in this browser (the one open marked; each opened
-  // where it was drawn, or deleted for good, asked first), + New, the file in and out, the view's outputs
-  const drawingsMenu = h('div', { class: 'dmenu', role: 'menu', 'aria-label': 'Drawings in this browser', hidden: true });
-  document.body.append(drawingsMenu);
-  const drawings = popup(drawingsMenu, { choose: false, // the view's outputs say how they went in it, open meanwhile
-    place: (b) => { const r = b.getBoundingClientRect(); Object.assign(drawingsMenu.style, { top: `${r.bottom + 4}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - 360))}px` }); },
-  });
-  const toggleDrawings = (b) => (drawingsMenu.hidden ? openDrawingsMenu(b) : drawings.close());
-  const closeDrawingsMenu = () => drawings.close();
-  function openDrawingsMenu(from) {
-    const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`);
-    const when = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const del = async (x) => {
-      closeDrawingsMenu();
-      if (!await ask('Delete the drawing', `Delete “${x.title || 'Untitled'}” for good? It cannot be brought back.`, [['yes', 'Delete']])) return;
-      drawing.saving.remove(x.id);
-      note('Drawing deleted');
-    };
-    const pick = (run) => () => { closeDrawingsMenu(); run(); };
-    drawingsMenu.replaceChildren(h('ul', { class: 'drawings' }, drawing.saving.list().map((x) => h('li', { class: x.open ? 'open' : '' },
-      h('button', { type: 'button', role: 'menuitem', class: 'dname', 'aria-current': x.open ? 'true' : null, title: x.open ? 'The drawing open' : 'Open it, where it was drawn',
-        onclick: pick(() => { if (!x.open) ctx.openDrawing(x.id); }) }, x.title || 'Untitled'),
-      h('span', { class: 'val' }, [when(x.modified), x.size ? kb(x.size) : ''].filter(Boolean).join(' · ')),
-      h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, icon(...UI_ICON.delete))))),
-    h('button', { type: 'button', role: 'menuitem', class: 'dnew', title: 'A new, empty drawing (this one stays in the list)', onclick: pick(newDrawing) }, '+ New drawing'),
-    // the drawing's file, and the presets': in and out (a file dropped on the map is imported too)
-    h('div', { class: 'dfile' },
-      h('button', { type: 'button', role: 'menuitem', title: 'A drawing\'s file, any GeoJSON, or a presets file: a drawing is added to these and opened; presets join the Point and Shape tools', onclick: pick(() => fileInput.click()) }, 'Import…'),
-      h('button', { type: 'button', role: 'menuitem', title: 'This drawing, with the view and layers, as a GeoJSON file to share or keep', onclick: pick(exportFile) }, 'Export drawing (GeoJSON)'),
-      h('button', { type: 'button', role: 'menuitem', title: 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', onclick: pick(() => ctx.download(presetsFile(drawing.presets), 'presets.json')) }, 'Export presets (JSON)')),
-    ...ctx.menuExtras(closeDrawingsMenu)); // the view's outputs and About
-    drawings.open(from, true);
-  }
-  function newDrawing() {
-    drawing.saving.add();
-    note('New drawing');
-  }
-  async function importFile(f) {
-    let text;
-    try { text = await f.text(); } catch (e) { return note(`The file could not be read: ${e.message}`); }
-    const presets = readPresets(text);
-    // a file of presets: added to the user's (one of the same name replaced)
-    if (presets) {
-      const names = new Set(presets.map((x) => x.name));
-      drawing.presets = [...drawing.presets.filter((x) => !names.has(x.name)), ...presets];
-      savePresets(drawing.presets);
-      renderTools();
-      return note(`${plural(presets.length, 'preset')} added to the Point and Shape tools`);
-    }
-    const { doc, report } = parse(text, ctx.known);
-    const list = (items) => h('ul', {}, items.map((t) => h('li', {}, t)));
-    const counts = doc ? [['point', doc.points.filter((x) => !mainOutline(x))], ['shape', doc.points.filter((x) => mainOutline(x))], ['line', doc.lines], ['area', doc.areas], ['label', doc.labels], ['group', doc.groups]]
-      .map(([k, xs]) => [k, xs.filter((x) => !isMeasurement(doc, x)).length]).filter(([, n]) => n).map(([k, n]) => plural(n, k)) : [];
-    const measured = doc ? elements(doc).filter((x) => isMeasurement(doc, x.el)).length : 0;
-    if (measured) counts.push(plural(measured, 'measurement'));
-    const body = () => h('div', {},
-      doc ? h('p', {}, counts.length ? `It holds ${counts.join(', ')}.` : 'It holds no elements.', doc.view ? ' Its view and layers will replace the current ones.' : '') : h('p', {}, report.refused),
-      report.skipped.length ? [h('h3', {}, `Skipped (${report.skipped.length})`), list(report.skipped.map((s) => `${s.kind}${s.id ? ` ${s.id}` : ''}: ${s.reason}`))] : null,
-      report.warnings.length ? [h('h3', {}, `Warnings (${report.warnings.length})`), list(report.warnings)] : null);
-    const go = await dialog(doc ? `Import ${f.name}` : 'Not imported', body, doc ? [[true, 'Import']] : [], doc ? 'Cancel' : 'Close',
-      doc ? h('p', { class: 'note' }, 'It is added to the drawings in this browser and opened; this one stays in the list.') : null);
-    if (go) ctx.onImport(doc, report);
-  }
-
-  // The bar (drawing-ui.md §1): ☰ and the left panel's toggle; Select; what makes elements; Measure;
-  // Undo, Redo; at its end Properties' toggle (app.js puts find a place before it). The tree in the left
-  // panel, the inspector in the right one.
-  const makes = toolBtns.filter((b) => b.dataset.tool !== 'measure'), measure = toolBtns.find((b) => b.dataset.tool === 'measure');
-  ctx.bar.replaceChildren(fileBtn, ctx.frame.leftBtn, sep(), selectBtn, sep(), ...makes, sep(), measure, sep(), undoBtn, redoBtn, h('span', { class: 'grow' }), ctx.frame.rightBtn, subrail);
-  root.replaceChildren(listBox, fileInput);
-  document.body.append(noteEl); // over the map, at its foot: either panel may be closed
+  root.replaceChildren(tree.box);
   ctx.props.append(inspHead, inspector);
   renderList();
   renderTools();
@@ -1342,7 +931,7 @@ export function drawView(root, ctx) {
     // the drawing order: Ctrl/⌘ ] one step up (drawn above), [ one step down, among its kind in its group
     if (mod && !typed && (e.key === ']' || e.key === '[') && drawing.sel.size) {
       e.preventDefault();
-      const dir = e.key === ']' ? -1 : 1, ids = shown().map((x) => x.el.id).filter((id) => drawing.sel.has(id));
+      const dir = e.key === ']' ? -1 : 1, ids = tree.shown().map((x) => x.el.id).filter((id) => drawing.sel.has(id));
       drawing.change((doc) => { for (const id of dir < 0 ? ids : ids.reverse()) moveStep(doc, id, dir); });
       return;
     }
@@ -1350,40 +939,17 @@ export function drawView(root, ctx) {
     // Backspace alone, which takes back a point while drawing (here and in Measure)
     if (!typed && (e.key === 'Delete' || (mac && e.metaKey && e.key === 'Backspace')) && drawing.sel.size) { e.preventDefault(); del([...drawing.sel]); return; }
     if (typed || mod || e.altKey) return;
-    const ids = shown().map((x) => x.el.id); // the tools' keys: app.js, from anywhere
-    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && ids.length) {
-      e.preventDefault();
-      const cur = ids.indexOf([...drawing.sel].at(-1));
-      const next = cur < 0 ? (e.key === 'ArrowDown' ? 0 : ids.length - 1) : Math.max(0, Math.min(ids.length - 1, cur + (e.key === 'ArrowDown' ? 1 : -1)));
-      anchor = ids[next];
-      drawing.select([ids[next]]);
-      list.querySelector(`[data-id="${CSS.escape(ids[next])}"]`)?.scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'F2' && drawing.sel.size === 1) { e.preventDefault(); rename([...drawing.sel][0]); }
+    // the tools' keys: app.js, from anywhere
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && tree.step(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
+    else if (e.key === 'F2' && drawing.sel.size === 1) { e.preventDefault(); tree.rename([...drawing.sel][0]); }
   });
 
   // ---- rendering ---------------------------------------------------------------------------
-  function renderTools() {
-    const on = drawing.button;
-    selectBtn.setAttribute('aria-pressed', String(!on));
-    for (const b of toolBtns) {
-      b.setAttribute('aria-pressed', String(on === b.dataset.tool));
-      // a tool with kinds shows the one in use (a preset of the user's: the tool's own)
-      const k = b.dataset.tool, v = variants(k).length > 1 ? current(k) : null;
-      const paths = (v && POINT_ICON[v]) || (k === 'measure' ? ctx.measureIcon : KIND_ICON[k]);
-      if (b.dataset.shows !== String(v)) { b.dataset.shows = String(v); b.querySelector('svg')?.replaceWith(icon(...paths)); }
-      b.classList.toggle('haskinds', variants(k).length > 1);
-    }
-    undoBtn.disabled = !drawing.undos.length;
-    redoBtn.disabled = !drawing.redos.length;
-    renderTouch();
-    renderSubrail();
-    renderMeasure();
-  }
   return {
     render(what) {
       if (what === 'tool') return renderTools();
-      if (what === 'draft') return renderTouch();
-      if (what === 'measured') return renderMeasure();
+      if (what === 'draft') return tools.renderTouch();
+      if (what === 'measured') return tools.renderMeasure();
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
         note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the box');
@@ -1394,15 +960,14 @@ export function drawView(root, ctx) {
       // or an area, computed)
       if (what === 'sel') {
         showDrawing = false; // something else selected, or nothing (the drawing's row: openDrawing)
-        for (const row of list.querySelectorAll('.drow[data-id]')) row.classList.toggle('sel', drawing.sel.has(row.dataset.id));
+        tree.mark();
       } else renderList();
       renderInspector();
       if (form && what === 'doc') formPreview(); // the form's preview follows the drawing (an undo, its line edited)
       if (what === 'doc') for (const id of profiles.keys()) if (!find(drawing.doc, id)) { profiles.delete(id); profileShown.delete(id); } // a line gone: its profile too
-      if (what === 'sel' && drawing.sel.size) list.querySelector(`[data-id="${CSS.escape([...drawing.sel].at(-1))}"]`)?.scrollIntoView({ block: 'nearest' });
       renderTools();
     },
-    importFile, // a file dropped on the map (app.js)
-    press, cycle, // the tools' keys (app.js)
+    importFile: (f) => files.importFile(f), // a file dropped on the map (app.js)
+    press: tools.press, cycle: tools.cycle, // the tools' keys (app.js)
   };
 }

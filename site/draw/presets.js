@@ -38,3 +38,5 @@ function clean(list) {
       parts: parts(x.point.parts, QUIET),
       look: look(x.point.look, QUIET) } }));
 }
+// where a preset is placed from: Shape when it has extent (an outline, radii), else Point
+export const presetTool = (x) => (x.point.parts.length ? 'shape' : 'point');

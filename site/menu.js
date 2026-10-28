@@ -1,3 +1,7 @@
+// The page's pop-ups, dialogs and note.
+
+import { h } from './dom.js';
+
 // A pop-up opened from a button (the Export menu, the drawings menu, the time's box): Esc or a
 // pointer down elsewhere closes it (Esc gives the focus back to its button), and so does a menu item
 // chosen unless choose is false; ↑ ↓ move between its items (opened from the keyboard, the focus
@@ -32,4 +36,44 @@ export function popup(el, { place = () => {}, closed = () => {}, choose = true }
   // its button pressed: opened from it (from the keyboard: its first item focused), or closed
   const toggle = (button, e) => (el.hidden || from !== button ? open(button, e?.detail === 0) : close());
   return { open, close, toggle };
+}
+
+// A dialog: its title, its body (body(done): what it shows; done(value) answers), its buttons
+// ([value, text], the last the main one; a value may be a function, read when chosen), then cancel's
+// (Cancel, Esc), then a note. Resolves to the value chosen, or null. One at a time.
+let askDialog = null;
+export function dialog(title, body, buttons, cancel = 'Cancel', foot = null) {
+  if (!askDialog) document.body.append(askDialog = h('dialog', { class: 'dreport', 'aria-labelledby': 'dask-title' }));
+  return new Promise((resolve) => {
+    let answer = null;
+    const done = (v) => { answer = v; askDialog.close(); };
+    askDialog.replaceChildren(h('h2', { id: 'dask-title' }, title), body(done),
+      h('div', { class: 'fbuttons' }, buttons.map(([v, t], i) => h('button', { type: 'button', class: i === buttons.length - 1 ? 'done' : '', onclick: () => done(typeof v === 'function' ? v() : v) }, t)),
+        h('button', { type: 'button', onclick: () => askDialog.close() }, cancel)), foot);
+    askDialog.addEventListener('close', () => resolve(answer), { once: true });
+    askDialog.showModal();
+  });
+}
+// a question: resolves to the chosen button's value, or null
+export const ask = (title, text, buttons) => dialog(title, () => h('p', {}, text), buttons);
+// a text asked for: resolves to it, or null
+export function askText(title, what, value = '') {
+  const input = h('input', { type: 'text', value, 'aria-label': what });
+  const asked = dialog(title, (done) => {
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); done(input.value); } });
+    return h('p', {}, h('label', {}, `${what} `, input));
+  }, [[() => input.value, 'OK']]);
+  input.select();
+  return asked;
+}
+
+// The note: what just happened, for a few seconds, at the map's foot; undo: what its Undo button does
+// (none: no button)
+let noteEl = null, noteTimer = 0;
+export function note(text, undo = null) {
+  if (!noteEl) document.body.append(noteEl = h('div', { class: 'dnote', role: 'status', hidden: true }));
+  clearTimeout(noteTimer);
+  noteEl.replaceChildren(h('span', {}, text), undo ? h('button', { type: 'button', onclick: () => { undo(); noteEl.hidden = true; } }, 'Undo') : '');
+  noteEl.hidden = false;
+  noteTimer = setTimeout(() => { noteEl.hidden = true; }, 5000);
 }

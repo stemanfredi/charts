@@ -595,7 +595,7 @@ await section('the drawing', async () => {
   await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the rail's ☰, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
-  await dw.setInputFiles('#dview input[type=file]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
+  await dw.setInputFiles('input[type=file][accept*=geojson]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
   await Promise.all([dw.waitForEvent('load'), dw.click('dialog[open] button.done')]);
   await dw.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
   await dw.waitForTimeout(800);

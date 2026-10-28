@@ -150,3 +150,5 @@ export function exportName(when, lat, lng) {
 
 // rows as text a spreadsheet takes: tab-separated, a header line first
 export const rowsText = (head, rows) => [head, ...rows].map((r) => r.map((v) => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t')).join('\n') + '\n';
+// "1 line", "2 lines"
+export const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
