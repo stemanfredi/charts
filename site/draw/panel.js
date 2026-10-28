@@ -22,7 +22,7 @@ import { fields, choice, select, check } from '../fields.js';
 import { mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetTool } from './presets.js';
 import { listGrid, setCurrent, currentOf } from './grid.js';
-import { fmtArea, fmtBrg, fmtDist, rowsText, plural } from '../format.js';
+import { fmtArea, fmtDist, rowsText, plural } from '../format.js';
 import { fileGroup } from './files.js';
 import { createTools } from './tools.js';
 import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
@@ -108,8 +108,15 @@ export function drawView(root, ctx) {
   // two fields read as one value, side by side (a pair, §2), sep between them
   const pair = (a, sep, b) => h('span', { class: 'vpair' }, ...[a].flat(), h('span', { class: 'vsep' }, sep), ...[b].flat());
   const textField = (id, key, aria, area = false) => F.text(() => now(id)[key], (v) => set(id, (el) => { el[key] = v; }), aria, area ? 2 : 0);
-  const coordFields = (id, key) => { const [, lat, , lon] = F.position(() => now(id)[key], (p) => set(id, (el) => { el[key] = p; })); return row('Position', pair(lat, '·', lon)); };
-  const distField = (get, apply, aria, check) => F.dist(get, apply, aria, { check });
+  const coordFields = (id, key) => { const [, lat, , lon] = F.position(() => now(id)[key], (p) => set(id, (el) => { el[key] = p; }), '', 6); return row('Position', pair(lat, '·', lon)); };
+  const distField = (get, apply, aria, check, attrs = {}) => F.dist(get, apply, aria, { check, ...attrs });
+  // a value's unit beside it, in grey (drawing-ui.md §5: never inside the text): a distance field's
+  // (fields.js unitText), or a formatted value's ("10.08 km" → 10.08 · km)
+  const funit = (t) => h('span', { class: 'funit' }, t);
+  const withUnit = (input) => [input, funit(input.unitText())];
+  const fvalue = (t, attrs = {}) => h('span', { class: 'fvalue', ...attrs }, t);
+  const valued = (text, attrs = {}) => { const i = text.lastIndexOf(' '); return i < 0 ? [fvalue(text, attrs)] : [fvalue(text.slice(0, i), attrs), funit(text.slice(i + 1))]; };
+  const distValue = (m, attrs = {}) => valued(fmtDist(m, ctx.units()), attrs);
   const angleField = (get, apply, aria, lo, hi, wrap) => F.angle(get, apply, aria, { lo, hi, wrap });
   const segOf = (aria, options, current, pick) => choice(aria, options, () => current, pick);
 
@@ -157,9 +164,9 @@ export function drawView(root, ctx) {
       shown('text.name') ? tick('text.name', xs.length > 1 || xs[0].kind === 'drawing' ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
       shown('text.values') ? tick('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
       shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -MAX_OFFSET, max: MAX_OFFSET, placeholder: 'mixed', bad: `pixels from −${MAX_OFFSET} to ${MAX_OFFSET}`,
-        title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as GIS tools offset a line: display only, lengths stay real' }), h('span', { class: 'funit' }, 'px'), back('offset')) : null,
+        title: 'Drawn this many pixels beside its line, to the right of its direction (negative: left), as GIS tools offset a line: display only, lengths stay real' }), funit('px'), back('offset')) : null,
       shown('minSize') ? row('Min. size', F.number(() => same('minSize'), (v) => put('minSize', v), 'Minimum size (px)', { max: MAX_MIN_SIZE, placeholder: 'mixed', bad: `pixels from 0 to ${MAX_MIN_SIZE}`,
-        title: 'Shapes shorter than this on screen are drawn enlarged, their outline dotted (0: always real size)' }), h('span', { class: 'funit' }, 'px'), back('minSize')) : null,
+        title: 'Shapes shorter than this on screen are drawn enlarged, their outline dotted (0: always real size)' }), funit('px'), back('minSize')) : null,
       ...extra);
   }
   // the group an element (or a group) is in: none, or one of the drawing's that can hold them all;
@@ -209,20 +216,20 @@ export function drawView(root, ctx) {
     title = `${kindTitle(kind, el)} · ${shownName(drawing.doc, kind, el, ctx.units())}`;
     return [...(ruleRow(id) ?? []), row('Name', textField(id, 'name', 'Name')), groupRow([id])];
   };
-  // and its foot: its data, Guide and Visible (Delete: in the head)
+  // and its foot: Guide, its data (Delete: in the head)
   const commonBottom = (kind, id) => {
     const el = now(id);
     // Guide (supporting geometry: faint, out of the totals): a measurement is a guide showing its
     // values; unticking Guide makes it part of the drawing
-    const flags = ['point', 'line', 'area'].includes(kind) ? [check('Guide', el.guide, (v) => set(id, (x) => { x.guide = v; }), { title: 'Supporting geometry: drawn faint and dashed, left out of the totals' })] : [];
-    return [dataBlock(id), flags.length ? h('div', { class: 'frow fend' }, ...flags) : null];
+    const guide = ['point', 'line', 'area'].includes(kind) ? row('Guide', check('', el.guide, (v) => set(id, (x) => { x.guide = v; }), { 'aria-label': 'Guide', title: 'Supporting geometry: drawn faint and dashed, left out of the totals' })) : null;
+    return [guide, dataBlock(id)];
   };
 
   // A point's parts, each named by its place in the list: its kind (changing it keeps its reach), its
   // name, Fill, Shown, its own stroke, ×; its size (a radius, a sector's aperture; an outline's length
   // and width, its area). "+ Part" adds one.
   function partsBlock(id) {
-    const el = now(id), u = ctx.units();
+    const el = now(id), u = ctx.units(), U = colUnitText();
     const fits = (m) => drawable(now(id), m);
     const at = (i, fn) => drawing.change((d) => { fn(find(d, id).el.parts[i]); reattach(d, id); }); // part i as it is now; what points at its corners stays where it was
     // a part as another kind, its reach kept: a round one's radius, an outline's half length
@@ -233,11 +240,11 @@ export function drawView(root, ctx) {
     };
     const adder = (aria, text) => select(aria, [['', text], ...PART_KINDS.map((k) => [k, PART_NAME[k]])], '', (k) => { if (k) set(id, (x) => addPart(x, k)); }, { title: 'A circle, a sector or an outline about the point, to scale' });
     const box = (i, key, aria) => check('', el.parts[i][key], (v) => at(i, (y) => { y[key] = v; }), { 'aria-label': `Part ${i + 1} ${aria}` });
-    const dist = (i, key, aria) => distField(() => now(id).parts[i][key], (m) => at(i, (y) => { y[key] = m; }), aria, (m) => (m >= MAX_RADIUS || (key === 'radius' && !fits(m)) ? 'too large' : null));
-    // its size, two columns: a round part's radius and a sector's aperture, an outline's length and width
+    const dist = (i, key, aria) => distField(() => now(id).parts[i][key], (m) => at(i, (y) => { y[key] = m; }), aria, (m) => (m >= MAX_RADIUS || (key === 'radius' && !fits(m)) ? 'too large' : null), { in: colUnit() });
+    // its size, two columns, in the column's unit: a round part's radius and a sector's aperture (°), an outline's length and width
     const size = (part, i) => (part.radius ? dist(i, 'radius', `Part ${i + 1} radius`) : dist(i, 'length', `Part ${i + 1} length`));
     const across = (part, i) => (part.kind === 'sector'
-      ? h('span', { class: 'vpair' }, angleField(() => now(id).parts[i].aperture, (v) => at(i, (y) => { y.aperture = v; }), `Part ${i + 1} aperture (degrees): centred on the bearing`, 0, 360, false), h('span', { class: 'funit' }, '°'))
+      ? h('span', { class: 'vpair' }, angleField(() => now(id).parts[i].aperture, (v) => at(i, (y) => { y.aperture = v; }), `Part ${i + 1} aperture (degrees): centred on the bearing`, 0, 360, false), funit('°'))
       : part.radius ? null : dist(i, 'width', `Part ${i + 1} ${WIDTH_NAME[part.kind] || 'width'}`));
     const kind = (part, i) => select(`Part ${i + 1} kind`, PART_KINDS.map((k) => [k, PART_NAME[k]]), part.kind, (v) => drawing.change((d) => { const x = find(d, id).el; x.parts[i] = asKind(x.parts[i], v); reattach(d, id); }));
     const removeAt = (i) => drawing.change((d) => { removePartOf(d, id, i); reattach(d, id); });
@@ -245,8 +252,8 @@ export function drawView(root, ctx) {
     const ringAt = (i) => { const x = now(id), part = x.parts[i]; return part && (part.radius ? ringOf(x, part) : outlineOf(x.position, x.bearing, part.length, part.width, part.kind).ring); };
     const table = listGrid({ name: `${id}:parts`,
       columns: [{ head: '#', width: 28, frozen: true, cls: 'num' }, { head: 'Kind', width: 96 },
-        { head: 'Size', width: 92, cls: 'n', title: 'A circle\'s or sector\'s radius, an outline\'s length' },
-        { head: 'Across', width: 76, cls: 'n', title: 'A sector\'s aperture, centred on the bearing; an outline\'s width' },
+        { head: `Size ${U}`, width: 92, cls: 'n', title: 'A circle\'s or sector\'s radius, an outline\'s length' },
+        { head: `Across ${U}`, width: 76, cls: 'n', title: 'A sector\'s aperture (°), centred on the bearing; an outline\'s width' },
         { head: 'Fill', width: 40 }, { head: 'Shown', width: 50 }, { head: 'Name', width: 110 }],
       rows: el.parts.map((part, i) => ({ cells: [`${i + 1}`, kind(part, i), size(part, i), across(part, i), box(i, 'fill', 'filled'), box(i, 'shown', 'shown'),
         field(() => part.name, (t) => t, (v) => at(i, (y) => { y.name = v; }), { 'aria-label': `Part ${i + 1} name` })],
@@ -272,7 +279,7 @@ export function drawView(root, ctx) {
   function pointInspector(id) {
     const el = now(id);
     const parts = [...commonTop('point', id), coordFields(id, 'position'),
-      row('Bearing', angleField(() => now(id).bearing, (v) => set(id, (x) => { x.bearing = v; }), 'Bearing (degrees true): where its outlines face, and its sectors'), h('span', { class: 'funit' }, '°T')),
+      row('Bearing', angleField(() => now(id).bearing, (v) => set(id, (x) => { x.bearing = v; }), 'Bearing (degrees true): where its outlines face, and its sectors'), funit('°T')),
       mainOutline(el) ? null : row('Symbol', segOf('Symbol (the same size on screen at every zoom)', SYMBOLS.map((sy) => [sy, sy === 'none' ? '∅' : icon(...SYMBOL_ICON[sy]), SYMBOL_TITLE[sy]]), el.symbol, (sy) => set(id, (x) => { x.symbol = sy; }))),
       partsBlock(id),
       // one Distribute: round the part whose row is current (else the one followed by default); the form can choose another
@@ -317,8 +324,8 @@ export function drawView(root, ctx) {
       current: (r) => drawing.markPlace(r == null ? null : now(id).points[abs(r)]) });
     const cornerRows = () => { const ps = now(id).points; return [['#', 'Lat', 'Lon', 'Edge m', 'Brg °'], ps.map((q, i) => { const g = legOf(ps, i); return [i + 1, q[1], q[0], +g.s.toFixed(3), +g.azi.toFixed(1)]; })]; };
     return [...commonTop('area', id),
-      row('Area', h('span', { class: 'fvalue' }, fmtArea(areaOf(pathOf(el.points, true)), u))),
-      row('Perimeter', h('span', { class: 'fvalue' }, fmtDist(perimeterOf(el.points), u))),
+      row('Area', valued(fmtArea(areaOf(pathOf(el.points, true)), u))),
+      row('Perimeter', distValue(perimeterOf(el.points))),
       h('div', { class: 'fblock' }, h('h3', {}, `Corners (${n})`, copyBtn(cornerRows)), table, pg.pager),
       lookBlock([item(id)]), ...commonBottom('area', id)];
   }
@@ -356,8 +363,8 @@ export function drawView(root, ctx) {
     const tokens = TOKENS.filter((k) => values[k] !== undefined);
     // on a line: how far along it, typed (the leg there, and where on it)
     const onLine = at?.element?.kind === 'line' && at.along !== undefined;
-    const alongRow = onLine ? row('Along', F.dist(() => at.along, (m) => drawing.change((d) => { const a = find(d, id).el; a.anchor = lineRef(d, find(d, a.anchor.element).el, m); }), 'Distance along', { zero: true,
-      title: `From its start, of ${fmtDist(at.length, u)}` })) : null;
+    const alongRow = onLine ? row('Along', withUnit(F.dist(() => at.along, (m) => drawing.change((d) => { const a = find(d, id).el; a.anchor = lineRef(d, find(d, a.anchor.element).el, m); }), 'Distance along', { zero: true,
+      title: `From its start, of ${fmtDist(at.length, u)}` }))) : null;
     // what it reads on the map, under its text, while a value fills it in
     const reads = /\{\w+\}/.test(el.text) ? h('p', { class: 'note' }, `Reads: ${labelText(doc, el, u).split('\n').map((t) => t.trim()).filter(Boolean).join(' · ') || '(nothing)'}`) : null;
     // its place: where it points (free: a position), along a line, and its text moved from there
@@ -366,7 +373,7 @@ export function drawView(root, ctx) {
       row('Text', text), reads,
       tokens.length ? row('', ...tokens.map((k) => h('button', { type: 'button', class: 'small', title: `Insert, a live value: ${TOKEN_TEXT[k][1].toLowerCase()} (it follows edits and the units)`, onclick: () => insert(`{${k}}`) }, `+ ${TOKEN_TEXT[k][0]}`))) : null,
       ...[refRow(el.anchor.element ? 'Attached to' : 'Position', id, 'anchor')].flat(), alongRow,
-      row('Text offset', h('span', { class: 'fvalue', title: 'Pixels from where it points: drag its text on the map' }, `${el.offset[0]}, ${el.offset[1]} px`),
+      row('Text offset', fvalue(`${el.offset[0]}, ${el.offset[1]}`.replace(/-/g, '−'), { title: 'Pixels from where it points: drag its text on the map' }), funit('px'),
         moved ? h('button', { type: 'button', class: 'x', title: 'Back to where a new label puts it', 'aria-label': 'Text offset back to where a new label puts it', onclick: () => set(id, (x) => { x.offset = x.anchor.element ? [...LABEL_OFFSET] : [0, 0]; }) }, '↺') : null),
       el.anchor.element ? leaderRow([item(id)]) : null, // a free label points at nothing
       lookBlock([item(id)]),
@@ -507,7 +514,7 @@ export function drawView(root, ctx) {
   });
 
   function lineInspector(id) {
-    const doc = drawing.doc, el = now(id), u = ctx.units();
+    const doc = drawing.doc, el = now(id);
     const line = lineTrace(doc, el);
     const at = line.at;
     const insertAfter = (i) => drawing.change((doc) => {
@@ -563,7 +570,7 @@ export function drawView(root, ctx) {
       return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Along m', 'Name'], qs.map((q, k) => { const g = k ? legOf(qs, k) : null; return [k + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', +(t[k] || 0).toFixed(3), x.vertices[k - 1]?.name ?? '']; })]; };
     const off = el.look.offset ?? null, offNow = offsetOf(drawing.doc, el);
     return [...commonTop('line', id),
-      row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u))),
+      row('Length', distValue(line.length)),
       offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, the drawing's Offset. Its length is the real one.`) : null,
       profileBlock(id),
       row('Path', segOf('Path', [[false, 'Straight', 'Geodesics, as measured'], [true, 'Smooth', 'A curve through its bends, following them; its length measured along it']], !!el.smooth, (v) => set(id, (x) => { x.smooth = v; }))),
@@ -617,8 +624,8 @@ export function drawView(root, ctx) {
     title = `${xs.length} elements selected`;
     return [chips(xs),
     h('p', { class: 'note' }, Object.entries(counts).map(([k, n]) => plural(n, kindName(k).toLowerCase())).join(', ')),
-    between ? row('Distance', h('span', { class: 'fvalue' }, fmtDist(between.s, ctx.units()))) : null,
-    between ? row('Bearing', h('span', { class: 'fvalue', title: `From ${label(xs[0].kind, xs[0].el)}` }, fmtBrg(between.azi))) : null,
+    between ? row('Distance', distValue(between.s)) : null,
+    between ? row('Bearing', fvalue(norm360(between.azi).toFixed(1), { title: `From ${label(xs[0].kind, xs[0].el)}` }), funit('°T')) : null,
     pointIds.length > 1 ? h('div', { class: 'frow fbuttons' },
       h('button', { type: 'button', title: 'Join these points to roots with straight lines: trees through hubs, or chains', onclick: () => openConnect(pointIds) }, 'Connect…')) : null,
     groupRow(ids),
@@ -749,8 +756,8 @@ export function drawView(root, ctx) {
     return [row('', segOf('Tree or chain', [['tree', 'Tree', 'root → hub → each point'], ['chain', 'Chain', 'root → point → next point …']], con.pattern, (v) => { con.pattern = v; redo(); })),
       row('Group size', pair(segOf('Group size', [['auto', 'Auto', `any size: the cheapest cut${con.pattern === 'tree' ? ` (trees of up to ${MAX_TREE})` : ''}`], ['set', 'Set', `points at most per ${what}`]], con.groupSize === 'auto' ? 'auto' : 'set', (v) => { con.groupSize = v === 'auto' ? 'auto' : 3; redo(); }), '',
         con.groupSize === 'auto' ? [] : F.number(() => con.groupSize, (v) => { con.groupSize = v; redo(); }, 'Group size', { whole: true, above: true, max: con.pattern === 'tree' ? MAX_TREE : Infinity, title: `Points at most per ${what}${con.pattern === 'tree' ? ` (up to ${MAX_TREE})` : ''}` }))),
-      con.pattern === 'tree' ? row('Min. branch', F.dist(() => con.minBranch, (m) => { con.minBranch = m; redo(); }, 'Shortest branch', { zero: true,
-        title: 'Each hub at least this far from its points and from its root. 0: where the lines are shortest, on a point if need be' })) : null,
+      con.pattern === 'tree' ? row('Min. branch', withUnit(F.dist(() => con.minBranch, (m) => { con.minBranch = m; redo(); }, 'Shortest branch', { zero: true,
+        title: 'Each hub at least this far from its points and from its root. 0: where the lines are shortest, on a point if need be' }))) : null,
       h('div', { class: 'fblock' }, h('h3', {}, `Roots (${c.roots.length})`),
         h('p', { class: 'note' }, 'Click the map for a new root, or a point to use it; again, or ×, drops it. A weight above 1 pulls groups to it.'),
         names.map((name, k) => h('div', { class: 'frow' }, k < con.roots.length ? link(con.roots[k].id) : h('span', { class: 'fvalue' }, `${name}: ${con.newRoots[k - con.roots.length][1].toFixed(5)}, ${con.newRoots[k - con.roots.length][0].toFixed(5)}`),
@@ -767,7 +774,7 @@ export function drawView(root, ctx) {
     const tr = alongTrace(doc, along.el, dform.part), closed = tr?.closed;
     const c = connectPlan(), points = c.positions, redo = formChanged;
     // a distance that may be 0 (margins, the offset), or must be above 0 (spacing)
-    const dist = (key, aria, zero) => F.dist(() => dform[key], (m) => { dform[key] = m; redo(); }, aria, { zero });
+    const dist = (key, aria, zero) => withUnit(F.dist(() => dform[key], (m) => { dform[key] = m; redo(); }, aria, { zero }));
     const differs = editing && points.length !== editing.points.length;
     const was = form.connectionId && connections(doc).find((x) => x.id === form.connectionId);
     const ok = points.length && (!dform.connect || c.plan);
@@ -788,10 +795,10 @@ export function drawView(root, ctx) {
       dform.by === 'spacing' ? row('Spacing', dist('spacing', 'Spacing', false)) : row('Count', F.number(() => dform.count, (v) => { dform.count = v; redo(); }, 'Count', { whole: true, above: true, max: MAX_COPIES })),
       distributionCapped() ? h('p', { class: 'note warn' }, `At most ${MAX_COPIES.toLocaleString('en')} copies: the spacing would give more`) : null,
       closed ? null : row('Margins', pair(dist('startMargin', 'Start margin', true), '·', dist('endMargin', 'End margin', true))),
-      row('Offset', pair(dist('offset', 'Offset', true), '', select('Side', [['left', arc ? 'Out' : 'Left'], ['right', arc ? 'In' : 'Right'], ['alternate', 'Alternate']], dform.side, (v) => { dform.side = v; redo(); }))),
+      row('Offset', pair(dist('offset', 'Offset', true), '·', select('Side', [['left', arc ? 'Out' : 'Left'], ['right', arc ? 'In' : 'Right'], ['alternate', 'Alternate']], dform.side, (v) => { dform.side = v; redo(); }))),
       row('Copy', select('Copy', [...Object.keys(BUILT_IN).map((k) => [k, builtInName(k)]), ...mine.map((x) => [`preset:${x.name}`, x.name])], dform.preset, choose, { title: 'What each copy is: a built-in kind, or a preset of yours' })),
-      dform.copy ? row('Radius', h('span', { class: 'fvalue', title: 'The preset\'s own size' }, fmtDist(reach, ctx.units())))
-        : row('Radius', F.dist(() => dform.radius, (m) => { dform.radius = m; redo(); }, 'Radius', { check: (m) => (m >= MAX_RADIUS ? 'too large' : null), title: dform.preset === 'circle' ? 'Each circle\'s, whatever the spacing' : 'Its largest part\'s reach, whatever the spacing' })),
+      dform.copy ? row('Radius', distValue(reach, { title: 'The preset\'s own size' }))
+        : row('Radius', withUnit(F.dist(() => dform.radius, (m) => { dform.radius = m; redo(); }, 'Radius', { check: (m) => (m >= MAX_RADIUS ? 'too large' : null), title: dform.preset === 'circle' ? 'Each circle\'s, whatever the spacing' : 'Its largest part\'s reach, whatever the spacing' }))),
       dform.preset === 'circle' ? row('Sector', segOf('Sector', [[null, 'None', 'circles'], ...[90, 180, 270].map((a) => [a, `${a}°`, arc ? 'facing outwards' : 'facing away from the line'])], dform.aperture, (v) => { dform.aperture = v; redo(); })) : null,
       editing ? null : row('In group', select('Group', [['', 'none (at the top)'], ...doc.groups.map((g) => [g.id, groupPath(drawing.doc, g)])], dform.groupId ?? '', (v) => { dform.groupId = v || null; }, { title: 'Where its own group goes' })),
       h('p', { class: 'note fsummary' }, points.length ? `${copies(points.length)}.` : `No copy fits: ${arc ? 'the part' : 'the line'} is shorter than the margins, or the spacing too long.`),

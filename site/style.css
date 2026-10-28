@@ -302,10 +302,11 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid th { font-weight: 400; font-size: 11px; color: var(--soft); text-align: left; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lgrid td { padding: 0; height: var(--row); vertical-align: middle; white-space: nowrap; }
 .lgrid td.num { padding: 0 4px; }
-.lgrid td.num, .lgrid th.num { font-family: var(--mono); font-size: 11px; color: var(--soft); text-align: right; }
+.lgrid td.num { font-family: var(--mono); font-size: 12px; color: var(--soft); text-align: right; }
+.lgrid th.num { text-align: right; }
 .lgrid td :is(input:not([type=checkbox]):not([type=color]), select) { width: 100% !important; min-width: 0 !important; }
 .lgrid td .vpair { width: 100%; }
-.lgrid td .fvalue { font-size: 11px; color: var(--soft); }
+.lgrid td .fvalue { color: var(--soft); }
 .lgrid .frozen { position: sticky; z-index: 1; background: var(--bg); }
 .lgrid .frozen.fedge { border-right-color: var(--line); } /* the pinned edge: its own border, a shade darker; nothing drawn beside it */
 .lgrid tbody tr:not(.cur, .ladd):hover td { background: var(--hover); } /* a row a click makes current */
@@ -317,15 +318,14 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid tr.warn td { color: var(--warn); }
 .lgrid tr.ladd td { opacity: .75; }
 .lgrid .fcheck { justify-content: center; padding: 0; min-width: var(--row); }
-.lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; min-height: calc(var(--row) + 8px); }
+.lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; } /* the current row's actions; hidden while no row is */
 /* a column of numbers (cls n): right-aligned, in figures of one width, to read down */
-.dinspect .lgrid td.n input:not([type=checkbox]) { text-align: right; font-family: var(--mono); font-size: 11px; padding: 0 3px; }
+.dinspect .lgrid td.n input:not([type=checkbox]) { text-align: right; font-family: var(--mono); font-size: 12px; padding: 0 3px; }
 .lgrid td.n .fvalue { display: block; padding: 0 4px; text-align: right; font-family: var(--mono); }
 .lgrid th.n { text-align: right; }
 /* a row's sub-row (a vertex's handles): across the row, held at the grid's left edge as it scrolls */
 .fsummary { color: var(--ink); background: var(--bg2); border-radius: 6px; padding: 6px 8px; }
 .fblock { display: flex; flex-direction: column; }
-.fend { justify-content: space-between; border-top: 1px solid var(--line2); padding-top: 8px; margin-top: 4px; }
 .fcheck { display: flex; align-items: center; gap: 6px; min-height: var(--row); padding-right: 6px; cursor: pointer; }
 .fbuttons { display: flex; gap: 6px; flex-wrap: wrap; }
 .fbuttons button { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }

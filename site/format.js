@@ -137,7 +137,7 @@ export function parseDist(text, bare) {
 export function distText(m, units) {
   const unit = units === 'nm' ? 'nm' : m < 1000 ? 'm' : 'km';
   const v = +(m / UNIT_M[unit]).toFixed(unit === 'm' ? 1 : 3); // to the decimetre, the metre (km), 2 m (NM): what is read; a value typed is kept exact
-  return { text: `${v} ${unit === 'nm' ? 'NM' : unit}`, unit };
+  return { text: `${v} ${unit === 'nm' ? 'NM' : unit}`, value: v, unit };
 }
 
 // Export file name (and STAC id): chart-YYYYMMDD-HHMM in UTC, then the view's centre to 0.01°

@@ -1,7 +1,8 @@
 // List grids (docs/drawing-ui.md §5): a small spreadsheet of like things (a line's vertices, an
 // area's corners, a point's parts, its properties). Its columns of fixed widths, the first ones
 // (frozen) kept in place while the rest scrolls sideways, its head while it scrolls down (a long one
-// scrolls in its own box); a current row, marked, whose actions are a bar over the grid and keys
+// scrolls in its own box); a current row, marked, whose actions are a bar over the grid (only while a
+// row is current) and keys
 // (Insert, Ctrl/⌘ Delete); ↑, ↓ and Enter go to the same column in the row above or below. The panel builds its inspector again after each change: where the focus goes
 // after a key, and which row is current, are kept by the grid's name and taken up again.
 
@@ -33,7 +34,7 @@ export const currentOf = (name) => stateOf(name).current;
 
 // A list grid. name: what keeps its state (the element's id and the list's); columns: [{ head,
 // width (px), frozen, title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty
-// last row (typing in it adds one), or null; actions(i): { label, buttons } for row i, or null (none: no bar); keys: { insert(i),
+// last row (typing in it adds one), or null; actions(i): { label, buttons (any nodes) } for row i, or null (none: no bar); keys: { insert(i),
 // remove(i) }; current(i): row i made current (or null: none), as it is and when it changes.
 export function listGrid({ name, columns, rows, add = null, actions = null, keys = {}, current = () => {} }) {
   const st = stateOf(name);
@@ -46,13 +47,14 @@ export function listGrid({ name, columns, rows, add = null, actions = null, keys
     if (c.frozen) el.style.left = `${lefts[k]}px`; // CSSOM: the page's CSP allows no style attribute
     return el;
   };
-  // over the grid, always there (a row picked moves nothing): the current row's actions, or what to do
+  // over the grid, while a row is current: the row's actions (nothing otherwise: no room taken)
   const bar = h('div', { class: 'lbar' });
   const showBar = () => {
     if (!actions) return;
     const a = st.current != null ? actions(st.current) : null;
-    for (const btn of a?.buttons ?? []) btn.dataset.key = a.label; // the row each acts on (morph keeps a button only when it does the same)
-    bar.replaceChildren(...(a ? [h('span', { class: 'funit' }, `${a.label}:`), ...a.buttons] : [h('span', { class: 'funit' }, 'A row clicked: what it can do')]));
+    for (const btn of a?.buttons ?? []) if (btn.tagName === 'BUTTON') btn.dataset.key = a.label; // the row each acts on (morph keeps a button only when it does the same)
+    bar.hidden = !a;
+    bar.replaceChildren(...(a ? [h('span', { class: 'funit' }, `${a.label}:`), ...a.buttons] : []));
   };
   const body = h('tbody', {});
   const markCurrent = (i) => {
