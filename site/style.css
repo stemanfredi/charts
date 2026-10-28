@@ -65,7 +65,7 @@ svg { flex: none; }
   body.has-right .foot { right: var(--rw); }
   body.has-left .status { left: var(--lw); }
   body.has-right .status { right: var(--rw); }
-  body.has-right .search { right: calc(var(--rw) + 8px); } /* behind its lens (COMPACT): beside Properties */
+  body.has-right > .search { right: calc(var(--rw) + 8px); } /* behind its lens (COMPACT, a child of body): beside Properties; in the bar it stays where it is */
 }
 /* the time shown and the depth, in a box over its chip: ‹ time › Now, then the depth (on the next line if need be) */
 .timepop { position: fixed; z-index: 9; padding: 6px; }
