@@ -224,7 +224,7 @@ test('tree: straight lines root → hub → points, attached at both ends, each 
     assert.ok(h.pointIds.length >= 1 && h.pointIds.every((id) => ids.includes(id)));
     assert.deepEqual(h.pos, find(doc, h.pointId).el.position);
   }
-  assert.ok(made.every((s) => !s.vertices.length && s.mode === 'fixed'), 'straight lines');
+  assert.ok(made.every((s) => !s.vertices.length && !s.smooth), 'straight lines');
   assert.ok(made.filter((s) => part(doc, s) === 'trunk').every((s) => lineTrace(doc, s).length > 1), 'no trunk of length zero');
   // attached at both ends, where their points are
   for (const s of made) for (const e of [s.start, s.end]) assert.deepEqual(e.position, find(doc, e.element).el.position);
@@ -503,10 +503,10 @@ test('refreshGenerated: a distribution whose line or points are gone is dropped,
   assert.equal(distributions(doc).length, 0);
 });
 
-test('a distribution along a curved line in mode auto is back on it after a single change', () => {
+test('a distribution along a smooth line is back on it after a single change', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.4, 40]);
-  const line = addLine(doc, a.id, [[12.2, 40.05]], b.id, { mode: 'auto' });
+  const line = addLine(doc, a.id, [[12.2, 40.05]], b.id, { smooth: true });
   settleGeometry(doc);
   const { distribution: array } = makeDistribution(doc, { along: { element: line.id }, spacing: 3000 });
   settleGeometry(doc);

@@ -1,8 +1,9 @@
 // The lines of a drawing (docs/drawing-format.md §7): a line runs from its start through its
-// vertices to its end, one leg between each two of these anchors. A leg without handles is the
-// geodesic (as the ruler draws it); a leg with a handle is a cubic Bézier in the map's projection (Web
-// Mercator), its handles ground metres [east, north] at their anchor. Lengths are always geodesic: a
-// curve's, the sum over close samples of it. Pure: no map, no DOM.
+// vertices to its end, one leg between each two of these anchors. A straight line's legs are
+// geodesics (as the ruler draws them); a smooth one's are cubic Béziers in the map's projection (Web
+// Mercator) through its anchors, their handles computed from the anchors (Catmull-Rom), ground metres
+// [east, north] at their anchor. Lengths are always geodesic: a curve's, the sum over close samples
+// of it. Pure: no map, no DOM.
 
 import { densify, inverse, destination, areaOf, pathOf, perimeterOf, lengthOf } from '../geodesy.js';
 import { mercator, unmercator, D2R, nearestOnSegment, unrollTo } from '../geo.js';
@@ -14,16 +15,37 @@ const MAX_SAMPLES = 4096;
 // the projection's scale (Mercator metres per ground metre) at a latitude
 const scale = (lat) => 1 / Math.cos(lat * D2R);
 
-// The anchors of a line: [{ position, hIn, hOut }], from its start to its end (an attached end where
-// what it is attached to is: attach.js refreshAttached keeps it there).
-export function anchorsOf(line) {
-  return [{ position: line.start.position, hIn: null, hOut: line.startHandle },
-    ...line.vertices.map((v) => ({ position: v.position, hIn: v.handleIn, hOut: v.handleOut })),
-    { position: line.end.position, hIn: line.endHandle, hOut: null }];
-}
-
 // a line's positions, start to end (its anchors')
 export const positionsOf = (line) => [line.start.position, ...line.vertices.map((v) => v.position), line.end.position];
+
+// The anchors of a line: [{ position, hIn, hOut }], from its start to its end (an attached end where
+// what it is attached to is: attach.js refreshAttached keeps it there); handles only on a smooth line
+// with a vertex (without one it stays straight, a geodesic).
+export function anchorsOf(line) {
+  const ps = positionsOf(line), hs = line.smooth && ps.length > 2 ? smoothHandles(ps) : null;
+  return ps.map((position, i) => ({ position, hIn: hs?.[i].hIn ?? null, hOut: hs?.[i].hOut ?? null }));
+}
+// Catmull-Rom tangents in the projection: at a vertex, parallel to the line from the anchor before to
+// the anchor after, each handle a third of its own leg; at the ends, towards the neighbouring
+// handle's end, a third of the leg. In ground metres, [{ hIn, hOut }] per anchor.
+function smoothHandles(positions) {
+  const ps = [positions[0]];
+  for (const p of positions.slice(1)) ps.push(unrollTo(ps[ps.length - 1], p));
+  const M = ps.map(mercator), last = M.length - 1;
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], len = (v) => Math.hypot(v[0], v[1]);
+  const unit = (v) => { const l = len(v); return l ? [v[0] / l, v[1] / l] : [0, 0]; };
+  const ground = (v, i) => { const c = Math.cos(ps[i][1] * D2R); return [v[0] * c, v[1] * c]; };
+  const hIn = [], hOut = [];
+  for (let i = 1; i < last; i++) {
+    const t = unit(sub(M[i + 1], M[i - 1])), a = len(sub(M[i], M[i - 1])) / 3, b = len(sub(M[i + 1], M[i])) / 3;
+    hIn[i] = [-t[0] * a, -t[1] * a];
+    hOut[i] = [t[0] * b, t[1] * b];
+  }
+  const end = (i, j, h) => { const target = [M[j][0] + h[0], M[j][1] + h[1]], d = unit(sub(target, M[i])), l = len(sub(M[j], M[i])) / 3; return [d[0] * l, d[1] * l]; };
+  hOut[0] = end(0, 1, hIn[1]);
+  hIn[last] = end(last, last - 1, hOut[last - 1]);
+  return M.map((_, i) => ({ hIn: hIn[i] ? ground(hIn[i], i) : null, hOut: hOut[i] ? ground(hOut[i], i) : null }));
+}
 
 // One leg a → b: its points (both ends included, longitudes continuous from a's) and its length.
 export function leg(a, b) {
@@ -200,44 +222,3 @@ export function breakdown(doc, by = null) {
   }
   return { lines: { ...lines, rows: [...rows.values()].map((r) => ({ ...r, parts: [...r.parts.values()].sort((a, b) => PART_ORDER.indexOf(a.part) - PART_ORDER.indexOf(b.part)) })) }, areas, points };
 }
-
-// ---- Smooth: handles for a line through its vertices (mode "auto") ----------------------------
-
-// Catmull-Rom tangents in the projection: at a vertex, parallel to the line from the anchor before
-// to the anchor after, each handle a third of its own leg; at the ends, towards the neighbouring
-// handle's end, a third of the leg. Returned as the line's handle fields, in ground metres. A
-// line without vertices stays as it is: straight, a geodesic.
-export function smooth(doc, line) {
-  const anchors = anchorsOf(line);
-  if (anchors.length < 3) return { startHandle: line.startHandle, endHandle: line.endHandle, vertices: line.vertices.map((v) => ({ handleIn: v.handleIn, handleOut: v.handleOut })) };
-  const ps = [anchors[0].position];
-  for (const a of anchors.slice(1)) ps.push(unrollTo(ps[ps.length - 1], a.position));
-  const M = ps.map(mercator);
-  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], len = (v) => Math.hypot(v[0], v[1]);
-  const unit = (v) => { const l = len(v); return l ? [v[0] / l, v[1] / l] : [0, 0]; };
-  const ground = (v, i) => { const c = Math.cos(ps[i][1] * D2R); return [+(v[0] * c).toFixed(3), +(v[1] * c).toFixed(3)]; };
-  const hIn = [], hOut = [];
-  for (let i = 1; i < M.length - 1; i++) {
-    const t = unit(sub(M[i + 1], M[i - 1]));
-    const a = len(sub(M[i], M[i - 1])) / 3, b = len(sub(M[i + 1], M[i])) / 3;
-    hIn[i] = [-t[0] * a, -t[1] * a];
-    hOut[i] = [t[0] * b, t[1] * b];
-  }
-  const last = M.length - 1;
-  const end = (i, j, h) => { const target = [M[j][0] + h[0], M[j][1] + h[1]], d = unit(sub(target, M[i])), l = len(sub(M[j], M[i])) / 3; return [d[0] * l, d[1] * l]; };
-  const start = end(0, 1, hIn[1]); // the start: towards the next handle
-  return {
-    startHandle: ground(start, 0),
-    endHandle: ground(end(last, last - 1, hOut[last - 1]), last),
-    vertices: line.vertices.map((v, k) => ({ handleIn: ground(hIn[k + 1], k + 1), handleOut: ground(hOut[k + 1], k + 1) })),
-  };
-}
-// set a line's handles by the Smooth rule
-export function applySmooth(doc, line) {
-  const h = smooth(doc, line);
-  line.startHandle = h.startHandle;
-  line.endHandle = h.endHandle;
-  h.vertices.forEach((v, i) => { line.vertices[i].handleIn = v.handleIn; line.vertices[i].handleOut = v.handleOut; });
-}
-// lines in mode "auto" follow their anchors: their handles computed again (after any change)
-export function refreshAuto(doc) { for (const s of doc.lines) if (s.mode === 'auto') applySmooth(doc, s); }

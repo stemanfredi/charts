@@ -21,7 +21,7 @@ const again = (doc, known = null) => parse(serialise(doc), known, NOW);
 // a document as the file holds it: values rounded as the writer rounds them (positions 7 decimals,
 // metres and pixels 3, angles 4)
 const r = (n) => (v) => (typeof v === 'number' ? +v.toFixed(n) : v);
-const ROUND = { position: 7, pos: 7, center: 7, points: 7, startHandle: 3, endHandle: 3, handleIn: 3, handleOut: 3,
+const ROUND = { position: 7, pos: 7, center: 7, points: 7,
   radius: 3, length: 3, width: 3, at: 6, offset: 3, minSize: 3, opacity: 3, bearing: 4, aperture: 4, zoom: 4 };
 function rounded(x, n = null) {
   if (Array.isArray(x)) return x.map((y) => rounded(y, n));
@@ -43,7 +43,7 @@ function sample() {
   l.look.stroke = { ...d.GUIDE_STROKE }; // its own, though as a guide's
   l.properties = [{ key: 'name', value: 'x' }, { key: 'k', value: 'v' }, { key: 'k', value: 'w' }];
   const free = addLine(doc, [13, 40], [], [13.5, 40.5]);
-  Object.assign(free, { startHandle: [100, 200], mode: 'auto' });
+  free.smooth = true;
   free.look.offset = 4;
   addArea(doc, [[12, 40], [12, 40.5], [12.5, 40.5]]).look = { fill: { color: '#123456', opacity: 0.5 }, stroke: { dash: 'dotted' } };
   addArea(doc, [[12, 40], [12.5, 40], [12.5, 40.5]]);
@@ -103,8 +103,7 @@ test('round trip: values come back rounded as the file writes them', () => {
   const doc = emptyDoc(NOW);
   const p = addPoint(doc, [12.123456789, 41.987654321], { bearing: 45.123456, parts: [makePart('sector', { radius: 1000.12345, aperture: 90.000049 })] });
   p.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 }, minSize: 7.12345 };
-  const s = addLine(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { startHandle: [1.23456, -7.65432], look: { offset: 3.33333 } });
-  s.vertices[0].handleIn = [0.0004, 9.9999];
+  const s = addLine(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { look: { offset: 3.33333 } });
   addLabel(doc, lineRef(doc, s, 1500.12345)).offset = [10.12345, -20.98765];
   addArea(doc, [[0, 0], [1.123456789, 0], [1, 1]]);
   Object.assign(addShape(doc, [3, 3]).parts[0], { length: 120.12345, width: 40.98765 });
@@ -232,7 +231,7 @@ test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () =>
         { kind: 'circle', radius: 2, fill: 'no', shown: 0 }] }),
     F('p3', 'Point', [0, 0], { kind: 'point', parts: [{ kind: 'rectangle', length: 0, width: 4 }, { kind: 'sector', radius: 50 }, { kind: 'sector', radius: 60, aperture: 360 },
       { kind: 'ellipse', length: 10, width: 4, aperture: 30, radius: 9 }, { kind: 'sector', radius: 70, aperture: 45, length: 3 }, { kind: 'triangle', length: 10 }] }),
-    F('s1', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: -99 }, startHandle: 'x', endHandle: [10, 20], mode: 'curvy' }),
+    F('s1', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: -99 }, smooth: 'yes' }),
     F('s2', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: 99 } }),
     F('s3', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: true } }),
   ]));
@@ -245,13 +244,13 @@ test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () =>
   assert.deepEqual(p2.parts, [makePart('circle', { radius: 5 }), { ...makePart('circle', { radius: 1 }), fill: false, shown: false, name: '7' }, makePart('circle', { radius: 2 })]); // Fill and Shown: on unless false
   assert.deepEqual(p3.parts, [makePart('circle', { radius: 50 }), makePart('circle', { radius: 60 }), makePart('ellipse', { length: 10, width: 4 }), makePart('sector', { radius: 70, aperture: 45 })]); // only a kind's own sizes kept
   assert.equal(p3.symbol, 'none');
-  assert.deepEqual([s1.look.offset, s1.startHandle, s1.endHandle, s1.mode], [-d.MAX_OFFSET, null, [10, 20], 'fixed']); // clamped either side
+  assert.deepEqual([s1.look.offset, s1.smooth], [-d.MAX_OFFSET, false]); // clamped either side
   assert.deepEqual([s2.look.offset, s3.look.offset], [d.MAX_OFFSET, undefined]); // true or false is not a number of pixels
   for (const re of [/unknown symbol "star"/, /bearing -90 read as 270/, /aperture 400 read as a full circle/, /aperture: not an angle above 0; a circle/, /look minSize: not a number of pixels/,
     /unknown dash "wavy"/, /look text name: not true or false, ignored/, /part 3 skipped: radius not between/, /part 4 skipped: radius not between/, /part 5 skipped: not an object/,
     /part 1 skipped: unknown kind "hovercraft"/, /part 3 name: number made text/, /part 1 skipped: length or width not above 0/, /part 2: a sector with no aperture; a circle/,
     /part 6 skipped: length or width not above 0/, /stroke width 99 clamped to 20/, /stroke opacity 2 clamped to 1/, /fill colour: not a #rrggbb/,
-    /Offset: not a number/, /startHandle: not \[east, north\]/]) warned(report, re);
+    /Offset: not a number/, /smooth is not true or false/]) warned(report, re);
   assert.equal(report.warnings.filter((w) => /aperture/.test(w)).length, 3); // those three; a sector of exactly 360°: a circle, quietly
 });
 
@@ -563,21 +562,16 @@ test('parts: round and outline ones by place, each one\'s reach, the largest out
   assert.deepEqual([d.followedPart(p), d.pointKind(p)], [null, 'ellipse']);
 });
 
-test('lines: ends attached to points or free; vertices inserted and deleted; straightened', () => {
+test('lines: ends attached to points or free; vertices inserted and deleted', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [12, 41]);
   const s = addLine(doc, a.id, [[12.1, 41.1]], [12.2, 41]);
-  assert.deepEqual([s.name, s.start, s.end, s.mode, s.guide], ['Line 1', { position: [12, 41], element: a.id }, { position: [12.2, 41], element: null }, 'fixed', false]);
+  assert.deepEqual([s.name, s.start, s.end, s.smooth, s.guide], ['Line 1', { position: [12, 41], element: a.id }, { position: [12.2, 41], element: null }, false, false]);
   assert.equal(doc.points.length, 1); // no point made for a free end
   assert.deepEqual(placeOf('line', s), [12, 41]);
   d.insertVertex(s, 1, [12.15, 41.05]);
   assert.deepEqual(s.vertices.map((v) => v.position), [[12.1, 41.1], [12.15, 41.05]]);
   d.deleteVertex(s, 0);
-  s.startHandle = [1, 2];
-  s.vertices[0].handleIn = [3, 4];
-  s.mode = 'auto';
-  d.straighten(s);
-  assert.deepEqual([s.startHandle, s.vertices[0].handleIn, s.mode], [null, null, 'fixed']);
   assert.deepEqual(again(doc).doc, doc);
 });
 
@@ -602,14 +596,13 @@ test('split a line at a vertex: a dot carrying the vertex\'s own, both lines att
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]);
   const s = addLine(doc, a.id, [[1, 0], [2, 0], [3, 0]], [4, 0], { name: 'Main' });
-  Object.assign(s.vertices[1], { name: 'bend', properties: [{ key: 'k', value: 'v' }], handleIn: [1, 1], handleOut: [2, 2] });
-  s.endHandle = [5, 5];
+  Object.assign(s.vertices[1], { name: 'bend', properties: [{ key: 'k', value: 'v' }] });
   const p = splitLine(doc, s.id, 1);
   const rest = doc.lines[1];
   assert.deepEqual([p.symbol, p.parts, p.name, p.properties, p.position], ['dot', [], 'bend', [{ key: 'k', value: 'v' }], [2, 0]]);
-  assert.deepEqual([s.end, s.endHandle, s.vertices.map((v) => v.position)], [{ position: [2, 0], element: p.id }, [1, 1], [[1, 0]]]);
-  assert.deepEqual([rest.start, rest.startHandle, rest.end, rest.endHandle, rest.vertices.map((v) => v.position), rest.name],
-    [{ position: [2, 0], element: p.id }, [2, 2], { position: [4, 0], element: null }, [5, 5], [[3, 0]], 'Line 1']);
+  assert.deepEqual([s.end, s.vertices.map((v) => v.position)], [{ position: [2, 0], element: p.id }, [[1, 0]]]);
+  assert.deepEqual([rest.start, rest.end, rest.vertices.map((v) => v.position), rest.name],
+    [{ position: [2, 0], element: p.id }, { position: [4, 0], element: null }, [[3, 0]], 'Line 1']);
   assert.notEqual(rest.id, s.id);
   assert.equal(splitLine(doc, s.id, 0).name, 'Point 2'); // an unnamed vertex: the next point's name
 });

@@ -306,12 +306,6 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid .fcheck { justify-content: center; padding: 0; min-width: var(--row); }
 .lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; }
 /* a row's sub-row (a vertex's handles): across the row, held at the grid's left edge as it scrolls */
-.lgrid tr.lsub td { padding: 0 0 4px; }
-.lsubin { position: sticky; left: 0; width: max-content; padding-left: 26px; }
-.fhandles { display: flex; flex-direction: column; } /* in, then out: one line each */
-.fhandle { display: inline-flex; align-items: center; gap: 4px; }
-.fhandle > .funit:first-child { width: 24px; }
-.lgrid td .fhandle input.num:not([type=checkbox]) { width: 72px !important; } /* over the grid's full-width cells */
 .fsummary { color: var(--ink); background: var(--bg2); border-radius: 6px; padding: 6px 8px; }
 .fblock { display: flex; flex-direction: column; }
 .fend { justify-content: space-between; border-top: 1px solid var(--line2); padding-top: 8px; margin-top: 4px; }

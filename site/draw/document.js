@@ -235,15 +235,15 @@ export function addArea(doc, points, opts = {}) {
 const endOf = (doc, x) => (typeof x === 'string' ? { position: [...doc.points.find((p) => p.id === x).position], element: x }
   : Array.isArray(x) ? { position: [...x], element: null } : { ...structuredClone(x), position: [...x.position] });
 // A line from start to end (each a point's ID, an attached end, or a position) through positions, its
-// legs straight (geodesics), fixed. Returns it.
+// legs straight (geodesics). Returns it.
 export function addLine(doc, start, positions, end, opts = {}) {
   const taken = idsOf(doc);
-  const s = { ...base(doc, 'line', taken), start: endOf(doc, start), end: endOf(doc, end), startHandle: null, endHandle: null, mode: 'fixed',
+  const s = { ...base(doc, 'line', taken), start: endOf(doc, start), end: endOf(doc, end), smooth: false,
     guide: false, vertices: positions.map((p) => vertex(p)), ...opts };
   doc.lines.push(s);
   return s;
 }
-const vertex = (p) => ({ position: [...p], handleIn: null, handleOut: null, name: '', properties: [] });
+const vertex = (p) => ({ position: [...p], name: '', properties: [] });
 // a part added to a point: a round one twice the reach of the last round one (filled when it is the
 // first), an outline of the default size; one taken away (by its place)
 export function addPart(p, kind = 'circle') {
@@ -299,12 +299,6 @@ export function remove(doc, ids, withMembers = false) {
 // addVertex, removeVertex)
 export function insertVertex(line, index, position) { line.vertices.splice(index, 0, vertex(position)); }
 export function deleteVertex(line, index) { line.vertices.splice(index, 1); }
-export function straighten(line) {
-  line.startHandle = null;
-  line.endHandle = null;
-  for (const v of line.vertices) { v.handleIn = null; v.handleOut = null; }
-  line.mode = 'fixed';
-}
 // Split a line at its vertex index: the vertex becomes a point (a dot, with the vertex's name and
 // properties), the line ends there, and a new line carries on from it with the rest, both attached
 // to it (what points at the line: attach.js splitKeeping). Returns the new point.
@@ -313,9 +307,8 @@ export function splitLine(doc, lineId, index) {
   const taken = idsOf(doc);
   const p = addPoint(doc, v.position, { name: v.name || nextName(doc, 'point'), properties: clone(v.properties), symbol: 'dot', parts: [] }, taken);
   const rest = { ...clone(s), id: newId(doc, taken), name: nextName(doc, 'line'), start: { position: [...v.position], element: p.id }, end: clone(s.end),
-    startHandle: v.handleOut, endHandle: s.endHandle, vertices: clone(s.vertices.slice(index + 1)) };
+    vertices: clone(s.vertices.slice(index + 1)) };
   s.end = { position: [...v.position], element: p.id };
-  s.endHandle = v.handleIn;
   s.vertices = s.vertices.slice(0, index);
   doc.lines.splice(doc.lines.indexOf(s) + 1, 0, rest);
   return p;

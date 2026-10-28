@@ -69,11 +69,6 @@ export function minSize(v, c, what) {
   c.warn(`${what}: not a number of pixels ≥ 0, ignored`);
   return null;
 }
-export function handle(h, c, what) {
-  if (h === undefined || h === null) return null;
-  if (!Array.isArray(h) || h.length < 2 || !fin(h[0]) || !fin(h[1])) { c.warn(`${what}: not [east, north], ignored`); return null; }
-  return [h[0], h[1]];
-}
 // a sector's aperture (degrees, above 0 and below 360), or null: circles (360 or more: circles, warned)
 export function aperture(a, c) {
   if (a === undefined || a === null) return null;

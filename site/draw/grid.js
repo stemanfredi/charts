@@ -27,9 +27,8 @@ function takeFocus(name, from) {
 }
 
 // A list grid. name: what keeps its state (the element's id and the list's); columns: [{ head,
-// width (px), frozen, title, cls }]; rows: [{ cells: [node], cls, sub (a node on a row of its own
-// under it, across the whole row, kept in sight as the grid scrolls sideways) }]; add: the cells of the empty last row (typing
-// in it adds one), or null; actions(i): { label, buttons } for row i, or null; keys: { insert(i),
+// width (px), frozen, title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty
+// last row (typing in it adds one), or null; actions(i): { label, buttons } for row i, or null; keys: { insert(i),
 // remove(i) }.
 export function listGrid({ name, columns, rows, add = null, actions = () => null, keys = {} }) {
   const st = stateOf(name);
@@ -59,7 +58,6 @@ export function listGrid({ name, columns, rows, add = null, actions = () => null
     const tr = h('tr', { 'data-r': i, class: [r.cls, st.current === i ? 'cur' : ''].filter(Boolean).join(' ') || null, onfocusin: () => markCurrent(i), onpointerdown: () => markCurrent(i) },
       ...r.cells.map((kids, k) => cell('td', k, kids)));
     body.append(tr);
-    if (r.sub) body.append(h('tr', { class: 'lsub' }, h('td', { colspan: columns.length }, h('div', { class: 'lsubin' }, r.sub))));
   });
   if (add) body.append(h('tr', { 'data-r': rows.length, class: 'ladd' }, ...add.map((kids, k) => cell('td', k, kids))));
   const table = h('table', { class: 'lgrid', 'data-grid': name },

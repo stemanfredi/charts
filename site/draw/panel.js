@@ -6,12 +6,12 @@
 import { h, svg, typing, NARROW, store } from '../dom.js';
 import { popup } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, straighten, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
 import { labelText, labelValues, TOKENS } from './labels.js';
 import { OUTLINE_NAME, outlineOf, isVehicle } from './outlines.js';
-import { lineTrace, totals, breakdown, applySmooth, nearestAlong, positionsOf } from './lines.js';
+import { lineTrace, totals, breakdown, nearestAlong, positionsOf } from './lines.js';
 import { profileCsv } from './profile.js';
 import { COPY_RADIUS, distribute, lines, plan, planConnection, makeDistribution, editDistribution, connect, reconnect, unconnect, alongTrace, alongOf,
   distributions, connections, ruleOf, distributionOf, connectionOn, changedByHand, giveBack, removePartOf, MAX_COPIES, MAX_TREE } from './generator.js';
@@ -705,7 +705,7 @@ export function drawView(root, ctx) {
   }
 
   // a line: its ends (each attached to a point, or free), length, curve, the table of its vertices
-  // (lat, lon, name, distance from its start, the handles folded)
+  // (lat, lon, leg, name, distance from its start)
   // Legs typed (the line's vertex table, the polygon's corner table): the straight leg arriving at a
   // place, its length and its bearing. A value typed moves that place and every one after it together
   // (the legs after it keep their lengths and bearings); a line's end attached stays attached.
@@ -817,15 +817,7 @@ export function drawView(root, ctx) {
 
   function lineInspector(id) {
     const doc = drawing.doc, el = now(id), u = ctx.units();
-    const hv = drawing.handlesShown; // its Bézier handles, in the table and on the map
     const line = lineTrace(doc, el);
-    const fix = (fn) => set(id, (x) => { fn(x); x.mode = 'fixed'; }); // a handle typed: the curve is the user's now
-    const handleFields = (get, put, what) => {
-      const one = (i, axis) => F.number(() => { const hd = get(now(id)); return hd ? +hd[i].toFixed(3) : null; },
-        (v) => fix((x) => { const hd = get(x) || [0, 0]; const next = [...hd]; next[i] = v ?? 0; put(x, v === null && !next[1 - i] ? null : next); }),
-        `${what} ${axis} (m)`, { min: -Infinity, empty: true, class: 'num', bad: 'metres, or empty for none', placeholder: '—' });
-      return h('span', { class: 'fhandle' }, h('span', { class: 'funit' }, what), h('span', { class: 'funit' }, 'E'), one(0, 'east'), h('span', { class: 'funit' }, 'N'), one(1, 'north'), h('span', { class: 'funit' }, 'm'));
-    };
     const at = line.at;
     const endOf = (e) => (e.element ? link(e.element) : h('span', { class: 'funit' }, 'free'));
     const leg = (k) => legFields(id, positionsOf, k, setLineLeg, 'Leg');
@@ -847,15 +839,12 @@ export function drawView(root, ctx) {
       return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Name', 'Along m'], ps.map((q, i) => { const g = i ? legOf(ps, i) : null; return [i === 0 ? 'start' : i === ps.length - 1 ? 'end' : i, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', x.vertices[i - 1]?.name ?? '', +(t[i] || 0).toFixed(3)]; })]; };
     const removeAt = (i) => drawing.change((doc) => removeVertex(doc, find(doc, id).el, i));
     const splitAt = (i) => { let p; drawing.change((d) => { p = splitKeeping(d, id, i); }); note(`Split: both parts attached to ${label('point', p)}`); };
-    // its places as rows: its start (◂), its vertices, its end (▸); its handles under each, when shown
-    const handlesOf = (getIn, putIn, getOut, putOut) => h('span', { class: 'fhandles' }, getIn ? handleFields(getIn, putIn, 'in') : null, getOut ? handleFields(getOut, putOut, 'out') : null);
-    // its rows, by place: 0 its start, 1…n its vertices, n + 1 its end; a page of them shown
+    // its places as rows, by place: 0 its start (◂), 1…n its vertices, n + 1 its end (▸); a page of them shown
     const pg = paged(`${id}:vertices`, n + 2), abs = (r) => pg.rows[r];
-    const rowAt = (k) => (k === 0 ? { cls: 'vnode', cells: ['◂', ...endCells('start'), null, null, null, along(0)], sub: hv ? handlesOf(null, null, (x) => x.startHandle, (x, hd) => { x.startHandle = hd; }) : null }
-      : k === n + 1 ? { cls: 'vnode', cells: ['▸', ...endCells('end'), ...leg(n + 1), null, along(at.length - 1)], sub: hv ? handlesOf((x) => x.endHandle, (x, hd) => { x.endHandle = hd; }, null, null) : null }
+    const rowAt = (k) => (k === 0 ? { cls: 'vnode', cells: ['◂', ...endCells('start'), null, null, null, along(0)] }
+      : k === n + 1 ? { cls: 'vnode', cells: ['▸', ...endCells('end'), ...leg(n + 1), null, along(at.length - 1)] }
         : ((i) => ({ cells: [`${i + 1}`, coord(i, 'lat'), coord(i, 'lon'), ...leg(i + 1),
-          field(() => now(id).vertices[i].name, (t) => t, (nv) => set(id, (x) => { x.vertices[i].name = nv; }), { 'aria-label': `Vertex ${i + 1} name` }), along(i + 1)],
-        sub: hv ? handlesOf((x) => x.vertices[i].handleIn, (x, hd) => { x.vertices[i].handleIn = hd; }, (x) => x.vertices[i].handleOut, (x, hd) => { x.vertices[i].handleOut = hd; }) : null }))(k - 1));
+          field(() => now(id).vertices[i].name, (t) => t, (nv) => set(id, (x) => { x.vertices[i].name = nv; }), { 'aria-label': `Vertex ${i + 1} name` }), along(i + 1)] }))(k - 1));
     const table = listGrid({ name: pg.name,
       columns: [{ head: '', width: 26, frozen: true, cls: 'num' }, { head: 'Lat', width: 100, frozen: true }, { head: 'Lon', width: 100, frozen: true },
         { head: 'Leg', width: 104, title: 'The straight leg from the place before: its length (typed: this place and those after it move together)' },
@@ -871,16 +860,9 @@ export function drawView(root, ctx) {
       row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u))),
       offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, the drawing's Offset. Its length is the real one.`) : null,
       profileBlock(id),
-      row('Curve', h('span', { class: 'fvalue' }, el.mode === 'auto' ? 'smooth' : 'as drawn')),
-      row('', h('button', { type: 'button', class: 'small', title: 'Copies placed along this line, every so far or so many, which then follow it; they can be connected to roots', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…'),
-        h('button', { type: 'button', class: 'small', title: 'Curve smoothly through its bends; the curve then follows them (it replaces handles typed)', disabled: !el.vertices.length, onclick: async () => {
-          const typed = el.mode === 'fixed' && [el.startHandle, el.endHandle, ...el.vertices.flatMap((v) => [v.handleIn, v.handleOut])].some(Boolean);
-          if (typed && !await ask('Smooth', 'Smoothing replaces the handles you typed with its own. The vertices stay.', [['yes', 'Smooth']])) return;
-          set(id, (x) => { x.mode = 'auto'; applySmooth(drawing.doc, x); });
-        } }, 'Smooth'),
-        h('button', { type: 'button', class: 'small', title: 'Straight legs: geodesics', onclick: () => set(id, (x) => straighten(x)) }, 'Straighten')),
-      h('div', { class: 'fblock' }, h('h3', { title: 'Where the line runs: its start (◂), its vertices (1, 2…), its end (▸). Along: the distance from the start. Click a row for what can be done with it (under the table).' }, `Vertices (${el.vertices.length})`, copyBtn(vertexRows),
-        h('label', { class: 'fcheck small', title: 'Handles curve the line near a vertex: how far the curve is pulled east (E) and north (N) of it, in metres, as it arrives (in) and leaves (out). Empty: a straight leg. Typing one keeps the curve as typed.' }, h('input', { type: 'checkbox', checked: hv, onchange: (e) => { drawing.showHandles(e.target.checked); renderInspector(); } }), 'Handles')),
+      row('Legs', segOf('Legs', [[false, 'Straight', 'Geodesics, as measured'], [true, 'Smooth', 'A curve through its bends, following them; its length measured along it']], !!el.smooth, (v) => set(id, (x) => { x.smooth = v; }))),
+      row('', h('button', { type: 'button', class: 'small', title: 'Copies placed along this line, every so far or so many, which then follow it; they can be connected to roots', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…')),
+      h('div', { class: 'fblock' }, h('h3', { title: 'Where the line runs: its start (◂), its vertices (1, 2…), its end (▸). Along: the distance from the start. Click a row for what can be done with it (under the table).' }, `Vertices (${el.vertices.length})`, copyBtn(vertexRows)),
       table, pg.pager), // wider than the panel: it scrolls sideways, its first columns kept
       lookBlock([item(id)]), ...commonBottom('line', id)];
   }

@@ -5,9 +5,9 @@
 import { circle, sector, cornersOf, reachesPole, ccw, areaOf, destination, inverse, pathOf, perimeterOf } from '../geodesy.js';
 
 import { styleOf, lookOf, minSizeOf, offsetOf, isShown, elements, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf, columnsOf } from './document.js';
-import { mercator, unmercator, unrollTo, metresPerPixel, D2R } from '../geo.js';
+import { mercator, unrollTo, metresPerPixel, D2R } from '../geo.js';
 import { rotateHandle } from './drag.js';
-import { lineTrace, anchorsOf, pointsAlong } from './lines.js';
+import { lineTrace, anchorsOf, positionsOf, pointsAlong } from './lines.js';
 import { labelText } from './labels.js';
 import { resolve, along } from './attach.js';
 import { outlineOf, isVehicle, VEHICLE_MIN_FACTOR } from './outlines.js';
@@ -53,7 +53,7 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 // hover band just outside the outline (a point: its outermost round part, or its largest outline),
 // drawn offset by half the stroke's width and a gap (sw), its ring counter-clockwise so that "outside"
 // is one side; handles at the points a drag grabs; a ring around a point's centre.
-// display: { zoom, ctrl }: an outline too small to see at that zoom is drawn enlarged, dotted
+// display: { zoom }: an outline too small to see at that zoom is drawn enlarged, dotted
 // (it is not to scale); without a zoom, everything at real size. A line with an Offset carries it
 // (off, px): MapLibre draws it beside its geometry (layers.js), display only. want: the parts to make (the others come back empty).
 export function drawParts(doc, sel = new Set(), hover = null, display = {}, want = { base: true, zoom: true, marks: true }) {
@@ -203,8 +203,8 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
       if (named(sg)) name(zoomNames, sg, g, st.color);
       zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: sg.guide ? 'guide' : 'path', z: Z.get(sg.id), off, ...lineProps(st) }, geometry: g });
     }
-    if (mark(sg.id, g, { sw: st.width, off }, () => anchorsOf(sg).map((a) => a.position)) && sel.has(sg.id)) {
-      const an = anchorsOf(sg), last = an.length - 1;
+    if (mark(sg.id, g, { sw: st.width, off }, () => positionsOf(sg)) && sel.has(sg.id)) {
+      const an = positionsOf(sg).map((position) => ({ position })), last = an.length - 1;
       // its ends: one attached to a point's centre moves the point; another (free, or attached to a
       // corner, an edge, a vertex) itself, attached again where it is dropped
       const centre = (e) => e.element && e.edge == null && e.vertex == null;
@@ -218,18 +218,6 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
           if (d.s / ground(a[1]) > midPx) mids.push({ p: destination(a, d.azi, d.s / 2), role: 'mid', ref: i, kind: 'mid' });
         }
         handles(sg.id, mids);
-      }
-      // its Bézier handles, while the inspector shows them: a circle on a line from its point
-      if (display.ctrl) {
-        const at = (p, h) => { const m = mercator(p), c = Math.cos(p[1] * D2R); return unmercator([m[0] + h[0] / c, m[1] + h[1] / c]); };
-        an.forEach((a, i) => {
-          for (const [h, which] of [[a.hIn, 'in'], [a.hOut, 'out']]) {
-            if (!h) continue;
-            const q = at(a.position, h);
-            marks.push({ type: 'Feature', properties: { id: sg.id, kind: 'ctrlline' }, geometry: { type: 'LineString', coordinates: [a.position, q] } });
-            handles(sg.id, [{ p: q, role: 'ctrl', ref: `${which}:${i}`, kind: 'ctrl' }]);
-          }
-        });
       }
     }
   }

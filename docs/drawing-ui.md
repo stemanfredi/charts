@@ -243,12 +243,11 @@ sets it on each (as for several selected). A hidden group hides everything in it
   the line, as the depth shading has it (GEBCO, cut to the coast), sampled at the grid's spacing, at
   most 1,000 places; the shallowest and the deepest; a chart whose place pointed at shows on the map,
   and the line pointed at on the map shows on the chart; its length along the seabed, a lower bound;
-  **CSV**); Curve (smooth, or as drawn), and **Distribute along…** (§6), **Smooth**, **Straighten**; its vertices (latitude, longitude; the **Leg** from the place
+  **CSV**); **Legs** (straight, or smooth: a curve through its vertices, following them), and **Distribute along…** (§6); its vertices (latitude, longitude; the **Leg** from the place
   before, its length and bearing, typed: that vertex and those after it move together, the legs after
   it unchanged, an attached end staying attached; name, distance along;
   its bar: **Insert after** (halfway to the next), **Delete**, **Split** (the vertex becomes a point both
-  parts attach to)), with
-  **Handles** for each vertex's curve (metres east and north, in and out).
+  parts attach to)).
 - **Label:** Text, with **Insert** for the live values that apply to what it points at: name, length,
   distance along, bearing, radius, area, perimeter; **Attached to** (a link, which vertex or edge)
   with **Attach to…** and the broken link (detach), as a line's end; Along (typed) for a label on a line, or the
@@ -362,7 +361,6 @@ one end to the other, an outline's ring.
     only moved;
   - a line's **vertices** and **ends**: an end attached to a point's centre moves the point; any other
     end moves itself and attaches where it is dropped; a **+** halfway along a leg adds a vertex;
-    with Handles on, each curve handle;
   - an area's **corners**, and a **+** halfway along each edge adds one;
   - a label's text (its offset) and, for a free label or one on a line, its point.
 - **Display only** (never in lengths or exports): **Offset** (a line drawn this many pixels beside

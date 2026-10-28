@@ -3,7 +3,7 @@
 // angles degrees true.
 
 import { inverse, destination, localFrame } from '../geodesy.js';
-import { mercator, unmercator, D2R, norm360, unrollTo } from '../geo.js';
+import { mercator, unmercator, D2R, norm360 } from '../geo.js';
 
 
 // a radius: the pointer's distance from the centre
@@ -59,13 +59,6 @@ export function resizeSide(shape, i, p, { aboutCentre = false } = {}) {
   const shift = aboutCentre ? 0 : (at - sign * half) / 2; // the centre: halfway between the kept side (at −sign · half) and the new one (at)
   const d = along ? u : n, center = aboutCentre ? shape.center : f.from([shift * d[0], shift * d[1]]);
   return along ? { center, length: size, width: shape.width } : { center, length: shape.length, width: size };
-}
-
-// A Bézier handle from a pointer: metres east and north of its anchor, as the projection draws it
-// (the inverse of lines.js: Mercator offsets times cos latitude at the anchor)
-export function handleTo(anchor, p) {
-  const A = mercator(anchor), P = mercator(unrollTo(anchor, p)), c = Math.cos(anchor[1] * D2R);
-  return [+((P[0] - A[0]) * c).toFixed(3), +((P[1] - A[1]) * c).toFixed(3)];
 }
 
 // A position moved by the pointer's displacement on screen (in the projection): from start to now

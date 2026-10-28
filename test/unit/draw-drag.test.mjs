@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
-const { radiusTo, bearingTo, sectorEdgeTo, resizeRect, handleTo, moved, rotateHandle } = await import('../../site/draw/drag.js');
+const { radiusTo, bearingTo, sectorEdgeTo, resizeRect, moved, rotateHandle } = await import('../../site/draw/drag.js');
 const { inverse, destination, rectangle } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');
 
@@ -45,12 +45,7 @@ test('resize a rectangle from each corner: the opposite corner stays put; Shift 
   near(c.length, 200, 0.5, 'about the centre');
 });
 
-test('a Bézier handle in metres east and north; moving by the pointer; the rotate stalk', () => {
-  const h = handleTo([0, 60], [0.001, 60]);
-  // the format's convention: Mercator metres times cos latitude (true ground metres within 0.5 %)
-  near(h[0], (mercator([0.001, 60])[0] - mercator([0, 60])[0]) * Math.cos((60 * Math.PI) / 180), 0.001, 'east, at 60° N');
-  near(h[0], inverse([0, 60], [0.001, 60]).s, 0.005 * h[0], 'about ground metres');
-  near(h[1], 0, 1e-6, 'north');
+test('moving by the pointer; the rotate stalk', () => {
   const p = moved([12.5, 40.5], [12, 40], [12.1, 40.05]);
   const d = [mercator(p)[0] - mercator([12.5, 40.5])[0], mercator(p)[1] - mercator([12.5, 40.5])[1]];
   near(d[0], mercator([12.1, 40.05])[0] - mercator([12, 40])[0], 1e-6, 'x');

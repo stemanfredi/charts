@@ -18,7 +18,7 @@ import { inverse, cornersOf, pathOf, sector, circle } from '../geodesy.js';
 import { snapAt, stepped, neighbours, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve } from './attach.js';
 import { copyOf, paste, centreOf } from './clipboard.js';
-import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, resizeSide, handleTo, moved } from './drag.js';
+import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, resizeSide, moved } from './drag.js';
 
 // the ID of the line being drawn, as measured for its values: always the same, so the traces cached by
 // ID (lines.js) keep one entry for it, not one for each move of the pointer
@@ -53,7 +53,6 @@ export class Drawing extends DrawStore {
     this.areaEvents(map);
     this.keyEvents(map);
     this.drag = null; // a drag under way: { id, role, ref, start, orig (the document before), moved }
-    this.handlesShown = false; // a selected line's Bézier handles shown (the inspector's Handles)
     this.repointing = null; // { id, key }: what the next click attaches a label's anchor or a line's end to (its inspector's Attach to…)
     this.picking = null; // the Connect form: what a click on the map picks (roots)
     this.marksOn = true;
@@ -110,7 +109,7 @@ export class Drawing extends DrawStore {
   // forms' previews (Distribute, Connect). A change to the document draws all three; the selection, the pointer and the
   // Line tool's cursor only the marks; zooming only what follows it.
   render(parts = ALL_PARTS) {
-    const p = drawParts(this.doc, this.sel, this.hover, { zoom: this.map.getZoom(), ctrl: this.handlesShown, midPx: MID_PX }, parts);
+    const p = drawParts(this.doc, this.sel, this.hover, { zoom: this.map.getZoom(), midPx: MID_PX }, parts);
     const set = (id, features) => this.map.getSource(id)?.setData({ type: 'FeatureCollection', features });
     if (parts.base) { set('draw', p.base); this.values = null; this.labelTexts = null; }
     if (parts.zoom) set('drawzoom', p.zoom);
@@ -218,8 +217,6 @@ export class Drawing extends DrawStore {
   }
 
   // ---- what the panel sets ------------------------------------------------------------------
-  // the Bézier handles of a selected line, shown or not (its inspector's Handles)
-  showHandles(on) { this.handlesShown = on; this.renderMarks(); }
   // what the next click on the map attaches (Attach to…): a label's anchor (key 'anchor'), a line's
   // start or end; or nothing
   startRepoint(id, key = 'anchor') { this.repointing = { id, key }; this.map.getCanvas().style.cursor = 'crosshair'; }
@@ -695,14 +692,7 @@ export class Drawing extends DrawStore {
         Object.assign(el.parts[i], { length: r.length, width: r.width });
         return;
       }
-      case 'rotate': el.bearing = bearingTo(el.position, p, snap); return;
-      case 'ctrl': {
-        const [which, i] = String(d.ref).split(':'), k = +i, last = el.vertices.length + 1;
-        const anchor = k === 0 ? el.start.position : k === last ? el.end.position : el.vertices[k - 1].position;
-        const h = handleTo(anchor, p);
-        if (k === 0) el.startHandle = h; else if (k === last) el.endHandle = h; else el.vertices[k - 1][which === 'in' ? 'handleIn' : 'handleOut'] = h;
-        el.mode = 'fixed';
-      }
+      case 'rotate': el.bearing = bearingTo(el.position, p, snap);
     }
   }
   // a dragged position: snapped where the pointer is near something (snapFor), else where the drag

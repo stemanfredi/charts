@@ -399,15 +399,6 @@ test('lines: guides and the others drawn, a click target each, halos, handles by
   const z = drawFeatures(doc, new Set(['s1']), null, { zoom: 10 }).features;
   assert.deepEqual(handles(z, 's1', 'mid'), [['mid', 0], ['mid', 1]]);
   near(inverse([12, 41], z.find((x) => x.properties.kind === 'mid').geometry.coordinates).s, inverse([12, 41], [12.1, 41.05]).s / 2, 1e-6, 'halfway');
-  // Bézier handles, while the inspector shows them
-  doc.lines[1].startHandle = [1000, 0];
-  const c = drawFeatures(doc, new Set(['s2']), null, { ctrl: true }).features;
-  assert.deepEqual(handles(c, 's2', 'ctrl'), [['ctrl', 'out:0']]);
-  const q = c.find((x) => x.properties.kind === 'ctrl').geometry.coordinates;
-  near(inverse([12.2, 41], q).s, 1000, 5, '1 km east');
-  near(inverse([12.2, 41], q).azi, 90, 0.1, 'east');
-  assert.deepEqual(c.find((x) => x.properties.kind === 'ctrlline').geometry.coordinates, [[12.2, 41], q]);
-  assert.equal(drawFeatures(doc, new Set(['s2'])).features.filter((x) => x.properties.kind === 'ctrl').length, 0);
 });
 
 test('lines with an Offset: drawn on their real geometry, the offset carried for MapLibre (the line, its hit stroke, its marks); none in the export', () => {
@@ -495,10 +486,11 @@ test('values shown: each leg\'s length and bearing, the total; an area\'s area a
   near(inverse([13, 40], v[4].geometry.coordinates).s, 2000, 1e-6, 'at the radius');
   near(inverse([13, 40], v[4].geometry.coordinates).azi, 0, 1e-6, 'north');
   // bearings: on straight legs only; units
-  ruler.vertices[0].handleOut = [0, 2000];
   const b = valueFeatures(doc, 'nm', true).filter((x) => x.properties.id === ruler.id).map((x) => x.properties.label);
   assert.equal(b[0], `${fmtDist(10000, 'nm')} · 090.0°T`);
-  assert.ok(!b[1].includes('°'), b[1]);
+  ruler.smooth = true;
+  const c = valueFeatures(doc, 'nm', true).filter((x) => x.properties.id === ruler.id).map((x) => x.properties.label);
+  assert.ok(!c[0].includes('°') && !c[1].includes('°'), c.join());
   // a sector's radius at its bearing
   Object.assign(ring.parts[0], { kind: 'sector', aperture: 90 });
   ring.bearing = 135;

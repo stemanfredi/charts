@@ -5,19 +5,16 @@
 
 import { emptyDoc, touch, find, elements, dependents, remove } from './document.js';
 import { refreshAttached } from './attach.js';
-import { refreshAuto } from './lines.js';
 import { refreshGenerated, reconnectWithout } from './generator.js';
 
 const UNDO_STEPS = 100, UNDO_BYTES = 20e6;
 
-// after any change: attached ends follow their points, curves in mode "auto" their anchors, a distribution's copies
-// follow their line (as now curved) and a hub its points; then the lines attached to those follow again
+// after any change: attached ends follow their points, a distribution's copies follow their line and
+// a hub its points; then the lines attached to those follow again
 export function settleGeometry(doc) {
   refreshAttached(doc);
-  refreshAuto(doc);
   refreshGenerated(doc);
   refreshAttached(doc);
-  refreshAuto(doc);
 }
 
 export class DrawStore {

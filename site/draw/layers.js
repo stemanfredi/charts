@@ -119,14 +119,11 @@ export const DRAW_LAYERS = [
     paint: { 'icon-color': DRAFT, 'icon-opacity': 0.6 } },
   { id: 'draw-pick', type: 'circle', source: 'drawover', filter: ['==', ['get', 'kind'], 'pick'],
     paint: { 'circle-radius': 11, 'circle-opacity': 0, 'circle-stroke-color': MARK, 'circle-stroke-width': 3 } },
-  // while a line is selected: a + halfway along its legs, its Bézier handles; a rectangle's rotate stalk
+  // while a line is selected: a + halfway along its legs; a rectangle's rotate stalk
   { id: 'draw-stalk', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'stalk'], paint: { 'line-color': MARK, 'line-width': 1.5 } },
-  { id: 'draw-ctrlline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'ctrlline'], paint: { 'line-color': MARK, 'line-width': 1, 'line-dasharray': [2, 2] } },
   { id: 'draw-mid', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'mid'],
     layout: { 'icon-image': 'draw-plus', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': MARK, 'icon-halo-color': MARK_CASE, 'icon-halo-width': 1.5 } },
-  { id: 'draw-ctrl', type: 'circle', source: 'drawover', filter: ['==', ['get', 'kind'], 'ctrl'],
-    paint: { 'circle-radius': 5, 'circle-color': '#ffffff', 'circle-stroke-color': MARK, 'circle-stroke-width': 1.5 } },
   // the line being drawn (Line tool)
   { id: 'draw-draft', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'draft'], layout: { 'line-join': 'round' },
     paint: { 'line-color': DRAFT, 'line-width': 2, 'line-dasharray': [3, 2] } },
@@ -184,7 +181,7 @@ export const DRAW_LAYERS = [
 ];
 // what a click can hit, topmost first (drawing-ui.md §5): symbols, outlines, lines, areas, rings
 export const HIT_LAYERS = DRAW_LAYERS.filter((l) => /^draw-(symbol|shape|polygon|path|guide|linehit|ring|label-text)/.test(l.id)).map((l) => l.id).reverse();
-export const MARK_LAYERS = DRAW_LAYERS.filter((l) => /^draw-(mark|handle|stalk|ctrl|mid|lhandle)/.test(l.id)).map((l) => l.id);
+export const MARK_LAYERS = DRAW_LAYERS.filter((l) => /^draw-(mark|handle|stalk|mid|lhandle)/.test(l.id)).map((l) => l.id);
 // what a press can grab, and the cursor over each
 export const HANDLE_LAYERS = ['draw-ctrl', 'draw-handle', 'draw-mid', 'draw-lhandle'];
-export const CURSOR = { move: 'move', point: 'grab', end: 'grab', vertex: 'grab', mid: 'copy', ctrl: 'grab', radius: 'ew-resize', aperture: 'ew-resize', corner: 'nwse-resize', side: 'ew-resize', rotate: 'crosshair', anchor: 'grab', ppoint: 'grab', pmid: 'copy' };
+export const CURSOR = { move: 'move', point: 'grab', end: 'grab', vertex: 'grab', mid: 'copy', radius: 'ew-resize', aperture: 'ew-resize', corner: 'nwse-resize', side: 'ew-resize', rotate: 'crosshair', anchor: 'grab', ppoint: 'grab', pmid: 'copy' };

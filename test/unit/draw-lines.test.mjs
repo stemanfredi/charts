@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
-const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals, smooth, applySmooth, refreshAuto } = await import('../../site/draw/lines.js');
+const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals } = await import('../../site/draw/lines.js');
 const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, makeGroup, splitLine, remove, makePart } = await import('../../site/draw/document.js');
 const { settleGeometry } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
@@ -26,14 +26,17 @@ test('straight legs: the same length as the ruler over the same points', () => {
   assert.deepEqual(tr.coords.at(-1), pts[3]);
 });
 
-test('anchors: the start, each vertex and the end, with their handles', () => {
-  const { line } = lineOf([12, 40], [[12.1, 40.05]], [12.2, 40], { startHandle: [10, 0], endHandle: [-10, 0] });
-  line.vertices[0].handleIn = [-5, 0];
-  line.vertices[0].handleOut = [5, 1];
+test('anchors: the start, each vertex and the end; handles only on a smooth line with a vertex', () => {
+  const { line } = lineOf([12, 40], [[12.1, 40.05]], [12.2, 40]);
   assert.deepEqual(anchorsOf(line), [
-    { position: [12, 40], hIn: null, hOut: [10, 0] },
-    { position: [12.1, 40.05], hIn: [-5, 0], hOut: [5, 1] },
-    { position: [12.2, 40], hIn: [-10, 0], hOut: null }]);
+    { position: [12, 40], hIn: null, hOut: null },
+    { position: [12.1, 40.05], hIn: null, hOut: null },
+    { position: [12.2, 40], hIn: null, hOut: null }]);
+  line.smooth = true;
+  const an = anchorsOf(line);
+  assert.ok(an[0].hOut && an[1].hIn && an[1].hOut && an[2].hIn && !an[0].hIn && !an[2].hOut);
+  const two = lineOf([12, 40], [], [12.2, 40], { smooth: true }).line;
+  assert.ok(anchorsOf(two).every((a) => !a.hIn && !a.hOut), 'no vertex: straight');
 });
 
 test('curved legs: zero handles follow the rhumb line; a handle is ground metres scaled by the projection', () => {
@@ -69,7 +72,7 @@ test('a handle of [100, 0] at 60° N is 200 m of Mercator x', () => {
 test('across the antimeridian: continuous longitudes', () => {
   const doc = emptyDoc(0);
   addLine(doc, [179.5, -17], [[179.9, -16.6]], [-179.5, -16]);
-  addLine(doc, [179.5, -17], [], [-179.5, -16], { startHandle: [20000, 0], endHandle: [-20000, 0] });
+  addLine(doc, [179.5, -17], [[179.9, -16.6]], [-179.5, -16], { smooth: true });
   for (const s of doc.lines) {
     const { coords } = lineTrace(doc, s);
     for (let i = 1; i < coords.length; i++) assert.ok(Math.abs(coords[i][0] - coords[i - 1][0]) < 1, `${s.name}: jump at ${i}`);
@@ -138,34 +141,25 @@ test('totals: per line, per group, per value of a property and in all; guides le
 });
 
 test('smooth: tangents at a vertex parallel to its neighbours\' chord, a third of each leg', () => {
-  const { doc, line } = lineOf([12, 40], [[12.1, 40.05], [12.15, 39.98]], [12.2, 40]);
-  const h = smooth(doc, line);
+  const { line } = lineOf([12, 40], [[12.1, 40.05], [12.15, 39.98]], [12.2, 40], { smooth: true });
+  const an = anchorsOf(line);
   const M = [[12, 40], [12.1, 40.05], [12.15, 39.98], [12.2, 40]].map(mercator);
   const chord = [M[2][0] - M[0][0], M[2][1] - M[0][1]];
-  const k = 1 / Math.cos((40.05 * Math.PI) / 180), out = h.vertices[0].handleOut.map((v) => v * k), inn = h.vertices[0].handleIn.map((v) => v * k);
-  near(out[0] * chord[1] - out[1] * chord[0], 0, 1e-3 * Math.hypot(...out) * Math.hypot(...chord), 'handleOut parallel to the chord');
-  near(inn[0] * chord[1] - inn[1] * chord[0], 0, 1e-3 * Math.hypot(...inn) * Math.hypot(...chord), 'handleIn parallel');
+  const k = 1 / Math.cos((40.05 * Math.PI) / 180), out = an[1].hOut.map((v) => v * k), inn = an[1].hIn.map((v) => v * k);
+  near(out[0] * chord[1] - out[1] * chord[0], 0, 1e-3 * Math.hypot(...out) * Math.hypot(...chord), 'out parallel to the chord');
+  near(inn[0] * chord[1] - inn[1] * chord[0], 0, 1e-3 * Math.hypot(...inn) * Math.hypot(...chord), 'in parallel');
   assert.ok(out[0] * chord[0] + out[1] * chord[1] > 0 && inn[0] * chord[0] + inn[1] * chord[1] < 0, 'out forward, in backward');
   near(Math.hypot(...out), Math.hypot(M[2][0] - M[1][0], M[2][1] - M[1][1]) / 3, 0.01, 'a third of the next leg');
-  assert.ok(h.startHandle && h.endHandle);
-  // a line without vertices, its start free, stays straight
-  const straight = lineOf([12, 40], [], [12.2, 40]);
-  assert.deepEqual(smooth(straight.doc, straight.line), { startHandle: null, endHandle: null, vertices: [] });
 });
 
-test('applySmooth and refreshAuto: lines in mode auto take the Smooth handles, fixed ones keep theirs', () => {
-  const doc = emptyDoc(0);
-  const auto = addLine(doc, [12, 40], [[12.1, 40.05]], [12.2, 40], { mode: 'auto' });
-  const fixed = addLine(doc, [12, 41], [[12.1, 41.05]], [12.2, 41]);
-  refreshAuto(doc);
-  const h = smooth(doc, auto);
-  assert.deepEqual([auto.startHandle, auto.endHandle, auto.vertices[0].handleIn, auto.vertices[0].handleOut],
-    [h.startHandle, h.endHandle, h.vertices[0].handleIn, h.vertices[0].handleOut]);
-  assert.ok(auto.startHandle);
-  assert.deepEqual([fixed.startHandle, fixed.endHandle, fixed.vertices[0].handleIn], [null, null, null]);
-  applySmooth(doc, fixed);
-  assert.ok(fixed.vertices[0].handleOut, 'applied by hand: handles set');
-  assert.equal(fixed.mode, 'fixed');
+test('a smooth line follows its vertices: longer than straight, its curve again when one moves', () => {
+  const { doc, line } = lineOf([12, 40], [[12.1, 40.05]], [12.2, 40]);
+  const straight = lineTrace(doc, line).length;
+  line.smooth = true;
+  const curved = lineTrace(doc, line);
+  assert.ok(curved.length > straight, 'a curve through the vertex is longer than its two legs');
+  line.vertices[0].position = [12.1, 40.1];
+  assert.notEqual(lineTrace(doc, line), curved, 'computed again');
 });
 
 test('an attached end follows its point; one whose point is deleted stays where it was, free', () => {
@@ -196,14 +190,14 @@ test('totals: a point with at least one round part counted as ringed, whatever e
 test('split: a vertex becomes a dot both parts are attached to; lengths unchanged; the dot moved, both follow', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.4, 40]);
-  const s = addLine(doc, a.id, [[12.1, 40.05], [12.2, 40.1], [12.3, 40.05]], b.id, { name: 'Main', startHandle: [10, 0] });
-  Object.assign(s.vertices[1], { name: 'Mark', properties: [{ key: 'k', value: 'v' }], handleIn: [-5, 0], handleOut: [5, 0] });
+  const s = addLine(doc, a.id, [[12.1, 40.05], [12.2, 40.1], [12.3, 40.05]], b.id, { name: 'Main' });
+  Object.assign(s.vertices[1], { name: 'Mark', properties: [{ key: 'k', value: 'v' }] });
   const whole = lineTrace(doc, s).length;
   const p = splitLine(doc, s.id, 1);
   assert.deepEqual([p.name, p.position, p.properties, p.symbol, p.parts], ['Mark', [12.2, 40.1], [{ key: 'k', value: 'v' }], 'dot', []]);
   const [first, rest] = doc.lines;
-  assert.deepEqual([first.id, first.end, first.vertices.length, first.endHandle, first.startHandle], [s.id, { position: [12.2, 40.1], element: p.id }, 1, [-5, 0], [10, 0]]);
-  assert.deepEqual([rest.start, rest.end, rest.vertices.length, rest.startHandle], [{ position: [12.2, 40.1], element: p.id }, { position: [12.4, 40], element: b.id }, 1, [5, 0]]);
+  assert.deepEqual([first.id, first.end, first.vertices.length], [s.id, { position: [12.2, 40.1], element: p.id }, 1]);
+  assert.deepEqual([rest.start, rest.end, rest.vertices.length], [{ position: [12.2, 40.1], element: p.id }, { position: [12.4, 40], element: b.id }, 1]);
   assert.notEqual(rest.id, first.id);
   near(lineTrace(doc, first).length + lineTrace(doc, rest).length, whole, 1e-6, 'length');
   p.position = [12.2, 40.2];

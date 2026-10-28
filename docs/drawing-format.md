@@ -255,27 +255,24 @@ two of these.
   "kind": "line",
   "start": { "element": "a" },
   "end": { "element": "s", "vertex": 2 },
-  "startHandle": null,
-  "endHandle": [120, -40],
-  "vertices": [ { "handleIn": null, "handleOut": null, "name": "bend 1", "properties": [] } ],
-  "mode": "fixed"
+  "smooth": true,
+  "vertices": [ { "name": "bend 1", "properties": [] } ]
 }
 ```
 
 | Field | Notes |
 |---|---|
 | `start`, `end` | what each end is attached to (§7.4); missing: a free end, where the geometry says |
-| `startHandle` | the handle leaving the start; `endHandle` the handle arriving at the end |
-| `vertices` | one entry per interior position of the geometry, in order: `handleIn` and `handleOut` (arriving at and leaving that vertex), and an optional `name` and `properties` (`[{ key, value }]`). Vertices have no ID. Written only when one of them has something; matched to the positions by order. |
-| handle | `[east, north]` in metres on the ground at its anchor, or `null` |
-| `mode` | `"fixed"`: never changed by the app. `"auto"`: its handles are worked out again after every change (Smooth, `site/draw/lines.js`). |
+| `smooth` | `true`: a smooth curve through its vertices; missing or `false`: straight legs |
+| `vertices` | one entry per interior position of the geometry, in order: an optional `name` and `properties` (`[{ key, value }]`). Vertices have no ID. Written only when one of them has something; matched to the positions by order. |
 
-**Legs.** A leg without handles is the **geodesic** between its two anchors (as the ruler draws it).
-A leg with a handle is a cubic Bézier in the map's projection (Web Mercator); a `null` handle on it
-counts as `[0, 0]`. Handles are ground metres, scaled to the projection at their anchor. Lengths are
-always geodesic: a curve's is summed over close samples of it until the sum settles. A curve is the
-line itself: its length, the values shown and the GIS export are the curve's. Lengths are never
-stored.
+**Legs.** A straight line's legs are the **geodesics** between its anchors (as the ruler draws
+them). A smooth line's (with at least one vertex) are cubic Béziers in the map's projection (Web
+Mercator) whose handles are worked out from the anchors (Catmull-Rom: at a vertex parallel to the
+chord between its neighbours, a third of each leg; `site/draw/lines.js`), so the curve follows its
+vertices. Lengths are always geodesic: a curve's is summed over close samples of it until the sum
+settles. A curve is the line itself: its length, the values shown and the GIS export are the
+curve's. Lengths are never stored.
 
 The geometry holds the vertices only: other tools show a curved line straight through its vertices,
 and its legs straight in longitude and latitude (§13).
@@ -430,11 +427,11 @@ it.
 
 - Every value equal to its default (§16) is left out, and an object when nothing in it differs: a
   point that is only an ID and a position is written as `"charts": { "kind": "point" }`.
-- Rounding: positions 7 decimals (about 1 cm); metres (radii, outline sizes, handles, margins,
+- Rounding: positions 7 decimals (about 1 cm); metres (radii, outline sizes, margins,
   offsets, a distribution's `spacing` and `radius`) 3; angles (bearings, apertures, the view's zoom) 4;
   opacities and widths 3; an edge's `at` 6; a copy's `t` 9.
   The reader takes any precision.
-- The text is indented JSON, each position and handle on one line.
+- The text is indented JSON, each position on one line.
 - A drawing read back is the same drawing (tested in `test/unit/draw-document.test.mjs`).
 
 ## 10. In the browser
@@ -610,10 +607,9 @@ What a value is when the file leaves it out. Writing it with this value means th
 | point | `symbol` | `"none"`; `"diamond"` for a feature without `charts` |
 | point | `parts` | `[]` |
 | line | `start`, `end` | free |
-| line | `startHandle`, `endHandle` | `null` |
 | line | `vertices` | each `{}` |
-| vertex | `handleIn`, `handleOut`; `name`; `properties` | `null`; `""`; `[]` |
-| line | `mode` | `"fixed"` |
+| vertex | `name`; `properties` | `""`; `[]` |
+| line | `smooth` | `false` |
 | area | `reversed` | `false` |
 | label | `text` | `""` |
 | label | `anchor` | none: free, at the geometry |
