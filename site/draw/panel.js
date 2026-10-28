@@ -256,7 +256,7 @@ export function drawView(root, ctx) {
     // the grid fits the panel's 320 px: #, Kind, Size, Across, Fill; the row current has its name and
     // Shown in the bar over the grid, with Delete
     const table = listGrid({ name: `${id}:parts`,
-      columns: [{ head: '#', width: 28, frozen: true, cls: 'num' }, { head: 'Kind', width: 92 },
+      columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 },
         { head: `Size ${U}`, width: 80, cls: 'n', title: 'A circle\'s or sector\'s radius, an outline\'s length' },
         { head: `Across ${U}`, width: 64, cls: 'n', title: 'A sector\'s aperture (°), centred on the bearing; an outline\'s width' },
         { head: 'Fill', width: 40 }],
@@ -413,9 +413,9 @@ export function drawView(root, ctx) {
   const legFields = (id, places, k, put, what) => [
     F.dist(() => legOf(placesNow(id, places), k).s, (m) => set(id, (x) => put(x, k, { s: m })), `${what} ${k + 1} leg length`, { in: colUnit() }),
     F.angle(() => legOf(placesNow(id, places), k).azi, (a) => set(id, (x) => put(x, k, { azi: a })), `${what} ${k + 1} leg bearing (degrees true)`, { fixed: 1 })];
-  // a table of places' first columns, # pinned; with its leg and bearing 304 px, inside Properties' 320
+  // a table of places' first columns; with its leg and bearing 304 px, inside Properties' 320
   // with a scroll bar: degrees in 6 decimals, distances to the metre (up to 999 km), bearings to a tenth
-  const PLACE_COLUMNS = [{ head: '#', width: 28, frozen: true, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
+  const PLACE_COLUMNS = [{ head: '#', width: 28, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
   // a table's distances: one unit for the column (its head says it), km or NM as the display's
   const colUnit = () => (ctx.units() === 'nm' ? 'nm' : 'km');
   const colUnitText = () => (ctx.units() === 'nm' ? 'NM' : 'km');
@@ -548,8 +548,7 @@ export function drawView(root, ctx) {
     // the grid fits the panel's 320 px: #, Lat, Lon, the leg and its bearing; the row current says
     // how far along the line its point is, and holds a vertex's name, in the bar over the grid
     const along = (k) => funit(`${inUnit(at[k] || 0)} ${U} along`);
-    const rowAt = (k) => ({ cls: k === 0 || k === N - 1 ? 'vnode' : null,
-      cells: [k === 0 || k === N - 1 ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
+    const rowAt = (k) => ({ cells: [k === 0 || k === N - 1 ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
         ...(k === 0 || k === N - 1 ? endCells(k) : [vcoord(k, 'lat'), vcoord(k, 'lon')]),
         ...(k ? legCells(k) : [null, null])] });
     // an end's Attach to… (the next click on the map chooses what to) and Detach (free where it is)

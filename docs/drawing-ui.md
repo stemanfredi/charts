@@ -39,7 +39,7 @@ One layout at every width (`site/frame.js`).
   E) then brings it back, Properties off.
 - **The map's foot**: one strip above the bottom row, between the panels (a phone: above its sheet).
   At its left, stacked: the note, the legends, the touch row; at its right **the map's controls**: my
-  position, north (only when turned); no zoom buttons. Nothing else sits there, so nothing overlaps.
+  position, zoom in and out, north (only when turned). Nothing else sits there, so nothing overlaps.
   The bottom row between the panels: credits, the time shown (a chip: ‹ hour ›, **Now**, the
   depth), the cursor's position, the scale (a click switches km and NM).
 - **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`), never the
@@ -158,14 +158,14 @@ read in that one).
 - **Rows**: a label, one value or a pair (latitude · longitude, colour · opacity), and a last column
   for an action (detach, attach, ↺). A box ticked is a row like any other.
 - **Lists** (parts, a line's points, an area's corners, data, the totals, a connection's roots): one
-  kind of table. A long one scrolls in its own box, its head kept; its first column stays as the rest
-  scrolls sideways, though none is wider than the panel's 320 px. The row clicked is current, its
+  kind of table, none wider than the panel's 320 px. A long one scrolls in its own box, its head
+  kept. The row clicked is current, its
   actions (and what did not fit the columns) in a bar over the list, shown only then, and on keys
   (Insert, Ctrl/⌘ Delete); ↑ ↓ and Enter keep the column. Past 100 rows, a page at a time. **Copy**
   gives every row, tab-separated, for a spreadsheet. Numbers are right-aligned, with fixed decimals:
   degrees to 6 (a decimetre), distances in the column's unit (km or NM, in its head) to 3, bearings
   to 1.
-- **Sections** that fold (a chevron head): **Data**, open while it has properties of the user's;
+- **Sections** have the tree's group rows' head, its arrow at the left where one folds: **Data**, open while it has properties of the user's;
   **Depth profile**, read when opened; **Totals**, open to start with.
 - **A line's points**, 1 (its start) to N (its end): Lat, Lon; the **leg** from the point before,
   its length and bearing (typed: that point alone moves, the legs either side of it change). The row

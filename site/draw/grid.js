@@ -1,8 +1,7 @@
 // List grids (docs/drawing-ui.md §5): a small spreadsheet of like things (a line's vertices, an
-// area's corners, a point's parts, its properties). Its columns of fixed widths, the first ones
-// (frozen) kept in place while the rest scrolls sideways, its head while it scrolls down (a long one
-// scrolls in its own box); a current row, marked, whose actions are a bar over the grid (only while a
-// row is current) and keys
+// area's corners, a point's parts, its properties). Its columns of fixed widths, its head kept while
+// it scrolls down (a long one scrolls in its own box); a current row, marked, whose actions are a
+// bar over the grid (only while a row is current) and keys
 // (Insert, Ctrl/⌘ Delete); ↑, ↓ and Enter go to the same column in the row above or below. The panel builds its inspector again after each change: where the focus goes
 // after a key, and which row is current, are kept by the grid's name and taken up again.
 
@@ -33,7 +32,7 @@ export function setCurrent(name, i) { stateOf(name).current = i; }
 export const currentOf = (name) => stateOf(name).current;
 
 // A list grid. name: what keeps its state (the element's id and the list's); columns: [{ head,
-// width (px), frozen, title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty
+// width (px), title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty
 // last row (typing in it adds one), or null; actions(i): { label, buttons (any nodes) } for row i, or null (none: no bar); keys: { insert(i),
 // remove(i) }; current(i): row i made current (or null: none), as it is and when it changes. plain: a
 // table read, not edited (the totals): no current row, and no head unless head says so; its rows' cls
@@ -41,14 +40,7 @@ export const currentOf = (name) => stateOf(name).current;
 export function listGrid({ name, columns, rows, add = null, actions = null, keys = {}, current = () => {}, plain = false, head = !plain }) {
   const st = stateOf(name);
   if (st.current != null && st.current >= rows.length) st.current = null;
-  // the frozen columns' offsets, from the left
-  let left = 0;
-  const lefts = columns.map((c) => { const at = left; if (c.frozen) left += c.width; return c.frozen ? at : null; });
-  const cell = (tag, k, kids, attrs = {}) => {
-    const c = columns[k], el = h(tag, { class: [c.cls, c.frozen ? 'frozen' : '', k === columns.filter((x) => x.frozen).length - 1 && c.frozen ? 'fedge' : ''].filter(Boolean).join(' ') || null, ...attrs }, ...[kids].flat().filter((x) => x != null));
-    if (c.frozen) el.style.left = `${lefts[k]}px`; // CSSOM: the page's CSP allows no style attribute
-    return el;
-  };
+  const cell = (tag, k, kids, attrs = {}) => h(tag, { class: columns[k].cls || null, ...attrs }, ...[kids].flat().filter((x) => x != null));
   // over the grid, while a row is current: the row's actions (nothing otherwise: no room taken)
   const bar = h('div', { class: 'lbar' });
   const showBar = () => {

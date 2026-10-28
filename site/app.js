@@ -217,6 +217,8 @@ new ResizeObserver(() => { document.documentElement.style.setProperty('--status-
 // ---- the compass (it only appears when the map is rotated) -------------------------------------
 const compass = $('#compass');
 compass.addEventListener('click', () => map.resetNorth());
+$('#zoom-in').addEventListener('click', () => map.zoomIn());
+$('#zoom-out').addEventListener('click', () => map.zoomOut());
 function renderCompass() {
   const b = map.getBearing();
   compass.hidden = Math.abs(b) < 0.5;
@@ -733,6 +735,7 @@ const icon = (...paths) => svg('svg', { viewBox: '0 0 24 24', width: 20, height:
   paths.map((d) => (Array.isArray(d) ? svg('path', { d: d[0], fill: d[1], stroke: d[1] }) : svg('path', { d }))));
 const ICON = {
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'],
+  plus: ['M12 5v14', 'M5 12h14'], minus: ['M5 12h14'],
   link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
   png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
   zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],

@@ -185,11 +185,15 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect > :is(.frow:not(.vrow), .note, .fbuttons) { padding: 4px 0; }
 .dinspect > * { flex-shrink: 0; } /* a row as tall as what it holds, the inspector scrolling */
 .dinspect h2 { font-size: 13px; margin: 0; flex: 1; min-width: 0; }
-.dinspect h3 { display: flex; align-items: center; justify-content: space-between; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0; min-height: var(--row); padding: 0 8px 0 12px; background: var(--bg2); border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
-.dinspect h3 .hbtns { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; }
+/* a section's head, as a group's row in the tree (.drow.dgroup): 13 px bold, its fold's arrow in a 20 px
+   slot at its left (the slot kept where it does not fold, so that titles line up), its buttons at its right */
+.dinspect h3 { display: flex; align-items: center; justify-content: space-between; font: 600 13px/1.2 var(--font); color: var(--ink); margin: 0; min-height: var(--row); padding: 0 8px 0 22px; border-top: 1px solid var(--line2); }
+.dinspect h3:has(.hfold) { padding-left: 2px; }
+.dinspect h3 .hbtns { display: flex; align-items: center; gap: 6px; }
 /* a heading that folds its section: the word and its arrow, one target */
-.dinspect h3 .hfold { display: flex; align-items: center; gap: 6px; flex: 1; min-height: var(--row); min-width: var(--row); border: 0; background: none; padding: 0 8px 0 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; }
-.dinspect h3 .hfold::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; margin: 0 4px; }
+.dinspect h3 .hfold { display: flex; align-items: center; flex: 1; min-height: var(--row); border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.dinspect h3 .hfold:hover { background: var(--hover); }
+.dinspect h3 .hfold::before { content: ""; width: 6px; height: 6px; margin: 0 8px 0 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; color: var(--soft); transform: rotate(-45deg); transition: transform .15s; }
 .dinspect h3 .hfold[aria-expanded="true"]::before { transform: rotate(45deg); }
 .frow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .flabel { flex: none; width: 78px; color: var(--soft); font-size: 12px; }
@@ -261,23 +265,16 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid :is(th, td) { border-bottom: 1px solid var(--line2); border-right: 1px solid var(--line2); }
 .lgrid :is(th, td):last-child { border-right: 0; }
 .lgrid thead th { background: var(--bg2); height: 24px; position: sticky; top: 0; z-index: 2; }
-.lgrid thead th.frozen { z-index: 3; }
 .lgrid th { font-weight: 400; font-size: 11px; color: var(--soft); text-align: left; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lgrid td { padding: 0; height: var(--row); vertical-align: middle; white-space: nowrap; }
 .lgrid td.num { padding: 0 4px; }
-.lgrid td.num { font-family: var(--mono); font-size: 12px; color: var(--soft); text-align: right; }
+.lgrid td.num { font-family: var(--mono); font-size: 12px; text-align: right; }
 .lgrid th.num { text-align: right; }
 .lgrid td :is(input:not([type=checkbox]):not([type=color]), select) { width: 100% !important; min-width: 0 !important; }
 .lgrid td .vpair { width: 100%; }
 .lgrid td .fvalue { color: var(--soft); }
-.lgrid .frozen { position: sticky; z-index: 1; background: var(--bg); }
-.lgrid .frozen.fedge { border-right-color: var(--line); } /* the pinned edge: its own border, a shade darker; nothing drawn beside it */
 .lgrid tbody tr:not(.cur, .ladd):hover td { background: var(--hover); } /* a row a click makes current */
 .lgrid tr.cur td { background: var(--sel); }
-.lgrid tr.vnode td { background: var(--bg2); }
-.lgrid tr.cur td.frozen, .lgrid tr.vnode td.frozen { background: inherit; }
-.lgrid tr.cur td.frozen { background: var(--sel); }
-.lgrid tr.vnode td.frozen { background: var(--bg2); }
 .lgrid tr.warn td { color: var(--warn); }
 .lgrid tr.ladd td { opacity: .75; }
 /* a plain grid (the totals): sections (Lines, Areas, Points) naming their columns, a group's row with
