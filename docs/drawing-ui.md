@@ -78,16 +78,15 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
 |---|---|---|
 | Point | symbol, then the user's presets without extent | a point with a symbol: a marker, the same size at every zoom |
 | Line | none | a line (Guide is a switch on any element, §5) |
-| Shape | circle, rings, sector, arc, rectangle, ellipse, triangle, polygon, aerial vehicle, surface vehicle, underwater vehicle, then the user's presets with extent | see below |
+| Shape | circle, rings, sector, rectangle, ellipse, triangle, polygon, aerial vehicle, surface vehicle, underwater vehicle, then the user's presets with extent | see below |
 | Label | none | a label |
 | Measure | distance, area, ring | a guide showing its values (§3) |
 
 - **Shape**: built-in presets, as the user's are (`place.js`): a circle (1 km), rings (1, 2 and 3 km,
-  the first filled), a sector and an arc (three clicks, below; an arc is a sector's curved edge alone,
-  never filled), an outline to scale (100 × 50 m; a triangle 100 m a side); and a polygon (an area,
-  drawn corner by corner). Each is a point with its parts (circles, sectors, arcs, outlines) and no
-  symbol, named after what it is ("Circle 2"), the preset
-  it came from kept as its property `preset` ("Rings").
+  the first filled), a sector (three clicks, below), an outline to scale (100 × 50 m; a triangle
+  100 m a side); and a polygon (an area, drawn corner by corner). Each is a point with its parts
+  (circles, sectors, outlines) and no symbol, named after what it is ("Circle 2"), the preset it came
+  from kept as its property `preset` ("Rings").
 
 ### 2.1 Placing and drawing
 
@@ -109,7 +108,7 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
   start). The snap marker shows what a click would attach to.
 - **Polygon** (Shape): a click per corner; a click on its first corner (marked when the pointer is
   on it), Enter or a double-click closes it (three corners at least).
-- **Sector** and **Arc** (Shape), in three clicks: the centre; the radius and one edge; the other edge, clockwise.
+- **Sector** (Shape), in three clicks: the centre; the radius and one edge; the other edge, clockwise.
   Esc or **Back** goes one click back. A third click back
   on the first edge makes a full circle.
 - **Label**: a click points a new label at what snapping finds there (a point's centre, a vertex, a

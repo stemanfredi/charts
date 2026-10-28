@@ -508,7 +508,7 @@ await section('the drawing', async () => {
   const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
   await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind)
   const sub = await dw.locator('.subrail button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
-  check(sub.join() === 'Circle,Rings,Sector,Arc,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
+  check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds, round a centre first, then the outlines, then the vehicles (${sub})`);
   // from 1024 px wide: the rail docked at the left edge, the tool's kinds a column beside it, nothing
   // folded away; the column (tree over inspector) open, hidden by the rail's toggle, back with E; the
@@ -818,7 +818,7 @@ await section('the drawing', async () => {
   const square = await boxOf([DX + 300, 560], [DX + 380, 600]);
   check(sized[0] === 0 && Math.abs(sized[1] - sized[3]) < 2 && Math.abs(sized[2] - sized[4]) < 2 && Math.abs(sized[5] - DX - 340) <= 1 && Math.abs(sized[6] - 480) <= 1 && square[1] === square[2] && Math.abs(square[1] - square[4]) < 2,
     `shapes: a rectangle corner to corner, facing north, centred between them; Shift a square (${sized.map((v) => Math.round(v))}; ${square.slice(1, 3).map(Math.round)})`);
-  // a polygon closed by a click on its first corner; an arc in three clicks: open, never filled
+  // a polygon closed by a click on its first corner; a sector in three clicks
   await dw.keyboard.press('Escape');
   await dw.evaluate(() => { drawing.variant.shape = 'polygon'; });
   await dw.keyboard.press('s');
@@ -826,15 +826,15 @@ await section('the drawing', async () => {
   for (const [x, y] of [[450, 450], [520, 450], [500, 520], [451, 451]]) await dw.mouse.click(DX + x, y);
   const closed = await dw.evaluate(() => [drawing.doc.areas.length, drawing.doc.areas.at(-1)?.points.length, !!drawing.draft]);
   await dw.keyboard.press('Escape');
-  await dw.evaluate(() => { drawing.variant.shape = 'arc'; });
+  await dw.evaluate(() => { drawing.variant.shape = 'sector'; });
   await dw.keyboard.press('s');
   for (const [x, y] of [[600, 450], [600, 400], [650, 450]]) await dw.mouse.click(DX + x, y);
   await dw.waitForTimeout(300);
-  const arc = await dw.evaluate(() => { const x = drawing.doc.points.at(-1); return [x.parts.map((q) => [q.kind, q.fill, Math.round(q.aperture)].join(':')).join(), x.name.split(' ')[0],
+  const sec = await dw.evaluate(() => { const x = drawing.doc.points.at(-1); return [x.parts.map((q) => [q.kind, q.fill, Math.round(q.aperture)].join(':')).join(), x.name.split(' ')[0],
     map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').map((f) => f.geometry.type)[0]]; });
   await dw.keyboard.press('Escape');
-  check(closed.join() === `${areasBefore + 1},3,false` && arc[0] === 'arc:false:90' && arc[1] === 'Arc' && arc[2] === 'LineString',
-    `shapes: a polygon closed on its first corner (${closed}); an arc in three clicks, open and unfilled (${arc})`);
+  check(closed.join() === `${areasBefore + 1},3,false` && sec[0] === 'sector:true:90' && sec[1] === 'Sector' && sec[2] === 'Polygon',
+    `shapes: a polygon closed on its first corner (${closed}); a sector in three clicks (${sec})`);
   await dw.evaluate(() => drawing.remove([drawing.doc.points.at(-1).id, drawing.doc.areas.at(-1).id])); // the checks after these find the drawing as it was
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('Escape');

@@ -8,14 +8,13 @@ import { inverse } from '../geodesy.js';
 import { unrollTo } from '../geo.js';
 
 // The built-in presets, by the Shape tool's kind: a circle of 1 km; rings at 1, 2 and 3 km (the first
-// filled); a sector of 1 km, 90° wide, and an arc as its edge; an outline (a triangle equilateral, 100 m a side; the others
+// filled); a sector of 1 km, 90° wide; an outline (a triangle equilateral, 100 m a side; the others
 // 100 × 50 m).
 const outline = (kind) => makePart(kind, kind === 'triangle' ? { length: 50 * Math.sqrt(3), width: 100 } : {});
 export const BUILT_IN = {
   circle: { symbol: 'none', parts: [makePart('circle', { radius: 1000 })] },
   rings: { symbol: 'none', parts: [1000, 2000, 3000].map((radius, i) => ({ ...makePart('circle', { radius }), fill: !i })) },
   sector: { symbol: 'none', parts: [makePart('sector', { radius: 1000, aperture: 90 })] },
-  arc: { symbol: 'none', parts: [makePart('arc', { radius: 1000, aperture: 90 })] },
   ...Object.fromEntries(OUTLINES.map((k) => [k, { symbol: 'none', parts: [outline(k)] }])),
 };
 // what a built-in kind is called: "Circle", "Rings", "Rectangle"…

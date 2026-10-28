@@ -194,9 +194,9 @@ A point's parts (`charts.parts`), a list of entries, each drawn to scale about i
 
 | Field | Notes |
 |---|---|
-| `kind` | `"circle"`, `"sector"`, `"arc"` (a sector's curved edge alone: never filled, `fill` read as false), or an outline (§7.5) |
-| `radius` | a circle's, a sector's and an arc's, metres, above 0 and below 10 000 km |
-| `aperture` | a sector's and an arc's, degrees (above 0, below 360), centred on the point's `bearing`. Missing, or 360 or more: a circle (warning, but for exactly 360). |
+| `kind` | `"circle"`, `"sector"`, or an outline (§7.5) |
+| `radius` | a circle's and a sector's, metres, above 0 and below 10 000 km |
+| `aperture` | a sector's, degrees (above 0, below 360), centred on the point's `bearing`. Missing, or 360 or more: a circle (warning, but for exactly 360). |
 | `length`, `width` | an outline's, metres, above 0: along the point's bearing and across it |
 | `fill` | `false`: drawn as an outline only. Default `true`. |
 | `shown` | `false`: kept but not drawn. Default `true`. |

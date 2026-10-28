@@ -44,19 +44,15 @@ export const SYMBOLS = ['diamond', 'square', 'triangle', 'dot', 'none'];
 export const DASHES = ['solid', 'dashed', 'dotted'];
 export const OUTLINES = ['rectangle', 'triangle', 'ellipse', 'aerial-vehicle', 'surface-vehicle', 'underwater-vehicle']; // outlines.js draws them
 // A point's parts (docs/drawing-ui.md §5): round ones (a circle, its radius; a sector, its radius
-// and aperture, centred on the point's bearing; an arc, a sector's curved edge alone, never filled)
-// and outlines (a length along the bearing and a width).
-// Each has its own Fill and Shown switches, a name, and its own stroke colour and dash (null: the
-// point's).
-export const ROUND = ['circle', 'sector', 'arc'];
-export const ARCED = new Set(['sector', 'arc']); // a round part with an aperture
+// and aperture, centred on the point's bearing) and outlines (a length along the bearing and a
+// width). Each has its own Fill and Shown switches and a name; its stroke is the point's.
+export const ROUND = ['circle', 'sector'];
 export const PART_KINDS = [...ROUND, ...OUTLINES];
 export const isRound = (part) => ROUND.includes(part.kind);
 export function makePart(kind, size = {}) {
   const part = { kind, fill: true, shown: true, name: '' };
   if (ROUND.includes(kind)) part.radius = size.radius ?? NEW_RADIUS; else { part.length = size.length ?? 100; part.width = size.width ?? 50; }
-  if (ARCED.has(kind)) part.aperture = size.aperture ?? 90;
-  if (kind === 'arc') part.fill = false;
+  if (kind === 'sector') part.aperture = size.aperture ?? 90;
   return part;
 }
 // a part's reach from the point: its radius, or half its length (along the bearing)
@@ -142,15 +138,15 @@ export function nextName(doc, kind, base = KIND[kind].name) {
   return `${base} ${used.length ? Math.max(...used) + 1 : 1}`;
 }
 // What kind of point it is, for its name and icon: its largest outline's kind; else, by its round
-// parts, 'sector' (one is), 'arc' (one is), 'rings' (several) or 'circle'; else 'point' (a symbol). Every one is a
+// parts, 'sector' (one is), 'rings' (several) or 'circle'; else 'point' (a symbol). Every one is a
 // point in the file.
 export function pointKind(p) {
   const o = mainOutline(p), r = roundParts(p);
   if (o) return o.part.kind;
   const has = (k) => r.some((x) => x.part.kind === k);
-  return !r.length ? 'point' : has('sector') ? 'sector' : has('arc') ? 'arc' : r.length > 1 ? 'rings' : 'circle';
+  return !r.length ? 'point' : has('sector') ? 'sector' : r.length > 1 ? 'rings' : 'circle';
 }
-export const POINT_KIND_NAME = { point: 'Point', circle: 'Circle', rings: 'Rings', sector: 'Sector', arc: 'Arc' };
+export const POINT_KIND_NAME = { point: 'Point', circle: 'Circle', rings: 'Rings', sector: 'Sector' };
 
 const groupOf = (doc, el) => (el.groupId ? doc.groups.find((g) => g.id === el.groupId) : null);
 // The groups an element (or a group) is in, the nearest first: its group, that group's, and so on

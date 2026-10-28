@@ -242,7 +242,7 @@ export class Drawing extends DrawStore {
     clearTimeout(this.dblZoom); // stop()'s, which would turn it on again after this
     const v = this.variant[tool];
     this.pressed = tool;
-    this.tool = tool === 'shape' && ['polygon', 'sector', 'arc'].includes(v) ? (v === 'arc' ? 'sector' : v) : tool === 'measure' ? { ruler: 'line', area: 'polygon', ring: 'shape' }[v] : tool;
+    this.tool = tool === 'shape' && ['polygon', 'sector'].includes(v) ? v : tool === 'measure' ? { ruler: 'line', area: 'polygon', ring: 'shape' }[v] : tool;
     this.map.doubleClickZoom.disable();
     this.map.boxZoom.disable(); // Shift is the tools' (steps, a square), not the map's box zoom
     if (tool === 'area') this.map.dragPan.disable(); // a drag draws the rectangle (the tool is the box)
@@ -467,8 +467,7 @@ export class Drawing extends DrawStore {
       this.draft = null;
       let el;
       this.change((doc) => { const radius = Math.round(sec.r * 1000) / 1000;
-        const arc = this.variant.shape === 'arc'; // Shape › arc: the sector's three clicks, its edge alone (a whole one: a circle, not filled)
-        const part = sec.aperture ? makePart(arc ? 'arc' : 'sector', { radius, aperture: sec.aperture }) : { ...makePart('circle', { radius }), fill: !arc };
+        const part = sec.aperture ? makePart('sector', { radius, aperture: sec.aperture }) : makePart('circle', { radius });
         el = addPoint(doc, d.pts[0], { symbol: 'none', parts: [part], bearing: sec.bearing }); el.name = nameByLook(doc, el); });
       this.select([el.id]);
     }
@@ -515,8 +514,7 @@ export class Drawing extends DrawStore {
     if (sec) {
       const line = (coordinates) => ({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates } });
       const out = [line([sec.centre, sec.first])];
-      const edge = this.variant.shape === 'arc' && sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture).slice(1, -1) : null; // an arc: its edge alone
-      if (this.draft.pts[1] && sec.r > 0) out.push(line(edge || (sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture) : circle(sec.centre, sec.r))));
+      if (this.draft.pts[1] && sec.r > 0) out.push(line(sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture) : circle(sec.centre, sec.r)));
       return out;
     }
     const poly = this.draftPolygon();

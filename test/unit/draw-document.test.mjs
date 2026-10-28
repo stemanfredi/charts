@@ -546,7 +546,7 @@ test('parts: round and outline ones by place, each one\'s reach, the largest out
   const doc = emptyDoc(NOW);
   const p = addPoint(doc, [0, 0], { parts: [makePart('rectangle', { length: 300, width: 400 }), { ...makePart('circle', { radius: 100 }), fill: false },
     makePart('triangle', { length: 500, width: 10 }), makePart('sector', { radius: 200, aperture: 30 })] });
-  assert.deepEqual([d.isRound(p.parts[1]), d.isRound(p.parts[0]), d.ROUND, d.PART_KINDS], [true, false, ['circle', 'sector', 'arc'], ['circle', 'sector', 'arc', ...d.OUTLINES]]);
+  assert.deepEqual([d.isRound(p.parts[1]), d.isRound(p.parts[0]), d.ROUND, d.PART_KINDS], [true, false, ['circle', 'sector'], ['circle', 'sector', ...d.OUTLINES]]);
   assert.deepEqual(p.parts.map(d.reachOf), [150, 100, 250, 200]); // an outline: half its length, whatever its width
   assert.deepEqual(d.roundParts(p).map((x) => x.i), [1, 3]);
   assert.deepEqual(d.outlineParts(p).map((x) => x.i), [0, 2]);
@@ -555,8 +555,6 @@ test('parts: round and outline ones by place, each one\'s reach, the largest out
   assert.equal(d.pointKind(p), 'triangle'); // the largest outline's kind
   p.parts = p.parts.filter((x) => d.isRound(x));
   assert.deepEqual([d.mainOutline(p), d.pointKind(p)], [null, 'sector']); // a sector among them
-  assert.equal(d.pointKind({ parts: [makePart('circle', { radius: 50 }), makePart('arc', { radius: 90 })] }), 'arc'); // an arc among them, no sector
-  assert.deepEqual([makePart('arc').fill, makePart('arc').aperture], [false, 90]); // an arc: never filled
   p.parts[1].kind = 'circle';
   assert.equal(d.pointKind(p), 'rings');
   p.parts[1].fill = false;
