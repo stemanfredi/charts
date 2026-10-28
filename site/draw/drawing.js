@@ -83,7 +83,7 @@ export class Drawing extends DrawStore {
   changed() { this.render(); this.saving.soon(); this.onChange('doc'); }
   selectionChanged() {
     if (this.repointing && !this.sel.has(this.repointing.id)) this.cancelRepoint();
-    this.placeMark = null;
+    this.placeMark = this.placeKey = null;
     this.renderMarks();
     this.onChange('sel');
   }
@@ -126,7 +126,8 @@ export class Drawing extends DrawStore {
       // where a click or a drag would snap: a ring on a vertex, a cross at a crossing, a dot on an edge
       if (this.snapMark) over.push({ type: 'Feature', properties: { kind: `snap${this.snapMark.kind}` }, geometry: { type: 'Point', coordinates: this.snapMark.position } });
       // the place of the row current in Properties' table (a line's point, an area's corner): ringed
-      if (this.placeMark) over.push({ type: 'Feature', properties: { kind: 'place' }, geometry: { type: 'Point', coordinates: this.placeMark } });
+      if (this.placeMark) over.push(this.placeMark.line ? { type: 'Feature', properties: { kind: 'placeline' }, geometry: { type: 'LineString', coordinates: this.placeMark.line } }
+        : { type: 'Feature', properties: { kind: 'place' }, geometry: { type: 'Point', coordinates: this.placeMark } });
       set('drawover', over);
       this.renderLabels();
     }
@@ -221,9 +222,12 @@ export class Drawing extends DrawStore {
   }
 
   // ---- what the panel sets ------------------------------------------------------------------
-  // the place of the row current in a table of places (a position, or null: none), ringed on the map
+  // what the row current in Properties' table is, marked on the map: a place (a position: ringed), a
+  // part ({ line: its outline's coordinates }: drawn over), or null: none
   markPlace(p) {
-    if (p === this.placeMark || (p && this.placeMark && p[0] === this.placeMark[0] && p[1] === this.placeMark[1])) return;
+    const key = p ? JSON.stringify(p) : null;
+    if (key === this.placeKey) return;
+    this.placeKey = key;
     this.placeMark = p;
     this.renderMarks();
   }
@@ -600,9 +604,10 @@ export class Drawing extends DrawStore {
       const pt = at(e), h = this.handleAt(pt);
       const grab = h || (this.hitAt(pt, 3).some((id) => this.sel.has(id)) ? { role: 'move' } : null);
       if (!grab) return;
-      // a line's point or an area's corner pressed: its row in Properties' table made current
-      // (place: the element and the place's index, its start 0)
-      const index = h?.role === 'vertex' ? +h.ref + 1 : h?.role === 'end' ? (+h.ref ? find(this.doc, h.id)?.el.vertices.length + 1 : 0) : h?.role === 'ppoint' ? +h.ref : null;
+      // a line's point, an area's corner or a point's part (a handle of it) pressed: its row in
+      // Properties' table made current (place: the element and the row's index, a line's start 0)
+      const index = h?.role === 'vertex' ? +h.ref + 1 : h?.role === 'end' ? (+h.ref ? find(this.doc, h.id)?.el.vertices.length + 1 : 0) : h?.role === 'ppoint' ? +h.ref
+        : ['radius', 'aperture', 'corner', 'side'].includes(h?.role) ? parseInt(h.ref, 10) : null;
       if (index != null) { this.place = { id: h.id, index }; this.onChange('place'); }
       map.dragPan.disable();
       const ll = map.unproject([pt.x, pt.y]);

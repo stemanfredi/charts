@@ -28,6 +28,8 @@ function takeFocus(name, from) {
 
 // a row made current from outside (its place picked on the map): the grid named name, built again
 export function setCurrent(name, i) { stateOf(name).current = i; }
+// the row current in the grid named name, or null
+export const currentOf = (name) => stateOf(name).current;
 
 // A list grid. name: what keeps its state (the element's id and the list's); columns: [{ head,
 // width (px), frozen, title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty

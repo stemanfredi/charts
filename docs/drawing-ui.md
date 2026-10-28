@@ -161,7 +161,12 @@ follows a drag on the map as it moves.
 - A line's **Path**: straight, or smooth (a curve through the vertices, following them).
   **Depth profile**: the depth along it from the depth shading's grid (at most 1,000 places), its
   extremes, a chart linked to the map both ways, its length along the seabed, CSV.
-- A point's **Parts** are its own: circles, sectors, outlines, each with Fill, Shown and a name.
+- A point's **Parts** are its own: circles, sectors, outlines; a table of Kind, **Size** (a radius, an
+  outline's length), **Across** (a sector's aperture in °, an outline's width), Fill, Shown and a name.
+  One way to add one: the table's empty last row. The row current draws its part over on the map; a
+  part's handle pressed on the map makes its row current. All parts share the point's Bearing (a
+  sector centred on it, an outline facing it). **Distribute along…** goes round the part whose row
+  is current (the form can choose another).
   **Data**: its properties as keys and values, folded while it has none of the user's.
 - **Guide** (points, lines, areas): faint and dashed, left out of the totals.
 
