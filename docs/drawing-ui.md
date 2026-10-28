@@ -253,7 +253,7 @@ sets it on each (as for several selected). A hidden group hides everything in it
   distance along, bearing, radius, area, perimeter; **Attached to** (a link, which vertex or edge)
   with **Attach to…** and the broken link (detach), as a line's end; Along (typed) for a label on a line, or the
   position of a free one; **Leader**
-  (Arrow, Dot, Line, None); its Look; Placement (pixels from its point, dragged on the map; ↺ puts it
+  (on: a line to its point with an arrow head; off: none); its Look; Placement (pixels from its point, dragged on the map; ↺ puts it
   back).
 - **Group:** the group it is in; Members (its own, and how many groups in it, with one eye for
   everything in it, as the list's head; **Select members** selects everything in it, its subgroups'

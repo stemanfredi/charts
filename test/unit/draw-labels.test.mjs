@@ -94,10 +94,10 @@ test('the leader leaves the text at its box, towards the anchor; none when the a
 test('features: text at its screen offset, leader to the anchor, the arrow turned along it, handles when selected', () => {
   const doc = base();
   withLabel(doc, 'l1', { element: 'a' }, { text: '{name}', offset: [0, -100], look: { text: { background: 'box' } } });
-  withLabel(doc, 'l2', on(doc, 5000), { text: 'x', offset: [3, 3], leader: 'dot' });
+  withLabel(doc, 'l2', on(doc, 5000), { text: 'x', offset: [3, 3] });
   withLabel(doc, 'l3', { position: [13, 41], element: null });
   withLabel(doc, 'l4', { element: 'h' }, { text: 'hidden', visible: false });
-  withLabel(doc, 'l5', on(doc, 5000), { text: '', offset: [0, -100], leader: 'line' });
+  withLabel(doc, 'l5', on(doc, 5000), { text: '', offset: [0, -100] });
   withLabel(doc, 'l6', { element: 'q' }, { offset: [100, 0] });
   const f = labelFeatures(doc, view, new Set(['l1', 'l3', 'l5']), 'l6');
   const of = (id, kind) => f.filter((x) => x.properties.id === id && x.properties.kind === kind);
@@ -109,7 +109,6 @@ test('features: text at its screen offset, leader to the anchor, the arrow turne
   const leader = of('l1', 'leader')[0].geometry.coordinates;
   near(view.project(leader[0])[1] - tp[1], 13 * 0.6 + 6, 1e-6, 'from the box edge, below the text');
   assert.deepEqual(leader[1], [12, 40]);
-  assert.equal(of('l1', 'lend')[0].properties.end, 'arrow');
   near(of('l1', 'lend')[0].properties.rot, 180, 1e-9, 'pointing down');
   assert.equal(of('l1', 'lhandle').length, 0); // on a point: it follows the point
   assert.equal(of('l2', 'leader').length, 0); // its anchor inside its text: no leader
@@ -118,10 +117,9 @@ test('features: text at its screen offset, leader to the anchor, the arrow turne
   assert.equal(of('l3', 'lhandle').length, 1); // free and selected: its anchor can be dragged
   assert.equal(of('l3', 'leader').length, 0);
   assert.equal(of('l4', 'label').length, 0);
-  // no text: no label, the leader from where the text would be; a plain line, no end
+  // no text: no label, the leader from where the text would be
   assert.equal(of('l5', 'label').length, 0);
   near(view.project(of('l5', 'leader')[0].geometry.coordinates[0])[1] - view.project(anchorAt(doc, on(doc, 5000)).position)[1], -100, 1e-6, 'from the offset');
-  assert.equal(of('l5', 'lend').length, 0);
   assert.equal(of('l5', 'lhandle').length, 1); // along a line: dragged along it
   // on an area: its name, from its centroid; hovered
   assert.deepEqual([of('l6', 'label')[0].properties.text, of('l6', 'label')[0].properties.mark], ['Area', 'hover']);

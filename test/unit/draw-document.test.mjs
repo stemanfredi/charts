@@ -347,7 +347,7 @@ test('labels: on an element, along a line, on a vertex, or free; checked; writte
   const { doc, report } = read(collection([
     F('a', 'Point', [12, 40], { kind: 'point', look: { text: { name: true } } }), F('s', 'LineString', [[12, 40], [13, 40]], { kind: 'line' }),
     F('ar', 'Polygon', [[[12, 41], [13, 41], [13, 42], [12, 41]]], { kind: 'area' }),
-    F('l1', 'Point', [0, 0], { kind: 'label', text: '{name}', anchor: { element: 'a' }, offset: [10, -20], leader: 'dot', look: { text: { size: 'large', color: '#AA0000', background: 'box' } } }),
+    F('l1', 'Point', [0, 0], { kind: 'label', text: '{name}', anchor: { element: 'a' }, offset: [10, -20], leader: 'none', look: { text: { size: 'large', color: '#AA0000', background: 'box' } } }),
     F('l2', 'Point', [0, 0], { kind: 'label', anchor: { element: 's', edge: 0, at: 0.123456789 } }),
     F('l3', 'Point', [12, 41], { kind: 'label', leader: 'zigzag', offset: 'far', look: { text: { size: 'huge' } } }),
     F('l4', 'Point', [12, 42], { kind: 'label', anchor: { element: 'gone' } }),
@@ -362,7 +362,7 @@ test('labels: on an element, along a line, on a vertex, or free; checked; writte
   assert.deepEqual(skippedIds(report), ['l7']);
   const [l1, l2, l3, l4, l5, l6, l8, l9, l10] = doc.labels;
   const text = (a) => d.lookOf(doc, a).text;
-  assert.deepEqual([l1.leader, l1.offset, l1.look, l1.anchor], ['dot', [10, -20], { text: { size: 'large', color: '#aa0000', background: 'box' } }, { position: [12, 40], element: 'a' }]);
+  assert.deepEqual([l1.leader, l1.offset, l1.look, l1.anchor], ['none', [10, -20], { text: { size: 'large', color: '#aa0000', background: 'box' } }, { position: [12, 40], element: 'a' }]);
   assert.deepEqual([l2.anchor.element, l2.anchor.edge, l2.anchor.at, l2.text, l2.leader, l2.look, text(l2).background], ['s', 0, 0.123456789, '', 'arrow', {}, 'halo']);
   assert.deepEqual(l2.anchor.position, resolve(doc, l2.anchor).position); // where it points
   assert.ok(Math.abs(resolve(doc, l2.anchor).along - 0.123456789 * resolve(doc, l2.anchor).length) < 1e-6);

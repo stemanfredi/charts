@@ -73,7 +73,7 @@ export const KIND = {
 export const KINDS = Object.keys(KIND);
 const LIST = Object.fromEntries(KINDS.map((k) => [k, KIND[k].list]));
 // labels (docs/drawing-format.md §7.7): their leader's end, text size, background
-export const LEADERS = ['arrow', 'dot', 'line', 'none'];
+export const LEADERS = ['arrow', 'none']; // a line to what it points at, an arrow head there; or none
 export const LABEL_SIZES = ['small', 'medium', 'large'];
 export const BACKGROUNDS = ['halo', 'box'];
 const LABEL_COLOUR = '#1f2933'; // a label's text, unless it or the drawing sets one

@@ -154,7 +154,7 @@ export const DRAW_LAYERS = [
   { id: 'draw-leader', type: 'line', source: 'drawlabel', filter: ['==', ['get', 'kind'], 'leader'], layout: { 'line-cap': 'round' },
     paint: { 'line-color': ['get', 'c'], 'line-width': 1.25 } },
   { id: 'draw-lend', type: 'symbol', source: 'drawlabel', filter: ['==', ['get', 'kind'], 'lend'],
-    layout: { 'icon-image': ['match', ['get', 'end'], 'arrow', 'draw-arrow', 'draw-centre'], 'icon-rotate': ['get', 'rot'], 'icon-rotation-alignment': 'viewport',
+    layout: { 'icon-image': 'draw-arrow', 'icon-rotate': ['get', 'rot'], 'icon-rotation-alignment': 'viewport',
       'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': ['get', 'c'] } },
   // a label selected or hovered: the mark's rim round its text or its box (hidden with the other marks)

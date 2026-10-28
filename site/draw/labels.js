@@ -73,7 +73,7 @@ export function labelFeatures(doc, view, sel = new Set(), hover = null, units = 
       const from = text.trim() ? leaderFrom(t, p, [w / 2 + pad, h / 2 + pad]) : t;
       if (from && Math.hypot(p[0] - from[0], p[1] - from[1]) > 2) {
         out.push({ type: 'Feature', properties: { id: a.id, kind: 'leader', c }, geometry: { type: 'LineString', coordinates: [view.unproject(from), at.position] } });
-        if (a.leader !== 'line') pt({ id: a.id, kind: 'lend', end: a.leader, c, rot: (Math.atan2(p[0] - from[0], from[1] - p[1]) * 180) / Math.PI }, at.position);
+        pt({ id: a.id, kind: 'lend', c, rot: (Math.atan2(p[0] - from[0], from[1] - p[1]) * 180) / Math.PI }, at.position);
       }
     }
     if (sel.has(a.id) && (!a.anchor.element || a.anchor.edge != null)) pt({ id: a.id, kind: 'lhandle', role: 'anchor', ref: '' }, at.position);

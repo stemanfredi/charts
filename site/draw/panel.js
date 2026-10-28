@@ -6,7 +6,7 @@
 import { h, svg, typing, NARROW, store } from '../dom.js';
 import { popup } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LEADERS, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, pointKind, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveBefore, moveStep, isMeasurement, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, OUTLINES } from './document.js';
 import { parse } from './file.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
 import { labelText, labelValues, TOKENS } from './labels.js';
@@ -691,11 +691,11 @@ export function drawView(root, ctx) {
       ...commonBottom('label', id)];
   }
 
-  // labels' leader: where the line from the text to its point ends (one or several labels)
+  // labels' leader: a line from the text to its point, an arrow head there, or none (one or several labels)
   function leaderRow(xs) {
-    const vs = xs.map((x) => x.el.leader), v = vs.every((x) => x === vs[0]) ? vs[0] : null;
-    return row('Leader', segOf('Leader', LEADERS.map((k) => [k, { arrow: 'Arrow', dot: 'Dot', line: 'Line', none: 'None' }[k], { arrow: 'A line to its point, an arrow head there', dot: 'A line to its point, a dot there', line: 'A line to its point', none: 'No line' }[k]]),
-      v, (k) => drawing.change((d) => { for (const x of xs) find(d, x.el.id).el.leader = k; })));
+    const on = xs.map((x) => x.el.leader !== 'none'), v = on.every((x) => x === on[0]) ? on[0] : null;
+    return row('', check('Leader', v, (x) => drawing.change((d) => { for (const y of xs) find(d, y.el.id).el.leader = x ? 'arrow' : 'none'; }),
+      { title: 'A line from the text to what it points at, an arrow head there' }));
   }
 
   // a line: its ends (each attached to a point, or free), length, curve, the table of its vertices

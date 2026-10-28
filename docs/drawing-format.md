@@ -340,8 +340,7 @@ A `Point` geometry where the label points, with `"kind": "label"`:
   side it is on); `{along}` (the distance along its line); `{bearing}` (the side's or leg's);
   `{radius}` (a point's filled radius); `{area}`, `{perimeter}` (an area's, a shape's outline's).
 - **`offset`:** the text's centre, in screen pixels from the anchor (x right, y down; ±2000).
-- **`leader`:** `"arrow"`, `"dot"`, `"line"` or `"none"`: a line from the text to the anchor, and
-  how it ends.
+- **`leader`:** `"arrow"` (a line from the text to the anchor, an arrow head there) or `"none"`.
 - **`look`:** its text's `size` (`"small"`, `"medium"` or `"large"`: 11, 13, 16 px), `color` (set
   nowhere: the drawing's, else the default) and `background` (`"halo"` or `"box"`), as
   any look (§6).
