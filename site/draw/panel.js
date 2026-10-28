@@ -145,19 +145,16 @@ export function drawView(root, ctx) {
       const v = same(f);
       return [h('input', { type: 'color', value: v ?? lookField(looks[0], f) ?? '#000000', 'aria-label': aria, oninput: (e) => put(f, e.target.value, true), onchange: (e) => put(f, e.target.value) }), mixed(v)];
     };
-    const num = (f, aria, lo, hi) => F.number(() => same(f), (v) => put(f, v), aria, { min: lo, max: hi, placeholder: 'mixed', bad: `a number from ${lo} to ${hi}` });
+    const num = (f, aria, lo, hi, title) => F.number(() => same(f), (v) => put(f, v), aria, { min: lo, max: hi, placeholder: 'mixed', bad: `a number from ${lo} to ${hi}`, title });
     const tick = (f, text, title) => row(text, check('', same(f), (v) => put(f, v), { 'aria-label': text, title }), back(f));
-    const dashSelect = () => select('Dash', DASHES.map((d) => [d, d]), dash, (v) => put('stroke.dash', v));
-    // Fill and Stroke: a small matrix, the same columns for both (a line: its Stroke row alone)
-    const matrix = () => h('table', { class: 'lmatrix' },
-      h('thead', {}, h('tr', {}, h('th'), h('th', {}, 'Colour'), h('th', {}, 'Opacity'), h('th', {}, 'Width'), h('th', {}, 'Dash'), h('th'))),
-      h('tbody', {},
-        shown('fill.color') ? h('tr', {}, h('th', {}, 'Fill'), h('td', {}, ...colour('fill.color', 'Fill colour')), h('td', {}, num('fill.opacity', 'Fill opacity', 0, 1)), h('td'), h('td'), h('td', {}, back('fill.color', 'fill.opacity'))) : null,
-        h('tr', {}, h('th', {}, 'Stroke'), h('td', {}, ...colour('stroke.color', 'Stroke colour')), h('td', {}, num('stroke.opacity', 'Stroke opacity', 0, 1)),
-          h('td', {}, num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH)), h('td', {}, dashSelect()), h('td', {}, back('stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash')))));
-    const dash = same('stroke.dash');
+    // Fill and Stroke: rows of the grid like any other (a colour, its opacity), Width and Dash their own
+    // an opacity as a percentage (kept as 0 to 1)
+    const opacity = (f, aria) => [F.number(() => { const v = same(f); return v === null ? null : Math.round(v * 100); }, (v) => put(f, v / 100), aria, { max: 100, placeholder: 'mixed', bad: 'a percentage, 0 to 100', title: 'Opacity, %' }), funit('%')];
     return h('div', { class: 'fblock' }, h('h3', {}, title),
-      shown('stroke.color') ? matrix() : null,
+      shown('fill.color') ? row('Fill', colour('fill.color', 'Fill colour'), opacity('fill.opacity', 'Fill opacity (%)'), back('fill.color', 'fill.opacity')) : null,
+      shown('stroke.color') ? row('Stroke', colour('stroke.color', 'Stroke colour'), opacity('stroke.opacity', 'Stroke opacity (%)'), back('stroke.color', 'stroke.opacity')) : null,
+      shown('stroke.width') ? row('Width', num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH), funit('px'), back('stroke.width')) : null,
+      shown('stroke.dash') ? row('Dash', select('Dash', DASHES.map((d) => [d, d]), same('stroke.dash'), (v) => put('stroke.dash', v)), back('stroke.dash')) : null,
       shown('text.size') ? row('Text size', segOf('Text size', [['small', 'S', 'Small'], ['medium', 'M', 'Medium'], ['large', 'L', 'Large']], same('text.size'), (v) => put('text.size', v)), back('text.size')) : null,
       shown('text.color') ? row('Text colour', colour('text.color', 'Text colour'), back('text.color')) : null,
       shown('text.background') ? row('Background', segOf('Background', [['halo', 'Halo', 'A white halo round the letters'], ['box', 'Box', 'A white box with a border in the text\'s colour']], same('text.background'), (v) => put('text.background', v)), back('text.background')) : null,
@@ -589,7 +586,7 @@ export function drawView(root, ctx) {
     // its members as the tree counts them (everything in it, its subgroups' too), and its subgroups
     const allSubs = membersOf(doc, id, true).length - below.length;
     // its totals as the drawing's, its members only, by subgroup (its own: under its name)
-    const totalsOf = below.length ? totalsBlock(null, (gid) => (gid ? groupPath(doc, doc.groups.find((g) => g.id === gid)) : ''), breakdown(doc, null, new Set(below.map((x) => x.el.id))), '') : null;
+    const totalsOf = below.length ? totalsBlock(null, (gid) => (gid ? groupPath(doc, doc.groups.find((g) => g.id === gid)) : ''), breakdown(doc, null, new Set(below.map((x) => x.el.id))), '', `${id}:totals`) : null;
     return [...commonTop('group', id),
       row('Members', h('span', { class: 'fvalue' }, [plural(below.length, 'element'), allSubs ? plural(allSubs, 'subgroup') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
       row('', h('button', { type: 'button', class: 'small', title: 'Everything in it, its groups\' too', disabled: !below.length, onclick: () => drawing.select(below.map((x) => x.el.id)) }, 'Select members')),
@@ -863,58 +860,54 @@ export function drawView(root, ctx) {
       drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Download › Drawing (GeoJSON), in the bar, keeps it as a file.') : null,
       drawing.saving.otherTab ? h('p', { class: 'note warn' }, 'The drawing was changed in another tab. Saving here replaces that version. ', h('button', { type: 'button', class: 'small', onclick: () => location.reload() }, 'Reload')) : null];
   }
-  // The Totals view (docs/drawing-ui.md §5): the lines by group (or by a property's values), each
-  // listed under its group, those a connection made summed by what they are (trunks and branches; a
-  // chain's root links and the links between points); the areas; the points by kind. A group's rows
-  // fold; Copy gives every row tab-separated, in metres, for a spreadsheet
+  // The Totals view (docs/drawing-ui.md §5): a list grid, no head, of the lines by group (or by a
+  // property's values), each listed under its group, those a connection made summed by what they are
+  // (trunks and branches; a chain's root links and the links between points); the areas; the points
+  // by kind. Each section's row names its columns; a group's rows fold; a name selects its element;
+  // Copy gives every row tab-separated, in metres, for a spreadsheet
   const MADE_PART = { trunk: 'trunks, root → hub', branch: 'branches, hub → point', 'root link': 'root → first point', link: 'between points' };
   // b: what is counted (the drawing's, or a group's: breakdown's only); key: the property it is by, or ''
-  function totalsBlock(by, groupName, b = fx().breakdown, key = totalsBy) {
+  function totalsBlock(by, groupName, b = fx().breakdown, key = totalsBy, name = 'totals') {
     const u = ctx.units(), doc = drawing.doc;
     // a group holding a connection: its pattern and roots beside the name (two are both "Connection")
     const made = (k) => { const c = k && connections(doc).find((x) => x.groupId === k); return c ? ` (${c.pattern}, from ${c.roots.map((r) => label('point', now(r.id))).join(', ')})` : ''; };
     const keyName = (k) => (key ? (k ? `“${k}”` : `No ${key}`) : groupName(k) + made(k));
-    const td = (x, cls = '') => h('td', { class: cls }, x), num = (x) => td(x, 'num');
-    // a row that acts (folds a group, selects an element): the whole row the target, by pointer or keys
-    const acts = (cls, title, fn, ...cells) => h('tr', { class: `${cls} acts`, role: 'button', tabindex: 0, title, onclick: fn, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } } }, ...cells);
-    const sec = (title, ...heads) => h('tr', { class: 'sec' }, td(title), ...heads.map((x) => num(x)));
     const rows = [], copy = []; // copy: [section, group, name, count, length m, area m², perimeter m]
+    const tr = (cls, ...cells) => rows.push({ cls, cells });
+    const sel = (text, id) => h('button', { type: 'button', class: 'small link', title: 'Select it', onclick: () => drawing.select([id]) }, text);
+    const fold = (k, folded, text) => h('button', { type: 'button', class: 'small link tfold', 'aria-expanded': String(!folded), title: folded ? 'Show its lines' : 'Fold its lines', onclick: () => { totalsFolded[folded ? 'delete' : 'add'](k); renderInspector(); } }, `${folded ? '▸' : '▾'} ${text}`);
     const nameOf = (kind, id) => label(kind, find(doc, id).el);
     const lineRows = [...b.lines.rows].sort((p, q) => (!p.key) - (!q.key) || keyName(p.key).localeCompare(keyName(q.key)));
     const one = lineRows.length === 1 && (!lineRows[0].key || !groupName) && !key; // nothing grouped: no group rows (by a property, the row says "No …")
     if (b.lines.count) {
-      rows.push(sec('Lines', '', 'Length'));
+      tr('sec', 'Lines', '', 'Length');
       for (const r of lineRows) {
         const folded = totalsFolded.has(r.key), g = one ? '' : keyName(r.key);
-        if (!one) {
-          rows.push(acts('grp', folded ? 'Show its lines' : 'Fold its lines', () => { totalsFolded[folded ? 'delete' : 'add'](r.key); renderInspector(); }, td(`${folded ? '▸' : '▾'} ${g}`), num(plural(r.count, 'line')), num(fmtDist(r.length, u))));
-          copy.push(['Lines', g, '', r.count, r.length, '', '']);
-        }
-        for (const p of r.parts) { if (!folded) rows.push(h('tr', { class: one ? 'part top' : 'part' }, td(MADE_PART[p.part]), num(plural(p.count, 'line')), num(fmtDist(p.length, u)))); copy.push(['Lines', g, MADE_PART[p.part], p.count, p.length, '', '']); }
-        for (const l of r.lines) { if (!folded) rows.push(acts(one ? 'item top' : 'item', 'Select it', () => drawing.select([l.id]), td(nameOf('line', l.id)), td(''), num(fmtDist(l.length, u)))); copy.push(['Lines', g, nameOf('line', l.id), 1, l.length, '', '']); }
+        if (!one) { tr('grp', fold(r.key, folded, g), plural(r.count, 'line'), fmtDist(r.length, u)); copy.push(['Lines', g, '', r.count, r.length, '', '']); }
+        for (const p of r.parts) { if (!folded) tr(one ? 'part top' : 'part', MADE_PART[p.part], plural(p.count, 'line'), fmtDist(p.length, u)); copy.push(['Lines', g, MADE_PART[p.part], p.count, p.length, '', '']); }
+        for (const l of r.lines) { if (!folded) tr(one ? 'item top' : 'item', sel(nameOf('line', l.id), l.id), '', fmtDist(l.length, u)); copy.push(['Lines', g, nameOf('line', l.id), 1, l.length, '', '']); }
       }
-      rows.push(h('tr', { class: 'all' }, td('All lines'), num(plural(b.lines.count, 'line')), num(fmtDist(b.lines.length, u))));
+      tr('all', 'All lines', plural(b.lines.count, 'line'), fmtDist(b.lines.length, u));
       copy.push(['Lines', '', 'All lines', b.lines.count, b.lines.length, '', '']);
     }
     if (b.areas.count) {
-      rows.push(sec('Areas', 'Area', 'Perimeter'));
-      for (const a of b.areas.rows) { rows.push(acts('item top', 'Select it', () => drawing.select([a.id]), td(nameOf('area', a.id)), num(fmtArea(a.area, u)), num(fmtDist(a.perimeter, u)))); copy.push(['Areas', '', nameOf('area', a.id), 1, '', a.area, a.perimeter]); }
-      rows.push(h('tr', { class: 'all' }, td('All areas'), num(fmtArea(b.areas.area, u)), num(fmtDist(b.areas.perimeter, u))));
+      tr('sec', 'Areas', 'Area', 'Perimeter');
+      for (const a of b.areas.rows) { tr('item top', sel(nameOf('area', a.id), a.id), fmtArea(a.area, u), fmtDist(a.perimeter, u)); copy.push(['Areas', '', nameOf('area', a.id), 1, '', a.area, a.perimeter]); }
+      tr('all', 'All areas', fmtArea(b.areas.area, u), fmtDist(b.areas.perimeter, u));
       copy.push(['Areas', '', 'All areas', b.areas.count, '', b.areas.area, b.areas.perimeter]);
     }
     if (b.points.count) {
-      rows.push(sec('Points', 'Count', ''));
-      for (const [k, c] of [...b.points.kinds].sort((p, q) => q[1] - p[1])) { const name = key ? keyName(k) : POINT_KIND_NAME[k] ?? OUTLINE_NAME[k] ?? k; rows.push(h('tr', { class: 'item top' }, td(name), num(String(c)), td(''))); copy.push(['Points', '', name, c, '', '', '']); }
-      rows.push(h('tr', { class: 'all' }, td('All points'), num(String(b.points.count)), td('')));
+      tr('sec', 'Points', 'Count', '');
+      for (const [k, c] of [...b.points.kinds].sort((p, q) => q[1] - p[1])) { const kname = key ? keyName(k) : POINT_KIND_NAME[k] ?? OUTLINE_NAME[k] ?? k; tr('item top', kname, String(c), ''); copy.push(['Points', '', kname, c, '', '', '']); }
+      tr('all', 'All points', String(b.points.count), '');
       copy.push(['Points', '', 'All points', b.points.count, '', '', '']);
     }
     const hidden = b.lines.hidden || b.areas.hidden || b.points.hidden;
     const head = ['Section', key || 'Group', 'Name', 'Count', 'Length (m)', 'Area (m²)', 'Perimeter (m)'];
     const r1 = (v) => (typeof v === 'number' ? String(Math.round(v * 1000) / 1000) : v);
-    return h('div', { class: 'fblock' }, h('h3', {}, 'Totals', copyBtn(() => [head, copy.map((c) => c.map(r1))])),
+    return h('div', { class: 'fblock' }, h('h3', { title: `Guides and measurements are left out; lines running together each count${hidden ? '; hidden ones are counted' : ''}` }, 'Totals', copyBtn(() => [head, copy.map((c) => c.map(r1))])),
       by ? row('By', by) : null,
-      h('table', { class: 'vtable totals' }, h('tbody', {}, rows)),
-      h('p', { class: 'note' }, `Guides and measurements are left out; lines running together each count${hidden ? '; hidden ones are counted' : ''}.`));
+      listGrid({ name, plain: true, columns: [{ width: 150 }, { width: 70, cls: 'num' }, { width: 84, cls: 'num' }], rows }));
   }
   // Built again on each change, and put in place of what it shows (dom.js morph): what stays the same
   // stays, with its focus, caret and scroll, so Tab and a click from a field just applied land where

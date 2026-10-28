@@ -187,7 +187,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 0 16px; overscroll-behavior: contain; display: flex; flex-direction: column; }
 /* a property grid (docs/drawing-ui.md §5): rows ruled across the panel, a label column, fields
    without a box until pointed at or typed in; headings as bands; what is not a row inset */
-.dinspect > :not(.vrow, h3, .lgridbox, .lmatrix, .fblock) { margin-left: 12px; margin-right: 12px; }
+.dinspect > :not(.vrow, h3, .lgridbox, .fblock) { margin-left: 12px; margin-right: 12px; }
 .dinspect > :is(.frow:not(.vrow), .note, .fbuttons) { padding: 4px 0; }
 .dinspect > * { flex-shrink: 0; } /* a row as tall as what it holds, the inspector scrolling */
 .dinspect h2 { font-size: 13px; margin: 0; flex: 1; min-width: 0; }
@@ -237,21 +237,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .vlast { display: grid; place-items: center; }
 .vcell > .fcheck, .vpair > .fcheck { flex: none; min-width: var(--row); justify-content: center; padding: 0; } /* a box alone: a whole target */
 /* the look's Fill and Stroke, a small matrix of the same columns */
-.lmatrix { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
-.lmatrix th { font-weight: 400; color: var(--soft); text-align: left; font-size: 11px; padding: 0 6px; }
-.lmatrix :is(th, td) { border-bottom: 1px solid var(--line2); border-right: 1px solid var(--line2); height: var(--row); }
-.lmatrix :is(th, td):last-child { border-right: 0; }
-.lmatrix thead th { background: var(--bg2); height: 24px; }
-.lmatrix tbody th { padding-left: 12px; font-size: 12px; }
-/* the widths set by the head (a fixed table): Fill or Stroke, Colour, Opacity and Width as narrow as
-   their values, Dash the rest (its names fit at Properties' 320 px), the last column a button's */
-.lmatrix thead th:nth-child(1) { width: 52px; }
-.lmatrix thead th:nth-child(2) { width: 44px; }
-.lmatrix thead th:nth-child(3), .lmatrix thead th:nth-child(4) { width: 50px; }
-.lmatrix thead th:last-child, .lmatrix td:last-child { width: var(--row); }
-.lmatrix td { padding: 0; }
-.lmatrix td :is(input:not([type=color]), select) { width: 100% !important; min-width: 0 !important; }
-.lmatrix td { white-space: nowrap; }
 .funit { color: var(--soft); font-size: 12px; }
 .mixed { font-size: 11px; color: var(--warn); }
 /* the box being dragged (Shift-drag), on the map */
@@ -273,22 +258,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 button.small.link { border-color: transparent; background: none; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; }
 button.small.link:hover { border-color: var(--line); }
 .fcheck.small { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
-/* the drawing's totals: sections (Lines, Areas, Points), a group's row with its lines under it,
-   a connection's lines summed by what they are, each section's total */
-.vtable { width: 100%; border-collapse: collapse; font-size: 12px; }
-.vtable td { padding: 1px 2px; vertical-align: middle; }
-.vtable.totals td { padding: 3px 4px; border-top: 1px solid var(--line2); }
-.vtable.totals td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.vtable.totals tr.sec td { border-top: 0; padding-top: 10px; padding-bottom: 1px; font-size: 11px; color: var(--soft); text-transform: uppercase; letter-spacing: .04em; }
-.vtable.totals tr.sec:first-child td { padding-top: 2px; }
-.vtable.totals tr.grp td { font-weight: 600; }
-.vtable.totals tr.acts { cursor: pointer; }
-.vtable.totals tr.acts:hover td, .vtable.totals tr.acts:focus-visible td { background: var(--line2); }
-.vtable.totals tr.acts:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.vtable.totals tr.part td:first-child, .vtable.totals tr.item td:first-child { padding-left: 18px; color: var(--soft); }
-.vtable.totals tr.item.acts td:first-child { color: var(--accent); }
-.vtable.totals tr.top td:first-child { padding-left: 4px; }
-.vtable.totals tr.all td { font-weight: 600; border-top: 2px solid var(--line); }
 /* a list grid (docs/drawing-ui.md §5): fixed columns; the first ones kept in place while it
    scrolls sideways; the current row marked; its actions in the bar under it */
 .lgridbox { display: flex; flex-direction: column; }
@@ -317,6 +286,17 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid tr.vnode td.frozen { background: var(--bg2); }
 .lgrid tr.warn td { color: var(--warn); }
 .lgrid tr.ladd td { opacity: .75; }
+/* a plain grid (the totals): sections (Lines, Areas, Points) naming their columns, a group's row with
+   its lines under it (folded by its name), the sums */
+.lgrid.plain td { padding: 0 4px; }
+.lgrid.plain td:first-child { padding-left: 12px; }
+.lgrid.plain tr.sec td { color: var(--soft); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: var(--bg2); }
+.lgrid.plain tr.grp td { font-weight: 600; }
+.lgrid.plain tr:is(.part, .item) td:first-child { padding-left: 24px; color: var(--soft); }
+.lgrid.plain tr.top td:first-child { padding-left: 12px; }
+.lgrid.plain tr.all td { font-weight: 600; border-bottom: 2px solid var(--line); }
+.lgrid.plain .link { padding: 0; margin: 0; min-height: var(--row); }
+.lgrid.plain .tfold { text-decoration: none; color: var(--ink); }
 .lgrid .fcheck { justify-content: center; padding: 0; min-width: var(--row); }
 .lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; } /* the current row's actions; hidden while no row is */
 /* a column of numbers (cls n): right-aligned, in figures of one width, to read down */

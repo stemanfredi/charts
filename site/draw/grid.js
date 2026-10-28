@@ -35,8 +35,9 @@ export const currentOf = (name) => stateOf(name).current;
 // A list grid. name: what keeps its state (the element's id and the list's); columns: [{ head,
 // width (px), frozen, title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty
 // last row (typing in it adds one), or null; actions(i): { label, buttons (any nodes) } for row i, or null (none: no bar); keys: { insert(i),
-// remove(i) }; current(i): row i made current (or null: none), as it is and when it changes.
-export function listGrid({ name, columns, rows, add = null, actions = null, keys = {}, current = () => {} }) {
+// remove(i) }; current(i): row i made current (or null: none), as it is and when it changes. plain: a
+// table read, not edited (the totals): no head, no current row; its rows' cls say what they are.
+export function listGrid({ name, columns, rows, add = null, actions = null, keys = {}, current = () => {}, plain = false }) {
   const st = stateOf(name);
   if (st.current != null && st.current >= rows.length) st.current = null;
   // the frozen columns' offsets, from the left
@@ -65,14 +66,14 @@ export function listGrid({ name, columns, rows, add = null, actions = null, keys
     current(i < rows.length ? i : null);
   };
   rows.forEach((r, i) => {
-    const tr = h('tr', { 'data-r': i, class: [r.cls, st.current === i ? 'cur' : ''].filter(Boolean).join(' ') || null, onfocusin: () => markCurrent(i), onpointerdown: () => markCurrent(i) },
+    const tr = h('tr', { 'data-r': i, class: [r.cls, st.current === i ? 'cur' : ''].filter(Boolean).join(' ') || null, ...(plain ? {} : { onfocusin: () => markCurrent(i), onpointerdown: () => markCurrent(i) }) },
       ...r.cells.map((kids, k) => cell('td', k, kids)));
     body.append(tr);
   });
   if (add) body.append(h('tr', { 'data-r': rows.length, class: 'ladd' }, ...add.map((kids, k) => cell('td', k, kids))));
-  const table = h('table', { class: 'lgrid', 'data-grid': name, 'data-rows': rows.length }, // its rows another number: a table of its own (morph)
+  const table = h('table', { class: plain ? 'lgrid plain' : 'lgrid', 'data-grid': name, 'data-rows': rows.length }, // its rows another number: a table of its own (morph)
     h('colgroup', {}, ...columns.map((c) => h('col', { width: c.width }))),
-    h('thead', {}, h('tr', {}, ...columns.map((c, k) => cell('th', k, c.head ?? '', c.title ? { title: c.title } : {})))),
+    plain ? null : h('thead', {}, h('tr', {}, ...columns.map((c, k) => cell('th', k, c.head ?? '', c.title ? { title: c.title } : {})))),
     body);
   table.style.width = `${columns.reduce((t, c) => t + c.width, 0)}px`;
   // keys: in a cell being typed in, ↑ ↓ (and Enter) to the row above or below, the same column; Insert

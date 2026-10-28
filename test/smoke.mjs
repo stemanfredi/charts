@@ -763,7 +763,7 @@ await section('the drawing', async () => {
   // the group above in Properties: its members counted as the tree does, its totals as a table
   await dw.evaluate((t) => drawing.select([t]), top);
   const gprops = await dw.evaluate((t) => [document.querySelector('.dinspect .frow:has(.flabel) .fvalue')?.textContent ?? '', document.querySelector(`.dlist [data-id="${t}"] .val`)?.textContent ?? '',
-    !!document.querySelector('.dinspect .vtable.totals'), [...document.querySelectorAll('.dinspect h3')].map((x) => x.textContent).join()], top);
+    !!document.querySelector('.dinspect .lgrid.plain[data-grid$="totals"]'), [...document.querySelectorAll('.dinspect h3')].map((x) => x.textContent).join()], top);
   check(gprops[0].split(' ')[0] === gprops[1].split(' ')[0] && / · 1 subgroup$/.test(gprops[0]) && gprops[2] && /Look · sets each member/.test(gprops[3]),
     `group: its members as the tree counts them, and its subgroups (${gprops[0]}; tree ${gprops[1]}); its totals a table; its Look said to set each member (${gprops[3]})`);
   await dw.evaluate((id) => drawing.remove([id]), nested?.id);
@@ -1012,7 +1012,7 @@ await section('the drawing', async () => {
   await val.press('Enter');
   await dw.click('.droot .dname');
   await dw.selectOption('.dinspect select[aria-label="Totals by"]', 'kind');
-  const byKind = await dw.evaluate(() => [...document.querySelectorAll('.dinspect .vtable.totals td:first-child')].map((td) => td.textContent));
+  const byKind = await dw.evaluate(() => [...document.querySelectorAll('.dinspect .lgrid.plain td:first-child')].map((td) => td.textContent));
   check(byKind.some((t) => t.endsWith('“x”')) && byKind.some((t) => t.endsWith('No kind')), `drawing: a property added in Data, the totals by its key (${byKind.join(', ')})`);
   const pointed = await dw.evaluate(async () => { const { resolve } = await import('./draw/attach.js'); return resolve(drawing.doc, drawing.doc.labels[0].anchor).position; });
   await dw.evaluate((id) => drawing.remove([id]), nid);
