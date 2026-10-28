@@ -26,7 +26,7 @@ import { fmtArea, fmtDist, rowsText, plural } from '../format.js';
 import { fileGroup } from './files.js';
 import { createTools } from './tools.js';
 import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
-import { KIND_ICON, UI_ICON } from './icons.js';
+import { UI_ICON } from './icons.js';
 
 // what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
 // an element's icon and what the panel calls its kind: a point by what it looks like (a circle, a
@@ -211,21 +211,20 @@ export function drawView(root, ctx) {
         actions: (i) => ({ label: el.properties[i].key, buttons: [act('Delete', 'Take this property away (Ctrl/⌘ Delete)', () => removeAt(i))] }),
         keys: { remove: removeAt } }) : null);
   }
-  // every inspector's top (its title, kind · name, in the head): the rule that made it, its name, the
-  // group it is in
+  // every inspector's top (its title, kind · name, in the head): the rule that made it, its name
   const commonTop = (kind, id) => {
     const el = now(id);
     title = `${kindTitle(kind, el)} · ${shownName(drawing.doc, kind, el, ctx.units())}`;
-    return [ruleRow(id)?.row, row('Name', textField(id, 'name', 'Name')), groupRow([id])];
+    return [ruleRow(id)?.row, row('Name', textField(id, 'name', 'Name'))];
   };
   const ruleActs = (id) => ruleRow(id)?.acts ?? [];
-  // and its foot: Guide, its data (Delete: in the head)
+  // and its foot: the group it is in, Guide, its data (Delete: in the head)
   const commonBottom = (kind, id) => {
     const el = now(id);
     // Guide (supporting geometry: faint, out of the totals): a measurement is a guide showing its
     // values; unticking Guide makes it part of the drawing
     const guide = ['point', 'line', 'area'].includes(kind) ? row('Guide', check('', el.guide, (v) => set(id, (x) => { x.guide = v; }), { 'aria-label': 'Guide', title: 'Supporting geometry: drawn faint and dashed, left out of the totals' })) : null;
-    return [guide, dataBlock(id)];
+    return [groupRow([id]), guide, dataBlock(id)];
   };
 
   // A point's parts, each named by its place in the list: its kind (changing it keeps its reach), its
@@ -604,21 +603,6 @@ export function drawView(root, ctx) {
       lookBlock([item(id)], null, 'Look · sets each member'), ...commonBottom('group', id)];
   }
 
-  // The selection as chips: each element's kind and name (a click selects it alone), its × taking it
-  // out of the selection; past CHIPS of them, the rest folded behind "+N more"
-  const CHIPS = 12;
-  let chipsAll = false; // the fold opened (until the selection changes)
-  let chipsOf = '';
-  function chips(xs) {
-    const key = xs.map((x) => x.el.id).join();
-    if (key !== chipsOf) { chipsOf = key; chipsAll = false; }
-    const shown = chipsAll ? xs : xs.slice(0, CHIPS);
-    return h('div', { class: 'chips', 'aria-label': 'Selected' }, shown.map((x) => h('span', { class: 'chip' },
-      h('button', { type: 'button', class: 'chipname', title: 'Select this one only', onclick: () => drawing.select([x.el.id]) }, icon(...KIND_ICON[x.kind]), shownName(drawing.doc, x.kind, x.el, ctx.units())),
-      h('button', { type: 'button', class: 'x', 'aria-label': `Take ${label(x.kind, x.el)} out of the selection`, title: 'Take it out of the selection', onclick: () => drawing.select([x.el.id], 'toggle') }, '×'))),
-    xs.length > shown.length ? h('button', { type: 'button', class: 'small', onclick: () => { chipsAll = true; renderInspector(); } }, `+${xs.length - shown.length} more`) : null);
-  }
-
   // a new group of ids, in the nearest group they are all in; it is selected
   function groupThem(ids) { let g; drawing.change((doc) => { g = makeGroup(doc, ids); }); drawing.select([g.id]); }
   function severalInspector(xs) {
@@ -628,15 +612,13 @@ export function drawView(root, ctx) {
     const pointIds = xs.filter((x) => x.kind === 'point').map((x) => x.el.id);
     // two points: how far apart, and the bearing from the first to the second
     const between = xs.length === 2 && xs.every((x) => x.kind === 'point') ? inverse(xs[0].el.position, xs[1].el.position) : null;
-    title = `${xs.length} elements selected`;
-    return [chips(xs),
-    h('p', { class: 'note' }, Object.entries(counts).map(([k, n]) => plural(n, kindName(k).toLowerCase())).join(', ')),
-    between ? row('Distance', distValue(between.s)) : null,
+    title = `${xs.length} elements · ${Object.entries(counts).map(([k, n]) => plural(n, kindName(k).toLowerCase())).join(', ')}`;
+    return [between ? row('Distance', distValue(between.s)) : null,
     between ? row('Bearing', fvalue(norm360(between.azi).toFixed(1), { title: `From ${label(xs[0].kind, xs[0].el)}` }), funit('°T')) : null,
-    groupRow(ids),
     xs.some((x) => x.kind === 'label') ? leaderRow(xs.filter((x) => x.kind === 'label')) : null,
     actionsRow(pointIds.length > 1 ? h('button', { type: 'button', class: 'small', title: 'Join these points to roots with straight lines: trees through hubs, or chains', onclick: () => openConnect(pointIds) }, 'Connect…') : null),
     lookBlock(xs),
+    groupRow(ids),
   ];
   }
 

@@ -31,7 +31,7 @@ svg { flex: none; }
 /* what floats over the map (a box, a menu, the map's controls): a white card */
 :is(.nostart, .mapctl, .timepop, .search, .results, .kinds, .dmenu) { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 /* a name or a value on one line, cut with "…" */
-:is(.chip .chipname, .drow .dname, .dinspect h2, .vrow .flabel, .vcell .fvalue, .vcell .funit, button.small.link, .drawings .dname, .dinsphead .ititle) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.drow .dname, .dinspect h2, .vrow .flabel, .vcell .fvalue, .vcell .funit, button.small.link, .drawings .dname, .dinsphead .ititle) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Layout (drawing-ui.md §1, frame.js): the bar across the top; over the map, the left panel
    (Elements, Layers) and the right one (Properties), each as wide as dragged; between them the map's
@@ -154,12 +154,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 
 .action { border: 0; background: none; border-radius: 6px; min-height: 44px; padding: 0 10px; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; }
 .action:hover { background: var(--line2); }
-/* the selection as chips: a click on one selects it alone, its × takes it out */
-.chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.chip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--bg2); max-width: 100%; }
-.chip .chipname { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; min-height: var(--row); padding: 0 2px 0 8px; font-size: 12px; }
-.chip .chipname svg { width: 14px; height: 14px; color: var(--accent); flex: none; }
-.chip .x { width: var(--row); height: var(--row); font-size: 16px; }
 .note { margin: 2px 4px; font-size: 11px; color: var(--soft); }
 
 /* ---- the drawing: its tree (the left panel's Elements), its inspector (the right panel) ---- */

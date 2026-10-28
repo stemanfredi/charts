@@ -1115,7 +1115,7 @@ await section('the drawing', async () => {
   // Properties updated in place (dom.js morph): Tab, or a click into another field, from a field just
   // applied lands there; the same in a list
   const fl = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.3], [[12.05, 40.32]], [12.1, 40.3]); }); drawing.select([l.id]); return l.id; });
-  const focused = () => dw.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+  const focused = () => dw.evaluate(() => document.activeElement?.closest('[aria-label]')?.getAttribute('aria-label'));
   await dw.click('.dinspect input[aria-label="Name"]');
   await dw.keyboard.type('Q');
   await dw.keyboard.press('Tab');
@@ -1131,7 +1131,7 @@ await section('the drawing', async () => {
   await dw.keyboard.type('40.33');
   await dw.keyboard.press('Tab');
   const inList = await focused();
-  check(afterTab === 'In group' && clicked === 2 && inList === 'Point 2 longitude', `Properties in place: Tab from a field applied (${afterTab}), a click into the next (Offset ${clicked}), Tab in a list (${inList})`);
+  check(afterTab === 'Path' && clicked === 2 && inList === 'Point 2 longitude', `Properties in place: Tab from a field applied (${afterTab}), a click into the next (Offset ${clicked}), Tab in a list (${inList})`);
   await dw.evaluate((id) => drawing.remove([id]), fl);
   check(!dw.errors.length, `drawing: no errors ${dw.errors.join(' | ')}`);
   await dw.close();
