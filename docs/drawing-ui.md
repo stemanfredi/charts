@@ -38,7 +38,7 @@ One layout at every width (`site/frame.js`).
   panel comes back after; the first time in a visit a note says so, and Layers or Elements (or L,
   E) then brings it back, Properties off.
 - **The map's foot**: one strip above the bottom row, between the panels (a phone: above its sheet).
-  At its left, stacked: the note, the legends, the touch row; at its right **the map's controls**: my
+  At its left, stacked: the legends, the touch row; at its right **the map's controls**: my
   position, zoom in and out, north (only when turned). Nothing else sits there, so nothing overlaps.
   The bottom row between the panels: credits, the time shown (a chip: ‹ hour ›, **Now**, the
   depth), the cursor's position, the scale (a click switches km and NM).
@@ -46,8 +46,10 @@ One layout at every width (`site/frame.js`).
   drawing. The drawing goes out as a file (**Download** › **Drawing (GeoJSON)**, with the view) and
   comes in by **Open a file…** or a file dropped on the map, after a report (what it holds, what was skipped and
   why); a presets file adds its presets (§9).
-- The note (the foot's top) says for a few seconds what just happened (with **Undo** where it
-  applies).
+- **The note**, a chip under the bar at the centre, says for a few seconds what the screen cannot
+  show: a value not applied and why, a file not read, what was copied, why a click or a box did
+  nothing, a root not used, a panel that made way. What is visible (a deletion, a copy selected, a
+  rule's result) is not said.
 
 **On a phone** (under 720 px) the bar holds **☰** (Open's menu with Download's, Copy link and About),
 Layers, Elements and the tools; Select (Back), Box, Undo and Properties are in the touch row, find
@@ -297,7 +299,7 @@ live in this browser only; **Download** › **Presets (JSON)** and **Open a file
 
 ## 10. Deleting, and drawings in this browser
 
-- Delete goes at once, the note offering **Undo**. Lines attached to what goes stay, their ends free
+- Delete goes at once (Undo brings it back). Lines attached to what goes stay, their ends free
   where they were; labels on it stay, free. A group with members asks first: the group only (what is
   in it goes to the group above), or everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.

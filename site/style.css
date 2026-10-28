@@ -65,6 +65,8 @@ svg { flex: none; }
   body.has-right .foot { right: var(--rw); }
   body.has-left .status { left: var(--lw); }
   body.has-right .status { right: var(--rw); }
+  body.has-left .dnote { left: calc(var(--lw) + 8px); } /* the note centred over the map, between the panels */
+  body.has-right .dnote { right: calc(var(--rw) + 8px); }
   body.has-right > .search { right: calc(var(--rw) + 8px); } /* behind its lens (COMPACT, a child of body): beside Properties; in the bar it stays where it is */
 }
 /* the time shown and the depth, in a box over its chip: ‹ time › Now, then the depth (on the next line if need be) */
@@ -319,9 +321,9 @@ button.small[aria-pressed="true"] { background: var(--accent); border-color: var
 .dinspect .seg button { display: grid; place-items: center; }
 .dinspect .seg svg { width: 16px; height: 16px; }
 /* radii: filled (radio), shown, name, value, own stroke, remove */
-.dnote { align-self: center; max-width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  background: var(--ink); color: #fff; border-radius: 8px; padding: 6px 6px 6px 12px; box-shadow: var(--shadow); font-size: 12px; }
-.dnote button { border: 1px solid rgba(255,255,255,.4); background: none; color: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }
+/* the note (menu.js): a chip under the bar, at the centre, as tall as the bar's buttons, for a few seconds */
+.dnote { position: fixed; z-index: 9; top: calc(var(--bar-h) + 6px); left: 8px; right: 8px; width: fit-content; margin: 0 auto; min-height: 28px; display: flex; align-items: center; text-align: center;
+  background: var(--ink); color: #fff; border-radius: 6px; padding: 4px 12px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.3; } /* a long one wraps within the map's width */
 dialog.dreport { max-width: min(560px, calc(100vw - 32px)); }
 dialog.dreport ul { max-height: 40vh; overflow-y: auto; margin: 0; padding-left: 18px; font-size: 12px; }
 dialog.dreport .fbuttons { margin-top: 14px; }

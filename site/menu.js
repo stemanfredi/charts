@@ -70,10 +70,10 @@ export function askText(title, what, value = '') {
 // The note: what just happened, for a few seconds, at the map's foot; undo: what its Undo button does
 // (none: no button)
 let noteEl = null, noteTimer = 0;
-export function note(text, undo = null) {
-  if (!noteEl) (document.querySelector('#footl') ?? document.body).prepend(noteEl = h('div', { class: 'dnote', role: 'status', hidden: true })); // the foot's top
+export function note(text) {
+  if (!noteEl) document.body.append(noteEl = h('div', { class: 'dnote', role: 'status', hidden: true })); // a chip under the bar, at the centre
   clearTimeout(noteTimer);
-  noteEl.replaceChildren(h('span', {}, text), undo ? h('button', { type: 'button', onclick: () => { undo(); noteEl.hidden = true; } }, 'Undo') : '');
+  noteEl.textContent = text;
   noteEl.hidden = false;
-  noteTimer = setTimeout(() => { noteEl.hidden = true; }, 5000);
+  noteTimer = setTimeout(() => { noteEl.hidden = true; }, 4000);
 }

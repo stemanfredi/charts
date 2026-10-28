@@ -43,7 +43,6 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
       close();
       if (!await ask('Delete the drawing', `Delete “${x.title || 'Untitled'}” for good? It cannot be brought back.`, [['yes', 'Delete']])) return;
       drawing.saving.remove(x.id);
-      note('Drawing deleted');
     };
     return [h('button', { type: 'button', role: 'menuitem', class: 'dnew', title: 'A new, empty drawing (this one stays in the list)', onclick: () => { close(); newDrawing(); } }, '+ New drawing'),
       h('ul', { class: 'drawings' }, drawing.saving.list().map((x) => h('li', { class: x.open ? 'open' : '' },
@@ -74,7 +73,6 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
   const linkBtn = barBtn('linkbtn', 'Copy link', ctx.linkIcon, () => ctx.copyLink());
   function newDrawing() {
     drawing.saving.add();
-    note('New drawing');
   }
   async function importFile(f) {
     let text;
@@ -85,8 +83,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
       const names = new Set(presets.map((x) => x.name));
       drawing.presets = [...drawing.presets.filter((x) => !names.has(x.name)), ...presets];
       savePresets(drawing.presets);
-      presetsChanged();
-      return note(`${plural(presets.length, 'preset')} added to the Point and Shape tools`);
+      return presetsChanged();
     }
     const { doc, report } = parse(text, ctx.known);
     const list = (items) => h('ul', {}, items.map((t) => h('li', {}, t)));

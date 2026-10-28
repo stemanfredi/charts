@@ -81,12 +81,7 @@ export function drawView(root, ctx) {
       if (!a) return;
       withMembers = a === 'all';
     }
-    const what = ids.length === 1 ? label(find(doc, ids[0]).kind, find(doc, ids[0]).el) : `${ids.length} elements`;
-    // lines attached to a point deleted stay, their ends free where they were
-    const gone = drawing.dependents(ids, withMembers);
-    const freed = doc.lines.filter((s) => !gone.has(s.id) && [s.start, s.end].some((e) => e.element && gone.has(e.element))).length;
-    drawing.remove(ids, withMembers);
-    note(`Deleted ${what}${freed ? `; ${plural(freed, 'line')} attached to it now end${freed === 1 ? 's' : ''} where ${freed === 1 ? 'it' : 'they'} did` : ''}`, () => drawing.undo());
+    drawing.remove(ids, withMembers); // lines attached to a point deleted stay, their ends free where they were
   }
 
   // ---- inspector: fields ----------------------------------------------------------------------
@@ -306,7 +301,6 @@ export function drawView(root, ctx) {
           const tool = presetTool(p);
           drawing.variant[tool] = `preset:${name}`;
           renderTools();
-          note(`Preset “${name}” in the ${tool === 'shape' ? 'Shape' : 'Point'} tool`);
         } }, 'Save as preset…')), lookBlock([item(id)]));
     return [...parts, ...commonBottom('point', id)];
   }
@@ -528,7 +522,7 @@ export function drawView(root, ctx) {
       addVertex(doc, x, i + 1, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]); // what points at its vertices and edges stays where it is
     });
     const removeAt = (i) => drawing.change((doc) => removeVertex(doc, find(doc, id).el, i));
-    const splitAt = (i) => { let p; drawing.change((d) => { p = splitKeeping(d, id, i); }); note(`Split: both parts attached to ${label('point', p)}`); };
+    const splitAt = (i) => drawing.change((d) => splitKeeping(d, id, i));
     // Its points as rows, numbered 1 (its start) to N (its end), the vertices between: a page of them
     // shown. Lat, Lon; the leg from the point before (typed: this point moves); along, from the start;
     // a vertex's name. An end attached: what to, its leg as it is.
@@ -669,8 +663,9 @@ export function drawView(root, ctx) {
   ];
   }
 
-  const treesOf = (c, n) => `${n} ${c.pattern === 'chain' ? 'chain' : 'tree'}${n === 1 ? '' : 's'}`;
   const copies = (n) => `${n} ${n === 1 ? 'copy' : 'copies'}`;
+  // a root no group is cheapest from, once made: said, as the form said it before
+  const unusedRoots = (ids) => `Not used: ${ids.map((o) => label('point', now(o))).join(', ')} (no group is cheapest from it)`;
   // The rule an element was made by (generator.js ruleOf: a copy, a hub, a line, the rule's groups):
   // { row (what it made, a row at the top), acts (Edit…: its form, a distribution's with its connection,
   // a connection's on points placed by hand; Select all: everything it made) }, or null
@@ -856,8 +851,7 @@ export function drawView(root, ctx) {
         closeForm();
         renderInspector(); // the selection may stay as it was (the group)
         drawing.select([r.distribution.groupId]);
-        note([editing ? (r.remade ? 'Copies made anew' : 'Copies moved') : `${copies(r.distribution.points.length)} in ${label('group', find(drawing.doc, r.distribution.groupId).el)}`,
-          k ? `${treesOf(k.connection, k.groups)}, ${plural(k.lines, 'line')}${k.unused.length ? `; not used: ${k.unused.map((o) => label('point', now(o))).join(', ')}` : ''}` : ''].filter(Boolean).join('; '));
+        if (k?.unused.length) note(unusedRoots(k.unused));
       })];
   }
 
@@ -876,7 +870,7 @@ export function drawView(root, ctx) {
         closeForm();
         renderInspector(); // the selection may stay as it was (the group)
         drawing.select(r.connection.groupId ? [r.connection.groupId] : ids);
-        note(`${treesOf(r.connection, r.groups)}, ${plural(r.lines, 'line')}${r.unused.length ? `; not used: ${r.unused.map((o) => label('point', now(o))).join(', ')}` : ''}`);
+        if (r.unused.length) note(unusedRoots(r.unused));
       })];
   }
 
@@ -987,7 +981,7 @@ export function drawView(root, ctx) {
     const act = (paths, aria, title, run) => h('button', { type: 'button', class: 'hact', 'aria-label': aria, title, onclick: run }, icon(...paths));
     inspActs.replaceChildren(...(form ? [] : [
       every.length ? act(UI_ICON.zoom, 'Zoom to', ids.length ? 'Zoom to: fit the map to it' : 'Zoom to: fit the map to the whole drawing', () => showOnMap(new Set(every))) : null,
-      ids.length ? act(UI_ICON.duplicate, 'Duplicate', `Duplicate: a copy beside it (${MOD} D)`, () => { const n = drawing.duplicate(); if (n) note(`Duplicated: ${plural(n, 'element')}`, () => drawing.undo()); }) : null,
+      ids.length ? act(UI_ICON.duplicate, 'Duplicate', `Duplicate: a copy beside it (${MOD} D)`, () => drawing.duplicate()) : null,
       ids.length ? act(UI_ICON.group, 'Group', 'Group: a new group of it, in the group it is in', () => groupThem(ids)) : null,
       ids.length ? act(UI_ICON.delete, 'Delete', 'Delete (Delete)', () => del(ids)) : null,
     ].filter(Boolean)));
@@ -1020,7 +1014,7 @@ export function drawView(root, ctx) {
       if (k === 'c' && !drawing.sel.size) return; // nothing selected: the page's own copy
       e.preventDefault();
       const n = k === 'c' ? drawing.copy() : k === 'v' ? drawing.paste() : drawing.duplicate();
-      if (n) note(`${k === 'c' ? 'Copied' : k === 'v' ? 'Pasted' : 'Duplicated'}: ${plural(n, 'element')}`, k !== 'c');
+      if (n && k === 'c') note(`Copied: ${plural(n, 'element')}`); // the clipboard has no other sign; a paste or a copy made is selected
       return;
     }
     // the drawing order: Ctrl/⌘ ] one step up (drawn above), [ one step down, among its kind in its group
@@ -1047,10 +1041,7 @@ export function drawView(root, ctx) {
       if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
       // a line's point or an area's corner pressed on the map: its row in the table made current
       if (what === 'place') { const { id, index } = drawing.place; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${{ line: 'points', area: 'corners', point: 'parts' }[kindOf(id)]}`, index, kindOf(id) !== 'point'); return; }
-      if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
-        const n = drawing.sel.size;
-        note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the box');
-      }
+      if (what === 'area' && !drawing.sel.size) note('Nothing lies entirely inside the box'); // a box drawn: why nothing is selected
       // a label just placed (and selected, so shown): its text ready to be typed
       if (what === 'placed') { const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return; }
       // the selection only changed: the rows marked again, not built again (each row's value is a length
