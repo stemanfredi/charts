@@ -1,8 +1,8 @@
 // Layers as data (the GIS export): the values a layer draws, read from its datasets' Zarr stores
 // (zarr.js) and written as GeoTIFF (geotiff.js), over the view's bounding box [west, south, east,
 // north]. Each returns [{ key, file, w, h, transform, names, units, title, description, data }].
-import { CMEMS, cmemsStacUrl, storedVariables, EMODNET_DTM, GEBCO, GEBCO_TID } from './catalog.js';
-import { partTimes, partLevels, regionOf } from './cmems.js';
+import { CMEMS, EMODNET_DTM, GEBCO, GEBCO_TID } from './catalog.js';
+import { partTimes, partLevels, regionOf, cmemsStacUrl, storedVariables } from './cmems.js';
 import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
 import { geotiff } from './geotiff.js';
 import { fetchOk, fetchBytes, lru } from './net.js';

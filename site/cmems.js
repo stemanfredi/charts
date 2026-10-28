@@ -1,9 +1,35 @@
 // Copernicus Marine layers on the map (catalog.js CMEMS): a tile handler that draws an item's
 // datasets into one tile, each at its own time step for the hour asked, the global first and the
 // regional one over it; the datasets' time ranges, read from their own capabilities; legends.
-import { CMEMS, cmemsStyle, cmemsTileUrl, cmemsLegendUrl, cmemsCapsUrl } from './catalog.js';
+import { CMEMS } from './catalog.js';
+import { HOSTS } from './hosts.js';
 import { mercator, tileBounds, CIRC } from './geo.js';
 import { lru, fetchOk } from './net.js';
+// The service's addresses (WMTS, keyless, CORS; STAC for the values) and its styles
+const CMEMS_WMTS = `${HOSTS.copernicusWmts}/teroWmts`;
+// the service's style for a variant drawing `look` ('colour', 'arrows', or 'both': all it can)
+export function cmemsStyle(v, look = 'both') {
+  const vector = look === 'colour' ? null : look === 'arrows' ? 'vector' : v.vector;
+  return `cmap:${v.cmap},range:${v.range.join('/')}${v.log ? ',logScale' : ''}${vector ? `,vectorStyle:${vector}` : ''}`;
+}
+// 512 px tiles (the @2x matrix set): arrows at a readable spacing, and sharp on high-density screens
+export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
+  return `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}`
+    + `&TILEMATRIXSET=EPSG:3857@2x&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=image/png&TIME=${time}${level === null ? '' : `&ELEVATION=${level}`}`;
+}
+export const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
+// a dataset's entry in Copernicus Marine's STAC catalogue: where its values are, as Zarr stores (zarr.js)
+export const cmemsStacUrl = (part) => `${HOSTS.copernicusStac}/metadata/${part.split('/').slice(0, 2).join('/')}/dataset.stac.json`;
+// the stored variables a part draws: itself, or for arrows their eastward and northward components
+// (the global currents: the total, with tides and wave drift, as the tiles draw it)
+export function storedVariables(part) {
+  const [, dataset, variable] = part.split('/');
+  if (variable === 'sea_water_velocity') return dataset.includes('merged-uv') ? ['utotal', 'vtotal'] : ['uo', 'vo'];
+  return variable === 'wind' ? ['eastward_wind', 'northward_wind'] : [variable];
+}
+// one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
+export const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
+
 // regional datasets (by product name: MEDSEA_…, SST_MED_…, OCEANCOLOUR_MED_…): drawn only within
 // their area, a union of boxes [west, south, east, north], and not asked for a tile outside it. The
 // Mediterranean products' own box (18°W–36°E, 30–46°N) also holds part of the Atlantic, the Bay of

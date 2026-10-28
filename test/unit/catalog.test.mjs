@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, cmemsStyle, drawsOf } from '../../site/catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, drawsOf } from '../../site/catalog.js';
+import { cmemsStyle } from '../../site/cmems.js';
 import { buildStyle, SEA_PICTURES } from '../../site/style.js';
 import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
 import { stale, CSP_HOSTS } from '../../tools/deps.mjs';

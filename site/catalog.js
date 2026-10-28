@@ -159,8 +159,6 @@ export const CLASS_LEGENDS = {
 };
 
 export const ESRI_META = `${HOSTS.esri}/ArcGIS/rest/services/World_Imagery/MapServer?f=json`;
-const escapeHtml = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-export const esriAttribution = (copyrightText) => `Powered by <a href="https://www.esri.com">Esri</a> · ${escapeHtml(copyrightText)}`;
 
 export const GIBS = {
   terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
@@ -187,7 +185,6 @@ export function domainEnd(xml) {
 // the global model, then the regional one over it where it has data (Mediterranean 4.2 km), so
 // the detail is regional and the coverage global, in one layer with one opacity. Colour ranges
 // are fixed, so a colour means the same at every hour; legends come from the service.
-const CMEMS_WMTS = `${HOSTS.copernicusWmts}/teroWmts`;
 const GLO_WAV = 'GLOBAL_ANALYSISFORECAST_WAV_001_027/cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411';
 const MED_WAV = 'MEDSEA_ANALYSISFORECAST_WAV_006_017/cmems_mod_med_wav_anfc_4.2km_PT1H-i_202311';
 const GLO_CUR = 'GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy_anfc_merged-uv_PT1H-i_202211';
@@ -252,28 +249,6 @@ export const CMEMS = {
 };
 // what a variant can draw: ['colour'], ['arrows'] or both (its colours, its arrows coloured by speed)
 export const drawsOf = (v) => ({ solidAndVector: ['colour', 'arrows'], vector: ['arrows'] })[v.vector] || ['colour'];
-// the service's style for a variant drawing `look` ('colour', 'arrows', or 'both': all it can)
-export function cmemsStyle(v, look = 'both') {
-  const vector = look === 'colour' ? null : look === 'arrows' ? 'vector' : v.vector;
-  return `cmap:${v.cmap},range:${v.range.join('/')}${v.log ? ',logScale' : ''}${vector ? `,vectorStyle:${vector}` : ''}`;
-}
-// 512 px tiles (the @2x matrix set): arrows at a readable spacing, and sharp on high-density screens
-export function cmemsTileUrl(part, style, time, z, x, y, level = null) {
-  return `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}`
-    + `&TILEMATRIXSET=EPSG:3857@2x&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=image/png&TIME=${time}${level === null ? '' : `&ELEVATION=${level}`}`;
-}
-export const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
-// a dataset's entry in Copernicus Marine's STAC catalogue: where its values are, as Zarr stores (zarr.js)
-export const cmemsStacUrl = (part) => `${HOSTS.copernicusStac}/metadata/${part.split('/').slice(0, 2).join('/')}/dataset.stac.json`;
-// the stored variables a part draws: itself, or for arrows their eastward and northward components
-// (the global currents: the total, with tides and wave drift, as the tiles draw it)
-export function storedVariables(part) {
-  const [, dataset, variable] = part.split('/');
-  if (variable === 'sea_water_velocity') return dataset.includes('merged-uv') ? ['utotal', 'vtotal'] : ['uo', 'vo'];
-  return variable === 'wind' ? ['eastward_wind', 'northward_wind'] : [variable];
-}
-// one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
-export const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
 
 // depths offered for the 3D variables, metres below the surface (0: the model's top level)
 // an item's variants from its datasets: key → label (the menu's and the link's)
