@@ -98,15 +98,12 @@ await section('URL state, Link, Measure, a bad link', async () => {
   await p.waitForTimeout(200); // the values drawn
   const liveValues = await p.evaluate(() => map.querySourceFeatures('drawvalue').length);
   await p.mouse.dblclick(420, 340);
-  await p.evaluate(() => drawing.setVariant('measure', 'ring'));
-  await p.mouse.click(500, 300);
-  await p.mouse.click(560, 300);
   await p.keyboard.press('Escape');
   await p.waitForTimeout(400);
   const kinds = (await p.evaluate(() => [...document.querySelectorAll('.dlist .drow .dname')].map((l) => l.textContent.split(' ')[0]))).sort().join();
   const measured = await p.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return [elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).length, map.querySourceFeatures('drawvalue').map((f) => f.properties.label)]; });
-  check(kinds === 'Distance,Ring' && measured[0] === 2 && measured[1].some((t) => /NM$/.test(t)) && liveValues > 0,
-    `Measure: a distance and a ring, guides showing their values in NM, the leg's length shown while drawing (${kinds}; ${measured[1].join(' | ')}; ${liveValues} live)`);
+  check(kinds === 'Distance' && measured[0] === 1 && measured[1].some((t) => /NM$/.test(t)) && liveValues > 0,
+    `Measure: a distance, a guide showing its values in NM, the leg's length shown while drawing (${kinds}; ${measured[1].join(' | ')}; ${liveValues} live)`);
   await p.evaluate(() => map.jumpTo({ center: [12, 41], zoom: 6 }));
   await exportItem(p, 'link');
   const link = await p.evaluate(() => navigator.clipboard.readText());
@@ -669,14 +666,14 @@ await section('the drawing', async () => {
   const painted = await dw.evaluate(() => map.querySourceFeatures('drawzoom').filter((f) => f.properties.kind === 'path').map((f) => f.properties.off));
   check(before === 0 && offset.join() === '2,-8,-8,4' && painted.includes(-8),
     `drawing: Offset off until set (${before}); −8 px on the two lines selected (${offset.slice(0, 3)}), their lengths still counted (${offset[3]} lines), carried to the map (${painted})`);
-  await dw.keyboard.press('a'); // Select area, a kind of Select
-  await dw.mouse.move(DX + 150, 250);
+  await dw.mouse.move(DX + 150, 250); // a box: Shift-drag on the map
+  await dw.keyboard.down('Shift');
   await dw.mouse.down();
   await dw.mouse.move(DX + 700, 600, { steps: 5 });
   await dw.mouse.up();
-  await dw.keyboard.press('Escape');
+  await dw.keyboard.up('Shift');
   await dw.click('.dinsphead button[aria-label=Group]'); // the title row's Group
-  check(await dw.evaluate(() => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === drawing.doc.groups[0].id)), 'drawing: Select area, then a group of everything in it');
+  check(await dw.evaluate(() => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === drawing.doc.groups[0].id)), 'drawing: a box (Shift-drag), then a group of everything in it');
   // two of its lines grouped: a subgroup of it, one step further in the list; deleted alone, its lines
   // back in the group above
   const top = await dw.evaluate(() => { drawing.select(drawing.doc.lines.slice(0, 2).map((s) => s.id)); return drawing.doc.groups[0].id; });

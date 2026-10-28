@@ -68,7 +68,7 @@ const PART_NAME = { circle: 'Circle', sector: 'Sector', ...OUTLINE_NAME };
 // where a preset is placed from: Shape when it has extent (an outline, radii), else Point
 const presetTool = (x) => (x.point.parts.length ? 'shape' : 'point');
 const SYMBOL_ICON = { diamond: ['m12 4 8 8-8 8-8-8z'], square: ['M6 6h12v12H6z'], triangle: ['M12 4l9 15H3z'], dot: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'], none: [] };
-const SELECT_ICON = { click: ['M5 3l14 8-6 2-2 6z'], area: KIND_ICON.area }; // an arrow; a dashed box
+const SELECT_ICON = ['M5 3l14 8-6 2-2 6z']; // an arrow
 const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle', dot: 'Dot', none: 'None' };
 const SPLIT_KEY = 'charts.drawing.split';
 const ELEMENTS_KEY = 'charts.drawing.elements'; // the column open ('1') or not
@@ -97,8 +97,7 @@ export function drawView(root, ctx) {
   drawing.presets = loadPresets();
   const TOOLS = { point: ['Point', 'Place points: click on the map'], line: ['Line', 'Draw a line: click its start, its bends, then a point, a corner, an edge or a vertex to end there (attached), or Enter'],
     shape: ['Shape', 'Place a shape of the outline chosen, or draw a polygon'], label: ['Label', 'Place a label: click a point, a shape, an area or a line to point at it, or anywhere for free text'],
-    measure: ['Measure', 'Measure a distance, an area, or a radius: kept as a guide showing its values'],
-    area: ['Select', 'Select area: drag a box on the map to select what lies inside it; Shift adds to the selection'] };
+    measure: ['Measure', 'Measure a distance: a line kept as a guide showing its lengths'] };
   // the kinds each tool makes (its sub-rail), each with a short tooltip. Shape: round a centre, the
   // outlines to scale, the polygon, the vehicles, the user's presets with extent
   const presetsOf = (tool) => drawing.presets.filter((x) => presetTool(x) === tool).map((x) => [`preset:${x.name}`, `${x.name}: a preset of yours (right-click: rename or delete)`]);
@@ -107,41 +106,22 @@ export function drawView(root, ctx) {
     point: [['symbol', 'Symbol: the same size at every zoom'], ...presetsOf('point')],
     shape: [['circle', 'Circle: a distance round a centre'], ['rings', 'Rings: distances round a centre'], ['sector', 'Sector: part of a circle, in three clicks'],
       outline('rectangle'), outline('ellipse'), outline('triangle'), ['polygon', 'Polygon: corner by corner'], ...OUTLINES.filter(isVehicle).map(outline), ...presetsOf('shape')],
-    measure: [['ruler', 'Distance: a line showing its lengths'], ['area', 'Area: a polygon showing its area and perimeter'], ['ring', 'Ring: a circle showing its radius']],
-    select: [['click', `Select: a click on an element (Shift, ${MOD}: add or remove)`], ['area', 'Select area: drag a box on the map (A)']],
   })[tool] || [];
-  // Select (the rail's first tool): on when no other is; its kinds, a click or an area
-  const current = (tool) => (tool === 'select' ? (drawing.button === 'area' ? 'area' : 'click') : drawing.variant[tool]);
-  // a tool's button pressed: on, or off when it is on; pressed with the keyboard (no pointer), a point,
-  // a shape or a label placed at the map's centre, for its fields
-  // A tool's kinds are a column beside the rail, open while the tool is on (Select's
-  // while Select area is, or once Select is clicked); the tool's button shows the kind in use
-  // (drawing-ui.md §1)
-  let kindsOf = null; // 'select': Select's kinds opened by its button, no tool on
-  function press(tool, e = {}) {
-    if (drawing.button === tool) return drawing.stop();
-    kindsOf = null;
-    if (tool === 'measure') return drawing.start(tool);
-    const c = map.getCenter();
-    if (e.detail === 0 && (tool === 'point' || tool === 'shape') && !['sector', 'polygon'].includes(current(tool))) return drawing.place([c.lng, c.lat], tool);
-    if (e.detail === 0 && tool === 'label') return drawing.placeLabel(map.project(c), [c.lng, c.lat]);
-    drawing.start(tool);
-  }
+  const current = (tool) => drawing.variant[tool];
+  // A tool's button pressed: on, or off when it is on. Its kinds are a column beside the rail, open
+  // while the tool is on; the tool's button shows the kind in use (drawing-ui.md §1)
+  const press = (tool) => (drawing.button === tool ? drawing.stop() : drawing.start(tool));
   // a variant chosen in the sub-rail: the tool on with it
-  function choose(tool, v) {
-    kindsOf = null;
-    if (tool === 'select') { if (v === 'area') { if (drawing.button !== 'area') drawing.start('area'); } else drawing.stop(); return renderTools(); }
-    drawing.setVariant(tool, v);
-  }
+  const choose = (tool, v) => drawing.setVariant(tool, v);
   // the next variant of a tool (its key pressed again), or the tool on
   function cycle(tool) {
     const vs = variants(tool).map(([v]) => v), on = drawing.button === tool;
     if (!on || vs.length < 2) return press(tool);
     choose(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
   }
-  // the rail's tools (Select area is Select's kind: its key, A, and its sub-rail)
-  const toolBtns = Object.entries(TOOLS).filter(([k]) => k !== 'area').map(([k, [text, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', 'aria-label': text, title: `${title} (${keyOf(k)})`,
-    onclick: (e) => press(k, e) }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k]))));
+  // the rail's tools
+  const toolBtns = Object.entries(TOOLS).map(([k, [text, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', 'aria-label': text, title: `${title} (${keyOf(k)})`,
+    onclick: () => press(k) }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k]))));
   const undoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Undo', title: `Undo (${MOD} Z)`, onclick: () => drawing.undo() }, icon('M9 14 4 9l5-5', 'M4 9h10a6 6 0 0 1 0 12h-3'));
   const redoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Redo', title: `Redo (${MOD} Shift Z)`, onclick: () => drawing.redo() }, icon('m15 14 5-5-5-5', 'M20 9H10a6 6 0 0 0 0 12h3'));
   const sep = () => h('span', { class: 'tsep', 'aria-hidden': 'true' });
@@ -149,8 +129,8 @@ export function drawView(root, ctx) {
   // the rail's own: ☰, the drawings and the file; Select; the column's toggle
   const fileBtn = h('button', { type: 'button', class: 'filebtn', 'aria-label': 'File', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
     title: 'The drawings in this browser, and the file: New, Import, Export', onclick: () => toggleDrawings(fileBtn) }, icon('M4 6h16', 'M4 12h16', 'M4 18h16'));
-  const selectBtn = h('button', { type: 'button', class: 'selbtn haskinds', 'aria-label': 'Select', title: `Select: a click on an element, or (its kinds) an area (A)`,
-    onclick: () => { kindsOf = 'select'; if (drawing.button && drawing.button !== 'area') drawing.stop(); else renderTools(); } });
+  const selectBtn = h('button', { type: 'button', class: 'selbtn', 'aria-label': 'Select', title: `Select: a click on an element (Shift, ${MOD}: add or remove); Shift-drag a box on the map`,
+    onclick: () => drawing.stop() }, icon(...SELECT_ICON));
   const colToggle = h('button', { type: 'button', class: 'etoggle coltoggle', 'aria-label': 'The tree and the inspector', title: 'The tree and the inspector: shown or hidden (E)',
     onclick: () => setElements(!elementsOpen) }, icon(...UI_ICON.elements));
   // With a finger (drawing-ui.md §1): what keys and a mouse do on a computer, each shown when it
@@ -176,7 +156,7 @@ export function drawView(root, ctx) {
     touchbar.hidden = Object.values(touch).every((b) => b.hidden);
   }
   function renderSubrail() {
-    const tool = kindsOf || (drawing.button === 'area' ? 'select' : drawing.button);
+    const tool = drawing.button;
     const vs = variants(tool);
     subrail.hidden = vs.length < 2;
     subrail.setAttribute('aria-label', `${TOOLS[tool]?.[0] ?? ''}: what it makes`);
@@ -184,10 +164,10 @@ export function drawView(root, ctx) {
       const preset = v.startsWith('preset:'), name = preset ? v.slice(7) : '';
       return h('button', { type: 'button', 'aria-pressed': String(current(tool) === v), title, 'aria-label': preset ? name : title.split(':')[0].split(',')[0],
         onclick: () => choose(tool, v), oncontextmenu: preset ? (e) => { e.preventDefault(); presetMenu(name); } : null },
-      preset ? h('span', { class: 'initials' }, name.slice(0, 2)) : icon(...((tool === 'select' && SELECT_ICON[v]) || POINT_ICON[v] || ctx.measureIcons?.(v) || KIND_ICON.point)));
+      preset ? h('span', { class: 'initials' }, name.slice(0, 2)) : icon(...(POINT_ICON[v] || KIND_ICON.point)));
     }));
     // level with its tool's button, within the window
-    const from = tool === 'select' ? selectBtn : toolBtns.find((x) => x.dataset.tool === tool);
+    const from = toolBtns.find((x) => x.dataset.tool === tool);
     subrail.style.top = from && !subrail.hidden ? `${Math.max(0, Math.min(from.offsetTop - 5, innerHeight - subrail.offsetHeight - 6))}px` : '';
   }
   // a preset of the user's: renamed, or deleted
@@ -1421,14 +1401,13 @@ export function drawView(root, ctx) {
   // ---- rendering ---------------------------------------------------------------------------
   function renderTools() {
     const on = drawing.button;
-    selectBtn.setAttribute('aria-pressed', String(!on || on === 'area'));
-    selectBtn.replaceChildren(icon(...SELECT_ICON[current('select')]));
+    selectBtn.setAttribute('aria-pressed', String(!on));
     colToggle.setAttribute('aria-pressed', String(elementsOpen));
     for (const b of toolBtns) {
       b.setAttribute('aria-pressed', String(on === b.dataset.tool));
       // a tool with kinds shows the one in use (a preset of the user's: the tool's own)
       const k = b.dataset.tool, v = variants(k).length > 1 ? current(k) : null;
-      const paths = (v && (POINT_ICON[v] || ctx.measureIcons?.(v))) || (k === 'measure' ? ctx.measureIcon : KIND_ICON[k]);
+      const paths = (v && POINT_ICON[v]) || (k === 'measure' ? ctx.measureIcon : KIND_ICON[k]);
       if (b.dataset.shows !== String(v)) { b.dataset.shows = String(v); b.querySelector('svg')?.replaceWith(icon(...paths)); }
       b.classList.toggle('haskinds', variants(k).length > 1);
     }
@@ -1443,7 +1422,7 @@ export function drawView(root, ctx) {
       if (what === 'draft') return renderTouch();
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
-        note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the rectangle');
+        note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the box');
       }
       if (what === 'zoom') { // what an enlarged outline says, without rebuilding the fields (one may be being typed in)
         for (const row of list.querySelectorAll('.drow')) { const x = find(drawing.doc, row.dataset.id); if (x?.kind === 'point' && mainOutline(x.el)) row.querySelector('.val').textContent = value('point', x.el); }

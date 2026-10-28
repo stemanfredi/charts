@@ -35,11 +35,10 @@ rail is full height and the map's bottom row and legends start at its edge; the 
 lies over everything (the map and its bottom row too):
 
 - the **rail**, small icons: **☰** (the drawings in this browser and the drawing's file, §10),
-  **Select** (on when no other tool is; its kinds, a click or an area), **Point**, **Line**,
+  **Select** (on when no other tool is), **Point**, **Line**,
   **Shape**, **Label**, **Measure**, **Undo**, **Redo**, and at its foot the column's toggle (or
   **E**). A tool with kinds has a small corner mark and shows the kind in use; its kinds are a column
-  beside the rail, level with the tool's button, open while the tool is on (Select's while Select area is, or
-  once Select is clicked), over the column; they go when the tool ends or another starts;
+  beside the rail, level with the tool's button, open while the tool is on, over the column; they go when the tool ends or another starts;
 - the **column** beside it: the tree (§4) over the inspector (§5), a divider between them (dragged, or
   ↑ ↓ when focused; its place remembered in this browser). Each half has a head: the tree's is the drawing's title
   (a click shows the drawing in the inspector) and the eye for all; the inspector's says what it
@@ -66,7 +65,7 @@ it back and lets the map pinch.
 ## 2. Tools
 
 The row: **Point** (P), **Line** (G), **Shape** (S), **Label** (T), **Measure** (M), then, after a
-divider, **Select** (A: Select area, a box dragged on the map). **Undo** and **Redo** (greyed when
+divider, **Select**. **Undo** and **Redo** (greyed when
 there is nothing to undo or redo) are in the panel's header. One tool is on at a time; it stays on after
 each placement. A tool's button pressed again turns it off. A tool's key works from anywhere and
 opens the panel (not on a phone).
@@ -80,7 +79,7 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
 | Line | none | a line (Guide is a switch on any element, §5) |
 | Shape | circle, rings, sector, rectangle, ellipse, triangle, polygon, aerial vehicle, surface vehicle, underwater vehicle, then the user's presets with extent | see below |
 | Label | none | a label |
-| Measure | distance, area, ring | a guide showing its values (§3) |
+| Measure | none | a line kept as a guide showing its values (§3) |
 
 - **Shape**: built-in presets, as the user's are (`place.js`): a circle (1 km), rings (1, 2 and 3 km,
   the first filled), a sector (three clicks, below), an outline to scale (100 × 50 m; a triangle
@@ -100,8 +99,6 @@ tool remembers the kind chosen last; its key pressed again, while it is on, move
   second the opposite one (**Shift**: a square, a circle, the larger side); it is centred between
   them. The second click on the first places the default size. A preset of the user's keeps its size: one click
   places it. Exact sizes are typed in the inspector.
-- A tool's button pressed from the keyboard places a point, a shape (at its default size) or a label
-  at the map's centre.
 - **Line**: the first click is its start; each click after adds a vertex. A click on something a line
   can attach to ends it there, attached (not on its own start with nothing in between). Enter or a
   double-click ends it at the last vertex, free. Backspace takes back the last vertex (with none, the
@@ -148,10 +145,8 @@ added to or taken from what it is on, it stays where it was (the nearest vertex,
 
 ## 3. Measure
 
-Measure is a shortcut: its kinds are the drawing's own tools with **Guide** and **Show values** ticked.
-**Distance** is the Line tool (its ends attach as a line's do), **Area** the Polygon, **Ring** a circle
-in two clicks (the centre, then the edge; the centre again: 1 km). The result is an ordinary element:
-a line "Distance 1", an area, a point "Ring 1" with one circle and no symbol, drawn in Measure's
+Measure is a shortcut: the Line tool with **Guide** and **Show values** ticked (its ends attach as a
+line's do). The result is an ordinary element, a line "Distance 1", drawn in Measure's
 colour (magenta, dashed). Unticking Guide makes it part of the drawing. There is no Measure apart
 from this: its values are the drawing's own (§2.1, Values while drawing).
 
@@ -175,8 +170,8 @@ from this: its values are the drawing's own (§2.1, Values while drawing).
 - The value: a shape's size ("shown ×7.0" when drawn enlarged), its first filled round part's radius (and a
   sector's aperture), an area's area, a line's length ("guide" when it is one), a label's text, a
   group's count of elements (everything in it, its subgroups' too; the whole count in its tooltip).
-- **Select** (the tool, A): drag a box on the map: what lies entirely inside is selected, a point by
-  its centre, a shape by its whole outline; Shift adds; Esc or a right-click ends it.
+- **A box:** Shift-drag on the map with no tool on: what lies entirely inside is added to the
+  selection, a point by its centre, a shape by its whole outline.
 - Past 30 elements a filter appears (names and property values), with **Select all shown** (Shift:
   adds).
 - A row selects on the map, and the reverse (the list scrolls to it); hovering a row outlines the
@@ -347,7 +342,7 @@ one end to the other, an outline's ring.
   vertices. Hovering an element (on the map or as a row) shows a blue band just outside it (a
   point's outermost round part, or its largest outline; both sides of a line; a ring round a
   point's centre; a label's rim). What a click would snap to, and a root or an attachment being
-  picked, is marked in full blue; the Select area box is blue. Selecting never moves the map; Zoom
+  picked, is marked in full blue; the box is blue. Selecting never moves the map; Zoom
   to does.
 - **Clicks:** with no tool on, a click selects the topmost element; the same place again, the next
   one down. Shift or Ctrl/⌘-click adds or removes.
@@ -382,7 +377,8 @@ one end to the other, an outline's ring.
 | / | search |
 | L | Layers |
 | E | the column (tree and inspector) shown or hidden |
-| P, G, S, T, M, A | point, line, shape, label, measure, select area |
+| P, G, S, T, M | point, line, shape, label, measure |
+| Shift-drag | a box: what lies inside added to the selection |
 | a tool's key again | its next kind |
 | Enter, double-click | finishes |
 | Backspace | takes back a point |

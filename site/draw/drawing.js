@@ -31,7 +31,7 @@ const SNAP_PX = FINGER ? 16 : SNAP_RADIUS, GRAB_PX = FINGER ? 22 : 5, MID_PX = F
 const placeOfEnd = (doc, x) => (typeof x === 'string' ? doc.points.find((n) => n.id === x)?.position : Array.isArray(x) ? x : x?.position);
 export class Drawing extends DrawStore {
   // onChange(what): 'doc' (the document changed), 'sel' (the selection), 'tool', 'draft' (what is
-  // being drawn), 'drag', 'zoom', 'area' (a Select drag ended), 'placed' (a label placed: its text to
+  // being drawn), 'drag', 'zoom', 'area' (a box select ended), 'placed' (a label placed: its text to
   // type), 'storage' (saving failed or another tab saved). known: what the app offers, for parse().
   // getView(): the map's view in the format's terms. units(): the display units ('km' | 'nm');
   // bearings(): each leg's bearing shown beside its length.
@@ -49,8 +49,8 @@ export class Drawing extends DrawStore {
     this.cursor = null;
     map.on('click', (e) => this.click(e));
     map.on('mousemove', (e) => this.pointer(e));
-    this.areaEvents(map);
     this.dragEvents(map);
+    this.areaEvents(map);
     this.keyEvents(map);
     this.drag = null; // a drag under way: { id, role, ref, start, orig (the document before), moved }
     this.handlesShown = false; // a selected line's Bézier handles shown (the inspector's Handles)
@@ -61,7 +61,7 @@ export class Drawing extends DrawStore {
     // of the user's with only a symbol; Shape a circle, rings, a sector (three clicks), an outline, a
     // polygon or a preset with extent (a line is a line: Guide is its switch); Measure a distance (a
     // line), an area (a polygon) or a ring (a circle), each a guide showing its values
-    this.variant = { point: 'symbol', shape: 'circle', measure: 'ruler' };
+    this.variant = { point: 'symbol', shape: 'circle' };
     this.presets = []; // the user's points kept as presets (presets.js), for Point › preset:<name>
     // labels keep their place on screen next to what they point at: drawn again as the map moves
     let labelRaf = 0;
@@ -179,7 +179,7 @@ export class Drawing extends DrawStore {
       });
       return;
     }
-    if (this.tool && this.tool !== 'area') return this.place(this.snapFor(e.point, e.originalEvent).position); // with Select, a click selects as without a tool
+    if (this.tool) return this.place(this.snapFor(e.point, e.originalEvent).position);
     const add = e.originalEvent.shiftKey || e.originalEvent.ctrlKey || e.originalEvent.metaKey;
     const hits = this.hitAt(e.point);
     if (!hits.length) { this.last = null; if (!add) this.select([]); return; }
@@ -242,18 +242,14 @@ export class Drawing extends DrawStore {
     clearTimeout(this.dblZoom); // stop()'s, which would turn it on again after this
     const v = this.variant[tool];
     this.pressed = tool;
-    this.tool = tool === 'shape' && ['polygon', 'sector'].includes(v) ? v : tool === 'measure' ? { ruler: 'line', area: 'polygon', ring: 'shape' }[v] : tool;
+    this.tool = tool === 'shape' && ['polygon', 'sector'].includes(v) ? v : tool === 'measure' ? 'line' : tool;
     this.map.doubleClickZoom.disable();
-    this.map.boxZoom.disable(); // Shift is the tools' (steps, a square), not the map's box zoom
-    if (tool === 'area') this.map.dragPan.disable(); // a drag draws the rectangle (the tool is the box)
     this.map.getCanvas().style.cursor = 'crosshair';
     this.onChange('tool');
   }
   stop() {
     if (!this.tool) return;
     this.snapMark = null;
-    if (this.tool === 'area') this.map.dragPan.enable();
-    this.map.boxZoom.enable();
     this.tool = null;
     this.pressed = null;
     this.draft = null;
@@ -600,7 +596,7 @@ export class Drawing extends DrawStore {
       move?.(); // the last move, not drawn yet: where it is released
       this.drag = null;
       this.snapMark = null;
-      if (this.tool !== 'area') map.dragPan.enable();
+      map.dragPan.enable();
       if (d.moved) { this.pending = d.orig; this.change(() => {}); } // one undo step, from the document before the drag
       this.onChange('drag');
     });
@@ -608,7 +604,7 @@ export class Drawing extends DrawStore {
   cancelDrag() {
     this.doc = JSON.parse(this.drag.orig);
     this.drag = null;
-    if (this.tool !== 'area') this.map.dragPan.enable();
+    this.map.dragPan.enable();
     this.render();
     this.onChange('drag');
   }
@@ -741,7 +737,7 @@ export class Drawing extends DrawStore {
     for (const n of doc.points) if (acc.points.has(n.id)) n.position = mv(n.position);
   }
 
-  // ---- the Select area tool: drag a rectangle, select what lies inside (Shift: add) ------------------
+  // ---- box select: Shift-drag a box with no tool on, what lies inside added to the selection -------
   areaEvents(map) {
     const box = document.createElement('div');
     box.className = 'dbox';
@@ -749,12 +745,15 @@ export class Drawing extends DrawStore {
     map.getCanvasContainer().append(box);
     let from = null;
     const at = (e) => { const r = map.getCanvasContainer().getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    map.boxZoom.disable(); // Shift-drag is the box's, not the map's box zoom
+    // first (capture, after a drag's): Shift pressed on the map with no tool, not on what a drag takes
     map.getCanvasContainer().addEventListener('pointerdown', (e) => {
-      if (this.tool !== 'area' || e.button !== 0 || e.ctrlKey || e.metaKey) return; // Ctrl-drag still rotates the map
+      if (this.tool || this.drag || !e.shiftKey || e.button !== 0 || e.ctrlKey || e.metaKey) return;
+      map.dragPan.disable();
       from = at(e);
       Object.assign(box.style, { left: `${from.x}px`, top: `${from.y}px`, width: '0px', height: '0px' });
       box.hidden = false;
-    });
+    }, true);
     window.addEventListener('pointermove', (e) => {
       if (!from) return;
       const p = at(e);
@@ -765,8 +764,9 @@ export class Drawing extends DrawStore {
       const p = at(e), a = from;
       from = null;
       box.hidden = true;
+      map.dragPan.enable();
       if (Math.abs(p.x - a.x) < 3 && Math.abs(p.y - a.y) < 3) return; // a click, not a drag
-      this.select(this.inside([Math.min(a.x, p.x), Math.min(a.y, p.y), Math.max(a.x, p.x), Math.max(a.y, p.y)]), e.shiftKey ? 'add' : 'replace');
+      this.select(this.inside([Math.min(a.x, p.x), Math.min(a.y, p.y), Math.max(a.x, p.x), Math.max(a.y, p.y)]), 'add');
       this.onChange('area');
     });
   }
@@ -779,7 +779,7 @@ export class Drawing extends DrawStore {
   }
 
   // a new element of the tool's kind at p, at its default size, as its variant says, selected (the
-  // Point tool's click; a tool's button pressed from the keyboard, at the map's centre)
+  // Point tool's click)
   place(p, tool = this.tool) {
     let el;
     this.change((doc) => { el = placeKind(doc, p, this.variant[tool === 'shape' ? 'shape' : 'point'], this.presets); });

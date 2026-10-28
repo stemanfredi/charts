@@ -748,8 +748,6 @@ const ICON = {
   locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v5', 'M12 8h.01'],
   ruler: ['M3 17 17 3l4 4L7 21z', 'm7 13 2 2M10 10l2 2M13 7l2 2'],
-  area: ['m12 3 8 6-3 11H7L4 9z'],
-  ring: ['M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M12 12h.01'],
 };
 // the page's own buttons name their icon: <i data-icon="…">
 for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...ICON[el.dataset.icon]));
@@ -994,7 +992,7 @@ const outputs = [output('link', 'link', 'Copy link', 'Copy a link to this exact 
 // ---- the drawing (draw/panel.js): the rail and the column, on the left ---------------------------
 const drawPanel = drawView($('#dview'), {
   drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units,
-  measureIcon: ICON.ruler, measureIcons: (k) => ICON[k], free: () => free(), strip: $('#dstrip'), elements: $('#elements'),
+  measureIcon: ICON.ruler, free: () => free(), strip: $('#dstrip'), elements: $('#elements'),
   // the column shown: on a phone, Layers makes way for it (one at a time)
   columnShown: () => { if (NARROW.matches) setLayers(false); },
   // the ☰ menu's foot: the view's outputs and About
