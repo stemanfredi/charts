@@ -46,10 +46,10 @@
     </div>
   </div>
 
-  <!-- the time shown and the depth (the layers that use them), opened from its chip on the bottom row -->
+  <!-- the time shown and the depth (the layers that use them): its chip on the bottom row opens the field's calendar -->
   <div id="timepop" class="timepop" hidden>
     <div id="when" class="when" role="group" aria-label="Time and depth shown">
-      <button type="button" data-step="-1" aria-label="Earlier" title="Earlier">‹</button><input type="datetime-local" step="3600" required aria-label="Time shown"><button type="button" data-step="1" aria-label="Later" title="Later">›</button><button type="button" data-now>Now</button>
+      <input type="datetime-local" step="3600" required aria-label="Time shown">
       <label class="depthsel" hidden><span>Depth</span><select aria-label="Depth below the surface"></select></label>
     </div>
   </div>

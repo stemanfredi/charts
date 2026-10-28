@@ -269,17 +269,14 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   check(!shownText.startsWith('Today') && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a time picked on the time line is drawn, shown beside the coordinates and kept in the link (${shownText})`);
   const cmAgain = await open(cmHash);
   check((await cmAgain.evaluate(() => document.querySelector('#when input').value)) === aLocal, 'the link reopens at that time');
-  await cm.click('#when [data-step="1"]');
-  await cm.waitForTimeout(500);
-  check((await cm.evaluate(() => location.hash)).includes(`t=${new Date(ahead + 36e5).toISOString().slice(0, 13)}`), 'the later button steps one hour');
   // a day typed key by key passes through years 0002, 0020, 0202: none of them is taken
   await cm.focus('#when input');
   await cm.keyboard.type(`${aLocal.slice(5, 7)}${aLocal.slice(8, 10)}${aLocal.slice(0, 4)}`); // en-US field: mm dd yyyy first
   await cm.waitForTimeout(500);
   check(/t=20\d\d-/.test(await cm.evaluate(() => location.hash)), 'a day typed key by key never jumps to a year before 2000');
-  await cm.click('#when [data-now]');
+  await cm.fill('#when input', await cm.evaluate(() => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }));
   await cm.waitForTimeout(500);
-  check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'Now goes back to now');
+  check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'now typed in the field goes back to today');
   // About, the bar's ⓘ
   await cm.click('#bar .aboutbtn');
   check(await cm.evaluate(() => document.querySelector('#about').open), 'the About button opens About');

@@ -70,10 +70,8 @@ svg { flex: none; }
 /* the time shown and the depth, in a box over its chip: ‹ time › Now, then the depth (on the next line if need be) */
 .timepop { position: fixed; z-index: 9; padding: 6px; }
 .when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.when input, .when select, .when button { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 8px; }
+.when input, .when select { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 8px; }
 .when input { flex: 1; min-width: 0; }
-.when button { min-width: var(--row); }
-.when [data-step] { font-size: 18px; padding: 0; }
 /* the depth on a row of its own: the time line keeps its width, however long the depth control is */
 .when .depthsel { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
 .when .depthsel select { flex: 1; }
