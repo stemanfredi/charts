@@ -14,6 +14,7 @@ const KEYS = [
   { line: 1, key: 'l', text: 'layers', open: 'layers' },
   { line: 1, key: 'e', text: 'elements', open: 'elements' },
   { line: 1, key: 'i', text: 'properties', open: 'props' },
+  { line: 3, key: 'b', text: 'box select', tool: ['draw', 'box'] },
   { line: 3, key: 'p', text: 'point', tool: ['draw', 'point'] },
   { line: 3, key: 'g', text: 'line', tool: ['draw', 'line'] },
   { line: 3, key: 's', text: 'shape', tool: ['draw', 'shape'] },

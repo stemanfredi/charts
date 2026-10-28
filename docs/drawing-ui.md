@@ -14,11 +14,14 @@ Code: `site/frame.js` the frame; `site/draw/`: `panel.js` the inspector, `tree.j
 One layout at every width (`site/frame.js`).
 
 - **The bar**, across the top: **☰** (the drawings in this browser, the drawing's file, the view's
-  outputs, About), the left panel's toggle, **Select**, **Point**, **Line**, **Shape**, **Label**,
-  **Measure**, **Undo**, **Redo**; at its end **find a place** (the lens or /) and the
-  **Properties** toggle. A tool with kinds shows the one in use and a corner mark; its kinds are a
-  row under its button as it goes on, shut once one is picked or the map is clicked; its key again
-  moves to the next kind, the row open to show it.
+  outputs, About), the left panel's toggle; **Undo**, **Redo** (history, not tools); **Select** and
+  **Box select**; **Point**, **Line**, **Shape**, **Label**; **Measure**; at its end **find a place**
+  (the lens or /) and the **Properties** toggle. With a mouse and room (a window from 1,100 px), a
+  tool's kinds are buttons in the bar in its place (Shape's ten), each the tool on with that kind.
+  Otherwise the tool's one button shows the kind in use and a corner mark; its kinds are a row under
+  it as it goes on, shut once one is picked or the map is clicked. Its key again: the next kind.
+- **Box select** (B): the next drag on the map, a mouse's or a finger's, draws a box; what lies
+  inside is selected, then Select again. A drag with Select moves the map; Shift-drag is the box too.
 - **The left panel**: tabs **Elements** (the tree, §4) and **Layers** (`menu=1` in the address).
   Its toggle, **E** and **L** open it on a tab, or close it when it shows that tab. At first it is
   open on Layers.
@@ -116,8 +119,9 @@ the drawing.
 
 ## 4. The tree
 
-- Its first row is the drawing: its title (a click selects it: Properties, when on, show it), how many
-  elements it holds, and an eye for everything listed.
+- Its first row is the drawing: its title ("Untitled drawing" while it has none; a click selects it:
+  Properties, when on, show it; a double-click renames it, as in the ☰ menu), how many elements it
+  holds, and an eye for everything listed.
 - Then groups first, what is in each one step further in (a group folds), then the rest. A row: the
   element's icon (a point by what it looks like), its name (else its kind and place), a short value
   (size, radius, length, area, text, a group's count), its eye.
@@ -125,8 +129,8 @@ the drawing.
   dragged onto a group goes into it; onto a row of its kind, before it and into its group; onto
   another, into its group. Ctrl/⌘ ] and [ move the selection a step up or down among its kind.
 - Selecting: a click (Shift: a range; Ctrl/⌘: add or remove), ↑ ↓, or on the map (the tree follows);
-  hovering a row outlines its element. **Shift-drag** on the map, no tool on, adds what lies entirely
-  inside the box. Past 30 elements a filter appears (names and property values), with **Select all
+  hovering a row outlines its element. **Box select** (or Shift-drag) on the map adds what lies
+  entirely inside the box. Past 30 elements a filter appears (names and property values), with **Select all
   shown**. Double-click a name, or F2, renames.
 
 ## 5. Properties
@@ -237,7 +241,7 @@ from its bearing, a sector's arc, an outline's ring) opens a form in Properties:
 | I | Properties on or off |
 | P, G, S, T, M | point, line, shape, label, measure |
 | a tool's key again | its next kind |
-| Shift-drag | a box: what lies inside added to the selection |
+| B, Shift-drag | Box select: a box, what lies inside added to the selection |
 | Enter, double-click | finishes |
 | Backspace | takes back a point |
 | Esc, right-click | steps back one level |

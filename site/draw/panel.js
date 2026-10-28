@@ -842,11 +842,12 @@ export function drawView(root, ctx) {
     if (totalsBy && !keys.includes(totalsBy)) { totalsBy = ''; computeFacts(); } // its key gone
     const by = select('Totals by', [['', 'group'], ...keys.map((k) => [k, k])], totalsBy || '', (v) => { totalsBy = v; computeFacts(); renderInspector(); });
     const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look?.offset != null); // where Offset is set on an element
-    title = 'Drawing'; // its title: the tree's head
-    return [row('Title', meta('title', 'Title')), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
+    title = `Drawing · ${m.title?.trim() || 'Untitled drawing'}`;
+    const titleField = Object.assign(meta('title', 'Title'), { placeholder: 'Untitled drawing' }); // what the tree and ☰ call it while it has none
+    return [row('Title', titleField), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
       lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'offset', 'minSize'], 'Display', [
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
-        row('Bearings', check('beside lengths', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }))]),
+        row('Leg bearings', check('', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { 'aria-label': 'Leg bearings', title: 'Each leg\'s bearing (°T) beside its length, where values are shown' }))]),
       n > 1 ? totalsBlock(keys.length ? by : null, groupName) : null,
       drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Export drawing (GeoJSON), in the drawings menu, keeps it as a file.') : null,
       drawing.saving.otherTab ? h('p', { class: 'note warn' }, 'The drawing was changed in another tab. Saving here replaces that version. ', h('button', { type: 'button', class: 'small', onclick: () => location.reload() }, 'Reload')) : null];
@@ -890,7 +891,7 @@ export function drawView(root, ctx) {
       copy.push(['Areas', '', 'All areas', b.areas.count, '', b.areas.area, b.areas.perimeter]);
     }
     if (b.points.count) {
-      rows.push(sec('Points', '', ''));
+      rows.push(sec('Points', 'Count', ''));
       for (const [k, c] of [...b.points.kinds].sort((p, q) => q[1] - p[1])) { const name = totalsBy ? keyName(k) : POINT_KIND_NAME[k] ?? OUTLINE_NAME[k] ?? k; rows.push(h('tr', { class: 'item top' }, td(name), num(String(c)), td(''))); copy.push(['Points', '', name, c, '', '', '']); }
       rows.push(h('tr', { class: 'all' }, td('All points'), num(String(b.points.count)), td('')));
       copy.push(['Points', '', 'All points', b.points.count, '', '', '']);

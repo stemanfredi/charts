@@ -62,7 +62,7 @@ export function createTree(drawing, ctx, { facts, openDrawing }) {
   const list = h('ul', { class: 'dlist', 'aria-label': 'Elements', onpointerleave: () => drawing.setHover(null) });
   // The first row is the drawing (drawing-ui.md §4): its title, how much it holds, the eye for
   // everything listed. A click shows it in Properties (openDrawing).
-  const rootName = h('button', { type: 'button', class: 'dname', title: 'The drawing: its title, its display, its totals', onclick: () => openDrawing() });
+  const rootName = h('button', { type: 'button', class: 'dname', title: 'The drawing: its title, its display, its totals. Double-click to rename.', onclick: () => openDrawing(), ondblclick: () => renameDrawing() });
   const rootVal = h('span', { class: 'val' });
   const rootRow = h('div', { class: 'drow droot' }, h('span', { class: 'kind' }, icon(...UI_ICON.drawing)), rootName, rootVal, eyeAll);
   const listBox = h('div', { class: 'dlistbox' }, rootRow, filterRow, list);
@@ -185,6 +185,24 @@ export function createTree(drawing, ctx, { facts, openDrawing }) {
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } });
     input.addEventListener('blur', () => finish(true));
     btn.replaceWith(input);
+    input.focus();
+    input.select();
+  }
+
+  // the drawing renamed in its row, as an element is: its title (the ☰ menu's name too)
+  function renameDrawing() {
+    const input = h('input', { class: 'dname', value: drawing.doc.meta.title || '', placeholder: 'Untitled drawing', 'aria-label': 'Title' });
+    let done = false;
+    const finish = (apply) => {
+      if (done) return;
+      done = true;
+      input.replaceWith(rootName);
+      if (apply && input.value !== (drawing.doc.meta.title || '')) drawing.change((doc) => { doc.meta.title = input.value; });
+      else render();
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } });
+    input.addEventListener('blur', () => finish(true));
+    rootName.replaceWith(input);
     input.focus();
     input.select();
   }

@@ -31,3 +31,5 @@ export const POINT_ICON = {
   'aerial-vehicle': ['M12 3v18M4 12l8-3 8 3M9 19l3-1 3 1'], 'surface-vehicle': ['M12 3c3 2 4 5 4 8v9H8v-9c0-3 1-6 4-8z'], 'underwater-vehicle': ['M7 9h8a3 3 0 0 1 0 6H7l-3 2V7z'],
 };
 export const SELECT_ICON = ['M5 3l14 8-6 2-2 6z']; // an arrow
+// Box select: a dashed square
+export const BOX_ICON = ['M4 8V4h4', 'M11 4h2', 'M16 4h4v4', 'M20 11v2', 'M20 16v4h-4', 'M13 20h-2', 'M8 20H4v-4', 'M4 13v-2'];

@@ -7,6 +7,7 @@
 
 import { h, store, NARROW } from './dom.js';
 import { note } from './menu.js';
+import { openKey } from './keys.js';
 
 const KEY = 'charts.frame';
 const LEFT = { min: 200, max: 480, dflt: 260 }, RIGHT = { min: 260, max: 600, dflt: 320 }, SHEET = { min: 25, max: 90, dflt: 52 }; // px; the sheet in % of the window
@@ -28,10 +29,10 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
   const root = document.documentElement;
 
   // the bar's toggles: the left panel at its start, Properties at its end
-  const toggle = (side, label, paths, onclick) => h('button', { type: 'button', class: `ptoggle ${side}`, 'aria-label': label, title: label, 'aria-pressed': 'false', onclick }, icon(...paths));
+  const toggle = (side, label, keys, paths, onclick) => h('button', { type: 'button', class: `ptoggle ${side}`, 'aria-label': label, title: `${label} (${keys})`, 'aria-pressed': 'false', onclick }, icon(...paths));
   // the left's toggle: open or closed; while it makes way for Properties, it back (Properties off)
-  const leftBtn = toggle('pleft', 'Elements and Layers', ['M4 5h16v14H4z', 'M9 5v14'], () => (yields() ? setProps(false) : setTab(st.tab ? null : st.last)));
-  const rightBtn = toggle('pright', 'Properties', ['M4 5h16v14H4z', 'M15 5v14'], () => setProps(!st.props));
+  const leftBtn = toggle('pleft', 'Elements and Layers', `${openKey('elements')}, ${openKey('layers')}`, ['M4 5h16v14H4z', 'M9 5v14'], () => (yields() ? setProps(false) : setTab(st.tab ? null : st.last)));
+  const rightBtn = toggle('pright', 'Properties', openKey('props'), ['M4 5h16v14H4z', 'M15 5v14'], () => setProps(!st.props));
 
   // the left's tabs
   const tabBtns = tabs.map((t) => h('button', { type: 'button', role: 'tab', 'data-tab': t.id, onclick: () => setTab(t.id) }, t.label));

@@ -513,31 +513,46 @@ await section('the drawing', async () => {
   const featuresOf = (fc, kind) => (fc?.features || []).filter((f) => own(f)?.kind === kind && !(own(f).guide && own(f).look?.text?.values));
   const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
   await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind)
-  const sub = await dw.locator('.kinds button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
+  // with a mouse and room in the bar: Shape's kinds are buttons in the bar, in its place
+  const sub = await dw.locator('#bar .kinds.inline:not([hidden]) button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
-    `tools: Shape's kinds, round a centre first, then the outlines, then the vehicles (${sub})`);
-  // the bar across the top, the tool's kinds a row under it; the left panel open, hidden by the bar's
-  // toggle, back with E; Properties hidden with nothing selected (it has nothing to show)
-  const layoutNow = () => dw.evaluate(() => [!!document.querySelector('#bar button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#bar .kinds')?.offsetParent,
+    `tools: Shape's kinds in the bar, round a centre first, then the outlines, then the vehicles (${sub})`);
+  // the bar across the top, the kind in use pressed in it; the left panel open, hidden by the bar's
+  // toggle, back with E; Properties hidden with nothing selected (it has nothing to show); the bar's
+  // order: ☰, the panel, Undo, Redo, Select, Box select, then the tools
+  const layoutNow = () => dw.evaluate(() => [document.querySelector('#bar .kinds.inline button[aria-pressed=true]')?.getAttribute('aria-label') ?? '', !!document.querySelector('#bar button[data-tool=shape]')?.offsetParent,
     !document.querySelector('#side').hidden, Math.round(document.querySelector('#bar').getBoundingClientRect().top), document.querySelector('#props').hidden]);
   const onTool = await layoutNow();
+  const order = await dw.evaluate(() => [...document.querySelectorAll('#bar > button')].slice(0, 6).map((b) => b.getAttribute('aria-label')).join());
+  const longHints = await dw.evaluate(() => [...document.querySelectorAll('#bar button[title]')].map((b) => b.title).filter((t) => t.length > 30));
+  check(!longHints.length, `tools: the bar's hints a name and its key, no more (${longHints.join(' | ') || 'none longer than 30'})`);
   await dw.click('#bar .pleft');
   const hiddenE = await layoutNow();
   await dw.keyboard.press('e');
   const shownE = await layoutNow();
-  check(onTool.join() === 'true,true,true,0,true' && !hiddenE[2] && shownE[2],
-    `tools: the bar at the top, the kinds under it; the left panel open, hidden by the bar's toggle, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
-  // a kind picked: the row shut, the tool's button showing it; the key again: the next kind, the row
-  // open to show it, shut by a click on the map; Circle again
-  await dw.click('#bar .kinds button[aria-label="Rings"]');
-  const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
-  const picked = await shut();
+  check(onTool.join() === 'Circle,false,true,0,true' && !hiddenE[2] && shownE[2] && order === 'File,Elements and Layers,Undo,Redo,Select,Box select',
+    `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by the bar's toggle, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
+  // a kind clicked in the bar: the tool on with it; the key again: the next kind
+  await dw.click('#bar .kinds.inline button[aria-label="Rings"]');
+  const pickedIn = (await layoutNow())[0];
   await dw.keyboard.press('s');
-  const next = await shut();
+  const nextIn = (await layoutNow())[0];
+  // without the room (a narrower window): the tool's one button, its kinds a row under it, shut once
+  // one is picked; the key again opens it on the next kind
+  await dw.setViewportSize({ width: 1000, height: 800 });
+  await dw.waitForTimeout(200);
+  const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds:not(.inline)')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
+  await dw.keyboard.press('s');
+  const opened = await shut();
+  await dw.click('#bar .kinds:not(.inline) button[aria-label="Rings"]');
+  const picked = await shut();
+  await dw.setViewportSize({ width: 1280, height: 800 });
+  await dw.waitForTimeout(200);
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('s');
-  await dw.click('#bar .kinds button[aria-label="Circle"]');
-  check(!picked[0] && picked[1] === 'rings' && next.join() === 'true,sector', `tools: a kind picked, its row shut, the tool's button shows it; the key again, the next kind, the row open (${picked}; ${next})`);
+  await dw.click('#bar .kinds.inline button[aria-label="Circle"]');
+  check(pickedIn === 'Rings' && nextIn === 'Sector' && opened.join() === 'true,rectangle' && picked.join() === 'false,rings',
+    `tools: a kind clicked in the bar (${pickedIn}), the key the next (${nextIn}); narrower, a row under the tool's button, opened by its key (${opened}), shut once one is picked (${picked})`);
   await dw.mouse.click(DX + 500, 400);
   await dw.mouse.click(DX + 500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');
@@ -699,6 +714,15 @@ await section('the drawing', async () => {
   await dw.keyboard.up('Shift');
   await dw.click('.dinsphead button[aria-label=Group]'); // the title row's Group
   check(await dw.evaluate(() => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === drawing.doc.groups[0].id)), 'drawing: a box (Shift-drag), then a group of everything in it');
+  // Box select (B, or its button): a plain drag draws the box, once, then Select again
+  await dw.evaluate(() => drawing.select([]));
+  await dw.click('#bar button[aria-label="Box select"]');
+  await dw.mouse.move(DX + 150, 250);
+  await dw.mouse.down();
+  await dw.mouse.move(DX + 700, 600, { steps: 5 });
+  await dw.mouse.up();
+  const boxed = await dw.evaluate(() => [drawing.sel.size, drawing.boxNext, document.querySelector('#bar .selbtn').getAttribute('aria-pressed')]);
+  check(boxed[0] > 0 && boxed.slice(1).join() === 'false,true', `drawing: Box select, a plain drag selects what lies inside, then Select again (${boxed})`);
   // two of its lines grouped: a subgroup of it, one step further in the list; deleted alone, its lines
   // back in the group above
   const top = await dw.evaluate(() => { drawing.select(drawing.doc.lines.slice(0, 2).map((s) => s.id)); return drawing.doc.groups[0].id; });

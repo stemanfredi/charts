@@ -53,6 +53,7 @@ export class Drawing extends DrawStore {
     this.areaEvents(map);
     this.keyEvents(map);
     this.drag = null; // a drag under way: { id, role, ref, start, orig (the document before), moved }
+    this.boxNext = false; // Box select on: the next drag on the map draws the box (boxSelect)
     this.repointing = null; // { id, key }: what the next click attaches a label's anchor or a line's end to (its inspector's Attach to…)
     this.picking = null; // the Connect form: what a click on the map picks (roots)
     this.marksOn = true;
@@ -205,7 +206,7 @@ export class Drawing extends DrawStore {
     }
     if (this.tool === 'point' || this.tool === 'shape') { this.snapFor(e.point, e.originalEvent); this.renderMarks(); return; } // where a click would place it
     if (this.snapMark && !this.drag) { this.snapMark = null; this.renderMarks(); }
-    if (this.repointing) { this.map.getCanvas().style.cursor = 'crosshair'; return; }
+    if (this.repointing || this.boxNext) { this.map.getCanvas().style.cursor = 'crosshair'; return; }
     // picking roots (the form's Connect): over a point, it is taken (or dropped); elsewhere, a new
     // root is placed there
     if (this.picking && !this.tool) { this.map.getCanvas().style.cursor = this.pointAt(e.point) ? 'pointer' : 'crosshair'; return; }
@@ -248,6 +249,7 @@ export class Drawing extends DrawStore {
   // ---- tools -----------------------------------------------------------------------------
   start(tool) {
     if (this.tool) this.stop();
+    this.boxNext = false;
     clearTimeout(this.dblZoom); // stop()'s, which would turn it on again after this
     const v = this.variant[tool];
     this.pressed = tool;
@@ -662,6 +664,7 @@ export class Drawing extends DrawStore {
       if (this.drag) return this.cancelDrag();
       if (this.repointing) { this.cancelRepoint(); return this.onChange('sel'); }
       if (this.tool) return this.escape();
+      if (this.boxNext) return this.boxSelect(false);
       this.select([]);
     };
     let right = null;
@@ -774,6 +777,14 @@ export class Drawing extends DrawStore {
     for (const n of doc.points) if (acc.points.has(n.id)) n.position = mv(n.position);
   }
 
+  // Box select (Select's other kind, B): the next drag on the map, a mouse's or a finger's, draws the
+  // box (as Shift-drag does), then back to Select; on: false puts it off
+  boxSelect(on) {
+    if (on && this.tool) this.stop();
+    this.boxNext = on;
+    this.map.getCanvas().style.cursor = on ? 'crosshair' : '';
+    this.onChange('tool');
+  }
   // ---- box select: Shift-drag a box with no tool on, what lies inside added to the selection -------
   areaEvents(map) {
     const box = document.createElement('div');
@@ -785,7 +796,7 @@ export class Drawing extends DrawStore {
     map.boxZoom.disable(); // Shift-drag is the box's, not the map's box zoom
     // first (capture, after a drag's): Shift pressed on the map with no tool, not on what a drag takes
     map.getCanvasContainer().addEventListener('pointerdown', (e) => {
-      if (this.tool || this.drag || !e.shiftKey || e.button !== 0 || e.ctrlKey || e.metaKey) return;
+      if (this.tool || this.drag || !(e.shiftKey || this.boxNext) || e.button !== 0 || e.ctrlKey || e.metaKey) return;
       map.dragPan.disable();
       from = at(e);
       Object.assign(box.style, { left: `${from.x}px`, top: `${from.y}px`, width: '0px', height: '0px' });
@@ -802,6 +813,7 @@ export class Drawing extends DrawStore {
       from = null;
       box.hidden = true;
       map.dragPan.enable();
+      if (this.boxNext) this.boxSelect(false); // one box, then Select again
       if (Math.abs(p.x - a.x) < 3 && Math.abs(p.y - a.y) < 3) return; // a click, not a drag
       this.select(this.inside([Math.min(a.x, p.x), Math.min(a.y, p.y), Math.max(a.x, p.x), Math.max(a.y, p.y)]), 'add');
       this.onChange('area');
