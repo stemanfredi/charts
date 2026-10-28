@@ -1,6 +1,8 @@
 :root {
-  --ink: #1f2c36; --soft: #5d6d79; --line: #d5dde3; --line2: #e9eef2; --bg: #ffffff; --bg2: #f5f7f9; --sel: #e3edf4;
+  --ink: #1f2c36; --soft: #5d6d79; --line: #d5dde3; --line2: #e9eef2; --bg: #ffffff; --bg2: #f5f7f9; --sel: #dcebf9; --hover: var(--line2);
   --accent: #1f5f86; --magenta: #b0127a; --err: #b42318; --warn: #b54708;
+  /* --sel: what is selected or current, a tint of the map's marks' blue (draw/layers.js MARK); --hover:
+     what the pointer is over where a click does something; --accent: what is pressed, and the focus */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
@@ -172,7 +174,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dfilter input { flex: 1 1 140px; min-width: 0; min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; }
 .dlist { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; overscroll-behavior: contain; }
 .drow { display: flex; align-items: center; gap: 2px; min-height: var(--row); padding: 0 4px 0 2px; }
-.drow:hover { background: var(--bg2); }
+.drow:hover { background: var(--hover); }
 .drow.sel { background: var(--sel); }
 .drow.droot { flex: none; padding-left: 6px; border-bottom: 1px solid var(--line2); }
 .drow.droot .dname { font-weight: 600; }
@@ -206,7 +208,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect input:not([type=checkbox]):not([type=radio]):not([type=color]), .dinspect textarea, .dinspect select {
   min-height: var(--row); border: 1px solid transparent; border-radius: 0; padding: 0 8px; background: transparent; font: inherit; min-width: 0;
 }
-.dinspect :is(input:not([type=checkbox]):not([type=radio]):not([type=color]), textarea, select):hover { background: var(--bg2); }
+.dinspect :is(input:not([type=checkbox]):not([type=radio]):not([type=color]), textarea, select):hover { background: var(--hover); }
 .dinspect :is(input, textarea, select):focus { outline: 2px solid var(--accent); outline-offset: -2px; background: #fff; }
 /* outside a grid (the filter, a form's own fields) a field keeps its box */
 .dinspect > :is(input, textarea, select), .dinspect .frow:not(.vrow) > :is(input, textarea, select) { border-color: var(--line); border-radius: 4px; }
@@ -311,6 +313,7 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid td .fvalue { font-size: 11px; color: var(--soft); }
 .lgrid .frozen { position: sticky; z-index: 1; background: var(--bg); }
 .lgrid .frozen.fedge { box-shadow: 1px 0 0 var(--line); }
+.lgrid tbody tr:not(.cur, .ladd):hover td { background: var(--hover); } /* a row a click makes current */
 .lgrid tr.cur td { background: var(--sel); }
 .lgrid tr.vnode td { background: var(--bg2); }
 .lgrid tr.cur td.frozen, .lgrid tr.vnode td.frozen { background: inherit; }
@@ -373,7 +376,8 @@ body.finding .search { display: flex; }
 .results ul { list-style: none; margin: 0; padding: 0; }
 .results li { min-height: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
 .results li small { color: var(--soft); font-size: 11px; }
-.results li[aria-selected="true"], .results li:hover { background: var(--sel); }
+.results li:hover { background: var(--hover); }
+.results li[aria-selected="true"] { background: var(--sel); }
 .results li.none { cursor: default; color: var(--soft); background: none; }
 .pin { width: 18px; height: 18px; border-radius: 50%; background: var(--magenta); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 /* the depth at a clicked point */

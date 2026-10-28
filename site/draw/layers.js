@@ -5,7 +5,7 @@
 // The marks of interaction (drawing-ui.md §7), one blue cased in white, seen on chart, sea and
 // satellite: hovered at half strength; selected, and what a click would hit, at full. What is not made
 // yet (being drawn, a form's preview) is dashed and dark (DRAFT). Measurements keep magenta: content.
-const MARK = '#1c7ed6', MARK_CASE = '#ffffff', HOVER = 0.5, DRAFT = '#1f2c36';
+const MARK = '#1c7ed6', MARK_CASE = '#ffffff', HOVER = 0.7, DRAFT = '#1f2c36'; // HOVER: every hover mark's strength (band, ring, label)
 
 // the symbols and the label box, added to the map once its style is loaded
 export function addIcons(map) {
@@ -84,7 +84,7 @@ const fillLayer = (kind, source) => ({
 // (negative offset: the left of a counter-clockwise ring, its outside on screen), on both sides of a
 // line: one line of the mark's blue (no casing: it read as white lines either side of it)
 const BAND = 2;
-const HALO = [['line', MARK, BAND, 0.8]];
+const HALO = [['line', MARK, BAND, HOVER]];
 const haloLayers = (geom, sides, parts) => sides.flatMap((side) => parts.map(([part, colour, width, opacity]) => ({
   id: `draw-mark-${part}-${geom.toLowerCase()}${sides.length > 1 ? (side > 0 ? '-r' : '-l') : ''}`, type: 'line', source: 'drawover',
   filter: ['all', ['==', ['get', 'kind'], 'hover'], ['==', ['geometry-type'], geom]],
