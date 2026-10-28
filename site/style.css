@@ -194,7 +194,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect h3 { display: flex; align-items: center; justify-content: space-between; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0; min-height: var(--row); padding: 0 8px 0 12px; background: var(--bg2); border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
 .dinspect h3 .hbtns { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; }
 /* a heading that folds its section: the word and its arrow, one target */
-.dinspect h3 .hfold { display: flex; align-items: center; gap: 6px; min-height: var(--row); min-width: var(--row); border: 0; background: none; padding: 0 8px 0 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.dinspect h3 .hfold { display: flex; align-items: center; gap: 6px; flex: 1; min-height: var(--row); min-width: var(--row); border: 0; background: none; padding: 0 8px 0 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; }
 .dinspect h3 .hfold::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; margin: 0 4px; }
 .dinspect h3 .hfold[aria-expanded="true"]::before { transform: rotate(45deg); }
 .frow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
