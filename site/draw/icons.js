@@ -28,7 +28,7 @@ export const POINT_ICON = {
   rings: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z'],
   sector: ['M5 19V5a14 14 0 0 1 14 14z'], // a quarter of a circle, its centre bottom left
   rectangle: ['M4 8h16v8H4z'], ellipse: ['M12 7c5 0 9 2.2 9 5s-4 5-9 5-9-2.2-9-5 4-5 9-5z'], triangle: ['M12 4l8 15H4z'], polygon: KIND_ICON.polygon,
-  'aerial-vehicle': ['M12 3v18M4 12l8-3 8 3M9 19l3-1 3 1'], 'surface-vehicle': ['M12 3c3 2 4 5 4 8v9H8v-9c0-3 1-6 4-8z'], 'underwater-vehicle': ['M7 9h8a3 3 0 0 1 0 6H7l-3 2V7z'],
+  'aerial-vehicle': ['M12 3v18M4 12l8-3 8 3M9 19l3-1 3 1'], 'surface-vehicle': ['M12 3c3 2 4 5 4 8v9H8v-9c0-3 1-6 4-8z'], 'underwater-vehicle': ['M12 2c2.2 0 4 2.4 4 5v9.5l2 3.5h-2.4l-.6-1h-6l-.6 1H6l2-3.5V7c0-2.6 1.8-5 4-5z'], // the outline's rocket, upright
 };
 export const SELECT_ICON = ['M5 3l14 8-6 2-2 6z']; // an arrow
 // Box select: a dashed square

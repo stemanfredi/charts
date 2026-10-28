@@ -13,8 +13,9 @@ const q = Math.PI / 2;
 const RIGHT = {
   // a pointed bow curving out to full beam over the front 30 %; straight sides; a flat stern
   'surface-vehicle': [...curve((s) => [0.5 * Math.sin(q * s), 0.5 - 0.3 * s], 16), [0.5, -0.44], [0.485, -0.485], [0.44, -0.5], [0, -0.5]],
-  // a rounded nose; a straight body; a tail tapering over the last fifth
-  'underwater-vehicle': [...curve((s) => [0.5 * Math.sin(q * s), 0.38 + 0.12 * Math.cos(q * s)], 12), [0.5, -0.28], [0.18, -0.5], [0, -0.5]],
+  // a rocket: a smoothly rounded nose over the front fifth, a straight body to 0.4 wide, fins a little
+  // wider than the body over the last fifth
+  'underwater-vehicle': [...curve((s) => [0.4 * Math.sin(q * s), 0.3 + 0.2 * Math.cos(q * s)], 12), [0.4, -0.32], [0.5, -0.5], [0.4, -0.5], [0, -0.5]],
   // a slim body with a rounded nose; swept wings; small tail wings
   'aerial-vehicle': [...curve((s) => [0.05 * Math.sin(q * s), 0.42 + 0.08 * Math.cos(q * s)], 8),
     [0.05, 0.1], [0.5, -0.12], [0.5, -0.2], [0.05, -0.08], [0.05, -0.36], [0.18, -0.44], [0.18, -0.5], [0, -0.5]],

@@ -77,7 +77,7 @@ export function fields({ note, units }) {
       const m = zero && t.trim() === '0' ? 0 : parseDist(t, unit);
       return m === null || (zero ? m < 0 : m <= 0) || check(m) ? undefined : m;
     }, put, { 'aria-label': aria, class: 'dist', nudge: (t, up, big) => stepped(t, up, big, 0), bad: zero ? 'a distance, 0 or more, with m, km or NM' : 'a distance above 0, with m, km or NM',
-      title: 'A distance in the unit beside it (another may be typed: 500 m, 1.2 km, 0.8 NM)', placeholder: 'mixed', ...attrs });
+      title: 'In the unit beside it, or with one', placeholder: 'mixed', ...attrs });
     input.unitText = () => UNIT_TEXT[unit];
     return input;
   };
@@ -95,7 +95,7 @@ export function fields({ note, units }) {
     const v = parseCoord(t, axis);
     return v === null || (axis === 'lat' && Math.abs(v) > MAX_LAT) ? undefined : v;
   }, put, { 'aria-label': aria, class: 'coord', placeholder: 'mixed', bad: axis === 'lat' ? 'a latitude between −85.05 and 85.05 (N or S)' : 'a longitude between −180 and 180 (E or W)',
-    title: 'Decimal degrees, degrees and minutes (37 17.48N) or DMS' });
+    title: 'Degrees, or 37 17.48N' });
   // a position [lon, lat]: its latitude, then its longitude, each applied alone (fixed: decimals shown)
   const position = (get, put, aria = '', fixed = null) => [
     h('span', { class: 'funit' }, 'Lat'), coord('lat', () => get()[1], (v) => put([get()[0], v]), `${aria}Latitude`.trim(), fixed),
