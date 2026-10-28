@@ -181,9 +181,11 @@ export function drawView(root, ctx) {
   // category: properties like any other)
   // Data, folded while it has nothing of the user's: the preset a point was placed from is said under
   // its heading (it is a property all the same, in the list once open)
-  // A folding section's head (drawing-ui.md §5: Data, Depth profile, Totals): its title a chevron
-  // button, open or not; extras: buttons at its right (Copy, +)
-  const foldHead = (title, open, toggle, ...extras) => h('h3', {}, h('button', { type: 'button', class: 'hfold', 'aria-expanded': String(open), 'aria-label': `${open ? 'Fold' : 'Open'} ${title}`, onclick: toggle }, title),
+  // A folding section's head (drawing-ui.md §5: Data, Depth profile, Totals), as a group's in Layers:
+  // the whole head folds it (its title a button, for keys), the arrow at its right; extras: buttons
+  // after the title (Copy, +)
+  const foldHead = (title, open, toggle, ...extras) => h('h3', { class: open ? 'folds open' : 'folds', onclick: (e) => { if (!e.target.closest('.hbtns, .hfold')) toggle(); } },
+    h('button', { type: 'button', class: 'hfold', 'aria-expanded': String(open), 'aria-label': `${open ? 'Fold' : 'Open'} ${title}`, onclick: toggle }, title),
     h('span', { class: 'hbtns' }, ...extras.flat().filter(Boolean)));
   // the row of what can be done to it (one place, before Look): the rule's Edit… and Select all, then its own
   const actionsRow = (...btns) => { btns = btns.flat().filter(Boolean); return btns.length ? row('', ...btns) : null; };
