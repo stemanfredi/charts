@@ -1,6 +1,6 @@
 // The drawing on the map: the document being edited (store.js: undo, selection), drawn in the
 // layers of layers.js from features.js and labels.js, with the placing tools, clicks, hit testing,
-// dragging and the Select area tool; saved in this browser as it changes (saving.js).
+// dragging and the box (Shift-drag); saved in this browser as it changes (saving.js).
 
 import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf, mainOutline, MAX_RADIUS } from './document.js';
 import { typing } from '../dom.js';
@@ -56,7 +56,7 @@ export class Drawing extends DrawStore {
     this.repointing = null; // { id, key }: what the next click attaches a label's anchor or a line's end to (its inspector's Attach to…)
     this.picking = null; // the Connect form: what a click on the map picks (roots)
     this.marksOn = true;
-    // what each tool with kinds makes (its sub-rail; drawing-ui.md §2): Point a symbol or a preset
+    // what each tool with kinds makes (its row of kinds; drawing-ui.md §2): Point a symbol or a preset
     // of the user's with only a symbol; Shape a circle, rings, a sector (three clicks), an outline, a
     // polygon or a preset with extent (a line is a line: Guide is its switch); Measure a distance (a
     // line), an area (a polygon) or a ring (a circle), each a guide showing its values
@@ -224,7 +224,7 @@ export class Drawing extends DrawStore {
   cancelRepoint() { this.repointing = null; this.map.getCanvas().style.cursor = ''; }
   // what a click on the map picks while the generator's form is open (fn(nodeId, position)), or null
   setPicking(fn) { this.picking = fn; if (!fn && !this.tool) this.map.getCanvas().style.cursor = ''; }
-  // a tool's variant chosen (its sub-rail): the tool on with it
+  // a tool's variant chosen (its row of kinds): the tool on with it
   setVariant(button, v) {
     this.variant[button] = v;
     this.start(button);

@@ -6,6 +6,7 @@
 // What the panels hold is their modules': this only places them.
 
 import { h, store, NARROW } from './dom.js';
+import { note } from './menu.js';
 
 const KEY = 'charts.frame';
 const LEFT = { min: 200, max: 480, dflt: 260 }, RIGHT = { min: 260, max: 600, dflt: 320 }, SHEET = { min: 25, max: 90, dflt: 52 }; // px; the sheet in % of the window
@@ -28,7 +29,8 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
 
   // the bar's toggles: the left panel at its start, Properties at its end
   const toggle = (side, label, paths, onclick) => h('button', { type: 'button', class: `ptoggle ${side}`, 'aria-label': label, title: label, 'aria-pressed': 'false', onclick }, icon(...paths));
-  const leftBtn = toggle('pleft', 'Elements and Layers', ['M4 5h16v14H4z', 'M9 5v14'], () => setTab(st.tab ? null : st.last));
+  // the left's toggle: open or closed; while it makes way for Properties, it back (Properties off)
+  const leftBtn = toggle('pleft', 'Elements and Layers', ['M4 5h16v14H4z', 'M9 5v14'], () => (yields() ? setProps(false) : setTab(st.tab ? null : st.last)));
   const rightBtn = toggle('pright', 'Properties', ['M4 5h16v14H4z', 'M15 5v14'], () => setProps(!st.props));
 
   // the left's tabs
@@ -63,10 +65,14 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
   }
 
   // Both panels while the map keeps MIN_MAP px between them; else Properties, while shown, has the room
-  // (the left comes back when it goes). A phone: one sheet at a time, the last asked for.
+  // (the left comes back when it goes). A phone: one sheet at a time, the last asked for. The first
+  // time the left makes way in a visit, a note says so.
+  const yields = () => !!st.tab && left.hidden && !NARROW.matches;
+  let told = false;
   function place() {
     const wantsRight = st.props && st.has, both = !NARROW.matches && innerWidth - st.lw - st.rw >= MIN_MAP;
     const showLeft = !!st.tab && (both || !wantsRight || (NARROW.matches && !st.props)), showRight = wantsRight && !(NARROW.matches && showLeft);
+    if (!told && !left.hidden && !showLeft && st.tab && !NARROW.matches) { told = true; note('No room for both panels: Elements and Layers make way for Properties until it closes (or narrow either)'); }
     left.hidden = !showLeft;
     right.hidden = !showRight;
     for (const t of tabs) t.body.hidden = t.id !== st.tab;
@@ -101,7 +107,7 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
     get tab() { return st.tab; },
     get props() { return st.props; },
     setTab, setProps,
-    toggleTab: (id) => setTab(st.tab === id ? null : id), // its key: open there, or closed when it is
+    toggleTab: (id) => (yields() ? (setTab(id), setProps(false)) : setTab(st.tab === id ? null : id)), // its key: open there, or closed when it is
     has: (v) => { if (v !== st.has) { st.has = v; place(); } }, // Properties has something to show, or not
   };
 }

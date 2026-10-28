@@ -326,7 +326,7 @@ export function exportFeatures(doc, units = 'km') {
 }
 
 // ---- each kind's geometry -------------------------------------------------------------------
-// What bounds an element (Zoom to), whether it lies inside a screen box (Select area), how it moves
+// What bounds an element (Zoom to), whether it lies inside a screen box (Shift-drag), how it moves
 // with the pointer (dragging a selection). bounds(doc, el): its points, at real size. inside(doc, el,
 // inBox, k): all of it in the box (inBox(position): on screen inside it; k(point): how much its outline
 // is drawn enlarged). move(doc, el, mv, acc): moved by mv(position), each point once: acc collects

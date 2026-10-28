@@ -50,7 +50,7 @@ const state = {
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
   open: new Set(['base', 'sea']),
-  layers: null, // the address's menu=1: Layers open (menu=0: not); null: as the frame was left (frame.js)
+  menu: null, // the address's menu=1: Layers open (menu=0: not); null: as the frame was left (frame.js)
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
@@ -80,7 +80,7 @@ function readHash() {
     if (Object.hasOwn(DENSITY, k) && DENSITY[k].periods.includes(val)) state.period[k] = val;
   }
   if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => GROUPS.some((x) => x.id === g)));
-  if (q.has('menu')) state.layers = q.get('menu') === '1'; // menu=1: Layers open
+  if (q.has('menu')) state.menu = q.get('menu') === '1'; // menu=1: Layers open
   display.bearings = q.get('brg') === '1';
   if (q.get('u') === 'nm') display.units = 'nm';
 }
@@ -1017,7 +1017,7 @@ function free() {
 // find a place: the search field behind its lens, shown while it is used (the lens, or /); gone when
 // left. The lens in the bar, before Properties; on a phone, whose bar is full, with the map's controls
 const findBtn = $('#b-find');
-const placeFind = () => (NARROW.matches ? $('#zoom').prepend(findBtn) : frame.rightBtn.before(findBtn));
+const placeFind = () => (NARROW.matches ? $('#mapctl').prepend(findBtn) : frame.rightBtn.before(findBtn));
 NARROW.addEventListener?.('change', placeFind);
 placeFind();
 const setFinding = (on) => { document.body.classList.toggle('finding', on); findBtn.setAttribute('aria-expanded', String(on)); if (on) $('#q').focus(); };
@@ -1077,7 +1077,7 @@ $('#issue').addEventListener('click', (e) => {
 });
 about.querySelector('[data-close]').addEventListener('click', () => about.close());
 
-// the single keys (keys.js), from anywhere: search, Layers, the column, or a tool
+// the single keys (keys.js), from anywhere: search, the panels, or a tool
 // (draw/drawing.js handles the keys of what is being drawn; draw/panel.js the drawing's own)
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]') || typing(e.target)) return;
@@ -1284,7 +1284,7 @@ map.on('load', () => {
   renderMenu();
   renderUnits();
   ready = true;
-  if (state.layers !== null) frame.setTab(state.layers ? 'layers' : frame.tab === 'layers' ? 'elements' : frame.tab); // the address's
+  if (state.menu !== null) frame.setTab(state.menu ? 'layers' : frame.tab === 'layers' ? 'elements' : frame.tab); // the address's
   writeHash(); // the URL, now with everything applied
   scaleNote();
   scaleUnits();

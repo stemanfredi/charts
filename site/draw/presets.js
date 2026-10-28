@@ -1,5 +1,5 @@
 // The user's own presets (docs/drawing-ui.md §9): a point kept under a name (its symbol, its parts,
-// its look), placed again from the Shape tool's sub-rail (the Point tool's for a symbol only). They live in
+// its look), placed again from the Shape tool's kinds (the Point tool's for a symbol only). They live in
 // this browser only, never in the app or a drawing's file; a small file of their own moves them to
 // another browser (Export, Import). Local storage may be missing or refuse: every access is guarded.
 

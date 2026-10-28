@@ -16,7 +16,7 @@ export const store = {
   remove: (k) => { try { localStorage.removeItem(k); } catch { /* nothing to remove */ } },
   json: (k) => { try { return JSON.parse(store.get(k)); } catch { return null; } },
 };
-// a phone's width: Layers and the drawing's column one at a time, the column closed to start with
+// a phone's width: the panels one bottom sheet at a time, closed to start with
 export const NARROW = typeof matchMedia === 'function' ? matchMedia('(max-width: 719px)') : { matches: false };
 // whether el (a key's target) is a field taking text: a box ticked, a colour or a slider is not,
 // so the keys stay the page's

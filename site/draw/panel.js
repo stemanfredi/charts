@@ -1,5 +1,5 @@
-// The drawing's left frame (docs/drawing-ui.md): the rail of the tools, and the column: the tree of the
-// drawing's elements, and under it the inspector, which shows what is selected (or, with nothing
+// The drawing's panels (docs/drawing-ui.md): the tools in the bar (tools.js), the tree of the
+// drawing's elements in the left panel (tree.js), and Properties in the right one, which shows what is selected (or, with nothing
 // selected, the drawing itself) and edits it with fields. Fields apply on Enter or when they lose
 // focus, one undo step each.
 

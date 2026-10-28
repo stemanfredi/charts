@@ -46,12 +46,6 @@
     </div>
   </div>
 
-  <!-- the map's own controls, bottom right: my position, north when turned (find a place too, on a phone) -->
-  <div id="zoom" class="zoom" role="group" aria-label="Map controls">
-    <button type="button" id="b-find" aria-label="Find a place" aria-expanded="false"><i data-icon="search"></i></button>
-    <button type="button" id="locate" aria-pressed="false" aria-label="Show my location" title="Show my location"><i data-icon="locate"></i></button>
-    <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><i data-icon="compass"></i></button>
-  </div>
   <!-- the time shown and the depth (the layers that use them), opened from its chip on the bottom row -->
   <div id="timepop" class="timepop" hidden>
     <div id="when" class="when" role="group" aria-label="Time and depth shown">
@@ -65,7 +59,17 @@
   <aside id="side" class="side" aria-label="Elements and Layers"><div id="dview" class="dview"></div><div id="menu"></div></aside>
   <aside id="props" class="props" aria-label="Properties" hidden></aside>
 
-  <div id="legends" class="legends" aria-label="Legends"></div>
+  <!-- the map's foot (drawing-ui.md §1): one strip above the bottom row, between the panels (a
+       phone: above its sheet). At its left, from the top: the note, the legends, the touch row; at
+       its right the map's controls: my position, north when turned (find a place too, on a phone) -->
+  <div id="foot" class="foot">
+    <div id="footl" class="footl"><div id="legends" class="legends" aria-label="Legends"></div></div>
+    <div id="mapctl" class="mapctl" role="group" aria-label="Map controls">
+      <button type="button" id="b-find" aria-label="Find a place" aria-expanded="false"><i data-icon="search"></i></button>
+      <button type="button" id="locate" aria-pressed="false" aria-label="Show my location" title="Show my location"><i data-icon="locate"></i></button>
+      <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><i data-icon="compass"></i></button>
+    </div>
+  </div>
   <footer id="status" class="status"></footer>
 
   <dialog id="about" aria-labelledby="about-title">

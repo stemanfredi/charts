@@ -19,7 +19,7 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
   const TOOLS = { point: ['Point', 'Place points: click on the map'], line: ['Line', 'Draw a line: click its start, its bends, then a point, a corner, an edge or a vertex to end there (attached), or Enter'],
     shape: ['Shape', 'Place a shape of the outline chosen, or draw a polygon'], label: ['Label', 'Place a label: click a point, a shape, an area or a line to point at it, or anywhere for free text'],
     measure: ['Measure', 'Measure a distance, or an area (a click on the first point closes it): it goes in the drawing'] };
-  // the kinds each tool makes (its sub-rail), each with a short tooltip. Shape: round a centre, the
+  // the kinds each tool makes (its row), each with a short tooltip. Shape: round a centre, the
   // outlines to scale, the polygon, the vehicles, the user's presets with extent
   const presetsOf = (tool) => drawing.presets.filter((x) => presetTool(x) === tool).map((x) => [`preset:${x.name}`, `${x.name}: a preset of yours (right-click: rename or delete)`]);
   const outline = (k) => [k, `${OUTLINE_NAME[k]}: an outline to scale`];
@@ -29,24 +29,29 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
       outline('rectangle'), outline('ellipse'), outline('triangle'), ['polygon', 'Polygon: corner by corner'], ...OUTLINES.filter((k) => k.endsWith('-vehicle')).map(outline), ...presetsOf('shape')],
   })[tool] || [];
   const current = (tool) => drawing.variant[tool];
-  // A tool's button pressed: on, or off when it is on. Its kinds are a column beside the rail, open
-  // while the tool is on; the tool's button shows the kind in use (drawing-ui.md §1)
-  const press = (tool) => (drawing.button === tool ? drawing.stop() : drawing.start(tool));
-  // a variant chosen in the sub-rail: the tool on with it
-  const choose = (tool, v) => drawing.setVariant(tool, v);
-  // the next variant of a tool (its key pressed again), or the tool on
+  // A tool's button pressed: on, or off when it is on. Its kinds are a row under its button, open as
+  // it goes on (or its key moves to the next kind) and shut once one is picked or the map is clicked:
+  // a menu, not a fixture; the tool's button shows the kind in use (drawing-ui.md §1)
+  let kindsOpen = false;
+  const press = (tool) => { kindsOpen = drawing.button !== tool; return kindsOpen ? drawing.start(tool) : drawing.stop(); };
+  // a kind picked in its row: the tool on with it, the row shut
+  const choose = (tool, v) => { kindsOpen = false; drawing.setVariant(tool, v); };
+  // the next kind of a tool (its key pressed again), its row open to show it; or the tool on
   function cycle(tool) {
     const vs = variants(tool).map(([v]) => v), on = drawing.button === tool;
     if (!on || vs.length < 2) return press(tool);
-    choose(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
+    drawing.setVariant(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
+    kindsOpen = true;
+    renderKinds();
   }
-  // the rail's tools
+  drawing.map.getCanvasContainer().addEventListener('pointerdown', () => { if (kindsOpen) { kindsOpen = false; renderKinds(); } }, true);
+  // the bar's tools
   const toolBtns = Object.entries(TOOLS).map(([k, [text, title]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', 'aria-label': text, title: `${title} (${keyOf(k)})`,
     onclick: () => press(k) }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k]))));
   const undoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Undo', title: `Undo (${MOD} Z)`, onclick: () => drawing.undo() }, icon('M9 14 4 9l5-5', 'M4 9h10a6 6 0 0 1 0 12h-3'));
   const redoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Redo', title: `Redo (${MOD} Shift Z)`, onclick: () => drawing.redo() }, icon('m15 14 5-5-5-5', 'M20 9H10a6 6 0 0 0 0 12h3'));
   const sep = () => h('span', { class: 'tsep', 'aria-hidden': 'true' });
-  const subrail = h('div', { class: 'subrail', role: 'group', hidden: true });
+  const kindsRow = h('div', { class: 'kinds', role: 'group', hidden: true });
   // the bar's own: ☰, the drawings and the file; Select
   const fileBtn = h('button', { type: 'button', class: 'filebtn', 'aria-label': 'File', 'aria-haspopup': 'menu', 'aria-expanded': 'false',
     title: 'The drawings in this browser, and the file: New, Import, Export', onclick: () => toggleFiles(fileBtn) }, icon('M4 6h16', 'M4 12h16', 'M4 18h16'));
@@ -66,7 +71,7 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     props: touchBtn('Properties', 'Its properties (I)', () => ctx.frame.setProps(true)),
   };
   const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' }, Object.values(touch));
-  document.body.append(touchbar); // over the map, at its foot (above a phone's sheet)
+  document.querySelector('#footl').append(touchbar); // the map's foot, under the legends
   function renderTouch() {
     const sel = drawing.sel.size > 0, tool = !!drawing.tool;
     touch.done.hidden = !(['line', 'polygon', 'measure'].includes(drawing.tool) && drawing.draft);
@@ -78,12 +83,12 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     touch.props.hidden = !NARROW.matches || !sel || tool || ctx.frame.props; // a phone's bar has no Properties toggle
     touchbar.hidden = Object.values(touch).every((b) => b.hidden);
   }
-  function renderSubrail() {
+  function renderKinds() {
     const tool = drawing.button;
     const vs = variants(tool);
-    subrail.hidden = vs.length < 2;
-    subrail.setAttribute('aria-label', `${TOOLS[tool]?.[0] ?? ''}: what it makes`);
-    subrail.replaceChildren(...vs.map(([v, title]) => {
+    kindsRow.hidden = vs.length < 2 || !kindsOpen;
+    kindsRow.setAttribute('aria-label', `${TOOLS[tool]?.[0] ?? ''}: what it makes`);
+    kindsRow.replaceChildren(...vs.map(([v, title]) => {
       const preset = v.startsWith('preset:'), name = preset ? v.slice(7) : '';
       return h('button', { type: 'button', 'aria-pressed': String(current(tool) === v), title, 'aria-label': preset ? name : title.split(':')[0].split(',')[0],
         onclick: () => choose(tool, v), oncontextmenu: preset ? (e) => { e.preventDefault(); presetMenu(name); } : null },
@@ -91,7 +96,7 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     }));
     // under its tool's button, within the window
     const from = toolBtns.find((x) => x.dataset.tool === tool);
-    subrail.style.left = from && !subrail.hidden ? `${Math.max(0, Math.min(from.offsetLeft - 5, innerWidth - subrail.offsetWidth - 6))}px` : '';
+    kindsRow.style.left = from && !kindsRow.hidden ? `${Math.max(0, Math.min(from.offsetLeft - 5, innerWidth - kindsRow.offsetWidth - 6))}px` : '';
   }
   // a preset of the user's: renamed, or deleted
   async function presetMenu(name) {
@@ -111,7 +116,7 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
   // Undo, Redo; at its end Properties' toggle (app.js puts find a place before it). The tree in the left
   // panel, the inspector in the right one.
   const makes = toolBtns.filter((b) => b.dataset.tool !== 'measure'), measure = toolBtns.find((b) => b.dataset.tool === 'measure');
-  ctx.bar.replaceChildren(fileBtn, ctx.frame.leftBtn, sep(), selectBtn, sep(), ...makes, sep(), measure, sep(), undoBtn, redoBtn, h('span', { class: 'grow' }), ctx.frame.rightBtn, subrail);
+  ctx.bar.replaceChildren(fileBtn, ctx.frame.leftBtn, sep(), selectBtn, sep(), ...makes, sep(), measure, sep(), undoBtn, redoBtn, h('span', { class: 'grow' }), ctx.frame.rightBtn, kindsRow);
   function renderTools() {
     const on = drawing.button;
     selectBtn.setAttribute('aria-pressed', String(!on));
@@ -126,7 +131,7 @@ export function createTools(drawing, ctx, { del, toggleFiles }) {
     undoBtn.disabled = !drawing.undos.length;
     redoBtn.disabled = !drawing.redos.length;
     renderTouch();
-    renderSubrail();
+    renderKinds();
   }
   return { press, cycle, renderTools, renderTouch };
 }

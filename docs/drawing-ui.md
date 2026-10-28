@@ -17,7 +17,8 @@ One layout at every width (`site/frame.js`).
   outputs, About), the left panel's toggle, **Select**, **Point**, **Line**, **Shape**, **Label**,
   **Measure**, **Undo**, **Redo**; at its end **find a place** (the lens or /) and the
   **Properties** toggle. A tool with kinds shows the one in use and a corner mark; its kinds are a
-  row under its button while it is on.
+  row under its button as it goes on, shut once one is picked or the map is clicked; its key again
+  moves to the next kind, the row open to show it.
 - **The left panel**: tabs **Elements** (the tree, §4) and **Layers** (`menu=1` in the address).
   Its toggle, **E** and **L** open it on a tab, or close it when it shows that tab. At first it is
   open on Layers.
@@ -28,20 +29,24 @@ One layout at every width (`site/frame.js`).
 - Each panel is as wide as dragged at its inner edge (left 200–480 px, right 260–600; a
   double-click: 260 and 320); widths, the tab and the switch are remembered in this browser. Where
   both would leave less than 480 px of map, Properties, while shown, takes the room and the left
-  panel comes back after.
-- **The map's controls**, bottom right: my position, north (only when turned); no zoom buttons.
+  panel comes back after; the first time in a visit a note says so, and the left's toggle (or E, L)
+  then brings it back, Properties off.
+- **The map's foot**: one strip above the bottom row, between the panels (a phone: above its sheet).
+  At its left, stacked: the note, the legends, the touch row; at its right **the map's controls**: my
+  position, north (only when turned); no zoom buttons. Nothing else sits there, so nothing overlaps.
   The bottom row between the panels: credits, the time shown (a chip: ‹ hour ›, **Now**, the
   depth), the cursor's position, the scale (a click switches km and NM).
 - **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`), never the
   drawing. The drawing goes out as a file (**Export drawing (GeoJSON)**, with the view) and comes in
   by **Import…** or a file dropped on the map, after a report (what it holds, what was skipped and
   why); a presets file adds its presets (§9).
-- A note at the map's foot says for a few seconds what just happened (with **Undo** where it
+- The note (the foot's top) says for a few seconds what just happened (with **Undo** where it
   applies).
 
 **On a phone** (under 720 px) the bar holds ☰, the left panel's toggle and the tools; Undo and
 Properties are in the touch row, find a place with the map's controls. The panels are one bottom
-sheet at a time (half the screen; as tall as its grip is dragged, closed when dragged to the bottom).
+sheet at a time (half the screen; as tall as its grip is dragged, short of the bar, the map's foot and
+some map; closed when dragged to the bottom).
 Both start closed. Zoom to and a place found are fitted to the map the bar and the panels leave.
 
 **With a finger**: a row over the map's foot: **Done** (a line, polygon or measurement being drawn),

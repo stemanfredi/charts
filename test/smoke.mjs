@@ -513,12 +513,12 @@ await section('the drawing', async () => {
   const featuresOf = (fc, kind) => (fc?.features || []).filter((f) => own(f)?.kind === kind && !(own(f).guide && own(f).look?.text?.values));
   const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
   await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind)
-  const sub = await dw.locator('.subrail button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
+  const sub = await dw.locator('.kinds button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds, round a centre first, then the outlines, then the vehicles (${sub})`);
   // the bar across the top, the tool's kinds a row under it; the left panel open, hidden by the bar's
   // toggle, back with E; Properties hidden with nothing selected (it has nothing to show)
-  const layoutNow = () => dw.evaluate(() => [!!document.querySelector('#bar button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#bar .subrail')?.offsetParent,
+  const layoutNow = () => dw.evaluate(() => [!!document.querySelector('#bar button[data-tool=shape][aria-pressed=true]')?.offsetParent, !!document.querySelector('#bar .kinds')?.offsetParent,
     !document.querySelector('#side').hidden, Math.round(document.querySelector('#bar').getBoundingClientRect().top), document.querySelector('#props').hidden]);
   const onTool = await layoutNow();
   await dw.click('#bar .pleft');
@@ -527,13 +527,17 @@ await section('the drawing', async () => {
   const shownE = await layoutNow();
   check(onTool.join() === 'true,true,true,0,true' && !hiddenE[2] && shownE[2],
     `tools: the bar at the top, the kinds under it; the left panel open, hidden by the bar's toggle, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
-  // a kind picked: the column still open (until the tool ends), the tool's button showing it; Circle again
-  await dw.click('#bar .subrail button[aria-label="Rings"]');
-  const picked = await dw.evaluate(() => [!!document.querySelector('#bar .subrail')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
+  // a kind picked: the row shut, the tool's button showing it; the key again: the next kind, the row
+  // open to show it, shut by a click on the map; Circle again
+  await dw.click('#bar .kinds button[aria-label="Rings"]');
+  const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
+  const picked = await shut();
+  await dw.keyboard.press('s');
+  const next = await shut();
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('s');
-  await dw.click('#bar .subrail button[aria-label="Circle"]');
-  check(picked[0] && picked[1] === 'rings', `tools: a kind picked, the column stays open while the tool is on, the tool's button shows it (${picked})`);
+  await dw.click('#bar .kinds button[aria-label="Circle"]');
+  check(!picked[0] && picked[1] === 'rings' && next.join() === 'true,sector', `tools: a kind picked, its row shut, the tool's button shows it; the key again, the next kind, the row open (${picked}; ${next})`);
   await dw.mouse.click(DX + 500, 400);
   await dw.mouse.click(DX + 500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');
@@ -591,7 +595,7 @@ await section('the drawing', async () => {
   savedFile.features = [...savedFile.features.filter((f) => !measuredOf(savedFile).includes(f)), ruler];
   const exported = JSON.stringify(savedFile);
   const measuredNow = () => dw.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).map((x) => x.el.start?.position ?? x.el.position ?? x.el.points[0]); });
-  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the rail's ☰, nothing asked
+  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the bar's ☰, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
   await dw.setInputFiles('input[type=file][accept*=geojson]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
@@ -633,7 +637,7 @@ await section('the drawing', async () => {
   // attached to it), the totals
   await dw.locator('.dinsphead .ititle').click();
   await dw.keyboard.press('Escape'); // nothing selected: the drawing's own inspector
-  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the rail's ☰, nothing asked
+  await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the bar's ☰, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length);
   await dw.keyboard.press('g');
   await dw.mouse.click(DX + 200, 500);
