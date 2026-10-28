@@ -1064,17 +1064,6 @@ async function published() {
     return /^[0-9a-f]{40}$/.test(v?.commit) ? v : null;
   } catch { return null; }
 }
-// the version this page is: the commit the deploy wrote into it (ci.yml; empty on a development copy,
-// which never checks). When the page comes back into view (an installed app is often left open for
-// days), a newer one published is said, with Reload: at most every 10 minutes
-const loaded = document.querySelector('meta[name="version"]')?.content || null;
-let lastCheck = Date.now();
-document.addEventListener('visibilitychange', async () => {
-  if (!loaded || document.visibilityState !== 'visible' || Date.now() - lastCheck < 600000) return;
-  lastCheck = Date.now();
-  const now = await published();
-  if (now && now.commit !== loaded) $('#update').hidden = false;
-});
 for (const b of document.querySelectorAll('[data-reload]')) b.addEventListener('click', () => location.reload());
 let versionShown = false;
 async function showVersion() {

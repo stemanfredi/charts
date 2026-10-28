@@ -34,7 +34,8 @@ in the history, not here.
 - **The deploy must know its own version** (2026-10). Telling a visitor that
   a newer version is published works only if the page carries the commit it
   was built from; reading a version file at load logs a 404 on every local
-  copy and cannot tell the page's own version from the latest.
+  copy and cannot tell the page's own version from the latest. The notice was
+  cut later (2026-10-28): with no service worker, a reload gets the latest.
 
 - **A double scale bar costs a row** (2026-10). Two stacked bars made the
   bottom of the screen a row taller, and everything above it sat high,

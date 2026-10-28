@@ -72,8 +72,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
       # the version shown in About: the commit published, and its date
       - run: printf '{"commit":"%s","date":"%s"}\n' "$GITHUB_SHA" "$(git log -1 --format=%cI)" > site/version.json
-      # and in the page itself: the version it is, to tell a newer one published (app.js)
-      - run: sed -i "s|<meta name=\"version\" content=\"\">|<meta name=\"version\" content=\"$GITHUB_SHA\">|" site/index.html && grep -q "content=\"$GITHUB_SHA\"" site/index.html
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site                 # the site files only: no tools, tests or dev dependencies

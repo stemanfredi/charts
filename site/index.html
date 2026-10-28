@@ -11,7 +11,6 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#2f6f9e">
-  <meta name="version" content=""> <!-- the commit published, written by the deploy (ci.yml) -->
   <meta name="description" content="A world chart in one static page, from open data with no keys: OpenStreetMap, satellite imagery, depth shading and isobaths, seamarks, shipping density, Copernicus Marine ocean data and NASA daily imagery, with measuring and drawing tools. Not for navigation.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Charts">
@@ -34,7 +33,6 @@
 <body>
   <div id="map" role="region" aria-label="Map"></div>
   <!-- shown only when the map has not started after a few seconds (style.css); app.js removes it -->
-  <p id="update" class="update" role="status" hidden>A new version is published. <button type="button" class="linkbtn" data-reload>Reload</button></p>
   <p id="nostart" class="nostart">The map did not start. It needs a browser with WebGL.</p>
 
   <!-- top left: places (OpenStreetMap, via Photon) or coordinates (read here, never sent) -->
