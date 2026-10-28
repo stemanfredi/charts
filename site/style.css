@@ -312,7 +312,7 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid td .vpair { width: 100%; }
 .lgrid td .fvalue { font-size: 11px; color: var(--soft); }
 .lgrid .frozen { position: sticky; z-index: 1; background: var(--bg); }
-.lgrid .frozen.fedge { box-shadow: 1px 0 0 var(--line); }
+.lgrid .frozen.fedge { border-right-color: var(--line); } /* the pinned edge: its own border, a shade darker; nothing drawn beside it */
 .lgrid tbody tr:not(.cur, .ladd):hover td { background: var(--hover); } /* a row a click makes current */
 .lgrid tr.cur td { background: var(--sel); }
 .lgrid tr.vnode td { background: var(--bg2); }
@@ -365,10 +365,12 @@ dialog.dreport button.done { background: var(--accent); border-color: var(--acce
 /* ---- find a place (a place or coordinates): beside the map's controls, shown while it is used ---- */
 .search {
   position: absolute; z-index: 7; top: calc(var(--bar-h) + 8px); right: 8px; width: min(360px, calc(100vw - 16px));
-  display: none; align-items: center; gap: 6px; padding: 0 0 0 12px; min-height: 46px;
+  display: none; align-items: center; gap: 6px; padding: 0 0 0 10px; min-height: 34px;
   color: var(--soft);
 }
-.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; height: 44px; font-size: 14px; color: var(--ink); }
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; height: 32px; font-size: 13px; color: var(--ink); }
+.search .x { width: 32px; height: 32px; }
+@media (pointer: coarse) { .search { min-height: 46px; } .search input { height: 44px; font-size: 14px; } .search .x { width: 44px; height: 44px; } } /* a finger's 44 px */
 .search input::-webkit-search-cancel-button { display: none; }
 .search:focus-within { border-color: var(--accent); }
 body.finding .search { display: flex; }
