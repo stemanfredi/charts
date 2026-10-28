@@ -17,12 +17,11 @@ import { COPY_RADIUS, distribute, lines, plan, planConnection, makeDistribution,
 import { BUILT_IN, builtInName } from './place.js';
 import { boundsOf, drawable } from './features.js';
 import { inverse, areaOf, pathOf, destination, perimeterOf } from '../geodesy.js';
-import { moved } from './drag.js';
 import { norm360 } from '../geo.js';
 import { fields, choice, select, check } from '../fields.js';
 import { mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetTool } from './presets.js';
-import { listGrid } from './grid.js';
+import { listGrid, setCurrent } from './grid.js';
 import { fmtArea, fmtBrg, fmtDist, rowsText, plural } from '../format.js';
 import { drawingsMenu } from './files.js';
 import { createTools } from './tools.js';
@@ -297,18 +296,22 @@ export function drawView(root, ctx) {
   function areaInspector(id) {
     const el = now(id), u = ctx.units(), n = el.points.length;
     const corner = (i, axis) => F.coord(axis, () => now(id).points[i][axis === 'lat' ? 1 : 0],
-      (v) => set(id, (x) => { const q = x.points[i]; x.points[i] = axis === 'lat' ? [q[0], v] : [v, q[1]]; }), `Corner ${i + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`);
+      (v) => set(id, (x) => { const q = x.points[i]; x.points[i] = axis === 'lat' ? [q[0], v] : [v, q[1]]; }), `Corner ${i + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
     const insertAt = (i) => drawing.change((doc) => { const x = find(doc, id).el, q = x.points[i], r = x.points[(i + 1) % x.points.length]; insertCorner(doc, x, i + 1, along(q, r, 0.5)); });
     const drop = (i) => { if (n > 3) drawing.change((doc) => removeCorner(doc, find(doc, id).el, i)); };
+    // its corners as rows, 1 to n, a page of them shown: Lat, Lon; the edge from the corner before
+    // (corner 1's from the last; typed: this corner moves)
     const pg = paged(`${id}:corners`, n), abs = (r) => pg.rows[r];
+    const U = colUnitText();
     const table = listGrid({ name: pg.name,
-      columns: [{ head: '', width: 26, frozen: true, cls: 'num' }, { head: 'Lat', width: 100, frozen: true }, { head: 'Lon', width: 100, frozen: true },
-        { head: 'Edge', width: 104, title: 'The straight edge from the corner before: its length (typed: this corner and those after it move together; the closing edge follows)' },
-        { head: 'Brg °', width: 72, title: 'The edge\'s bearing, degrees true' }],
-      rows: pg.rows.map((i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...(i ? legFields(id, (x) => x.points, i, setAreaEdge, 'Edge') : [null, null])] })),
+      columns: [{ head: '#', width: 34, frozen: true, cls: 'num' }, { head: 'Lat', width: 88, cls: 'n' }, { head: 'Lon', width: 92, cls: 'n' },
+        { head: `Edge ${U}`, width: 76, cls: 'n', title: 'The straight edge from the corner before (corner 1: from the last): its length (typed: this corner moves, the edges either side of it change)' },
+        { head: 'Brg °T', width: 60, cls: 'n', title: 'The edge\'s bearing, degrees true (typed: this corner moves)' }],
+      rows: pg.rows.map((i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...legFields(id, (x) => x.points, i, setAreaEdge, 'Corner')] })),
       actions: (r, i = abs(r)) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAt(i)), act('Delete', 'Take this corner away (Ctrl/⌘ Delete); three are kept', () => drop(i), n <= 3)] }),
-      keys: { insert: (r) => insertAt(abs(r)), remove: (r) => drop(abs(r)) } });
-    const cornerRows = () => { const ps = now(id).points; return [['#', 'Lat', 'Lon', 'Edge m', 'Brg °'], ps.map((q, i) => { const g = i ? legOf(ps, i) : null; return [i + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '']; })]; };
+      keys: { insert: (r) => insertAt(abs(r)), remove: (r) => drop(abs(r)) },
+      current: (r) => drawing.markPlace(r == null ? null : now(id).points[abs(r)]) });
+    const cornerRows = () => { const ps = now(id).points; return [['#', 'Lat', 'Lon', 'Edge m', 'Brg °'], ps.map((q, i) => { const g = legOf(ps, i); return [i + 1, q[1], q[0], +g.s.toFixed(3), +g.azi.toFixed(1)]; })]; };
     return [...commonTop('area', id),
       row('Area', h('span', { class: 'fvalue' }, fmtArea(areaOf(pathOf(el.points, true)), u))),
       row('Perimeter', h('span', { class: 'fvalue' }, fmtDist(perimeterOf(el.points), u))),
@@ -370,29 +373,37 @@ export function drawView(root, ctx) {
 
   // a line: its ends (each attached to a point, or free), length, curve, the table of its vertices
   // (lat, lon, leg, name, distance from its start)
-  // Legs typed (the line's vertex table, the polygon's corner table): the straight leg arriving at a
-  // place, its length and its bearing. A value typed moves that place and every one after it together
-  // (the legs after it keep their lengths and bearings); a line's end attached stays attached.
-  const legOf = (ps, k) => { const g = inverse(ps[k - 1], ps[k]); return { s: g.s, azi: norm360(g.azi) }; };
-  const legTo = (ps, k, { s: len, azi }) => { const g = legOf(ps, k); return destination(ps[k - 1], azi ?? g.azi, len ?? g.s); };
+  // Legs typed (the line's table of points, the area's of corners): the straight leg arriving at a
+  // place from the one before, its length and its bearing. A value typed moves that place alone (the
+  // leg after it changes with it); a line's end attached is where it is attached, its leg not typed.
+  const legOf = (ps, k) => { const g = inverse(ps.at(k - 1), ps[k]); return { s: g.s, azi: norm360(g.azi) }; };
+  const legTo = (ps, k, { s: len, azi }) => { const g = legOf(ps, k); return destination(ps.at(k - 1), azi ?? g.azi, len ?? g.s); }; // an area's corner 1: from its last
   function setLineLeg(x, k, v) {
-    const ps = positionsOf(x), from = ps[k], to = legTo(ps, k, v);
-    for (let j = k; j < ps.length; j++) {
-      const q = moved(ps[j], from, to);
-      if (j <= x.vertices.length) x.vertices[j - 1].position = q; else if (!x.end.element) x.end.position = q;
-    }
+    const to = legTo(positionsOf(x), k, v);
+    if (k <= x.vertices.length) x.vertices[k - 1].position = to; else if (!x.end.element) x.end.position = to;
   }
-  function setAreaEdge(x, k, v) { // corners k … the last: the closing edge, back to corner 1, follows
-    const from = x.points[k], to = legTo(x.points, k, v);
-    for (let j = k; j < x.points.length; j++) x.points[j] = moved(x.points[j], from, to);
-  }
+  function setAreaEdge(x, k, v) { x.points[k] = legTo(x.points, k, v); }
   // a leg's two fields (get(): the places now; put(x, value): set on the element)
   // an element's places, read once per rendering of the inspector (each row's leg reads them)
   const placesRead = new Map();
   const placesNow = (id, places) => { if (!placesRead.has(id)) placesRead.set(id, places(now(id))); return placesRead.get(id); };
+  // in a table: the length in the column's unit (a number to the metre), the bearing to a tenth
   const legFields = (id, places, k, put, what) => [
-    distField(() => legOf(placesNow(id, places), k).s, (m) => set(id, (x) => put(x, k, { s: m })), `${what} ${k} length`),
-    angleField(() => +legOf(placesNow(id, places), k).azi.toFixed(1), (a) => set(id, (x) => put(x, k, { azi: a })), `${what} ${k} bearing (degrees true)`, 0, 360, true)];
+    F.dist(() => legOf(placesNow(id, places), k).s, (m) => set(id, (x) => put(x, k, { s: m })), `${what} ${k + 1} leg length`, { in: colUnit() }),
+    F.angle(() => legOf(placesNow(id, places), k).azi, (a) => set(id, (x) => put(x, k, { azi: a })), `${what} ${k + 1} leg bearing (degrees true)`, { fixed: 1 })];
+  // a table's distances: one unit for the column (its head says it), km or NM as the display's
+  const colUnit = () => (ctx.units() === 'nm' ? 'nm' : 'km');
+  const colUnitText = () => (ctx.units() === 'nm' ? 'NM' : 'km');
+  const inUnit = (m) => (m / (ctx.units() === 'nm' ? 1852 : 1000)).toFixed(3);
+  // a table of places (a line's points, an area's corners): its row k made current (k: the place's
+  // index), the table at its page; from the map (a place pressed: drawing.place)
+  function pickPlace(table, k) {
+    const from = k - (k % PAGE);
+    pageAt.set(table, from);
+    setCurrent(`${table}@${from}`, k - from);
+    renderInspector();
+    inspector.querySelector(`[data-grid="${CSS.escape(`${table}@${from}`)}"] tr[data-r="${k - from}"]`)?.scrollIntoView({ block: 'nearest' });
+  }
   // A long list a page at a time (drawing-ui.md §5): PAGE rows, from the page shown (each list's own,
   // this session), and ‹ › under it; Copy still takes every row. rows: the absolute rows
   // shown, in order.
@@ -401,9 +412,10 @@ export function drawView(root, ctx) {
     const from = Math.min(pageAt.get(name) ?? 0, Math.max(0, total - 1) - (Math.max(0, total - 1) % PAGE)), to = Math.min(total, from + PAGE);
     const go = (f) => { pageAt.set(name, f); renderInspector(); };
     const pager = total > PAGE ? h('div', { class: 'lpager' },
-      h('button', { type: 'button', class: 'small', 'aria-label': 'Previous rows', disabled: !from, onclick: () => go(from - PAGE) }, '‹'),
+      // data-key: the page each goes to (morph keeps a button only when it does the same)
+      h('button', { type: 'button', class: 'small', 'aria-label': 'Previous rows', 'data-key': `to ${from - PAGE}`, disabled: !from, onclick: () => go(from - PAGE) }, '‹'),
       h('span', { class: 'funit' }, `${from + 1}–${to} of ${total}`),
-      h('button', { type: 'button', class: 'small', 'aria-label': 'Next rows', disabled: to >= total, onclick: () => go(from + PAGE) }, '›')) : null;
+      h('button', { type: 'button', class: 'small', 'aria-label': 'Next rows', 'data-key': `to ${from + PAGE}`, disabled: to >= total, onclick: () => go(from + PAGE) }, '›')) : null;
     return { rows: Array.from({ length: to - from }, (_, k) => from + k), pager, name: `${name}@${from}` };
   }
   // a row action's button, in a list grid's bar
@@ -486,51 +498,67 @@ export function drawView(root, ctx) {
     const doc = drawing.doc, el = now(id), u = ctx.units();
     const line = lineTrace(doc, el);
     const at = line.at;
-    const endOf = (e) => (e.element ? link(e.element) : h('span', { class: 'funit' }, 'free'));
-    const leg = (k) => legFields(id, positionsOf, k, setLineLeg, 'Leg');
     const insertAfter = (i) => drawing.change((doc) => {
       const x = find(doc, id).el, ps = positionsOf(x), a = ps[i + 1], b = ps[i + 2];
       addVertex(doc, x, i + 1, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]); // what points at its vertices and edges stays where it is
     });
-    const coord = (i, axis) => F.coord(axis, () => now(id).vertices[i].position[axis === 'lat' ? 1 : 0],
-      (v) => set(id, (x) => { const p = x.vertices[i].position; x.vertices[i].position = axis === 'lat' ? [p[0], v] : [v, p[1]]; }), `Vertex ${i + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`);
-    const n = el.vertices.length;
-    const along = (k) => h('span', { class: 'fvalue' }, fmtDist(at[k] || 0, u));
-    // an end's cells: attached, what to (across both); free, its latitude and longitude
-    const endCells = (key) => {
-      if (el[key].element) return [endOf(el[key]), null];
-      const [, lat, , lon] = F.position(() => now(id)[key].position, (q) => set(id, (x) => { x[key] = { position: q, element: null }; }), `${key === 'start' ? 'Start' : 'End'} `);
-      return [lat, lon];
-    };
-    const vertexRows = () => { const x = now(id), ps = positionsOf(x), t = lineTrace(drawing.doc, x).at;
-      return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Name', 'Along m'], ps.map((q, i) => { const g = i ? legOf(ps, i) : null; return [i === 0 ? 'start' : i === ps.length - 1 ? 'end' : i, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', x.vertices[i - 1]?.name ?? '', +(t[i] || 0).toFixed(3)]; })]; };
     const removeAt = (i) => drawing.change((doc) => removeVertex(doc, find(doc, id).el, i));
     const splitAt = (i) => { let p; drawing.change((d) => { p = splitKeeping(d, id, i); }); note(`Split: both parts attached to ${label('point', p)}`); };
-    // its places as rows, by place: 0 its start (◂), 1…n its vertices, n + 1 its end (▸); a page of them shown
-    const pg = paged(`${id}:vertices`, n + 2), abs = (r) => pg.rows[r];
-    const rowAt = (k) => (k === 0 ? { cls: 'vnode', cells: ['◂', ...endCells('start'), null, null, null, along(0)] }
-      : k === n + 1 ? { cls: 'vnode', cells: ['▸', ...endCells('end'), ...leg(n + 1), null, along(at.length - 1)] }
-        : ((i) => ({ cells: [`${i + 1}`, coord(i, 'lat'), coord(i, 'lon'), ...leg(i + 1),
-          field(() => now(id).vertices[i].name, (t) => t, (nv) => set(id, (x) => { x.vertices[i].name = nv; }), { 'aria-label': `Vertex ${i + 1} name` }), along(i + 1)] }))(k - 1));
+    // Its points as rows, numbered 1 (its start) to N (its end), the vertices between: a page of them
+    // shown. Lat, Lon; the leg from the point before (typed: this point moves); along, from the start;
+    // a vertex's name. An end attached: what to, its leg as it is.
+    const n = el.vertices.length, N = n + 2, ps = positionsOf(el);
+    const coord = (k, axis, get, put) => F.coord(axis, get, put, `Point ${k + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
+    const vcoord = (k, axis) => coord(k, axis, () => now(id).vertices[k - 1].position[axis === 'lat' ? 1 : 0],
+      (v) => set(id, (x) => { const p = x.vertices[k - 1].position; x.vertices[k - 1].position = axis === 'lat' ? [p[0], v] : [v, p[1]]; }));
+    const value = (t) => h('span', { class: 'fvalue' }, t);
+    const endKey = (k) => (k === 0 ? 'start' : 'end');
+    const endCells = (k) => {
+      const key = endKey(k);
+      if (el[key].element) return [link(el[key].element), null];
+      const at = (axis) => coord(k, axis, () => now(id)[key].position[axis === 'lat' ? 1 : 0],
+        (v) => set(id, (x) => { const q = x[key].position; x[key] = { position: axis === 'lat' ? [q[0], v] : [v, q[1]], element: null }; }));
+      return [at('lat'), at('lon')];
+    };
+    const legCells = (k) => (k === N - 1 && el.end.element ? [value(inUnit(legOf(ps, k).s)), value(legOf(ps, k).azi.toFixed(1))] : legFields(id, positionsOf, k, setLineLeg, 'Point'));
+    const name = (k) => field(() => now(id).vertices[k - 1].name, (t) => t, (nv) => set(id, (x) => { x.vertices[k - 1].name = nv; }), { 'aria-label': `Point ${k + 1} name` });
+    const rowAt = (k) => ({ cls: k === 0 || k === N - 1 ? 'vnode' : null,
+      cells: [k === 0 || k === N - 1 ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
+        ...(k === 0 || k === N - 1 ? endCells(k) : [vcoord(k, 'lat'), vcoord(k, 'lon')]),
+        ...(k ? legCells(k) : [null, null]), value(inUnit(at[k] || 0)), k === 0 || k === N - 1 ? null : name(k)] });
+    // an end's Attach to… (the next click on the map chooses what to) and Detach (free where it is)
+    const endActs = (key) => {
+      const waiting = drawing.repointing?.id === id && drawing.repointing.key === key;
+      const attach = h('button', { type: 'button', class: 'small', 'aria-pressed': String(waiting), 'aria-label': `Attach ${key} to…`,
+        title: 'Then click a point, a vertex, an edge, a line or an area to attach it there, or anywhere for a position (Esc: cancel)',
+        onclick: () => { if (waiting) drawing.cancelRepoint(); else drawing.startRepoint(id, key); renderInspector(); } }, 'Attach to…');
+      return [attach, el[key].element ? act('Detach', 'Keep it where it is, no longer following what it is attached to', () => set(id, (x) => { x[key] = freeRef(x[key]); })) : null].filter(Boolean);
+    };
+    const pg = paged(`${id}:points`, N), abs = (r) => pg.rows[r];
+    const U = colUnitText();
     const table = listGrid({ name: pg.name,
-      columns: [{ head: '', width: 26, frozen: true, cls: 'num' }, { head: 'Lat', width: 100, frozen: true }, { head: 'Lon', width: 100, frozen: true },
-        { head: 'Leg', width: 104, title: 'The straight leg from the place before: its length (typed: this place and those after it move together)' },
-        { head: 'Brg °', width: 72, title: 'The leg\'s bearing, degrees true' }, { head: 'Name', width: 110 }, { head: 'Along', width: 84, cls: 'num', title: 'The distance from its start' }],
+      columns: [{ head: '#', width: 34, frozen: true, cls: 'num' }, { head: 'Lat', width: 88, cls: 'n' }, { head: 'Lon', width: 92, cls: 'n' },
+        { head: `Leg ${U}`, width: 76, cls: 'n', title: 'The straight leg from the point before: its length (typed: this point moves, the legs either side of it change)' },
+        { head: 'Brg °T', width: 60, cls: 'n', title: 'The leg\'s bearing, degrees true (typed: this point moves)' },
+        { head: `Along ${U}`, width: 80, cls: 'num', title: 'The distance from its start' }, { head: 'Name', width: 110 }],
       rows: pg.rows.map(rowAt),
-      actions: (rr, r = abs(rr)) => (r === 0 ? { label: 'Start', buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(-1))] }
-        : r <= n ? { label: `Vertex ${r}`, buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(r - 1)),
-          act('Delete', 'Take this vertex away (Ctrl/⌘ Delete)', () => removeAt(r - 1)), act('Split', 'Split the line here: this vertex becomes a point both parts are attached to', () => splitAt(r - 1))] } : null),
-      keys: { insert: (rr) => { const r = abs(rr); if (r <= n) insertAfter(r - 1); }, remove: (rr) => { const r = abs(rr); if (r >= 1 && r <= n) removeAt(r - 1); } } });
+      actions: (rr, k = abs(rr)) => (k === 0 ? { label: 'Point 1, its start', buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(-1)), ...endActs('start')] }
+        : k === N - 1 ? { label: `Point ${N}, its end`, buttons: endActs('end') }
+          : { label: `Point ${k + 1}`, buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(k - 1)),
+            act('Delete', 'Take this point away (Ctrl/⌘ Delete)', () => removeAt(k - 1)), act('Split', 'Split the line here: this point becomes a point both parts are attached to', () => splitAt(k - 1))] }),
+      keys: { insert: (rr) => { const k = abs(rr); if (k < N - 1) insertAfter(k - 1); }, remove: (rr) => { const k = abs(rr); if (k >= 1 && k <= n) removeAt(k - 1); } },
+      current: (rr) => drawing.markPlace(rr == null ? null : positionsOf(now(id))[abs(rr)]) });
+    const pointRows = () => { const x = now(id), qs = positionsOf(x), t = lineTrace(drawing.doc, x).at;
+      return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Along m', 'Name'], qs.map((q, k) => { const g = k ? legOf(qs, k) : null; return [k + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', +(t[k] || 0).toFixed(3), x.vertices[k - 1]?.name ?? '']; })]; };
     const off = el.look.offset ?? null, offNow = offsetOf(drawing.doc, el);
     return [...commonTop('line', id),
-      ...[refRow('Start', id, 'start'), refRow('End', id, 'end')].flat(),
       row('Length', h('span', { class: 'fvalue' }, fmtDist(line.length, u))),
       offNow && off == null ? h('p', { class: 'note' }, `Drawn ${Math.abs(offNow)} px to the ${offNow > 0 ? 'right' : 'left'} of its line, the drawing's Offset. Its length is the real one.`) : null,
       profileBlock(id),
-      row('Legs', segOf('Legs', [[false, 'Straight', 'Geodesics, as measured'], [true, 'Smooth', 'A curve through its bends, following them; its length measured along it']], !!el.smooth, (v) => set(id, (x) => { x.smooth = v; }))),
+      row('Path', segOf('Path', [[false, 'Straight', 'Geodesics, as measured'], [true, 'Smooth', 'A curve through its bends, following them; its length measured along it']], !!el.smooth, (v) => set(id, (x) => { x.smooth = v; }))),
       row('', h('button', { type: 'button', class: 'small', title: 'Copies placed along this line, every so far or so many, which then follow it; they can be connected to roots', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…')),
-      h('div', { class: 'fblock' }, h('h3', { title: 'Where the line runs: its start (◂), its vertices (1, 2…), its end (▸). Along: the distance from the start. Click a row for what can be done with it (under the table).' }, `Vertices (${el.vertices.length})`, copyBtn(vertexRows)),
-      table, pg.pager), // wider than the panel: it scrolls sideways, its first columns kept
+      h('div', { class: 'fblock' }, h('h3', { title: 'Where the line runs, from its start (1) to its end. A row clicked is ringed on the map; a point pressed on the map picks its row.' }, `Points (${N})`, copyBtn(pointRows)),
+      table, pg.pager), // wider than the panel: it scrolls sideways, its number kept
       lookBlock([item(id)]), ...commonBottom('line', id)];
   }
 
@@ -953,6 +981,8 @@ export function drawView(root, ctx) {
       if (what === 'tool') return renderTools();
       if (what === 'draft') return tools.renderTouch();
       if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
+      // a line's point or an area's corner pressed on the map: its row in the table made current
+      if (what === 'place') { const { id, index } = drawing.place; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${kindOf(id) === 'line' ? 'points' : 'corners'}`, index); return; }
       if (what === 'area') { // a Select drag ended: say what it did, even when nothing was inside
         const n = drawing.sel.size;
         note(n ? `${plural(n, 'element')} selected` : 'Nothing lies entirely inside the box');

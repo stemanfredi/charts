@@ -4,7 +4,7 @@
 // is a value: "none", "the default").
 
 import { h } from './dom.js';
-import { parseCoord, parseDist, distText } from './format.js';
+import { parseCoord, parseDist, distText, UNIT_M } from './format.js';
 import { MAX_LAT, norm360 } from './geo.js';
 
 const num = (t) => Number(t.replace(',', '.').trim());
@@ -65,24 +65,27 @@ export function fields({ note, units }) {
     return t;
   };
   // a distance in the display units (a suffix may say another: 500 m, 1.2 NM). zero: 0 allowed;
-  // check(m): an error text, or null
-  const dist = (get, put, aria, { zero = false, check = () => null, ...attrs } = {}) => {
+  // check(m): an error text, or null; in: a unit of its own ('km', 'nm'), its number alone shown to the
+  // metre (a table's column, its unit in the head)
+  const dist = (get, put, aria, { zero = false, check = () => null, in: fixed = null, ...attrs } = {}) => {
     let unit;
-    return field(() => { const t = distText(get(), units()); unit = t.unit; return zero && !get() ? '0' : t.text; }, (t) => {
+    return field(() => { if (fixed) { unit = fixed; return (get() / UNIT_M[fixed]).toFixed(3); } const t = distText(get(), units()); unit = t.unit; return zero && !get() ? '0' : t.text; }, (t) => {
       const m = zero && t.trim() === '0' ? 0 : parseDist(t, unit);
       return m === null || (zero ? m < 0 : m <= 0) || check(m) ? undefined : m;
     }, put, { 'aria-label': aria, class: 'dist', nudge: (t, up, big) => stepped(t, up, big, 0), bad: zero ? 'a distance, 0 or more, with m, km or NM' : 'a distance above 0, with m, km or NM',
       title: 'A distance: 500 m, 1.2 km, 0.8 NM (no unit: the one shown)', ...attrs });
   };
-  // degrees: wrap (a bearing: any number, read modulo 360), else strictly between lo and hi
-  const angle = (get, put, aria, { lo = 0, hi = 360, wrap = true } = {}) => field(() => `${+get().toFixed(4)}`, (t) => {
+  // degrees: wrap (a bearing: any number, read modulo 360), else strictly between lo and hi; fixed:
+  // its decimals always shown (a table's column)
+  const angle = (get, put, aria, { lo = 0, hi = 360, wrap = true, fixed = null } = {}) => field(() => (fixed == null ? `${+get().toFixed(4)}` : get().toFixed(fixed)), (t) => {
     const v = num(t.replace('°', ''));
     if (t.trim() === '' || !Number.isFinite(v)) return undefined;
     if (wrap) return norm360(v);
     return v > lo && v < hi ? v : undefined;
   }, put, { 'aria-label': aria, class: 'angle', inputmode: 'decimal', nudge: (t, up, big) => { const v = num(t.replace('°', '')); return Number.isFinite(v) ? `${+(v + (up ? 1 : -1) * (big ? 10 : 1)).toFixed(4)}` : null; }, bad: wrap ? 'degrees' : `degrees between ${lo} and ${hi}` });
-  // one coordinate (axis 'lat' or 'lon'): decimal degrees, degrees and minutes, DMS, a hemisphere letter
-  const coord = (axis, get, put, aria = axis === 'lat' ? 'Latitude' : 'Longitude') => field(() => `${+get().toFixed(7)}`, (t) => {
+  // one coordinate (axis 'lat' or 'lon'): decimal degrees, degrees and minutes, DMS, a hemisphere letter;
+  // fixed: its decimals always shown (a table's column: 6, a decimetre)
+  const coord = (axis, get, put, aria = axis === 'lat' ? 'Latitude' : 'Longitude', fixed = null) => field(() => (fixed == null ? `${+get().toFixed(7)}` : get().toFixed(fixed)), (t) => {
     const v = parseCoord(t, axis);
     return v === null || (axis === 'lat' && Math.abs(v) > MAX_LAT) ? undefined : v;
   }, put, { 'aria-label': aria, class: 'coord', bad: axis === 'lat' ? 'a latitude between −85.05 and 85.05 (N or S)' : 'a longitude between −180 and 180 (E or W)',

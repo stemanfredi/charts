@@ -141,19 +141,24 @@ follows a drag on the map as it moves.
 
 - **Rows**: a label, one value or a pair (latitude · longitude, colour · opacity), and a last column
   for an action (detach, attach, ↺); actions of a value are buttons in a row under it.
-- **Lists** (parts, vertices, corners, data): their first columns stay as the rest scrolls sideways;
-  the row clicked is current, its actions under the list and on keys (Insert, Ctrl/⌘ Delete); ↑ ↓
-  and Enter keep the column. Past 100 rows, a page at a time. **Copy** gives every row,
-  tab-separated, for a spreadsheet. Typed in a table, a leg's or edge's length and bearing move that
-  place and those after it together (an attached end stays attached).
+- **Lists** (parts, a line's points, an area's corners, data): a long one scrolls in its own box,
+  its head kept; its first column stays as the rest scrolls sideways. The row clicked is current, its
+  actions in a bar over the list and on keys (Insert, Ctrl/⌘ Delete); ↑ ↓ and Enter keep the column.
+  Past 100 rows, a page at a time. **Copy** gives every row, tab-separated, for a spreadsheet.
+  Numbers are right-aligned, of one width, with fixed decimals: degrees to 6 (a decimetre),
+  distances in the column's unit (km or NM, in its head) to 3, bearings to 1.
+- **A line's points**, 1 (its start) to N (its end): Lat, Lon; the **leg** from the point before,
+  its length and bearing (typed: that point alone moves, the legs either side of it change); **Along**,
+  from the start; a vertex's name. An end attached shows what to, its leg as it is; its row's bar has
+  **Attach to…** (pressed while the next click chooses) and **Detach** (it stays where it is). An
+  area's **corners** the same, 1 to n, corner 1's edge from the last. The row current is ringed on
+  the map; a point pressed on the map makes its row current, on its page.
 - **The look's cascade:** an element's own value, else the drawing's Display, else the default; **↺**
   gives a field back. Where several differ a field says "mixed" and a change writes only that field.
   A group is only who is in it: joining or leaving changes nothing of an element; its Look sets each
   member. A hidden group hides everything in it. **Min. size** is the drawing's only: shapes shorter
   than it on screen are drawn enlarged, dotted.
-- A line's **Start** and **End**, a row each: what it is attached to with the broken link (detach,
-  it stays where it is), or its position; at the row's end **Attach to…**, pressed while the next
-  click chooses. **Legs**: straight, or smooth (a curve through the vertices, following them).
+- A line's **Path**: straight, or smooth (a curve through the vertices, following them).
   **Depth profile**: the depth along it from the depth shading's grid (at most 1,000 places), its
   extremes, a chart linked to the map both ways, its length along the seabed, CSV.
 - A point's **Parts** are its own: circles, sectors, outlines, each with Fill, Shown and a name.

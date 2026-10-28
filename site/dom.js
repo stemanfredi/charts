@@ -36,7 +36,8 @@ export const h = (tag, attrs = {}, ...kids) => {
 // inspector updated in place, its focus, caret and scroll untouched). A node kept keeps its own
 // handlers, which refer to it; so it is kept only when it is the same thing: its tag and what names
 // it, and for a button (or what acts as one) its class and text too, so that it never acts on
-// something else than it says. A field being typed in keeps its text; a field's
+// something else than it says; a button whose action hangs on more (a page to go to, a row to act
+// on) says it in its data-key. A field being typed in keeps its text; a field's
 // reset(text) (fields.js) takes the new one. Anything else is replaced, that subtree only.
 const NAMES = ['type', 'role', 'aria-label', 'data-r', 'data-id', 'data-grid', 'data-rows', 'data-v', 'data-tab', 'data-key'];
 const sameAs = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && NAMES.every((k) => a.getAttribute(k) === b.getAttribute(k))

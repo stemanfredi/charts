@@ -885,7 +885,8 @@ await section('the drawing', async () => {
   check(onLeg.end.element === host.id && onLeg.end.edge === 0 && onLeg.end.at > 0.2 && onLeg.end.at < 0.8 && onLeg.n === host.n,
     `attaching: a line's end on another line's leg, along it, no vertex added (${JSON.stringify(onLeg.end)})`);
   await dw.evaluate((id) => drawing.select([id]), onLeg.id);
-  await dw.click('.dinspect .frow:has(.flabel:text-is("End")) button[aria-label="Attach end to…"]');
+  await dw.click('.dinspect [data-grid*=":points"] tbody tr[data-r]:last-child td:first-child'); // its end's row: Attach to… over the table
+  await dw.click('.dinspect .lbar button[aria-label="Attach end to…"]');
   const corner = await dw.evaluate(async (id) => { const { verticesOf } = await import('./draw/attach.js'); const q = map.project(verticesOf({ kind: 'point', el: drawing.doc.points.find((x) => x.id === id) })[2]); return [q.x, q.y]; }, sc.id);
   await dw.mouse.click(corner[0] + 2, corner[1] + 2);
   const moved2 = await dw.evaluate((id) => drawing.doc.lines.find((s) => s.id === id).end, onLeg.id);
@@ -947,8 +948,8 @@ await section('the drawing', async () => {
   await dw.evaluate((id) => drawing.remove([id]), nid);
   const freed = await dw.evaluate(() => drawing.doc.labels[0]?.anchor);
   check(!freed?.element && freed?.position?.[0] === pointed[0] && freed.position[1] === pointed[1], 'labels: the point deleted, its label stays, free, where it pointed');
-  // legs typed after drawing: a line's leg 1 set to 1 km at 090°, its vertex and end moved together
-  // (leg 2 unchanged); a polygon's edge 1 (corner 1 to 2) to 500 m, corners 2 and 3 moved together
+  // legs typed after drawing: the leg to a line's point 2 set to 1 km at 090°, that point alone moved
+  // (its end where it was); the edge to a polygon's corner 2 set to 500 m, that corner alone moved
   const legIds = await dw.evaluate(async () => {
     const { addLine, addArea } = await import('./draw/document.js');
     let l, a;
@@ -957,37 +958,37 @@ await section('the drawing', async () => {
   });
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
   const typeIn = async (aria, v) => { const f = dw.locator(`.dinspect input[aria-label="${aria}"]`); await f.fill(v); await f.press('Enter'); };
-  const leg2 = () => dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const l = drawing.doc.lines.find((x) => x.id === id); const g = inverse(l.vertices[0].position, l.end.position); return [Math.round(g.s), Math.round(g.azi)]; }, legIds[0]);
-  const leg2Before = await leg2();
-  await typeIn('Leg 1 length', '1 km');
-  await typeIn('Leg 1 bearing (degrees true)', '90');
+  const endAt = () => dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).end.position.join(), legIds[0]);
+  const endBefore = await endAt();
+  await typeIn('Point 2 leg length', '1 km');
+  await typeIn('Point 2 leg bearing (degrees true)', '90');
   const leg1 = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const l = drawing.doc.lines.find((x) => x.id === id); const g = inverse(l.start.position, l.vertices[0].position); return [Math.round(g.s), Math.round(g.azi)]; }, legIds[0]);
-  const leg2After = await leg2();
+  const endAfter = await endAt();
   await dw.evaluate((id) => drawing.select([id]), legIds[1]);
-  await typeIn('Edge 1 length', '500 m');
-  const edge = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const a = drawing.doc.areas.find((x) => x.id === id); return [Math.round(inverse(a.points[0], a.points[1]).s), Math.round(inverse(a.points[1], a.points[2]).s)]; }, legIds[1]);
-  check(leg1.join() === '1000,90' && leg2After.join() === leg2Before.join() && edge[0] === 500 && edge[1] > 1000,
-    `legs typed after drawing: a line's leg (${leg1}), the legs after it unchanged (${leg2Before} → ${leg2After}); a polygon's edge (${edge})`);
-  // the vertex table as a list grid: ↓ goes to the same column in the next row; the bar under it acts
+  await typeIn('Corner 2 leg length', '500 m');
+  const edge = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const a = drawing.doc.areas.find((x) => x.id === id); return [Math.round(inverse(a.points[0], a.points[1]).s), a.points[2].join()]; }, legIds[1]);
+  check(leg1.join() === '1000,90' && endAfter === endBefore && edge[0] === 500 && edge[1] === '13.01,40.51',
+    `legs typed after drawing: the leg to a line's point (${leg1}), that point alone moved (its end ${endAfter}); a polygon's edge (${edge[0]}), corner 3 where it was`);
+  // the points' table as a list grid: ↓ goes to the same column in the next row; the bar over it acts
   // on the current row (its vertex deleted); a part added from the parts' empty last row
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
-  await dw.locator('.dinspect input[aria-label="Leg 1 length"]').focus();
+  await dw.locator('.dinspect input[aria-label="Point 2 leg length"]').focus();
   await dw.keyboard.press('ArrowDown');
   await dw.waitForTimeout(200);
   const movedTo = await dw.evaluate(() => document.activeElement?.getAttribute('aria-label'));
-  await dw.locator('.dinspect input[aria-label="Vertex 1 latitude"]').focus();
+  await dw.locator('.dinspect input[aria-label="Point 2 latitude"]').focus();
   await dw.click('.dinspect .lbar button:has-text("Delete")');
   const vertsLeft = await dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).vertices.length, legIds[0]);
   const pid = await dw.evaluate(async () => { const { addPoint } = await import('./draw/document.js'); let n; drawing.change((d) => { const c = map.getCenter(); n = addPoint(d, [c.lng, c.lat]); }); drawing.select([n.id]); return n.id; });
   await dw.selectOption('.dinspect [data-grid$=":parts"] select[aria-label="Add a part"]', 'rectangle');
   const partsNow = await dw.evaluate((id) => drawing.doc.points.find((x) => x.id === id).parts.map((q) => q.kind).join(), pid);
-  check(movedTo === 'Leg 2 length' && vertsLeft === 0 && partsNow === 'circle,rectangle',
+  check(movedTo === 'Point 3 leg length' && vertsLeft === 0 && partsNow === 'circle,rectangle',
     `list grids: ↓ to the next row (${movedTo}); the row's bar deletes its vertex (${vertsLeft} left); a part added from the empty row (${partsNow})`);
   // a list's Copy: its rows, tab-separated, a header first
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
-  await dw.click('.dinspect .fblock:has(h3:has-text("Vertices")) button:has-text("Copy")');
+  await dw.click('.dinspect .fblock:has(h3:has-text("Points")) button:has-text("Copy")');
   const copied = await dw.evaluate(() => navigator.clipboard.readText());
-  check(/^#\tLat\tLon/.test(copied) && /\nstart\t/.test(copied) && /\nend\t/.test(copied), `a list's Copy gives its rows (${copied.split('\n')[1]})`);
+  check(/^#\tLat\tLon/.test(copied) && /\n1\t/.test(copied) && copied.trim().split('\n').length === 3, `a list's Copy gives its rows, numbered from 1 (${copied.split('\n')[1]})`);
   // a line's depth profile: read when asked, the chart drawn, its length along the seabed longer
   const deepLine = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.2], [], [12.3, 40.2]); }); drawing.select([l.id]); return l.id; });
   await dw.click('.dinspect button:has-text("Depth profile")');
@@ -995,7 +996,8 @@ await section('the drawing', async () => {
   const prof = await dw.evaluate(() => [document.querySelectorAll('svg.profile polyline').length, document.querySelector('.dinspect .fblock .fvalue[title*="lower bound"]')?.textContent || '']);
   const deepLength = await dw.evaluate(async (id) => { const { lineTrace } = await import('./draw/lines.js'); return lineTrace(drawing.doc, drawing.doc.lines.find((x) => x.id === id)).length; }, deepLine);
   check(prof[0] > 0 && /along the seabed/.test(prof[1]) && deepLength > 25000, `a line's depth profile: the chart and the length along the seabed (${prof[1]})`);
-  // a long line's vertex table a page at a time: 100 rows built, not 502; ‹ › move by a page
+  // a long line's table a page at a time: 100 rows built, not 502; ‹ › move by a page. A row clicked
+  // ringed on the map; a point pressed on the map: its row picked, on its page
   const longId = await dw.evaluate(async () => {
     const { addLine } = await import('./draw/document.js');
     let s;
@@ -1005,11 +1007,27 @@ await section('the drawing', async () => {
   });
   const t0 = Date.now();
   await dw.waitForSelector('.dinspect .lpager');
-  const pageOne = await dw.evaluate(() => [document.querySelectorAll('.dinspect [data-grid*=":vertices"] tbody tr[data-r]').length, document.querySelector('.dinspect .lpager .funit').textContent]);
+  const pageOne = await dw.evaluate(() => [document.querySelectorAll('.dinspect [data-grid*=":points"] tbody tr[data-r]').length, document.querySelector('.dinspect .lpager .funit').textContent]);
   await dw.click('.dinspect .lpager button[aria-label="Next rows"]');
-  const pageTwo = await dw.evaluate(() => [document.querySelector('.dinspect .lpager .funit').textContent, document.querySelector('.dinspect input[aria-label="Vertex 100 latitude"]') !== null]);
+  const pageTwo = await dw.evaluate(() => [document.querySelector('.dinspect .lpager .funit').textContent, document.querySelector('.dinspect input[aria-label="Point 101 latitude"]') !== null]);
   check(pageOne[0] === 100 && pageOne[1] === '1–100 of 502' && pageTwo[0] === '101–200 of 502' && pageTwo[1] && Date.now() - t0 < 5000,
-    `drawing: a long line's vertices a page at a time (${pageOne}; ${pageTwo}; ${Date.now() - t0} ms)`);
+    `drawing: a long line's points a page at a time (${pageOne}; ${pageTwo}; ${Date.now() - t0} ms)`);
+  await dw.click('.dinspect .lpager button[aria-label="Next rows"]'); // › again: the next page (a button kept by morph acts as it says)
+  const pageThree = await dw.evaluate(() => document.querySelector('.dinspect .lpager .funit').textContent);
+  await dw.click('.dinspect [data-grid*=":points"] tr[data-r="4"] td:first-child'); // point 205
+  const ringed = await dw.evaluate((id) => drawing.placeMark?.join() === drawing.doc.lines.find((x) => x.id === id).vertices[203].position.join(), longId);
+  const vAt = await dw.evaluate((id) => { const v = drawing.doc.lines.find((x) => x.id === id).vertices[349].position; map.jumpTo({ center: v, zoom: 15 }); return v; }, longId);
+  await dw.waitForTimeout(500);
+  const vPx = await dw.evaluate((v) => { const q = map.project(v), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; }, vAt);
+  await dw.mouse.move(vPx[0], vPx[1]);
+  await dw.mouse.down();
+  await dw.mouse.up();
+  await dw.waitForTimeout(300);
+  const pickedRow = await dw.evaluate(() => [document.querySelector('.dinspect .lbar .funit')?.textContent, document.querySelector('.dinspect .lpager .funit').textContent, document.querySelector('.dinspect tr.cur td')?.textContent]);
+  await dw.click('.dinspect .lbar button:has-text("Delete")'); // the row picked from the map, not the one current before
+  const deleted = await dw.evaluate(([id, v]) => { const x = drawing.doc.lines.find((l) => l.id === id); return [x.vertices.length, x.vertices.some((q) => q.position.join() === v.join())]; }, [longId, vAt]);
+  check(pageThree === '201–300 of 502' && ringed && pickedRow.join() === 'Point 351:,301–400 of 502,351' && deleted.join() === '499,false',
+    `points: › twice (${pageThree}); a row clicked is ringed on the map (${ringed}); a point pressed on the map picks its row, on its page (${pickedRow}); its bar's Delete takes that point (${deleted})`);
   await dw.evaluate((id) => drawing.remove([id]), longId);
   // Properties updated in place (dom.js morph): Tab, or a click into another field, from a field just
   // applied lands there; the same in a list
@@ -1025,12 +1043,12 @@ await section('the drawing', async () => {
   await dw.keyboard.type('2');
   await dw.keyboard.press('Enter');
   const clicked = await dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).look.offset, fl);
-  await dw.click('.dinspect input[aria-label="Vertex 1 latitude"]');
+  await dw.click('.dinspect input[aria-label="Point 2 latitude"]');
   await dw.keyboard.press('Control+A');
   await dw.keyboard.type('40.33');
   await dw.keyboard.press('Tab');
   const inList = await focused();
-  check(afterTab === 'Group' && clicked === 2 && inList === 'Vertex 1 longitude', `Properties in place: Tab from a field applied (${afterTab}), a click into the next (Offset ${clicked}), Tab in a list (${inList})`);
+  check(afterTab === 'Group' && clicked === 2 && inList === 'Point 2 longitude', `Properties in place: Tab from a field applied (${afterTab}), a click into the next (Offset ${clicked}), Tab in a list (${inList})`);
   await dw.evaluate((id) => drawing.remove([id]), fl);
   check(!dw.errors.length, `drawing: no errors ${dw.errors.join(' | ')}`);
   await dw.close();

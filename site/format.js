@@ -127,7 +127,7 @@ export function parseCoord(text, axis) {
 
 // A distance typed into a field → metres, or null: a number with m, km or NM (any case), or a bare
 // number, read in the unit the field showed (bare: 'm', 'km' or 'nm'). A decimal comma is read as such.
-const UNIT_M = { m: 1, km: 1000, nm: NM };
+export const UNIT_M = { m: 1, km: 1000, nm: NM };
 export function parseDist(text, bare) {
   const r = /^\s*(\d+(?:[.,]\d+)?|[.,]\d+)\s*(m|km|nm)?\s*$/i.exec(text);
   return r ? +r[1].replace(',', '.') * UNIT_M[(r[2] || bare).toLowerCase()] : null;

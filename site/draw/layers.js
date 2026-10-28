@@ -131,6 +131,10 @@ export const DRAW_LAYERS = [
   { id: 'draw-snapto', type: 'circle', source: 'drawover', filter: ['in', ['get', 'kind'], ['literal', ['snapvertex', 'snapedge']]],
     paint: { 'circle-radius': ['match', ['get', 'kind'], 'snapvertex', 8, 4], 'circle-color': MARK, 'circle-opacity': ['match', ['get', 'kind'], 'snapvertex', 0, 1],
       'circle-stroke-color': ['match', ['get', 'kind'], 'snapvertex', MARK, MARK_CASE], 'circle-stroke-width': ['match', ['get', 'kind'], 'snapvertex', 3, 1.5] } },
+  // the place of the row current in Properties' table (a line's point, an area's corner): ringed, as a
+  // mark (not in the exports)
+  { id: 'draw-mark-place', type: 'circle', source: 'drawover', filter: ['==', ['get', 'kind'], 'place'],
+    paint: { 'circle-radius': 11, 'circle-opacity': 0, 'circle-stroke-color': MARK, 'circle-stroke-width': 3 } },
   { id: 'draw-snapcross', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'snapcrossing'],
     layout: { 'icon-image': 'draw-plus', 'icon-rotate': 45, 'icon-size': 1.4, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': MARK, 'icon-halo-color': MARK_CASE, 'icon-halo-width': 2 } },

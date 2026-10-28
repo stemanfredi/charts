@@ -54,9 +54,9 @@ svg { flex: none; }
 .props { right: 0; width: var(--rw); border-left: 1px solid var(--line); }
 @media (pointer: fine) { .side, .props { --row: 24px; } } /* dense rows with a mouse (a grid of cells), 44 with a finger */
 .side > .dview, .side > #menu { flex: 1 1 auto; min-height: 0; }
-.edge { position: absolute; z-index: 3; top: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
-.edge.left { right: -4px; } .edge.right { left: -4px; }
-.edge:hover, .edge:active { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px 5px, transparent 5px); }
+:is(.side, .props) > .edge { position: absolute; z-index: 3; top: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
+:is(.side, .props) > .edge.left { right: -4px; } :is(.side, .props) > .edge.right { left: -4px; }
+:is(.side, .props) > .edge:is(:hover, :active) { background: linear-gradient(90deg, transparent 2px, var(--accent) 2px 5px, transparent 5px); }
 .grip { display: none; }
 .tabs { flex: none; display: flex; min-height: 30px; border-bottom: 1px solid var(--line); }
 @media (pointer: coarse) { .tabs { min-height: 45px; } } /* 44 px tabs above the border */
@@ -299,11 +299,12 @@ button.small.link:hover { border-color: var(--line); }
    scrolls sideways; the current row marked; its actions in the bar under it */
 .lgridbox { display: flex; flex-direction: column; }
 .lgridbox > :not(.lscroll) { margin: 0 12px; }
-.lscroll { overflow-x: auto; max-width: 100%; }
+.lscroll { overflow: auto; max-width: 100%; max-height: min(60vh, 640px); overscroll-behavior: contain; scroll-padding-top: 24px; } /* a long one in its own box, its head kept */
 .lgrid { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12px; min-width: 100%; }
 .lgrid :is(th, td) { border-bottom: 1px solid var(--line2); border-right: 1px solid var(--line2); }
 .lgrid :is(th, td):last-child { border-right: 0; }
-.lgrid thead th { background: var(--bg2); height: 24px; }
+.lgrid thead th { background: var(--bg2); height: 24px; position: sticky; top: 0; z-index: 2; }
+.lgrid thead th.frozen { z-index: 3; }
 .lgrid th { font-weight: 400; font-size: 11px; color: var(--soft); text-align: left; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lgrid td { padding: 0; height: var(--row); vertical-align: middle; white-space: nowrap; }
 .lgrid td.num { padding: 0 4px; }
@@ -312,7 +313,7 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid td .vpair { width: 100%; }
 .lgrid td .fvalue { font-size: 11px; color: var(--soft); }
 .lgrid .frozen { position: sticky; z-index: 1; background: var(--bg); }
-.lgrid .frozen.edge { box-shadow: 1px 0 0 var(--line); }
+.lgrid .frozen.fedge { box-shadow: 1px 0 0 var(--line); }
 .lgrid tr.cur td { background: var(--sel); }
 .lgrid tr.vnode td { background: var(--bg2); }
 .lgrid tr.cur td.frozen, .lgrid tr.vnode td.frozen { background: inherit; }
@@ -321,7 +322,11 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid tr.warn td { color: var(--warn); }
 .lgrid tr.ladd td { opacity: .75; }
 .lgrid .fcheck { justify-content: center; padding: 0; min-width: var(--row); }
-.lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; }
+.lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; min-height: calc(var(--row) + 8px); }
+/* a column of numbers (cls n): right-aligned, in figures of one width, to read down */
+.lgrid td.n input { text-align: right; font-family: var(--mono); font-size: 11px; }
+.lgrid td.n .fvalue { display: block; padding: 0 4px; text-align: right; font-family: var(--mono); }
+.lgrid th.n { text-align: right; }
 /* a row's sub-row (a vertex's handles): across the row, held at the grid's left edge as it scrolls */
 .fsummary { color: var(--ink); background: var(--bg2); border-radius: 6px; padding: 6px 8px; }
 .fblock { display: flex; flex-direction: column; }
@@ -475,7 +480,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
   .bar > :is(.tsep, .grow, .urbtn, .pright) { display: none; } /* Properties: the touch row's */
   .bar { justify-content: space-between; }
   .side, .props { top: auto; left: 0; right: 0; width: auto; height: var(--sheet); border: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; box-shadow: 0 -4px 16px rgba(20, 30, 40, .14); }
-  .edge { display: none; }
+  :is(.side, .props) > .edge { display: none; }
   .grip { display: grid; place-items: center; flex: none; height: 20px; cursor: row-resize; touch-action: none; }
   .grip::after { content: ""; width: 36px; height: 4px; border-radius: 2px; background: #c3ccd3; }
   body:is(.has-left, .has-right) .foot { bottom: var(--sheet); }

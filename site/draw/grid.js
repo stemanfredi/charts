@@ -1,8 +1,8 @@
 // List grids (docs/drawing-ui.md §5): a small spreadsheet of like things (a line's vertices, an
 // area's corners, a point's parts, its properties). Its columns of fixed widths, the first ones
-// (frozen) kept in place while the rest scrolls sideways; a current row, marked, whose actions are a
-// bar under the grid and keys (Insert, Ctrl/⌘ Delete); ↑, ↓ and Enter go to the same column in the
-// row above or below. The panel builds its inspector again after each change: where the focus goes
+// (frozen) kept in place while the rest scrolls sideways, its head while it scrolls down (a long one
+// scrolls in its own box); a current row, marked, whose actions are a bar over the grid and keys
+// (Insert, Ctrl/⌘ Delete); ↑, ↓ and Enter go to the same column in the row above or below. The panel builds its inspector again after each change: where the focus goes
 // after a key, and which row is current, are kept by the grid's name and taken up again.
 
 import { h } from '../dom.js';
@@ -26,26 +26,31 @@ function takeFocus(name, from) {
   if (el.select && typing(el)) el.select();
 }
 
+// a row made current from outside (its place picked on the map): the grid named name, built again
+export function setCurrent(name, i) { stateOf(name).current = i; }
+
 // A list grid. name: what keeps its state (the element's id and the list's); columns: [{ head,
 // width (px), frozen, title, cls }]; rows: [{ cells: [node], cls }]; add: the cells of the empty
-// last row (typing in it adds one), or null; actions(i): { label, buttons } for row i, or null; keys: { insert(i),
-// remove(i) }.
-export function listGrid({ name, columns, rows, add = null, actions = () => null, keys = {} }) {
+// last row (typing in it adds one), or null; actions(i): { label, buttons } for row i, or null (none: no bar); keys: { insert(i),
+// remove(i) }; current(i): row i made current (or null: none), as it is and when it changes.
+export function listGrid({ name, columns, rows, add = null, actions = null, keys = {}, current = () => {} }) {
   const st = stateOf(name);
   if (st.current != null && st.current >= rows.length) st.current = null;
   // the frozen columns' offsets, from the left
   let left = 0;
   const lefts = columns.map((c) => { const at = left; if (c.frozen) left += c.width; return c.frozen ? at : null; });
   const cell = (tag, k, kids, attrs = {}) => {
-    const c = columns[k], el = h(tag, { class: [c.cls, c.frozen ? 'frozen' : '', k === columns.filter((x) => x.frozen).length - 1 && c.frozen ? 'edge' : ''].filter(Boolean).join(' ') || null, ...attrs }, ...[kids].flat().filter((x) => x != null));
+    const c = columns[k], el = h(tag, { class: [c.cls, c.frozen ? 'frozen' : '', k === columns.filter((x) => x.frozen).length - 1 && c.frozen ? 'fedge' : ''].filter(Boolean).join(' ') || null, ...attrs }, ...[kids].flat().filter((x) => x != null));
     if (c.frozen) el.style.left = `${lefts[k]}px`; // CSSOM: the page's CSP allows no style attribute
     return el;
   };
+  // over the grid, always there (a row picked moves nothing): the current row's actions, or what to do
   const bar = h('div', { class: 'lbar' });
   const showBar = () => {
+    if (!actions) return;
     const a = st.current != null ? actions(st.current) : null;
-    bar.replaceChildren(...(a ? [h('span', { class: 'funit' }, `${a.label}:`), ...a.buttons] : []));
-    bar.hidden = !a;
+    for (const btn of a?.buttons ?? []) btn.dataset.key = a.label; // the row each acts on (morph keeps a button only when it does the same)
+    bar.replaceChildren(...(a ? [h('span', { class: 'funit' }, `${a.label}:`), ...a.buttons] : [h('span', { class: 'funit' }, 'A row clicked: what it can do')]));
   };
   const body = h('tbody', {});
   const markCurrent = (i) => {
@@ -53,6 +58,7 @@ export function listGrid({ name, columns, rows, add = null, actions = () => null
     st.current = i;
     for (const tr of body.querySelectorAll('tr[data-r]')) tr.classList.toggle('cur', +tr.dataset.r === i);
     showBar();
+    current(i < rows.length ? i : null);
   };
   rows.forEach((r, i) => {
     const tr = h('tr', { 'data-r': i, class: [r.cls, st.current === i ? 'cur' : ''].filter(Boolean).join(' ') || null, onfocusin: () => markCurrent(i), onpointerdown: () => markCurrent(i) },
@@ -83,5 +89,6 @@ export function listGrid({ name, columns, rows, add = null, actions = () => null
     requestAnimationFrame(() => takeFocus(name, e.target)); // on the grid as built again, or this one
   });
   showBar();
-  return h('div', { class: 'lgridbox' }, h('div', { class: 'lscroll' }, table), bar);
+  if (st.current != null) current(st.current);
+  return h('div', { class: 'lgridbox' }, actions ? bar : null, h('div', { class: 'lscroll' }, table));
 }
