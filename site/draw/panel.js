@@ -237,6 +237,7 @@ export function drawView(root, ctx) {
     };
     const adder = (aria, text) => select(aria, [['', text], ...PART_KINDS.map((k) => [k, PART_NAME[k]])], '', (k) => { if (k) set(id, (x) => addPart(x, k)); }, { title: 'A circle, a sector or an outline about the point, to scale' });
     const box = (i, key, aria) => check('', el.parts[i][key], (v) => at(i, (y) => { y[key] = v; }), { 'aria-label': `Part ${i + 1} ${aria}` });
+    const PARTS_COPY = ['#', 'Kind', 'Radius m', 'Aperture °', 'Length m', 'Width m', 'Fill', 'Shown', 'Name'];
     const dist = (i, key, aria) => distField(() => now(id).parts[i][key], (m) => at(i, (y) => { y[key] = m; }), aria, (m) => (m >= MAX_RADIUS || (key === 'radius' && !fits(m)) ? 'too large' : null), { in: colUnit() });
     // its size, two columns, in the column's unit: a round part's radius and a sector's aperture (°), an outline's length and width
     const size = (part, i) => (part.radius ? dist(i, 'radius', `Part ${i + 1} radius`) : dist(i, 'length', `Part ${i + 1} length`));
@@ -247,21 +248,24 @@ export function drawView(root, ctx) {
     const removeAt = (i) => drawing.change((d) => { removePartOf(d, id, i); reattach(d, id); });
     // the part as drawn, for the mark of its row on the map
     const ringAt = (i) => { const x = now(id), part = x.parts[i]; return part && (part.radius ? ringOf(x, part) : outlineOf(x.position, x.bearing, part.length, part.width, part.kind).ring); };
+    // the grid fits the panel's 320 px: #, Kind, Size, Across, Fill; the row current has its name and
+    // Shown in the bar over the grid, with Delete
     const table = listGrid({ name: `${id}:parts`,
-      columns: [{ head: '#', width: 28, frozen: true, cls: 'num' }, { head: 'Kind', width: 96 },
-        { head: `Size ${U}`, width: 92, cls: 'n', title: 'A circle\'s or sector\'s radius, an outline\'s length' },
-        { head: `Across ${U}`, width: 76, cls: 'n', title: 'A sector\'s aperture (°), centred on the bearing; an outline\'s width' },
-        { head: 'Fill', width: 40 }, { head: 'Shown', width: 50 }, { head: 'Name', width: 110 }],
-      rows: el.parts.map((part, i) => ({ cells: [`${i + 1}`, kind(part, i), size(part, i), across(part, i), box(i, 'fill', 'filled'), box(i, 'shown', 'shown'),
-        field(() => part.name, (t) => t, (v) => at(i, (y) => { y.name = v; }), { 'aria-label': `Part ${i + 1} name` })],
+      columns: [{ head: '#', width: 28, frozen: true, cls: 'num' }, { head: 'Kind', width: 92 },
+        { head: `Size ${U}`, width: 80, cls: 'n', title: 'A circle\'s or sector\'s radius, an outline\'s length' },
+        { head: `Across ${U}`, width: 64, cls: 'n', title: 'A sector\'s aperture (°), centred on the bearing; an outline\'s width' },
+        { head: 'Fill', width: 40 }],
+      rows: el.parts.map((part, i) => ({ cells: [`${i + 1}`, kind(part, i), size(part, i), across(part, i), box(i, 'fill', 'filled')],
       cls: part.radius && !fits(part.radius) ? 'warn' : null })),
-      add: [null, adder('Add a part', 'add a part…'), null, null, null, null, null],
-      actions: (i) => ({ label: `Part ${i + 1}`, buttons: [act('Delete', 'Take this part away (Ctrl/⌘ Delete)', () => removeAt(i))] }),
+      add: [null, adder('Add a part', 'add a part…'), null, null, null],
+      actions: (i) => ({ label: `Part ${i + 1}`, buttons: [field(() => now(id).parts[i].name, (t) => t, (v) => at(i, (y) => { y.name = v; }), { 'aria-label': `Part ${i + 1} name`, placeholder: 'name' }),
+        check('Shown', now(id).parts[i].shown, (v) => at(i, (y) => { y.shown = v; }), { 'aria-label': `Part ${i + 1} shown` }),
+        act('Delete', 'Take this part away (Ctrl/⌘ Delete)', () => removeAt(i))] }),
       keys: { remove: removeAt },
       current: (i) => drawing.markPlace(i == null ? null : ringAt(i) && { line: ringAt(i) }) });
     const far = el.parts.find((part) => part.radius && !fits(part.radius));
     return h('div', { class: 'fblock' },
-      h('h3', {}, `Parts (${el.parts.length})`, copyBtn(() => [['#', 'Kind', 'Radius m', 'Aperture °', 'Length m', 'Width m', 'Fill', 'Shown', 'Name'],
+      h('h3', {}, `Parts (${el.parts.length})`, copyBtn(() => [PARTS_COPY,
         now(id).parts.map((q, i) => [i + 1, q.kind, q.radius ?? '', q.aperture ?? '', q.length ?? '', q.width ?? '', q.fill ? 'yes' : 'no', q.shown ? 'yes' : 'no', q.name])])),
       table,
       far ? h('p', { class: 'note warn' }, `Not drawn: a circle of ${fmtDist(far.radius, u)} there reaches a pole.`) : null);
@@ -537,11 +541,14 @@ export function drawView(root, ctx) {
       return [at('lat'), at('lon')];
     };
     const legCells = (k) => (k === N - 1 && el.end.element ? [value(inUnit(legOf(ps, k).s)), value(legOf(ps, k).azi.toFixed(1))] : legFields(id, positionsOf, k, setLineLeg, 'Point'));
-    const name = (k) => field(() => now(id).vertices[k - 1].name, (t) => t, (nv) => set(id, (x) => { x.vertices[k - 1].name = nv; }), { 'aria-label': `Point ${k + 1} name` });
+    const name = (k) => field(() => now(id).vertices[k - 1].name, (t) => t, (nv) => set(id, (x) => { x.vertices[k - 1].name = nv; }), { 'aria-label': `Point ${k + 1} name`, placeholder: 'name' });
+    // the grid fits the panel's 320 px: #, Lat, Lon, the leg and its bearing; the row current says
+    // how far along the line its point is, and holds a vertex's name, in the bar over the grid
+    const along = (k) => funit(`${inUnit(at[k] || 0)} ${U} along`);
     const rowAt = (k) => ({ cls: k === 0 || k === N - 1 ? 'vnode' : null,
       cells: [k === 0 || k === N - 1 ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
         ...(k === 0 || k === N - 1 ? endCells(k) : [vcoord(k, 'lat'), vcoord(k, 'lon')]),
-        ...(k ? legCells(k) : [null, null]), value(inUnit(at[k] || 0)), k === 0 || k === N - 1 ? null : name(k)] });
+        ...(k ? legCells(k) : [null, null])] });
     // an end's Attach to… (the next click on the map chooses what to) and Detach (free where it is)
     const endActs = (key) => {
       const waiting = drawing.repointing?.id === id && drawing.repointing.key === key;
@@ -554,12 +561,11 @@ export function drawView(root, ctx) {
     const U = colUnitText();
     const table = listGrid({ name: pg.name,
       columns: [...PLACE_COLUMNS, { head: `Leg ${U}`, width: 56, cls: 'n', title: 'The straight leg from the point before: its length (typed: this point moves, the legs either side of it change)' },
-        { head: 'Brg °T', width: 52, cls: 'n', title: 'The leg\'s bearing, degrees true (typed: this point moves)' },
-        { head: `Along ${U}`, width: 80, cls: 'num', title: 'The distance from its start' }, { head: 'Name', width: 110 }],
+        { head: 'Brg °T', width: 52, cls: 'n', title: 'The leg\'s bearing, degrees true (typed: this point moves)' }],
       rows: pg.rows.map(rowAt),
       actions: (rr, k = abs(rr)) => (k === 0 ? { label: 'Point 1, its start', buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(-1)), ...endActs('start')] }
-        : k === N - 1 ? { label: `Point ${N}, its end`, buttons: endActs('end') }
-          : { label: `Point ${k + 1}`, buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(k - 1)),
+        : k === N - 1 ? { label: `Point ${N}, its end`, buttons: [along(k), ...endActs('end')] }
+          : { label: `Point ${k + 1}`, buttons: [along(k), name(k), act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(k - 1)),
             act('Delete', 'Take this point away (Ctrl/⌘ Delete)', () => removeAt(k - 1)), act('Split', 'Split the line here: this point becomes a point both parts are attached to', () => splitAt(k - 1))] }),
       keys: { insert: (rr) => { const k = abs(rr); if (k < N - 1) insertAfter(k - 1); }, remove: (rr) => { const k = abs(rr); if (k >= 1 && k <= n) removeAt(k - 1); } },
       current: (rr) => drawing.markPlace(rr == null ? null : positionsOf(now(id))[abs(rr)]) });

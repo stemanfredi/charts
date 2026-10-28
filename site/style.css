@@ -206,7 +206,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect :is(input:not([type=checkbox]):not([type=radio]):not([type=color]), textarea, select):hover { background: var(--hover); }
 .dinspect :is(input, textarea, select):focus { outline: 2px solid var(--accent); outline-offset: -2px; background: #fff; }
 /* outside a grid (the filter, a form's own fields) a field keeps its box */
-.dinspect > :is(input, textarea, select), .dinspect .frow:not(.vrow) > :is(input, textarea, select) { border-color: var(--line); border-radius: 4px; }
+.dinspect > :is(input, textarea, select), .dinspect :is(.frow:not(.vrow), .lbar) > :is(input, textarea, select) { border-color: var(--line); border-radius: 4px; }
 .dinspect textarea { resize: vertical; padding: 6px 8px; }
 input.bad { border-color: var(--err) !important; background: #fdf3f2 !important; } /* a value not applied (fields.js) */
 .dinspect input.coord { flex: 1; width: 0; min-width: 80px; font-family: var(--mono); font-size: 12px; }
@@ -298,7 +298,8 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid.plain .link { padding: 0; margin: 0; min-height: var(--row); }
 .lgrid.plain .tfold { text-decoration: none; color: var(--ink); }
 .lgrid .fcheck { justify-content: center; padding: 0; min-width: var(--row); }
-.lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; } /* the current row's actions; hidden while no row is */
+.lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; } /* the current row's actions (its name, how far along); hidden while no row is */
+.lbar > input { flex: 1 1 80px; min-width: 60px; width: auto; }
 /* a column of numbers (cls n): right-aligned, in figures of one width, to read down */
 .dinspect .lgrid td.n input:not([type=checkbox]) { text-align: right; font-family: var(--mono); font-size: 12px; padding: 0 3px; }
 .lgrid td.n .fvalue { display: block; padding: 0 4px; text-align: right; font-family: var(--mono); }
