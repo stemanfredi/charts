@@ -974,25 +974,11 @@ await section('the drawing', async () => {
   const partsNow = await dw.evaluate((id) => drawing.doc.points.find((x) => x.id === id).parts.map((q) => q.kind).join(), pid);
   check(movedTo === 'Leg 2 length' && vertsLeft === 0 && partsNow === 'circle,rectangle',
     `list grids: ↓ to the next row (${movedTo}); the row's bar deletes its vertex (${vertsLeft} left); a part added from the empty row (${partsNow})`);
-  // copy and paste of rows: three places pasted at the line's start (a vertex added, one undo step);
-  // its Copy gives them back; pasted onto a line with an attached end, the paste stops before it
+  // a list's Copy: its rows, tab-separated, a header first
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
-  const pasteInto = (aria, text) => dw.evaluate(([a, t]) => {
-    const input = document.querySelector(`.dinspect input[aria-label="${a}"]`), dt = new DataTransfer();
-    dt.setData('text/plain', t);
-    input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, [aria, text]);
-  const undosBefore = await dw.evaluate(() => drawing.undos.length);
-  await pasteInto('Start Latitude', '41.1\t13.1\n41.2\t13.2\n41.3\t13.3');
-  const pasted = await dw.evaluate(([id, u]) => { const l = drawing.doc.lines.find((x) => x.id === id); return [l.start.position, ...l.vertices.map((v) => v.position), l.end.position].map((q) => q.join(' ')).join(' | ') + ` · ${drawing.undos.length - u}`; }, [legIds[0], undosBefore]);
   await dw.click('.dinspect .fblock:has(h3:has-text("Vertices")) button:has-text("Copy")');
   const copied = await dw.evaluate(() => navigator.clipboard.readText());
-  check(pasted === '13.1 41.1 | 13.2 41.2 | 13.3 41.3 · 1' && /^#\tLat\tLon/.test(copied) && copied.includes('41.2\t13.2'),
-    `copy and paste: three places pasted, one undo step (${pasted}); Copy gives the rows (${copied.split('\n')[2]})`);
-  const attLine = await dw.evaluate(async () => { const { addLine, addPoint } = await import('./draw/document.js'); let l; drawing.change((d) => { const p = addPoint(d, [13.5, 41.5]); l = addLine(d, [13.4, 41.4], [], p.id); }); drawing.select([l.id]); return l.id; });
-  await pasteInto('Start Latitude', '41.0\t13.0\n41.05\t13.05\n41.1\t13.1');
-  const stopped = await dw.evaluate((id) => { const l = drawing.doc.lines.find((x) => x.id === id); return [l.start.position.join(' '), l.vertices.length, !!l.end.element].join(' · '); }, attLine);
-  check(stopped === '13 41 · 0 · true', `copy and paste: a paste stops before an attached end (${stopped})`);
+  check(/^#\tLat\tLon/.test(copied) && /\nstart\t/.test(copied) && /\nend\t/.test(copied), `a list's Copy gives its rows (${copied.split('\n')[1]})`);
   // a line's depth profile: read when asked, the chart drawn, its length along the seabed longer
   const deepLine = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.2], [], [12.3, 40.2]); }); drawing.select([l.id]); return l.id; });
   await dw.click('.dinspect button:has-text("Depth profile")');

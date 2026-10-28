@@ -205,11 +205,7 @@ in place while a wide list scrolls sideways; a row clicked or typed in is the cu
 actions in a bar under the list (Insert after, Delete, Split, Distribute along it…), and on keys
 (Insert, Ctrl/⌘ Delete); ↑, ↓ and Enter go to the same column in the row above or below. **Copy** on
 a list's heading puts its rows on the clipboard, tab-separated, a header first, every column (metres
-and degrees), for a spreadsheet. Places pasted into a vertex's or a corner's latitude (several lines,
-a latitude then a longitude on each, in any format a coordinate field reads; a copied list's Lat and
-Lon columns) replace the places from that row on, in one undo step: past the last one the line or
-area grows; an attached end is never moved (the paste stops before it); a line not read leaves it all
-as it was. The note says what was done. A line's free start and end have their own latitude and
+and degrees), for a spreadsheet. A line's free start and end have their own latitude and
 longitude in its list.
 
 **Look**, one section for one element, several, a group or the drawing, showing only the fields their
@@ -223,7 +219,7 @@ they are drawn with; where several differ it says "mixed", and a change writes o
 label, one value or a pair read as one (latitude · longitude, colour · opacity, start · end…), and a
 last column for × or ↺; a row never wraps. A field shows no box until it is pointed at or typed in;
 lists are tables of the same cells. A list longer than 100 rows shows them a page at a time (‹ rows
-1–100 of n ›); Copy and a paste still take every row. In a value row
+1–100 of n ›); Copy still takes every row. In a value row
 ↑ and ↓ nudge a distance, an angle or a number by one unit of its last digit (Shift: ten), each step
 applied. A distance shows to the decimetre (metres), the metre (km) or about 2 m (NM); what is typed is
 kept as typed, and a field left unchanged changes nothing.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, parseCoord, parseDist, distText, exportName } from '../../site/format.js';
+import { fmtAngle, dm, mercatorVariation, niceLen, parseLatLon, parseCoord, parseDist, distText, exportName, rowsText } from '../../site/format.js';
 
 test('fmtAngle: degrees, minutes, hemispheres, carry', () => {
   assert.equal(fmtAngle(44, 'N', 'S', 1), '44°N');
@@ -101,4 +101,8 @@ test('distText: as read (to the decimetre, the metre, 2 m), in the unit the mode
     const t = distText(m, 'km');
     assert.ok(Math.abs(parseDist(t.text, t.unit) - m) < 0.51, t.text); // within half its last digit
   }
+});
+
+test('rowsText: tab-separated, a header first, tabs and line breaks in a cell made spaces', () => {
+  assert.equal(rowsText(['Key', 'Value'], [['a', 'one\ttwo'], ['b', 'x\ny']]), 'Key\tValue\na\tone two\nb\tx y\n');
 });

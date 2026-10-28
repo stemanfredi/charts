@@ -147,3 +147,6 @@ export function exportName(when, lat, lng) {
   const deg = (v, pos, neg) => { const t = Math.abs(v).toFixed(2); return `${t}${v >= 0 || t === '0.00' ? pos : neg}`; };
   return `chart-${when.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}-${deg(lat, 'N', 'S')}-${deg(lng, 'E', 'W')}`;
 }
+
+// rows as text a spreadsheet takes: tab-separated, a header line first
+export const rowsText = (head, rows) => [head, ...rows].map((r) => r.map((v) => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t')).join('\n') + '\n';

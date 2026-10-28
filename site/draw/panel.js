@@ -24,8 +24,7 @@ import { fields, choice, select, check } from '../fields.js';
 import { keyOf, mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetsFile, readPresets } from './presets.js';
 import { listGrid } from './grid.js';
-import { rowsText, placesOf, placesAfterPaste } from './paste.js';
-import { fmtArea, fmtBrg, fmtDist } from '../format.js';
+import { fmtArea, fmtBrg, fmtDist, rowsText } from '../format.js';
 
 const FILTER_FROM = 30; // the filter field appears past this many elements
 // what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
@@ -662,13 +661,12 @@ export function drawView(root, ctx) {
     const drop = (i) => { if (n > 3) drawing.change((doc) => removeCorner(doc, find(doc, id).el, i)); };
     const pg = paged(`${id}:corners`, n), abs = (r) => pg.rows[r];
     const table = listGrid({ name: pg.name,
-      columns: [{ head: '', width: 26, frozen: true, cls: 'num' }, { head: 'Lat', width: 100, frozen: true, paste: true }, { head: 'Lon', width: 100, frozen: true },
+      columns: [{ head: '', width: 26, frozen: true, cls: 'num' }, { head: 'Lat', width: 100, frozen: true }, { head: 'Lon', width: 100, frozen: true },
         { head: 'Edge', width: 104, title: 'The straight edge from the corner before: its length (typed: this corner and those after it move together; the closing edge follows)' },
         { head: 'Brg °', width: 72, title: 'The edge\'s bearing, degrees true' }],
       rows: pg.rows.map((i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...(i ? legFields(id, (x) => x.points, i, setAreaEdge, 'Edge') : [null, null])] })),
       actions: (r, i = abs(r)) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAt(i)), act('Delete', 'Take this corner away (Ctrl/⌘ Delete); three are kept', () => drop(i), n <= 3)] }),
-      keys: { insert: (r) => insertAt(abs(r)), remove: (r) => drop(abs(r)) },
-      paste: (r, text) => pastePlaces(id, abs(r), text, (d, x, from, places) => { const res = placesAfterPaste(x.points, from, places); x.points = res.places; return res; }) });
+      keys: { insert: (r) => insertAt(abs(r)), remove: (r) => drop(abs(r)) } });
     const cornerRows = () => { const ps = now(id).points; return [['#', 'Lat', 'Lon', 'Edge m', 'Brg °'], ps.map((q, i) => { const g = i ? legOf(ps, i) : null; return [i + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '']; })]; };
     return [...commonTop('area', id),
       row('Area', h('span', { class: 'fvalue' }, fmtArea(areaOf(pathOf(el.points, true)), u))),
@@ -754,7 +752,7 @@ export function drawView(root, ctx) {
     distField(() => legOf(placesNow(id, places), k).s, (m) => set(id, (x) => put(x, k, { s: m })), `${what} ${k} length`),
     angleField(() => +legOf(placesNow(id, places), k).azi.toFixed(1), (a) => set(id, (x) => put(x, k, { azi: a })), `${what} ${k} bearing (degrees true)`, 0, 360, true)];
   // A long list a page at a time (drawing-ui.md §5): PAGE rows, from the page shown (each list's own,
-  // this session), and ‹ › under it; Copy and a paste still take every row. rows: the absolute rows
+  // this session), and ‹ › under it; Copy still takes every row. rows: the absolute rows
   // shown, in order.
   const PAGE = 100, pageAt = new Map();
   function paged(name, total) {
@@ -773,16 +771,6 @@ export function drawView(root, ctx) {
     const [head, body] = rows();
     navigator.clipboard?.writeText(rowsText(head, body)).then(() => note(`${plural(body.length, 'row')} copied`), () => note('This browser did not let them be copied'));
   } }, 'Copy');
-  // Places pasted into a list of them (a line's places, an area's corners) from row r: put(d, el, r,
-  // places) applies them, returning { applied, left }; the note says what was done, or why not
-  const pastePlaces = (id, r, text, put) => {
-    const { places, bad } = placesOf(text);
-    if (bad) { note(`Not pasted: line ${bad} is no place (a latitude, then a longitude)`); return; }
-    if (!places.length) return;
-    let res = null;
-    drawing.change((d) => { res = put(d, find(d, id).el, r, places); reattach(d, id); });
-    note(res.applied ? `${plural(res.applied, 'place')} pasted${res.left ? `; ${res.left} left out: ${res.left === 1 ? 'it' : 'they'} would move an attached end` : ''}` : 'Not pasted: it would move an attached end', !!res.applied);
-  };
 
   // ---- a line's depth profile (profile.js): read when its Profile button is pressed, read again as
   // the line changes; pointing at the chart shows the place on the map, pointing at the line on the
@@ -877,14 +865,6 @@ export function drawView(root, ctx) {
       const [, lat, , lon] = F.position(() => now(id)[key].position, (q) => set(id, (x) => { x[key] = { position: q, element: null }; }), `${key === 'start' ? 'Start' : 'End'} `);
       return [lat, lon];
     };
-    const pasteLine = (r, text) => pastePlaces(id, r, text, (d, x, from, places) => {
-      const ps = positionsOf(x), locked = new Set([...(x.start.element ? [0] : []), ...(x.end.element ? [ps.length - 1] : [])]);
-      const res = placesAfterPaste(ps, from, places, locked), q = res.places;
-      if (!x.start.element) x.start.position = q[0];
-      x.vertices = q.slice(1, -1).map((pos, i) => (x.vertices[i] ? { ...x.vertices[i], position: pos } : { position: pos, handleIn: null, handleOut: null, name: '', properties: [] }));
-      if (!x.end.element) x.end.position = q.at(-1);
-      return res;
-    });
     const vertexRows = () => { const x = now(id), ps = positionsOf(x), t = lineTrace(drawing.doc, x).at;
       return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Name', 'Along m'], ps.map((q, i) => { const g = i ? legOf(ps, i) : null; return [i === 0 ? 'start' : i === ps.length - 1 ? 'end' : i, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', x.vertices[i - 1]?.name ?? '', +(t[i] || 0).toFixed(3)]; })]; };
     const removeAt = (i) => drawing.change((doc) => removeVertex(doc, find(doc, id).el, i));
@@ -899,15 +879,14 @@ export function drawView(root, ctx) {
           field(() => now(id).vertices[i].name, (t) => t, (nv) => set(id, (x) => { x.vertices[i].name = nv; }), { 'aria-label': `Vertex ${i + 1} name` }), along(i + 1)],
         sub: hv ? handlesOf((x) => x.vertices[i].handleIn, (x, hd) => { x.vertices[i].handleIn = hd; }, (x) => x.vertices[i].handleOut, (x, hd) => { x.vertices[i].handleOut = hd; }) : null }))(k - 1));
     const table = listGrid({ name: pg.name,
-      columns: [{ head: '', width: 26, frozen: true, cls: 'num' }, { head: 'Lat', width: 100, frozen: true, paste: true }, { head: 'Lon', width: 100, frozen: true },
+      columns: [{ head: '', width: 26, frozen: true, cls: 'num' }, { head: 'Lat', width: 100, frozen: true }, { head: 'Lon', width: 100, frozen: true },
         { head: 'Leg', width: 104, title: 'The straight leg from the place before: its length (typed: this place and those after it move together)' },
         { head: 'Brg °', width: 72, title: 'The leg\'s bearing, degrees true' }, { head: 'Name', width: 110 }, { head: 'Along', width: 84, cls: 'num', title: 'The distance from its start' }],
       rows: pg.rows.map(rowAt),
       actions: (rr, r = abs(rr)) => (r === 0 ? { label: 'Start', buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(-1))] }
         : r <= n ? { label: `Vertex ${r}`, buttons: [act('Insert after', 'A vertex halfway to the next (Insert)', () => insertAfter(r - 1)),
           act('Delete', 'Take this vertex away (Ctrl/⌘ Delete)', () => removeAt(r - 1)), act('Split', 'Split the line here: this vertex becomes a point both parts are attached to', () => splitAt(r - 1))] } : null),
-      keys: { insert: (rr) => { const r = abs(rr); if (r <= n) insertAfter(r - 1); }, remove: (rr) => { const r = abs(rr); if (r >= 1 && r <= n) removeAt(r - 1); } },
-      paste: (rr, text) => pasteLine(abs(rr), text) });
+      keys: { insert: (rr) => { const r = abs(rr); if (r <= n) insertAfter(r - 1); }, remove: (rr) => { const r = abs(rr); if (r >= 1 && r <= n) removeAt(r - 1); } } });
     const off = el.look.offset ?? null, offNow = offsetOf(drawing.doc, el);
     return [...commonTop('line', id),
       ...[refRow('Start', id, 'start'), refRow('End', id, 'end')].flat(),
