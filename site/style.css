@@ -32,7 +32,7 @@ svg { flex: none; }
 /* what floats over the map (a box, a menu, the map's controls): a white card */
 :is(.nostart, .mapctl, .timepop, .search, .results, .kinds, .dmenu) { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 /* a name or a value on one line, cut with "…" */
-:is(.drow .dname, .dinspect h2, .vrow .flabel, .vcell .fvalue, .vcell .funit, button.small.link, .drawings .dname, .dinsphead .ititle) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.drow .dname, .vrow .flabel, .vcell .fvalue, .vcell .funit, button.small.link, .drawings .dname, .dinsphead .ititle) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Layout (drawing-ui.md §1, frame.js): the bar across the top; over the map, the left panel
    (Elements, Layers) and the right one (Properties), each as wide as dragged; between them the map's
@@ -76,7 +76,6 @@ svg { flex: none; }
 /* the depth on a row of its own: the time line keeps its width, however long the depth control is */
 .when .depthsel { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
 .when .depthsel select { flex: 1; }
-.handle { display: none; }
 .spin { display: inline-block; flex: none; box-sizing: border-box; width: 12px; height: 12px; vertical-align: -1px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; visibility: hidden; } /* a box: a span left inline has no size, its border a thin stain */
 body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -173,9 +172,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow .dname { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 0 4px; min-height: var(--row); }
 .drow input.dname { border: 1px solid var(--accent); border-radius: 4px; background: #fff; }
 .drow .val { flex: none; font-family: var(--mono); font-size: 11px; color: var(--soft); white-space: nowrap; }
-/* a row's eye, at its end, always there (nothing comes and goes as the pointer runs down the tree):
-   shown, or hidden (crossed) */
-/* the list's head: the drawing's title, the eye for all of it, its fold */
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
 .dinspect { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 0 16px; overscroll-behavior: contain; display: flex; flex-direction: column; }
 /* a property grid (docs/drawing-ui.md §5): rows ruled across the panel, a label column, fields
@@ -183,7 +179,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect > :not(.vrow, h3, .lgridbox, .fblock) { margin-left: 12px; margin-right: 12px; }
 .dinspect > :is(.frow:not(.vrow), .note, .fbuttons) { padding: 4px 0; }
 .dinspect > * { flex-shrink: 0; } /* a row as tall as what it holds, the inspector scrolling */
-.dinspect h2 { font-size: 13px; margin: 0; flex: 1; min-width: 0; }
 /* a section's head, as a group's in Layers (#menu summary): a band, its buttons after the title, and
    where it folds the arrow at its right (the whole head the target, its title a button for keys) */
 .dinspect h3 { display: flex; align-items: center; gap: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0; min-height: var(--row); padding: 0 8px 0 12px; background: var(--bg2); border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
@@ -192,9 +187,8 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .dinspect h3.folds::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; flex: none; }
 .dinspect h3.folds.open::after { transform: rotate(45deg); }
 .dinspect h3 .hfold { flex: 1; border: 0; background: none; padding: 0; min-height: var(--row); color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; }
-.dinspect h3 .hfold[aria-expanded="true"]::before { transform: rotate(45deg); }
 .frow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.flabel { flex: none; width: 78px; color: var(--soft); font-size: 12px; }
+.flabel { flex: none; color: var(--soft); font-size: 12px; }
 .frow > input:not([type]), .frow > textarea, .frow > input[spellcheck] { flex: 1; min-width: 0; }
 .dinspect input:not([type=checkbox]):not([type=radio]):not([type=color]), .dinspect textarea, .dinspect select {
   min-height: var(--row); border: 1px solid transparent; border-radius: 0; padding: 0 8px; background: transparent; min-width: 0;
@@ -208,7 +202,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .dinspect input.coord { flex: 1; width: 0; min-width: 80px; font-family: var(--mono); font-size: 12px; }
 .dinspect input.dist { width: 104px; font-family: var(--mono); font-size: 12px; }
 .dinspect input.angle { width: 76px; font-family: var(--mono); font-size: 12px; }
-.dinspect input.num { width: 76px; } /* "mixed" fits beside the spinner */
 .dinspect input[type=color] { width: var(--row); height: var(--row); padding: 4px; border: 0; background: none; }
 /* a value grid's row (docs/drawing-ui.md §5): label, cell, last column (× or ↺); it never wraps.
    A cell holds one value or a pair, its fields sharing the width; text too long ends in … */
@@ -220,7 +213,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .vrow .vcell > button:not(.x) { align-self: center; margin: 0 2px; }
 .vrow :is(.vlast, .vcell) > .x, .lgrid .x { width: var(--row); height: var(--row); font-size: 16px; border-radius: 0; }
 .vrow .x[aria-pressed="true"] { background: var(--accent); color: #fff; } /* Attach to… waiting for its click */
-.vrow .flabel { width: auto; }
 .vcell, .vpair { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .vpair { flex: 1 1 0; gap: 4px; }
 .vcell > :is(input:not([type=checkbox]):not([type=color]), select, textarea, .seg),
@@ -232,7 +224,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .vcell > button.small, .vcell > .link { flex: none; }
 .vlast { display: grid; place-items: center; }
 .vcell > .fcheck, .vpair > .fcheck { flex: none; min-width: var(--row); justify-content: center; padding: 0; } /* a box alone: a whole target */
-/* the look's Fill and Stroke, a small matrix of the same columns */
 .funit { color: var(--soft); font-size: 12px; }
 .mixed { font-size: 11px; color: var(--warn); }
 /* the box being dragged (Shift-drag), on the map */
@@ -253,7 +244,6 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .fvalue { font-family: var(--mono); font-size: 12px; }
 button.small.link { border-color: transparent; background: none; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; padding: 0 4px; max-width: 100%; }
 button.small.link:hover { border-color: var(--line); }
-.fcheck.small { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink); }
 /* a list grid (docs/drawing-ui.md §5): fixed columns; the first ones kept in place while it
    scrolls sideways; the current row marked; its actions in the bar under it */
 .lgridbox { display: flex; flex-direction: column; }
@@ -265,8 +255,7 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid thead th { background: var(--bg2); height: 24px; position: sticky; top: 0; z-index: 2; }
 .lgrid th { font-weight: 400; font-size: 11px; color: var(--soft); text-align: left; padding: 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lgrid td { padding: 0; height: var(--row); vertical-align: middle; white-space: nowrap; }
-.lgrid td.num { padding: 0 4px; }
-.lgrid td.num { font-family: var(--mono); font-size: 12px; text-align: right; }
+.lgrid td.num { padding: 0 4px; font-family: var(--mono); font-size: 12px; text-align: right; }
 .lgrid th.num { text-align: right; }
 .lgrid td :is(input:not([type=checkbox]):not([type=color]), select) { width: 100% !important; min-width: 0 !important; }
 .lgrid td .vpair { width: 100%; }
@@ -294,7 +283,6 @@ button.small.link:hover { border-color: var(--line); }
 .lgrid td.n .fvalue { display: block; padding: 0 4px; text-align: right; font-family: var(--mono); }
 .lgrid th.n { text-align: right; }
 .lgrid th .hunit { cursor: pointer; text-decoration: underline dotted; } /* a Parts head: a click, m or km */
-/* a row's sub-row (a vertex's handles): across the row, held at the grid's left edge as it scrolls */
 .fsummary { color: var(--ink); background: var(--bg2); border-radius: 6px; padding: 6px 8px; }
 .fblock { display: flex; flex-direction: column; }
 .fcheck { display: flex; align-items: center; gap: 6px; min-height: var(--row); padding-right: 6px; cursor: pointer; }
@@ -313,12 +301,10 @@ button.small[aria-pressed="true"] { background: var(--accent); border-color: var
 .drawings .dname { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 0 8px; min-height: var(--row); }
 .drawings li.open .dname { font-weight: 600; color: var(--ink); }
 .drawings .val { flex: none; font-family: var(--mono); font-size: 11px; color: var(--soft); }
-.drawings .x { width: var(--row); height: var(--row); font-size: 18px; }
 .note.warn { color: var(--warn); }
 .dinspect .seg { flex: 1; }
 .dinspect .seg button { display: grid; place-items: center; }
 .dinspect .seg svg { width: 16px; height: 16px; }
-/* radii: filled (radio), shown, name, value, own stroke, remove */
 /* the note (menu.js): a chip under the bar, at the centre, as tall as the bar's buttons, for a few seconds */
 .dnote { position: fixed; z-index: 12; top: calc(var(--bar-h) + 6px); left: 8px; right: 8px; width: fit-content; margin: 0 auto; min-height: 28px; display: flex; align-items: center; text-align: center;
   background: var(--ink); color: #fff; border-radius: 6px; padding: 4px 12px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.3; } /* centred on the window, over the panels if need be; a long one wraps */
@@ -359,8 +345,7 @@ body.finding .search { display: flex; }
 .depthpop .maplibregl-popup-content { padding: 8px 26px 8px 10px; font: 13px/1.35 var(--font); color: var(--ink); }
 .depthpop b { font-size: 14px; margin-right: 8px; }
 .depthpop .at { font-size: 11px; color: var(--soft); white-space: nowrap; }
-.depthpop small { display: block; }
-.depthpop small { color: var(--soft); }
+.depthpop small { display: block; color: var(--soft); }
 
 
 /* ---- legends, stacked bottom left above the credits ---- */
@@ -437,7 +422,6 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .bar > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .bar > :is(.ptoggle, #b-find)[aria-pressed="true"], .bar > #b-find[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
 .bar > button:disabled { opacity: .35; cursor: default; background: none; }
-/* a tool with kinds: a small corner mark (its button shows the kind in use) */
 /* the file group: Open (a phone's ☰: the second icon), Download, Copy link */
 .bar > .filebtn svg + svg { display: none; }
 /* COMPACT (dom.js: a phone, or a finger's buttons under 1,280 px): the file group and About in Open's
