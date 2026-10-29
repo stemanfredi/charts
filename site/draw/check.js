@@ -107,10 +107,9 @@ export function ownStyle(s, c, fill) {
   part('stroke', DEFAULT_STYLE.stroke, check('stroke'));
   return out;
 }
-// An element's own look as the file has it: what it sets, each value checked; what is not valid is
-// left out (warned). fill: whether it can have one (a line cannot).
-// An element's own look, what its kind draws with (LOOK_FIELDS): a field another kind's is warned
-// and not kept (a line's fill, a point's text size)
+// An element's own look as the file has it (the drawing's too, kind 'drawing'): what it sets, each
+// value checked, what its kind draws with (LOOK_FIELDS); what is not valid is left out, a field another
+// kind's warned and not kept (a line's fill, a point's text size)
 export function look(l, c, kind) {
   if (l === undefined || l === null) return {};
   if (!isObj(l)) { c.warn('look: not an object, ignored'); return {}; }
@@ -129,6 +128,7 @@ export function look(l, c, kind) {
   }
   const a = offset(l.offset, c);
   if (a !== null) out.offset = a;
+  if (l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
   const other = [];
   for (const [g, v] of Object.entries(out)) {
     if (!isObj(v)) { if (!LOOK_FIELDS[kind].includes(g)) { other.push(g); delete out[g]; } continue; }
@@ -143,22 +143,6 @@ export function pointSpec(x, c) {
   const lk = look(x.look, c, 'point');
   return { symbol: SYMBOLS.includes(x.symbol) ? x.symbol : (x.symbol !== undefined && c.warn(`unknown symbol "${String(x.symbol).slice(0, 20)}", none used`), 'none'),
     parts: parts(x.parts, c), ...(Object.keys(lk).length && { look: lk }) };
-}
-// The drawing's look: what its Display sets (names on the map, offset, minimum size), each checked;
-// anything else is not the drawing's (warned, left out)
-export function drawingLook(l, c) {
-  if (l === undefined || l === null) return {};
-  if (!isObj(l)) { c.warn('look: not an object, ignored'); return {}; }
-  const out = {}, t = isObj(l.text) ? l.text : {};
-  if (typeof t.name === 'boolean') out.text = { name: t.name };
-  else if (t.name !== undefined) c.warn('look text name: not true or false, ignored');
-  const a = offset(l.offset, c);
-  if (a !== null) out.offset = a;
-  if (l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
-  const own = LOOK_FIELDS.drawing, ownText = own.filter((f) => f.startsWith('text.')).map((f) => f.slice(5));
-  const other = [...Object.keys(l).filter((k) => !own.includes(k) && k !== 'text'), ...Object.keys(t).filter((k) => !ownText.includes(k)).map((k) => `text.${k}`)];
-  if (other.length) c.warn(`look ${other.join(', ')}: not the drawing's (an element's own), ignored`);
-  return out;
 }
 // a point's parts (document.js makePart), each named by its place in the list (part 1, 2…)
 export function parts(list, c) {
@@ -218,9 +202,9 @@ export function readView(v, known, c) {
       const e = v.data[slot];
       if (e === undefined || e === null) continue;
       if (!isObj(e) || typeof e.id !== 'string') { c.warn(`data ${slot}: not {id, variant}, ignored`); continue; }
-      const variants = known?.data && Object.hasOwn(known.data, e.id) ? known.data[e.id] : undefined;
-      if (known && !(variants && (e.variant == null || variants.includes(e.variant)))) { c.warn(`data ${slot}: "${e.id}${e.variant ? `:${e.variant}` : ''}" not known here; skipped`); continue; }
-      d[slot] = { id: e.id, variant: e.variant == null ? null : String(e.variant) };
+      const variant = e.variant == null ? null : String(e.variant); // an entry is an item at a variant: without one it names nothing
+      if (variant === null || (known && !(Object.hasOwn(known.data, e.id) && known.data[e.id].includes(variant)))) { c.warn(`data ${slot}: "${e.id}${variant ? `:${variant}` : ''}" not known here; skipped`); continue; }
+      d[slot] = { id: e.id, variant };
     }
     if (v.data.depth !== undefined && v.data.depth !== null) {
       if (fin(v.data.depth) && (!known || known.depths.includes(v.data.depth))) d.depth = v.data.depth;

@@ -38,7 +38,7 @@ export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASUR
 // background; offset: a line drawn this many px to the right of where it is (negative: left; 0: on
 // it; display only); minSize: a small outline drawn enlarged below it
 // (px, 0: never; for a vehicle, twice the drawing's).
-const LOOK_TEXT = Object.freeze({ name: false, values: false, size: 'medium', color: null, background: 'halo' });
+const LOOK_TEXT = Object.freeze({ name: false, values: false, size: 'medium', color: '#1f2c36', background: 'halo' }); // the colour: a label's text, the UI's ink (style.css --ink)
 export const DEFAULT_LOOK = Object.freeze({ fill: DEFAULT_STYLE.fill, stroke: DEFAULT_STYLE.stroke, text: LOOK_TEXT, offset: 0, minSize: MIN_DISPLAY_SIZE });
 export const SYMBOLS = ['diamond', 'square', 'triangle', 'dot', 'none'];
 export const DASHES = ['solid', 'dashed', 'dotted'];
@@ -75,7 +75,6 @@ export const KINDS = Object.keys(KIND);
 export const LEADERS = ['arrow', 'none']; // a line to what it points at, an arrow head there; or none
 export const LABEL_SIZES = ['small', 'medium', 'large'];
 export const BACKGROUNDS = ['halo', 'box'];
-const LABEL_COLOUR = '#1f2c36'; // a label's text, unless it sets one: the UI's ink (style.css --ink)
 export const LABEL_OFFSET = Object.freeze([40, -40]); // px: a new label's text, up and to the right of what it points at
 const NEW_RADIUS = 1000; // a new point's one radius: a neutral starting value, not a preset
 export const MAX_RADIUS = 1e7;
@@ -181,7 +180,6 @@ export const styleOf = (doc, el) => { const l = lookOf(doc, el); return { fill: 
 // a measurement: a guide showing its values (what Measure makes)
 export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.values;
 // a label's colour: its own, else the default (the drawing's look has none: LOOK_FIELDS.drawing)
-export const labelColour = (doc, a) => lookOf(doc, a).text.color ?? LABEL_COLOUR;
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
 export const offsetOf = (doc, el) => lookOf(doc, el).offset;
 // the drawing's minimum display size (px)
@@ -198,9 +196,11 @@ export function setLook(x, path, v) {
 // the field at path of a look
 export const lookField = (l, path) => path.split('.').reduce((o, k) => o?.[k], l);
 // whether an element is drawn: shown itself, and every group it is in too (a hidden group hides
-// everything in it)
-export function isShown(doc, el) {
-  return !!el.visible && groupsOf(doc, el).every((g) => g.visible !== false);
+// everything in it); within (a group's id): as far as that group goes, it included
+export function isShown(doc, el, within = null) {
+  if (!el.visible) return false;
+  for (const g of groupsOf(doc, el)) { if (g.visible === false) return false; if (g.id === within) break; }
+  return true;
 }
 
 // ---- making elements (they change doc in place; the caller keeps the undo snapshot) -----------

@@ -4,7 +4,7 @@
 // gives the projection (view.project, view.unproject) and the size of a text (view.measure). Pure
 // otherwise: no map, no DOM.
 
-import { isShown, label, labelColour, lookOf, followedPart } from './document.js';
+import { isShown, label, lookOf, followedPart } from './document.js';
 import { resolve, verticesOf } from './attach.js';
 import { areaOf, pathOf, perimeterOf } from '../geodesy.js';
 import { fmtArea, fmtBrg, fmtDist } from '../format.js';
@@ -65,7 +65,7 @@ export function labelFeatures(doc, view, sel = new Set(), hover = null, units = 
     if (!at || (at.element && !isShown(doc, at.element.el))) continue; // a hidden element's label is hidden with it
     if (!texts.has(a.id)) texts.set(a.id, labelText(doc, a, units));
     const text = texts.get(a.id);
-    const lt = lookOf(doc, a).text, px = SIZE_PX[lt.size], c = labelColour(doc, a), mark = sel.has(a.id) ? 'sel' : hover === a.id ? 'hover' : '';
+    const lt = lookOf(doc, a).text, px = SIZE_PX[lt.size], c = lt.color, mark = sel.has(a.id) ? 'sel' : hover === a.id ? 'hover' : '';
     const p = view.project(at.position), t = [p[0] + a.offset[0], p[1] + a.offset[1]];
     if (text.trim()) pt({ id: a.id, kind: 'label', text, px, c, box: lt.background === 'box' ? 1 : 0, mark }, view.unproject(t));
     if (a.leader !== 'none') {

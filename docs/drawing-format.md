@@ -178,7 +178,7 @@ Each field an element leaves out comes from the drawing's (the three it has), el
 | the drawing's (`charts.look`) | |
 | the defaults | |
 
-A label's colour, set nowhere, is `#1f2c36`. `visible` is not part of the look: an element is drawn
+`visible` is not part of the look: an element is drawn
 only if every group it is in is visible.
 
 A group is only who is in it: joining or leaving one, or a group deleted, changes nothing of an
@@ -376,7 +376,7 @@ They are checked loosely: one without a valid, unused `id` is skipped.
 | `side` | `"left"`, `"right"` or `"alternate"`, facing along the line (round a part, left is outwards) |
 | `preset` | what each copy is: missing or `"circle"`, a circle of `radius` (a sector of `aperture`); another built-in kind (`"rings"`, `"rectangle"`…), its parts scaled so that the largest reaches `radius`; `"preset:<name>"`, one of the user's, kept in `copy` |
 | `copy` | a user's preset as it was chosen: `{ symbol, parts, look }` (parts as a point's, §6; `look` its own fill and stroke, missing: none), its size its own |
-| `radius` | metres: the copies' reach, apart from the spacing; missing: 500 when they are made or edited again |
+| `radius` | metres: the copies' reach, apart from the spacing; missing: 500 |
 | `aperture` | the circle's sector, this wide, facing away from what it follows; missing: circles |
 | `points` | each copy made: `t` its place along (0–1), `left` its side, `pos` where it was last put |
 
@@ -602,7 +602,7 @@ What a value is when the file leaves it out. Writing it with this value means th
 | feature | `charts.guide` | `false` |
 | default look | fill | `#e8590c`, opacity 0.15 |
 | default look | stroke | `#e8590c`, opacity 1, width 1.5, `"solid"` |
-| default look | text | `name` `false`, `values` `false`, `size` `"medium"`, `color` none (a label: `#1f2c36`, its own only), `background` `"halo"` |
+| default look | text | `name` `false`, `values` `false`, `size` `"medium"`, `color` `"#1f2c36"` (a label's only), `background` `"halo"` |
 | default look | `offset`; `minSize` | `0`; `12` |
 | guide style | fill; stroke | `#5d6d79`, opacity 0.05; `#5d6d79`, opacity 1, width 1, `"dashed"` |
 | measurement style | fill; stroke | `#b0127a`, opacity 0.08; `#b0127a`, opacity 1, width 2, `"dashed"` |
@@ -626,7 +626,7 @@ What a value is when the file leaves it out. Writing it with this value means th
 | distribute | `groupId`, `copiesId` | `null` |
 | distribute | `along.part` | none: its first filled round part |
 | distribute | `spacing`, `count` | `null` |
-| distribute | `startMargin`, `endMargin`, `offset`; `side`; `radius`; `aperture`; `preset`; `copy`; `points` | `0`; `"left"`; `null` (500 m when made again); `null`; `null` (a circle); `null`; `[]` |
+| distribute | `startMargin`, `endMargin`, `offset`; `side`; `radius`; `aperture`; `preset`; `copy`; `points` | `0`; `"left"`; `500`; `null`; `null` (a circle); `null`; `[]` |
 | distribute point | `left` | `false` |
 | connect | `groupId`; `pattern`; `groupSize`; `minBranch` | `null`; `"tree"`; `"auto"`; `0` |
 | connect | `roots`, `pointIds`, `hubs`, `created` | `[]` |

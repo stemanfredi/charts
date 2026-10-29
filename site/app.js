@@ -713,7 +713,7 @@ function itemStatus(id) {
 }
 
 // ---- small builders ---------------------------------------------------------
-// an 18 px line icon (the bar's size; style.css sizes it where it differs) from SVG path data; a path given as [d, colour] is filled in that colour
+// a 20 px line icon (the bar's size; style.css sizes it where it differs) from SVG path data; a path given as [d, colour] is filled in that colour
 const icon = (...paths) => svg('svg', { viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
   paths.map((d) => (Array.isArray(d) ? svg('path', { d: d[0], fill: d[1], stroke: d[1] }) : svg('path', { d }))));
 const ICON = {
@@ -995,6 +995,7 @@ function free() {
     if (!side.hidden) p.left += side.getBoundingClientRect().right;
     if (!props.hidden) p.right += innerWidth - props.getBoundingClientRect().left;
   }
+  p.bottom = Math.min(p.bottom, innerHeight - p.top - 120); // at least 120 px of map, else MapLibre fits nothing
   return p;
 }
 // find a place: a field in the bar, before About and Properties (/ goes to it; a phone: after ☰, its
@@ -1023,7 +1024,7 @@ mapBox.addEventListener('drop', (e) => {
 });
 async function copyLink() {
   writeHashNow(); // the link must be the view as it is now
-  try { await navigator.clipboard.writeText(location.href); note('Link copied'); } catch { prompt('Copy this link', location.href); }
+  try { await navigator.clipboard.writeText(location.href); note(drawing.isEmpty() ? 'Link copied' : 'Link copied: the view and its layers, not the drawing (Download › Drawing for that)'); } catch { prompt('Copy this link', location.href); }
 }
 // a button's own label and tooltip, kept while it says something else for a moment (flash: the text,
 // and why in its tooltip)
@@ -1127,9 +1128,12 @@ function scaleVariation() {
 // its length as MapLibre writes it, with NM for its "nm" (the nanometre's symbol), as on charts and in
 // Measure; where the scale varies across the view, "≈" beside it (outside the bar: its length stays
 // what it says), by how much in their tooltips
+let scaleSaid = '';
 function scaleText() {
   const v = scaleVariation(), varies = v > NOTE_AT, why = varies ? `The scale varies ${(v * 100).toFixed(0)}% across the view: this length is the centre's. ` : '';
   scaleEl.textContent = scaleEl.textContent.replace(/\snm$/, '\u00a0NM');
+  if (`${why}${scaleEl.textContent}` === scaleSaid) return; // as said: nothing to write (this runs every move frame)
+  scaleSaid = `${why}${scaleEl.textContent}`;
   scaleEl.classList.toggle('varies', varies);
   scaleEl.title = `${why}Distance units: a click switches km and NM`;
   scaleEl.setAttribute('aria-label', `Scale ${scaleEl.textContent}. ${scaleEl.title}`);
@@ -1183,7 +1187,7 @@ async function onFrame(b, fn, before = async () => {}) {
   const label = b.querySelector('span'), own = labelOf(b);
   clearTimeout(b.flashTimer); // a "Failed" still shown: this try replaces it
   b.setAttribute('aria-busy', 'true');
-  label.textContent = 'Saving…';
+  label.textContent = 'Preparing…';
   b.title = own.title;
   const done = (text, title) => {
     b.removeAttribute('aria-busy');

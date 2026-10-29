@@ -21,7 +21,7 @@
 // The lines are straight: they are the real object (positions, lengths).
 
 import { inverse, destination, localFrame, lengthOf } from '../geodesy.js';
-import { norm360 } from '../geo.js';
+import { norm360, samePosition } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
 import { addPoint, addDot, addLine, addGroup, elements, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
 import { outlineOf } from './outlines.js';
@@ -242,15 +242,14 @@ export function planConnection(doc, { pointIds, roots = [], newRoots = [], patte
 
 // ---- making ----------------------------------------------------------------------------------------
 
-export const COPY_RADIUS = 500; // m: the copies' radius when none is given
-// the rules' fields when nothing says otherwise (the file leaves these out: file.js)
-export const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };
+// the rules' fields when nothing says otherwise (the file leaves these out: file.js); radius in m
+export const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: 500, aperture: null, preset: null, copy: null };
 export const CONNECT_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, hubs: [] };
 export const patternOf = (v) => (v === 'chain' ? 'chain' : 'tree');
 const DISTRIBUTE_KEYS = ['spacing', 'count', 'startMargin', 'endMargin', 'offset', 'side', 'radius', 'aperture', 'preset', 'copy'];
 const D = DISTRIBUTE_D;
 const settings = (p) => ({ spacing: p.count ? null : p.spacing, count: p.count || D.count, startMargin: p.startMargin || D.startMargin, endMargin: p.endMargin || D.endMargin,
-  offset: p.offset || D.offset, side: p.side || D.side, radius: p.radius > 0 ? p.radius : COPY_RADIUS, aperture: p.aperture ?? D.aperture,
+  offset: p.offset || D.offset, side: p.side || D.side, radius: p.radius > 0 ? p.radius : D.radius, aperture: p.aperture ?? D.aperture,
   preset: typeof p.preset === 'string' ? p.preset : D.preset, copy: p.copy ?? D.copy });
 // What a distribution's copies are: { symbol, parts }. Its preset: null or 'circle', a circle of its
 // radius (a sector, with its aperture), a diamond; another built-in kind scaled to its radius (its
@@ -266,7 +265,6 @@ export function copyOf(a) {
 const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
 const isCopy = (n, copy) => canon({ symbol: n.symbol, parts: n.parts }) === canon({ symbol: copy.symbol, parts: copy.parts });
 // a group made for a rule, in parent (null: at the top)
-const groupFor = (doc, name, parent) => addGroup(doc, name, parent);
 // the distribution's copies made at places, into its Copies group (or the group given): each facing
 // away from what it follows
 function place(doc, a, points, groupId = a.copiesId) {
@@ -306,8 +304,8 @@ export function makeDistribution(doc, params) {
   const set = settings(params), part = partOf(along, params.along.part);
   const { points } = distribute(doc, along, { ...set, part });
   const parent = doc.groups.some((g) => g.id === params.groupId) ? params.groupId : null;
-  const group = groupFor(doc, `Distribute along ${label(along.position ? 'point' : 'line', along)}`, parent);
-  const copies = groupFor(doc, 'Copies', group.id);
+  const group = addGroup(doc, `Distribute along ${label(along.position ? 'point' : 'line', along)}`, parent);
+  const copies = addGroup(doc, 'Copies', group.id);
   const distribution = { id: newId(doc), kind: 'distribute', groupId: group.id, copiesId: copies.id, along: { element: along.id, part }, ...set, points: [] };
   doc.rules.push(distribution);
   place(doc, distribution, points);
@@ -374,7 +372,7 @@ export function connect(doc, params) {
   // beside their Copies, in its own group)
   const around = distributions(doc).find((a) => a.copiesId && a.copiesId === first.groupId)?.groupId ?? first.groupId ?? null;
   const groupId = doc.groups.some((g) => g.id === params.groupId) ? params.groupId
-    : groupFor(doc, 'Connection', params.parentId !== undefined ? params.parentId : around).id;
+    : addGroup(doc, 'Connection', params.parentId !== undefined ? params.parentId : around).id;
   const inGroup = (el) => { el.groupId = groupId; return el; };
   const before = idsOf(doc);
   const made = (params.newRoots || []).map((pos) => inGroup(addPoint(doc, pos, { symbol: 'square', parts: [] })));
@@ -455,7 +453,6 @@ export const connectionOn = (doc, a) => { const ids = new Set(a.points.map((x) =
 
 // ---- after any change: what the tools made follows ---------------------------------------------------
 
-const same = (a, b) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
 // Each distribution's points re-placed along its line or arc as it is now (at the same place along it,
 // the same offset and side), each facing away from it again; each hub at the median of its points and
 // root again (its branches at least the connection's shortest). One moved by hand since (not where it
@@ -476,7 +473,7 @@ export function refreshGenerated(doc) {
     const at = pointsAlong(tr.coords, a.points.map((x) => x.t * tr.length));
     a.points.forEach((x, k) => {
       const n = byId.get(x.pointId);
-      if (!same(n.position, x.pos)) return; // moved by hand
+      if (!samePosition(n.position, x.pos)) return; // moved by hand
       const facing = facingOf(along, at[k].position, at[k].azi, x.left);
       n.position = a.offset ? destination(at[k].position, facing, a.offset) : at[k].position;
       n.bearing = +facing.toFixed(4);
@@ -488,7 +485,7 @@ export function refreshGenerated(doc) {
     if (c.kind !== 'connect') return true;
     c.hubs = c.hubs.filter((b) => {
       const n = byId.get(b.pointId), o = byId.get(b.rootId), members = b.pointIds.map((id) => byId.get(id)).filter(Boolean);
-      if (!n || !o || !members.length || !same(n.position, b.pos)) return false;
+      if (!n || !o || !members.length || !samePosition(n.position, b.pos)) return false;
       n.position = hubFor(members.map((x) => x.position), o.position, c.minBranch);
       b.pos = [...n.position];
       return true;

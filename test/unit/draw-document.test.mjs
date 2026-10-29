@@ -672,7 +672,7 @@ test('a label in a group keeps its own colour; else the default', () => {
   const l = addLabel(doc, { element: a.id }), m = addLabel(doc, { element: a.id });
   l.look.text = { color: '#111111' };
   makeGroup(doc, [l.id, m.id]);
-  assert.deepEqual([d.labelColour(doc, l), d.labelColour(doc, m)], ['#111111', '#1f2c36']);
+  assert.deepEqual([d.lookOf(doc, l).text.color, d.lookOf(doc, m).text.color], ['#111111', '#1f2c36']);
 });
 
 test('delete a group: members ungrouped, keeping their own parts, or deleted with it; ends attached to them freed', () => {
@@ -703,9 +703,9 @@ test('delete a group: members ungrouped keep the group\'s style and colour as th
   const l = addLabel(doc, { element: a.id });
   const g = makeGroup(doc, [a.id, s.id, l.id]);
   g.look = { fill: { color: '#abcdef' }, stroke: { color: '#123456' } };
-  const before = [styleOf(doc, a), styleOf(doc, s).stroke, d.labelColour(doc, l)];
+  const before = [styleOf(doc, a), styleOf(doc, s).stroke, d.lookOf(doc, l).text.color];
   remove(doc, [g.id]);
-  assert.deepEqual([styleOf(doc, a), styleOf(doc, s).stroke, d.labelColour(doc, l)], before);
+  assert.deepEqual([styleOf(doc, a), styleOf(doc, s).stroke, d.lookOf(doc, l).text.color], before);
 });
 
 test('nested groups: a group of members of a group is a subgroup of it; visibility comes down the chain', () => {
