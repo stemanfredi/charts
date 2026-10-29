@@ -1044,7 +1044,7 @@ await section('the drawing', async () => {
     `list grids: ↓ to the next row (${movedTo}); the row's bar deletes its vertex (${vertsLeft} left); a part added from the empty row (${partsNow})`);
   // a point's parts linked to the map: a part's handle pressed on the map picks its row
   await dw.click('.dinspect [data-grid$=":parts"] tr[data-r="1"] td:first-child');
-  const partMarked = await dw.evaluate(() => !drawing.placeMark); // a row clicked draws nothing over: its handles say it
+  const partMarked = await dw.evaluate(() => !drawing.placeAt()); // a row clicked draws nothing over: its handles say it
   const rh = await dw.evaluate((id) => { const x = drawing.doc.points.find((q) => q.id === id); map.jumpTo({ center: x.position, zoom: 14 }); return [0, 0, x.parts[0].radius]; }, pid);
   await dw.waitForTimeout(300);
   const handle = await dw.evaluate(async ([id]) => { const { destination } = await import('./geodesy.js'); const x = drawing.doc.points.find((q) => q.id === id), q = map.project(destination(x.position, 90, x.parts[0].radius)), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; }, [pid]);
@@ -1085,7 +1085,7 @@ await section('the drawing', async () => {
   await dw.click('.dinspect .lpager button[aria-label="Next rows"]'); // › again: the next page (a button kept by morph acts as it says)
   const pageThree = await dw.evaluate(() => document.querySelector('.dinspect .lpager .funit').textContent);
   await dw.click('.dinspect [data-grid*=":points"] tr[data-r="4"] td:first-child'); // point 205
-  const ringed = await dw.evaluate((id) => drawing.placeMark?.join() === drawing.doc.lines.find((x) => x.id === id).vertices[203].position.join(), longId);
+  const ringed = await dw.evaluate((id) => drawing.placeAt()?.join() === drawing.doc.lines.find((x) => x.id === id).vertices[203].position.join(), longId);
   const vAt = await dw.evaluate((id) => { const v = drawing.doc.lines.find((x) => x.id === id).vertices[349].position; map.jumpTo({ center: v, zoom: 15 }); return v; }, longId);
   await dw.waitForTimeout(500);
   const vPx = await dw.evaluate((v) => { const q = map.project(v), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; }, vAt);

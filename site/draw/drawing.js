@@ -201,7 +201,7 @@ export class Drawing extends DrawStore {
     this.lastPoint = e.point; // where a paste goes
     if (['line', 'measure', 'sector'].includes(this.tool) || (this.tool === 'shape' && this.draft)) {
       let r = this.snapFor(e.point, e.originalEvent, this.tool === 'shape' ? {} : this.tool === 'sector' ? { from: this.draft?.pts[0] ?? null } : this.lastLeg()); // as on the click: a shape's size, Shift steps nothing; a sector's edges step round its centre
-      if (this.closesPolygon(e.point)) { r = { position: this.draft.pts[0], to: null, kind: 'vertex' }; this.snapMark = { kind: 'vertex', position: r.position }; } // a click closes it
+      if (this.closesPath(e.point)) { r = { position: this.pathPoints()[0], to: null, kind: 'vertex' }; this.snapMark = { kind: 'vertex', position: r.position }; } // a click closes it
       this.cursor = { point: e.point, p: r.position, snap: r, shift: !!e.originalEvent?.shiftKey };
       this.renderMarks();
       if (this.draft) this.onChange('draft');
