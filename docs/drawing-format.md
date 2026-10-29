@@ -237,7 +237,7 @@ A `Point` geometry. One position, and what is drawn about it:
 | Field | Notes |
 |---|---|
 | `bearing` | one for the point: its outlines' front and its sectors' centre |
-| `symbol` | `"diamond"`, `"square"`, `"triangle"`, `"dot"`, `"none"`, drawn at a fixed screen size, never turned. Default: `"none"`, written only when it is another. A point from a feature without `charts` is a `"diamond"`. With no symbol and no outline a small dot still shows the centre. |
+| `symbol` | `"diamond"`, `"square"`, `"triangle"`, `"dot"`, `"none"`, drawn at a fixed screen size, never turned. Default: `"none"`, written only when it is another. A point from a feature without `charts` is a `"diamond"`. With no symbol and no outline a small dot still shows the centre; a point with an outline shows none. |
 | `parts` | what is drawn about it to scale (§6, part entry), always its own; missing: none |
 | `properties` | placed from a preset, the property `preset` names it (`"Rings"`, or one of the user's) |
 

@@ -225,8 +225,9 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     const p = { type: 'Point', coordinates: n.position };
     if (want.base) {
       const st = styleOf(doc, n);
-      // the centre of a point is always visible: with nothing else to show it, a small dot there
-      const symbol = n.symbol === 'none' ? (mainOutline(n) ? null : 'centre') : n.symbol;
+      // the centre of a point is always visible: with nothing else to show it, a small dot there. An
+      // outline is the point's own sign: no symbol on it (Properties offers none there)
+      const symbol = mainOutline(n) ? null : n.symbol === 'none' ? 'centre' : n.symbol;
       if (symbol) base.push({ type: 'Feature', properties: { id: n.id, kind: 'symbol', symbol, sc: st.stroke.color, so: st.stroke.opacity }, geometry: p });
       if (named(n) && !mainOutline(n)) name(baseNames, n, p, st.stroke.color);
     }
