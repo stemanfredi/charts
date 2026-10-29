@@ -520,26 +520,29 @@ await section('maritime zones', async () => {
   await mz.close();
 });
 
-await section('the drawing', async () => {
-  // the drawing: place, edit, undo, export, New, import, restore, the exports
-  const dw = await open('#v=11/40.2/12.1/0&on=chart,coastline', ctx, 'elements');
+// The drawing, in sections that share one page: each fails on its own, the next runs on (test/browser.mjs)
+let dw = null; // the page, opened by the first section
+const DX = 260; // the left panel covers the map's left: the clicks below, written for the whole map, moved right of it
+// the drawing's file out: from the bar's Download menu
+const exportDrawing = async () => {
+  await dw.click('#bar .dlbtn');
+  await dw.click('.dmenu button:has-text("Drawing (GeoJSON)")');
+};
+// the drawing open, as saved in this browser (one key each, the open one's in charts.drawings.current): GeoJSON
+const saved = () => dw.evaluate(() => JSON.parse(localStorage.getItem(`charts.drawing.${localStorage.getItem('charts.drawings.current')}`) || 'null'));
+const own = (f) => f.properties.charts; // the app's own part of a feature
+const featuresOf = (fc, kind) => (fc?.features || []).filter((f) => own(f)?.kind === kind && !(own(f).guide && own(f).look?.text?.values));
+const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
+let savedFile = null, ruler = null; // the drawing's file as exported, and its measurement: opened again in the next section
+
+await section('the drawing: the bar, the tools, the kinds, the inspector, its file', async () => {
+  dw = await open('#v=11/40.2/12.1/0&on=chart,coastline', ctx, 'elements');
   await dw.setViewportSize({ width: 1600, height: 800 }); // the map clear between the panels for the clicks below
-  const DX = 260; // the left panel covers the map's left: the clicks below, written for the whole map, moved right of it
   await dw.evaluate(() => { // both panels on, the left on Elements (an earlier section may have changed them)
     if (document.querySelector('#bar .pright').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .pright').click();
     if (document.querySelector('#bar .ptab[data-tab=elements]').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .ptab[data-tab=elements]').click();
   });
-  // the drawing's file out: from the bar's Download menu
-  const exportDrawing = async () => {
-    await dw.click('#bar .dlbtn');
-    await dw.click('.dmenu button:has-text("Drawing (GeoJSON)")');
-  };
   await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 40.1], [], [12.05, 40.12], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
-  // the drawing open, as saved in this browser (one key each, the open one's in charts.drawings.current): GeoJSON
-  const saved = () => dw.evaluate(() => JSON.parse(localStorage.getItem(`charts.drawing.${localStorage.getItem('charts.drawings.current')}`) || 'null'));
-  const own = (f) => f.properties.charts; // the app's own part of a feature
-  const featuresOf = (fc, kind) => (fc?.features || []).filter((f) => own(f)?.kind === kind && !(own(f).guide && own(f).look?.text?.values));
-  const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
   await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind), its kinds a row under its button
   const sub = await dw.locator('#bar .kinds:not([hidden]) button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Aerial vehicle,Surface vehicle,Underwater vehicle',
@@ -633,10 +636,13 @@ await section('the drawing', async () => {
   const spinBox = await dw.evaluate(() => { document.body.classList.add('loading'); const r = document.querySelector('#bar .ptab .spin').getBoundingClientRect(); document.body.classList.remove('loading'); return `${r.width}×${r.height}`; });
   check(blinks === 0 && spinBox === '9×9', `the Layers button's spinner stays off while the hover moves over the drawing (${blinks}); shown, a 9 px ring in its corner (${spinBox})`);
   const [dex] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportDrawing(); })()]);
-  const savedFile = JSON.parse(await readFile(await dex.path(), 'utf8'));
-  const ruler = measuredOf(savedFile).find((f) => f.geometry.type === 'LineString' && f.geometry.coordinates[0][0] === 12);
+  savedFile = JSON.parse(await readFile(await dex.path(), 'utf8'));
+  ruler = measuredOf(savedFile).find((f) => f.geometry.type === 'LineString' && f.geometry.coordinates[0][0] === 12);
   check(/\.geojson$/.test(dex.suggestedFilename()) && savedFile.type === 'FeatureCollection' && savedFile.charts?.view?.layers?.some((l) => l.id === 'coastline') && ruler?.geometry.type === 'LineString',
     `drawing: saved as GeoJSON with its view, layers and the measurement (a guide showing its values) (${dex.suggestedFilename()}, ${JSON.stringify(ruler?.geometry)})`);
+});
+
+await section('the drawing\'s files: imported again, dropped on the map, the list, restored after a reload, in the exports', async () => {
   // opened again with one measurement of its own, moved: the file's, not the page's
   ruler.geometry.coordinates = [[12.2, 40.3], [12.25, 40.31]];
   savedFile.features = [...savedFile.features.filter((f) => !measuredOf(savedFile).includes(f)), ruler];
@@ -685,6 +691,9 @@ await section('the drawing', async () => {
     && featuresOf(dfile, 'point').length === 1 && !measuredOf(dfile).length && ditem.assets['vector/drawings'] && ditem.assets.drawing,
   `drawing: in the PNG and the GIS export (as drawn, and the drawing's own file, listed in the STAC item) ${Object.keys(dfiles).filter((n) => /draw/.test(n)).join(', ')}`);
   check(await dw.evaluate(() => map.getLayoutProperty('draw-mark-line-polygon', 'visibility') === 'visible'), 'drawing: the selection shown again after the exports');
+});
+
+await section('lines, groups and the box', async () => {
   // lines: a line and two lines from its end drawn with the Line tool (joined there: a point, each
   // attached to it), the totals
   await dw.locator('.dinsphead .ititle').click();
@@ -769,6 +778,9 @@ await section('the drawing', async () => {
   const back = JSON.parse(await readFile(await dnet.path(), 'utf8'));
   check(featuresOf(back, 'line').length === 4 && featuresOf(back, 'point').length === 1 && back.charts.groups.length === 1 && featuresOf(back, 'line').filter((f) => own(f).start || own(f).end).length === 4,
     'drawing: exported whole, the lines\' ends attached to the point');
+});
+
+await section('the rules: Distribute along, Connect', async () => {
   // points along a line, connected to one root in the same form: one step, undone at once
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('g');
@@ -841,6 +853,9 @@ await section('the drawing', async () => {
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('Control+z');
   await dw.keyboard.press('Control+z');
+});
+
+await section('dragging, parts, shapes, attaching', async () => {
   // dragging: a selected point's radius handle, one undo step; Esc during a drag puts it back
   await dw.keyboard.press('Escape');
   await dw.evaluate(() => { drawing.stop(); drawing.variant.shape = 'circle'; }); // a circle, whatever was on
@@ -961,6 +976,9 @@ await section('the drawing', async () => {
   check(moved2.element === sc.id && moved2.vertex === 2, `attaching: Attach to… moves a line's end onto a shape's corner (${JSON.stringify(moved2)})`);
   await dw.keyboard.press('Escape');
   await dw.evaluate((id) => drawing.remove([id]), sc.id);
+});
+
+await section('labels, names, data and totals', async () => {
   // labels: one on the point, its text typed; drawn; its text dragged; names on the map; the point
   // deleted, the label stays where it pointed
   const nid = await dw.evaluate(() => drawing.doc.points.filter((x) => !x.parts.some((q) => q.length)).at(-1).id);
@@ -1016,6 +1034,9 @@ await section('the drawing', async () => {
   await dw.evaluate((id) => drawing.remove([id]), nid);
   const freed = await dw.evaluate(() => drawing.doc.labels[0]?.anchor);
   check(!freed?.element && freed?.position?.[0] === pointed[0] && freed.position[1] === pointed[1], 'labels: the point deleted, its label stays, free, where it pointed');
+});
+
+await section('legs typed, list grids', async () => {
   // legs typed after drawing: the leg to a line's point 2 set to 1 km at 090°, that point alone moved
   // (its end where it was); the edge to a polygon's corner 2 set to 500 m, that corner alone moved
   const legIds = await dw.evaluate(async () => {
@@ -1069,6 +1090,9 @@ await section('the drawing', async () => {
   await dw.click('.dinspect .fblock:has(h3:has-text("Points")) button:has-text("Copy")');
   const copied = await dw.evaluate(() => navigator.clipboard.readText());
   check(/^#\tLat\tLon/.test(copied) && /\n1\t/.test(copied) && copied.trim().split('\n').length === 3, `a list's Copy gives its rows, numbered from 1 (${copied.split('\n')[1]})`);
+});
+
+await section('the depth profile, paging, Properties in place', async () => {
   // a line's depth profile: read when asked, the chart drawn, its length along the seabed longer
   const deepLine = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.2], [], [12.3, 40.2]); }); drawing.select([l.id]); return l.id; });
   await dw.click('.dinspect button:has-text("Depth profile")');
