@@ -23,7 +23,7 @@
 import { inverse, destination, localFrame, lengthOf } from '../geodesy.js';
 import { norm360 } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
-import { addPoint, addDot, addLine, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
+import { addPoint, addDot, addLine, addGroup, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
 import { outlineOf } from './outlines.js';
 import { BUILT_IN, scaled } from './place.js';
 
@@ -243,10 +243,15 @@ export function planConnection(doc, { pointIds, roots = [], newRoots = [], patte
 // ---- making ----------------------------------------------------------------------------------------
 
 export const COPY_RADIUS = 500; // m: the copies' radius when none is given
+// the rules' fields when nothing says otherwise (the file leaves these out: file.js)
+export const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };
+export const CONNECT_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, hubs: [] };
+export const patternOf = (v) => (v === 'chain' ? 'chain' : 'tree');
 const DISTRIBUTE_KEYS = ['spacing', 'count', 'startMargin', 'endMargin', 'offset', 'side', 'radius', 'aperture', 'preset', 'copy'];
-const settings = (p) => ({ spacing: p.count ? null : p.spacing, count: p.count || null, startMargin: p.startMargin || 0, endMargin: p.endMargin || 0,
-  offset: p.offset || 0, side: p.side || 'left', radius: p.radius > 0 ? p.radius : COPY_RADIUS, aperture: p.aperture ?? null,
-  preset: typeof p.preset === 'string' ? p.preset : null, copy: p.copy ?? null });
+const D = DISTRIBUTE_D;
+const settings = (p) => ({ spacing: p.count ? null : p.spacing, count: p.count || D.count, startMargin: p.startMargin || D.startMargin, endMargin: p.endMargin || D.endMargin,
+  offset: p.offset || D.offset, side: p.side || D.side, radius: p.radius > 0 ? p.radius : COPY_RADIUS, aperture: p.aperture ?? D.aperture,
+  preset: typeof p.preset === 'string' ? p.preset : D.preset, copy: p.copy ?? D.copy });
 // What a distribution's copies are: { symbol, parts }. Its preset: null or 'circle', a circle of its
 // radius (a sector, with its aperture), a diamond; another built-in kind scaled to its radius (its
 // largest part reaching it); one of the user's ('preset:<name>'): copy, kept as it was chosen, its size
@@ -261,11 +266,7 @@ export function copyOf(a) {
 const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
 const isCopy = (n, copy) => canon({ symbol: n.symbol, parts: n.parts }) === canon({ symbol: copy.symbol, parts: copy.parts });
 // a group made for a rule, in parent (null: at the top)
-function groupFor(doc, name, parent) {
-  const g = { id: newId(doc), name, properties: [], groupId: parent, visible: true };
-  doc.groups.push(g);
-  return g;
-}
+const groupFor = (doc, name, parent) => addGroup(doc, name, parent);
 // the distribution's copies made at places, into its Copies group (or the group given): each facing
 // away from what it follows
 function place(doc, a, points, groupId = a.copiesId) {
@@ -367,7 +368,7 @@ export function connect(doc, params) {
   const byId = new Map(doc.points.map((n) => [n.id, n]));
   const first = params.pointIds.map((id) => byId.get(id)).find(Boolean);
   if (!first) return null;
-  const pattern = params.pattern === 'chain' ? 'chain' : 'tree';
+  const pattern = patternOf(params.pattern);
   if (!planConnection(doc, { ...params, pattern }).plan) return null;
   // its group: the one it had, else a new "Connection" in the points' group (a distribution's copies:
   // beside their Copies, in its own group)

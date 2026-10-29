@@ -54,7 +54,7 @@ test('presets: a point\'s own look kept under a name; stored; a file of them rea
   assert.deepEqual(back[0].point.parts, p.parts);
   // its parts read as a file's are: what is not one left out
   const odd = readPresets(presetsFile([{ name: 'Odd', point: { symbol: 'star', parts: [{ kind: 'hovercraft', length: 1, width: 1 }, { kind: 'circle', radius: 5, fill: false }, { kind: 'sector', radius: 9 }] } }]));
-  assert.deepEqual(odd[0].point, { symbol: 'diamond', parts: [{ ...makePart('circle', { radius: 5 }), fill: false }, makePart('circle', { radius: 9 })], look: {} });
+  assert.deepEqual(odd[0].point, { symbol: 'none', parts: [{ ...makePart('circle', { radius: 5 }), fill: false }, makePart('circle', { radius: 9 })], look: {} });
   assert.equal(readPresets('{"format":"charts-drawing"}'), null);
   assert.equal(readPresets('nope'), null);
   const store = new Map();

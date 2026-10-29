@@ -7,6 +7,7 @@ import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses, wmsClasses } from './legend.js';
 import { fmtAngle, dm, mercatorVariation, NOTE_AT, exportName } from './format.js';
 import { Drawing } from './draw/drawing.js';
+import { isoNow } from './draw/document.js';
 import { DRAW_LAYERS } from './draw/layers.js';
 import { savedView } from './draw/saving.js';
 import { drawView } from './draw/panel.js';
@@ -34,6 +35,7 @@ const variantsOf = (it) => Object.keys(it.kind === 'gibs' ? GIBS : CMEMS[it.id])
 const drawsOfEntry = (it, v) => (it.kind === 'gibs' ? ['colour'] : drawsOf(CMEMS[it.id][v]));
 const entryLabel = (it, v, slot) => (it.kind === 'gibs' ? `NASA ${GIBS[v].label.replace('True colour', 'true colour')}`
   : it.id === 'currents' ? (slot === 'colour' ? 'Current speed' : 'Currents') : CMEMS[it.id][v].label);
+const entryOf = (key) => { if (!key) return null; const [id, variant] = key.split(':'); return { id, variant: variant ?? null }; }; // 'item:variant' → { id, variant }, '' → null
 const ENTRIES = { colour: [], arrows: [] }; // slot → [{ key, it, label }]
 for (const it of DATA) for (const v of variantsOf(it)) for (const slot of drawsOfEntry(it, v)) ENTRIES[slot].push({ key: `${it.id}:${v}`, it, label: entryLabel(it, v, slot) });
 
@@ -43,13 +45,15 @@ const dayOf = (t) => new Date(t).toISOString().slice(0, 10); // its day (UTC)
 // ---- state (mirrored in the URL hash) ---------------------------------------
 // the Layers groups open: kept in this browser, as the panel's tab (frame.js), not in the link
 const GROUPS_OPEN = 'charts.groups.open', groupsOpen = store.json(GROUPS_OPEN);
+// a layer as it starts: its first variant, its own opacity, a density dataset's default period
+const defaultsOf = (it) => ({ variant: it.variants ? Object.keys(it.variants)[0] : undefined, opacity: it.opacity ?? undefined, period: DENSITY[it.id]?.defaultPeriod });
 const state = {
   on: new Set(ITEMS.filter((it) => it.on).map((it) => it.id)),
-  variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
+  variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, defaultsOf(it).variant])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
   time: hour(Date.now()), // the map's time: the hour shown (ms), now by default
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
-  period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
+  period: Object.fromEntries(Object.keys(DENSITY).map((id) => [id, defaultsOf(byId[id]).period])), // density datasets
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
   open: new Set(Array.isArray(groupsOpen) ? groupsOpen.filter((g) => GROUPS.some((x) => x.id === g)) : ['base', 'sea']),
 };
@@ -62,17 +66,16 @@ function readHash() {
   const q = new URLSearchParams(location.hash.slice(1));
   const v = (q.get('v') || '').split('/').map(Number);
   if (v.length >= 3 && v.every(Number.isFinite) && Math.abs(v[1]) <= 90) view = { zoom: v[0], center: [v[2], v[1]], bearing: v[3] || 0 }; // a latitude past the pole would throw in MapLibre
-  if (q.has('on')) state.on = new Set(q.get('on').split(',').filter((id) => byId[id]));
+  if (q.has('on')) state.on = new Set(q.get('on').split(',').filter((id) => byId[id] && byId[id].group !== 'data')); // the data layers: col= and arr= (applyData)
   for (const kv of (q.get('var') || '').split(',')) {
-    const [k, val] = kv.split(':');
-    if (Object.hasOwn(byId[k]?.variants ?? {}, val)) state.variant[k] = val;
+    const { id: k, variant: val } = entryOf(kv) ?? {};
+    if (byId[k]?.group !== 'data' && Object.hasOwn(byId[k]?.variants ?? {}, val)) state.variant[k] = val;
   }
   for (const kv of (q.get('op') || '').split(',')) {
     const [k, val] = kv.split(':');
     if (Object.hasOwn(state.opacity, k) && Number.isFinite(+val)) state.opacity[k] = Math.min(1, Math.max(0, +val));
   }
   for (const [slot, key] of [['colour', 'col'], ['arrows', 'arr']]) if (ENTRIES[slot].some((e) => e.key === q.get(key))) state[slot] = q.get(key);
-  for (const it of DATA) state.on.delete(it.id); // the menus switch them (applyData)
   const t = /^\d{4}-\d{2}-\d{2}T\d{2}$/.test(q.get('t') || '') ? Date.parse(`${q.get('t')}:00:00Z`) : NaN; // a date that is no date (month 13) is NaN
   if (Number.isFinite(t)) state.time = t;
   if (CMEMS_DEPTHS.includes(+q.get('dz'))) state.depth = +q.get('dz');
@@ -98,8 +101,6 @@ function writeHashNow() {
   if (!ready) return;
   const q = new URLSearchParams();
   viewToAddress(viewOf(), q);
-  if (!timeOn().length) q.delete('t');
-  if (!depthOn().length) q.delete('dz');
   drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
   setHash(q);
 }
@@ -113,7 +114,7 @@ const KNOWN = {
   data: {},
   depths: CMEMS_DEPTHS,
 };
-for (const e of [...ENTRIES.colour, ...ENTRIES.arrows]) { const [id, v] = e.key.split(':'); if (!(KNOWN.data[id] ||= []).includes(v)) KNOWN.data[id].push(v); }
+for (const e of [...ENTRIES.colour, ...ENTRIES.arrows]) { const { id, variant: v } = entryOf(e.key); if (!(KNOWN.data[id] ||= []).includes(v)) KNOWN.data[id].push(v); }
 
 // The drawing's saved view comes back only when the address has none (docs/drawing-format.md §10):
 // written into the address before anything reads it, so the page loads once with it
@@ -263,15 +264,19 @@ function setDisplay(changes) {
 }
 
 // ---- the drawing (draw/drawing.js, draw/document.js; its panel view: draw/panel.js) ---------------------
-const entryOf = (key) => { if (!key) return null; const [id, variant] = key.split(':'); return { id, variant: variant ?? null }; };
-// the map's view and layers, in the drawing file's terms (docs/drawing-format.md §4)
+// the map's view and layers, in the drawing file's terms (docs/drawing-format.md §4): of each layer what
+// differs from its default, the time and the depth only while a layer uses them (as the address)
 function viewOf() {
   const c = map.getCenter();
+  const own = { variant: state.variant, opacity: state.opacity, period: state.period };
   return {
     center: [+c.lng.toFixed(7), +c.lat.toFixed(7)], zoom: map.getZoom(), bearing: norm360(map.getBearing()),
-    layers: [...state.on].filter((id) => byId[id].group !== 'data').map((id) => ({ id,
-      ...(byId[id].variants ? { variant: state.variant[id] } : {}), ...(id in state.opacity ? { opacity: state.opacity[id] } : {}), ...(DENSITY[id] ? { period: state.period[id] } : {}) })),
-    data: { colour: entryOf(state.colour), arrows: entryOf(state.arrows), time: new Date(state.time).toISOString().replace(/\.\d{3}Z$/, 'Z'), depth: state.depth },
+    layers: [...state.on].map((id) => {
+      const d = defaultsOf(byId[id]), l = { id };
+      for (const k of ['variant', 'opacity', 'period']) if (id in own[k] && own[k][id] !== d[k]) l[k] = own[k][id];
+      return l;
+    }),
+    data: { colour: entryOf(state.colour), arrows: entryOf(state.arrows), time: timeOn().length ? isoNow(state.time) : null, depth: depthOn().length ? state.depth : null },
     units: display.units, bearings: display.bearings,
   };
 }
@@ -291,8 +296,7 @@ function viewToAddress(v, q) {
   if (v.layers) {
     q.set('on', v.layers.map((l) => l.id).join(','));
     // what differs from the layer's default only (a file's layer lacking one: its default)
-    const dflt = { variant: (l) => (byId[l.id]?.variants ? Object.keys(byId[l.id].variants)[0] : undefined), opacity: (l) => byId[l.id]?.opacity, period: (l) => DENSITY[l.id]?.defaultPeriod };
-    const kv = (key) => v.layers.filter((l) => l[key] !== undefined && l[key] !== dflt[key](l)).map((l) => `${l.id}:${l[key]}`).join(',');
+    const kv = (key) => v.layers.filter((l) => l[key] !== undefined && l[key] !== defaultsOf(byId[l.id] ?? {})[key]).map((l) => `${l.id}:${l[key]}`).join(',');
     for (const [key, p] of [['variant', 'var'], ['opacity', 'op'], ['period', 'per']]) { const s = kv(key); if (s) q.set(p, s); else q.delete(p); }
   }
   if (v.data) {
@@ -567,7 +571,7 @@ const hourly = () => timeOn().some((it) => kindOf(it.id).time(it.id) === 'hour')
 // read together, nor two sets of arrows: the menus hold one of each.
 const looks = {}; // item → what it draws: 'colour', 'arrows' or 'both'
 function applyData() {
-  const [ci, cv] = state.colour.split(':'), [ai, av] = state.arrows.split(':');
+  const { id: ci, variant: cv } = entryOf(state.colour) ?? {}, { id: ai, variant: av } = entryOf(state.arrows) ?? {};
   for (const it of DATA) {
     const was = state.on.has(it.id) ? `${looks[it.id]}:${state.variant[it.id]}` : '';
     const look = it.id === ci ? (it.id === ai ? 'both' : 'colour') : it.id === ai ? 'arrows' : '';
@@ -937,7 +941,7 @@ function renderStatus() {
     row.title = st ? st.msg : '';
   };
   for (const it of ITEMS) if (rows[it.id]) mark(rows[it.id].row, state.on.has(it.id) ? itemStatus(it.id) : null);
-  for (const slot in picks) mark(picks[slot].closest('li'), state[slot] ? itemStatus(state[slot].split(':')[0]) : null);
+  for (const slot in picks) mark(picks[slot].closest('li'), state[slot] ? itemStatus(entryOf(state[slot]).id) : null);
 }
 
 // ---- the distance units for the whole app ----------------------------------------------------
@@ -1259,7 +1263,7 @@ function exportPng(b) {
 function drawnItems() {
   const z = map.getZoom();
   return ITEMS.filter((it) => (layersOf[it.id] || []).some((l) => map.getLayoutProperty(l.id, 'visibility') === 'visible' && z >= (l.minzoom ?? 0) && z < (l.maxzoom ?? 24)))
-    .map((it) => ({ ...it, variant: it.variants?.[state.variant[it.id]] }));
+    .map((it) => ({ ...it, variant: it.variants && state.variant[it.id] })); // the variant's key, as the file's view and item.json's at.variant
 }
 const exportZip = gisExport({ map, layersOf, kindOf, drawing, display, profiled, clips: { sea: seaClip, land: landClip }, cmemsDrawn, snapshot, onFrame, download });
 

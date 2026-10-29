@@ -13,6 +13,7 @@ const KEY = (id) => `charts.drawing.${id}`;
 
 const newKey = () => [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(36).padStart(2, '0')).join('');
 const readIndex = () => { try { const v = JSON.parse(store.get(INDEX)); return Array.isArray(v) ? v : []; } catch { return []; } };
+const latestFirst = (list) => list.sort((a, b) => (a.modified < b.modified ? 1 : -1));
 
 // a drawing kept, read: the last one read is kept, so the open drawing is read once at load (for its
 // view before the map is made, then by restore())
@@ -48,7 +49,7 @@ export class Saving {
   list() {
     const index = readIndex();
     if (!index.some((x) => x.id === this.id)) index.push({ id: this.id, title: this.d.doc.meta.title, modified: this.d.doc.modified, size: 0 }); // open, not saved yet
-    return index.map((x) => ({ ...x, open: x.id === this.id })).sort((a, b) => (a.modified < b.modified ? 1 : -1));
+    return latestFirst(index.map((x) => ({ ...x, open: x.id === this.id })));
   }
   // the drawing open, read back at load
   restore() {
@@ -118,7 +119,7 @@ export class Saving {
     if (id !== this.id) { this.d.onChange('doc'); return; }
     clearTimeout(this.timer); // the one deleted is not saved again
     this.timer = 0;
-    const next = readIndex().sort((a, b) => (a.modified < b.modified ? 1 : -1))[0];
+    const next = latestFirst(readIndex())[0];
     if (next && this.load(next.id)) return;
     this.id = newKey();
     store.remove(CURRENT);

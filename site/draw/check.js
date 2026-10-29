@@ -3,7 +3,7 @@
 // (file.js). Pure: no map, no DOM.
 
 import { MAX_LAT, norm360, norm180 } from '../geo.js';
-import { DEFAULT_STYLE, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, PART_KINDS, isoNow } from './document.js';
+import { DEFAULT_STYLE, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, DASHES, MAX_RADIUS, LABEL_SIZES, BACKGROUNDS, ROUND, PART_KINDS, LOOK_FIELDS, SYMBOLS, isoNow } from './document.js';
 
 export const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const COLOUR = /^#[0-9a-fA-F]{6}$/;
@@ -109,10 +109,12 @@ export function ownStyle(s, c, fill) {
 }
 // An element's own look as the file has it: what it sets, each value checked; what is not valid is
 // left out (warned). fill: whether it can have one (a line cannot).
-export function look(l, c, fill = true) {
+// An element's own look, what its kind draws with (LOOK_FIELDS): a field another kind's is warned
+// and not kept (a line's fill, a point's text size)
+export function look(l, c, kind) {
   if (l === undefined || l === null) return {};
   if (!isObj(l)) { c.warn('look: not an object, ignored'); return {}; }
-  const out = ownStyle({ fill: l.fill, stroke: l.stroke }, c, fill);
+  const out = ownStyle({ fill: l.fill, stroke: l.stroke }, c, kind !== 'line');
   if (l.text !== undefined) {
     const t = isObj(l.text) ? l.text : (c.warn('look text: not an object, ignored'), {}), o = {};
     for (const k of ['name', 'values']) {
@@ -127,7 +129,20 @@ export function look(l, c, fill = true) {
   }
   const a = offset(l.offset, c);
   if (a !== null) out.offset = a;
+  const other = [];
+  for (const [g, v] of Object.entries(out)) {
+    if (!isObj(v)) { if (!LOOK_FIELDS[kind].includes(g)) { other.push(g); delete out[g]; } continue; }
+    for (const k of Object.keys(v)) if (!LOOK_FIELDS[kind].includes(`${g}.${k}`)) { other.push(`${g}.${k}`); delete v[k]; }
+    if (!Object.keys(v).length) delete out[g];
+  }
+  if (other.length) c.warn(`look ${other.join(', ')}: not a ${kind}'s, ignored`);
   return out;
+}
+// what a point is made as (a preset's, a distribution's copy): { symbol, parts, look }
+export function pointSpec(x, c) {
+  const lk = look(x.look, c, 'point');
+  return { symbol: SYMBOLS.includes(x.symbol) ? x.symbol : (x.symbol !== undefined && c.warn(`unknown symbol "${String(x.symbol).slice(0, 20)}", none used`), 'none'),
+    parts: parts(x.parts, c), ...(Object.keys(lk).length && { look: lk }) };
 }
 // The drawing's look: what its Display sets (names on the map, offset, minimum size), each checked;
 // anything else is not the drawing's (warned, left out)
@@ -140,7 +155,8 @@ export function drawingLook(l, c) {
   const a = offset(l.offset, c);
   if (a !== null) out.offset = a;
   if (l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
-  const other = [...Object.keys(l).filter((k) => !['text', 'offset', 'minSize'].includes(k)), ...Object.keys(t).filter((k) => k !== 'name').map((k) => `text.${k}`)];
+  const own = LOOK_FIELDS.drawing, ownText = own.filter((f) => f.startsWith('text.')).map((f) => f.slice(5));
+  const other = [...Object.keys(l).filter((k) => !own.includes(k) && k !== 'text'), ...Object.keys(t).filter((k) => !ownText.includes(k)).map((k) => `text.${k}`)];
   if (other.length) c.warn(`look ${other.join(', ')}: not the drawing's (an element's own), ignored`);
   return out;
 }
@@ -168,9 +184,11 @@ export function parts(list, c) {
 
 // The view a drawing was made in: the map's place, its layers and data, the units. known: what the app
 // offers (layers, data, depths), to check them; null: not checked.
+export const VIEW_D = { center: null, zoom: null, bearing: 0, layers: null, data: null, units: 'km', bearings: false };
+export const VIEW_DATA_D = { colour: null, arrows: null, time: null, depth: null };
 export function readView(v, known, c) {
   if (!isObj(v)) { c.warn('not an object, ignored'); return null; }
-  const view = { center: null, zoom: null, bearing: 0, layers: null, data: null, units: 'km', bearings: false };
+  const view = { ...VIEW_D };
   if (v.center !== undefined) {
     try { view.center = position(v.center, c, 'center'); } catch (e) { if (!(e instanceof Skip)) throw e; c.warn(`${e.message}; ignored`); }
   }
@@ -195,7 +213,7 @@ export function readView(v, known, c) {
     }
   } else if (v.layers !== undefined) c.warn('layers: not a list, ignored');
   if (isObj(v.data)) {
-    const d = { colour: null, arrows: null, time: time(v.data.time), depth: null };
+    const d = { ...VIEW_DATA_D, time: time(v.data.time) };
     for (const slot of ['colour', 'arrows']) {
       const e = v.data[slot];
       if (e === undefined || e === null) continue;

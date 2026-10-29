@@ -34,7 +34,7 @@ export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASUR
   stroke: Object.freeze({ color: MEASURE_COLOUR, opacity: 1, width: 2, dash: 'dashed' }) });
 // A look: how an element is drawn. Every field optional where it is set (an element's, the
 // drawing's); the defaults fill it in. fill, stroke: as a style; text: its name on the map, its values
-// shown, and a label's size, colour (null: the drawing's, else the default) and
+// shown, and a label's size, colour (null: the default) and
 // background; offset: a line drawn this many px to the right of where it is (negative: left; 0: on
 // it; display only); minSize: a small outline drawn enlarged below it
 // (px, 0: never; for a vehicle, twice the drawing's).
@@ -102,9 +102,10 @@ export function newId(doc, taken = idsOf(doc)) {
 }
 
 // The empty document at time now (ms).
+export const META_D = { title: '', description: '', author: '' };
 export function emptyDoc(now = Date.now()) {
   const t = isoNow(now);
-  return { created: t, modified: t, meta: { title: '', description: '', author: '' }, view: null, look: {},
+  return { created: t, modified: t, meta: { ...META_D }, view: null, look: {},
     groups: [], points: [], lines: [], areas: [], labels: [], rules: [] };
 }
 
@@ -179,7 +180,7 @@ export function lookOf(doc, el) {
 export const styleOf = (doc, el) => { const l = lookOf(doc, el); return { fill: l.fill, stroke: l.stroke }; };
 // a measurement: a guide showing its values (what Measure makes)
 export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.values;
-// a label's colour: its own, else the drawing's, else the default
+// a label's colour: its own, else the default (the drawing's look has none: LOOK_FIELDS.drawing)
 export const labelColour = (doc, a) => lookOf(doc, a).text.color ?? LABEL_COLOUR;
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
 export const offsetOf = (doc, el) => lookOf(doc, el).offset;
@@ -323,9 +324,14 @@ function commonGroup(doc, xs) {
 export function makeGroup(doc, ids) {
   const picked = ids.map((id) => find(doc, id)).filter(Boolean), chosen = new Set(picked.filter((x) => x.kind === 'group').map((x) => x.el));
   const xs = picked.filter((x) => !groupsOf(doc, x.el).some((g) => chosen.has(g))); // inside a group chosen: it goes with it
-  const parent = commonGroup(doc, xs), g = { ...base(doc, 'group', idsOf(doc)), groupId: parent?.id ?? null };
-  doc.groups.push(g);
+  const g = addGroup(doc, undefined, commonGroup(doc, xs)?.id ?? null);
   for (const x of xs) setGroup(doc, x.el.id, g.id);
+  return g;
+}
+// a new group, named (else the next "Group n"), in the group parent (null: at the top)
+export function addGroup(doc, name, parent = null) {
+  const g = { ...base(doc, 'group', idsOf(doc), name), groupId: parent };
+  doc.groups.push(g);
   return g;
 }
 // Order (docs/drawing-format.md §2): each kind's list is the panel's order and the drawing order, the
@@ -369,10 +375,10 @@ export function setGroup(doc, id, gid) {
 // ---- the user's properties as columns -----------------------------------------------------------------
 
 // keys the GIS export uses itself: a property so keyed is written p_<key>
-const RESERVED = ['kind', 'id', 'name', 'outline', 'group', 'guide', 'text', 'anchor', 'along_m', 'length_m', 'width_m', 'radius_m', 'area_m2', 'perimeter_m', 'bearing_deg', 'aperture_deg', 'part_name', 'filled'];
+const GIS_COLUMNS = ['kind', 'id', 'name', 'outline', 'group', 'guide', 'text', 'anchor', 'along_m', 'length_m', 'width_m', 'radius_m', 'area_m2', 'perimeter_m', 'bearing_deg', 'aperture_deg', 'part_name', 'filled'];
 // The user's properties ([{ key, value }]) as columns: one each, in order; a key the export uses (reserved)
 // prefixed p_, a repeated one numbered. { out, changed (a key had to be renamed) }
-export function columnsOf(props, reserved = RESERVED) {
+export function columnsOf(props, reserved = GIS_COLUMNS) {
   const out = Object.create(null); // no prototype: a key named __proto__ is a column too
   let changed = false;
   for (const { key, value } of props) {

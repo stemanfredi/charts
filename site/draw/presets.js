@@ -1,10 +1,9 @@
 // The user's own presets (docs/drawing-ui.md §9): a point kept under a name (its symbol, its parts,
 // its look), placed again from the Shape tool's kinds (the Point tool's for a symbol only). They live in
 // this browser only, never in the app or a drawing's file; a small file of their own moves them to
-// another browser (Export, Import). Local storage may be missing or refuse: every access is guarded.
+// another browser (Download › Presets, Open a file…). Local storage may be missing or refuse: every access is guarded.
 
-import { SYMBOLS } from './document.js';
-import { parts, look } from './check.js';
+import { pointSpec } from './check.js';
 import { store } from '../dom.js';
 
 const KEY = 'charts.presets';
@@ -35,9 +34,7 @@ const QUIET = { warn() {} }; // a preset's parts read as a file's are, what is n
 function clean(list) {
   const seen = new Set();
   return list.filter((x) => x && typeof x.name === 'string' && x.name.trim() && !seen.has(x.name) && seen.add(x.name) && x.point && typeof x.point === 'object')
-    .map((x) => ({ name: x.name, point: { symbol: SYMBOLS.includes(x.point.symbol) ? x.point.symbol : 'diamond',
-      parts: parts(x.point.parts, QUIET),
-      look: look(x.point.look, QUIET) } }));
+    .map((x) => ({ name: x.name, point: { look: {}, ...pointSpec(x.point, QUIET) } }));
 }
 // where a preset is placed from: Shape when it has extent (an outline, radii), else Point
 export const presetTool = (x) => (x.point.parts.length ? 'shape' : 'point');

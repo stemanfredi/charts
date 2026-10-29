@@ -6,11 +6,11 @@
 // Legs are geodesics, or a smooth curve through the vertices (other tools draw them straight in
 // longitude and latitude: the geometry holds the vertices, "smooth" is the app's). Drawings of another format version are not read. Pure: no map, no DOM.
 
-import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET,
+import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET, META_D,
   emptyDoc, newId, columnsOf } from './document.js';
-import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, drawingLook, parts, readView } from './check.js';
+import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, pointSpec, drawingLook, parts, readView, VIEW_D, VIEW_DATA_D } from './check.js';
 import { resolve, targetPosition } from './attach.js';
-import { groupSizeOf } from './generator.js';
+import { groupSizeOf, patternOf, DISTRIBUTE_D, CONNECT_D } from './generator.js';
 import { positionsOf } from './lines.js';
 import { norm180 } from '../geo.js';
 
@@ -21,7 +21,7 @@ const MAX_FEATURES = 20000; // elements in one file: the rest are skipped (as ma
 const MAX_TOTAL_POSITIONS = 1000000; // positions in a file's lines and areas together: more is refused, as soon as read
 class Refused extends Error {}
 // the properties a feature's own are written beside: a user's key that is one of these gets a p_
-const RESERVED = ['name', 'stroke', 'stroke-width', 'stroke-opacity', 'fill', 'fill-opacity', 'charts'];
+const FILE_PROPERTIES = ['name', 'stroke', 'stroke-width', 'stroke-opacity', 'fill', 'fill-opacity', 'charts'];
 const GEOMETRIES = ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'GeometryCollection'];
 
 // ---- reading ---------------------------------------------------------------------------------
@@ -116,26 +116,26 @@ function read(raw, app, known, now, report) {
   let over = 0, positions = 0;
   try { features.forEach((f, i) => {
     const fid = isObj(f) && (typeof f.id === 'string' || typeof f.id === 'number') ? String(f.id) : null;
-    if (!isObj(f) || f.type !== 'Feature') { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'not a Feature' }); return; }
+    const skip = (reason) => report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason }); // a feature without an ID: its place in the list
+    if (!isObj(f) || f.type !== 'Feature') { skip('not a Feature'); return; }
     const g = f.geometry;
-    if (!isObj(g)) { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'no geometry' }); return; }
+    if (!isObj(g)) { skip('no geometry'); return; }
     const props = isObj(f.properties) ? f.properties : {};
     const own = unpack(props.charts);
     const mine = isObj(own) ? own : null;
-    if (typeof g.type !== 'string') { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'geometry type: not text' }); return; }
+    if (typeof g.type !== 'string') { skip('geometry type: not text'); return; }
     const parts = g.type === 'GeometryCollection' ? null : g.type.startsWith('Multi')
       ? (Array.isArray(g.coordinates) ? g.coordinates.map((coordinates) => ({ type: g.type.slice(5), coordinates })) : [])
       : [g];
-    if (!parts) { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: 'a geometry collection: not read' }); return; }
+    if (!parts) { skip('a geometry collection: not read'); return; }
     parts.forEach((part, k) => {
       if (doc.points.length + doc.lines.length + doc.areas.length + doc.labels.length >= MAX_FEATURES) { over++; return; } // a Multi geometry: each part an element
       const kind = mine?.kind === 'label' && part.type === 'Point' ? 'label' : { Point: 'point', LineString: 'line', Polygon: 'area' }[part.type];
-      if (!kind) { report.skipped.push({ kind: 'feature', id: fid ?? String(i + 1), reason: `geometry ${String(part.type).slice(0, 20)}: not read` }); return; }
+      if (!kind) { skip(`geometry ${String(part.type).slice(0, 20)}: not read`); return; }
       const el = attempt(kind, fid, (c) => {
         const id = idOf(k ? null : f.id, c);
-        if (mine?.visible !== undefined && typeof mine.visible !== 'boolean') c.warn('visible is not true or false; true used');
-        const x = { ...commonOf(propertiesFrom(props, mine, c), c), id, groupId: groupOf(mine?.group, c), visible: mine?.visible !== false };
-        x.look = look(mine?.look, c, kind !== 'line');
+        const x = { ...commonOf({ ...propertiesFrom(props, mine, c), visible: mine?.visible }, c), id, groupId: groupOf(mine?.group, c) };
+        x.look = look(mine?.look, c, kind);
         if (kind !== 'label') { // its colours, opacities and width: the common style names
           const st = styleFrom(props, c, kind !== 'line');
           for (const part of ['fill', 'stroke']) if (st[part]) x.look[part] = { ...x.look[part], ...st[part] };
@@ -180,19 +180,19 @@ function read(raw, app, known, now, report) {
         const along = isObj(x.along) ? ref(x.along.element) : null;
         if (!along) c.skip('nothing it is along');
         taken.add(x.id);
-        const d = (k) => (fin(x[k]) && x[k] >= 0 ? x[k] : 0);
-        const lk = isObj(x.copy) ? look(x.copy.look, c) : {};
-        const copy = isObj(x.copy) ? { symbol: SYMBOLS.includes(x.copy.symbol) ? x.copy.symbol : 'none', parts: parts(x.copy.parts, c), ...(Object.keys(lk).length && { look: lk }) } : null;
+        const D = DISTRIBUTE_D, d = (k) => (fin(x[k]) && x[k] >= 0 ? x[k] : D[k]);
+        const copy = isObj(x.copy) ? pointSpec(x.copy, c) : null;
         return { id: x.id, kind: 'distribute', groupId: ref(x.groupId), copiesId: ref(x.copiesId), along: { element: along, part: Number.isInteger(x.along.part) && x.along.part >= 0 ? x.along.part : null },
-          spacing: fin(x.spacing) && x.spacing > 0 ? x.spacing : null, count: Number.isInteger(x.count) && x.count > 0 ? x.count : null,
-          startMargin: d('startMargin'), endMargin: d('endMargin'), offset: d('offset'), side: SIDES.includes(x.side) ? x.side : 'left',
-          radius: fin(x.radius) && x.radius > 0 ? x.radius : null, aperture: fin(x.aperture) && x.aperture > 0 && x.aperture < 360 ? x.aperture : null,
-          preset: typeof x.preset === 'string' ? x.preset : null, copy: copy?.parts.length ? copy : null,
+          spacing: fin(x.spacing) && x.spacing > 0 ? x.spacing : D.spacing, count: Number.isInteger(x.count) && x.count > 0 ? x.count : D.count,
+          startMargin: d('startMargin'), endMargin: d('endMargin'), offset: d('offset'), side: SIDES.includes(x.side) ? x.side : D.side,
+          radius: fin(x.radius) && x.radius > 0 ? x.radius : D.radius, aperture: fin(x.aperture) && x.aperture > 0 && x.aperture < 360 ? x.aperture : D.aperture,
+          preset: typeof x.preset === 'string' ? x.preset : D.preset, copy: copy?.parts.length ? copy : D.copy,
           points: Array.isArray(x.points) ? x.points.filter((f) => isObj(f) && ref(f.pointId) && fin(f.t) && pair(f.pos)).map((f) => ({ pointId: f.pointId, t: f.t, left: f.left === true, pos: [f.pos[0], f.pos[1]] })) : [] };
       }
       taken.add(x.id);
-      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern: x.pattern === 'chain' ? 'chain' : 'tree', groupSize: groupSizeOf(x.groupSize, x.pattern === 'chain' ? 'chain' : 'tree'),
-        minBranch: Number.isFinite(x.minBranch) && x.minBranch > 0 ? x.minBranch : 0, pointIds: idList(x.pointIds),
+      const pattern = patternOf(x.pattern);
+      return { id: x.id, kind: 'connect', groupId: ref(x.groupId), pattern, groupSize: groupSizeOf(x.groupSize, pattern),
+        minBranch: fin(x.minBranch) && x.minBranch > 0 ? x.minBranch : CONNECT_D.minBranch, pointIds: idList(x.pointIds),
         roots: Array.isArray(x.roots) ? x.roots.filter((r) => isObj(r) && ref(r.id)).map((r) => ({ id: r.id, weight: fin(r.weight) && r.weight > 0 ? r.weight : 1 })) : [],
         hubs: Array.isArray(x.hubs) ? x.hubs.filter((b) => isObj(b) && ref(b.pointId) && ref(b.rootId) && Array.isArray(b.pointIds) && pair(b.pos))
           .map((b) => ({ pointId: b.pointId, pointIds: idList(b.pointIds), rootId: b.rootId, pos: [b.pos[0], b.pos[1]] })) : [],
@@ -218,13 +218,13 @@ function propertiesFrom(props, mine, c) {
   const asText = (v) => (typeof v === 'string' ? v : v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
   const aliases = mine ? [] : ['Name', 'title'];
   const list = Array.isArray(unpack(mine?.properties)) ? unpack(mine.properties)
-    : Object.entries(props).filter(([k]) => !RESERVED.includes(k) && !aliases.includes(k)).map(([key, value]) => ({ key, value: asText(value) }));
+    : Object.entries(props).filter(([k]) => !FILE_PROPERTIES.includes(k) && !aliases.includes(k)).map(([key, value]) => ({ key, value: asText(value) }));
   return { name: text(pick('name', ...aliases) ?? '', c, 'name'), properties: list };
 }
-// name, properties, visible, as each element has them
+// name, properties, visible, as elements and groups have them
 function commonOf(x, c) {
   if (x.visible !== undefined && typeof x.visible !== 'boolean') c.warn('visible is not true or false; true used');
-  return { name: text(x.name, c, 'name'), properties: properties(x.properties, c), groupId: null, visible: x.visible !== false };
+  return { name: text(x.name, c, 'name'), properties: properties(x.properties, c), visible: x.visible !== false };
 }
 // an element's own colours, opacities and stroke width, from the common style names
 function styleFrom(props, c, fill) {
@@ -315,13 +315,10 @@ function lean(o, d) {
 const partOut = (r) => lean({ kind: r.kind, radius: r.radius && r3(r.radius), aperture: r.aperture && r4(r.aperture), length: r.length && r3(r.length), width: r.width && r3(r.width),
   fill: r.fill, shown: r.shown, name: r.name },
 { radius: undefined, aperture: undefined, length: undefined, width: undefined, fill: true, shown: true, name: '' });
-const VIEW_D = { center: null, zoom: null, bearing: 0, layers: null, data: null, units: 'km', bearings: false };
 const VERTEX_D = { name: '' };
-const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };
-const CONNECTION_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, hubs: [] };
 
 // the user's properties as GIS columns (features.js), their keys checked against the file's own
-const columns = (list) => columnsOf(list, RESERVED);
+const columns = (list) => columnsOf(list, FILE_PROPERTIES);
 // A look as the file has it: what it sets, numbers rounded. simple: an element's, whose colours,
 // opacities and stroke width are the common style names (styleNames), not here.
 function lookOut(l, simple = false) {
@@ -393,11 +390,11 @@ export function toFile(doc) {
   const v = doc.view;
   const app = lean({
     format: FORMAT, version: VERSION, created: doc.created, modified: doc.modified,
-    meta: lean(doc.meta, { title: '', description: '', author: '' }),
+    meta: lean(doc.meta, META_D),
     view: v ? lean({ center: v.center && pos(v.center), zoom: v.zoom === null ? null : r4(v.zoom), bearing: r4(v.bearing), layers: v.layers && v.layers.map((l) => ({ ...l })),
-      data: v.data && { colour: v.data.colour && { ...v.data.colour }, arrows: v.data.arrows && { ...v.data.arrows }, time: v.data.time, depth: v.data.depth },
-      units: v.units, bearings: v.bearings === true }, VIEW_D) : null,
-    look: lookOut(doc.look ?? {}),
+      data: v.data && lean({ colour: v.data.colour && { ...v.data.colour }, arrows: v.data.arrows && { ...v.data.arrows }, time: v.data.time, depth: v.data.depth }, VIEW_DATA_D),
+      units: v.units, bearings: v.bearings === true }, { ...VIEW_D, data: {} }) : null,
+    look: lookOut(doc.look),
     groups: doc.groups.map((g) => lean({ id: g.id, groupId: g.groupId, name: g.name, properties: g.properties.map((p) => ({ ...p })), visible: g.visible },
       { groupId: null, name: '', properties: [], visible: true })),
     rules: doc.rules.map((a) => (a.kind === 'distribute'
@@ -405,7 +402,7 @@ export function toFile(doc) {
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),
         copy: a.copy && lean({ symbol: a.copy.symbol, parts: a.copy.parts.map(partOut), look: lookOut(a.copy.look ?? {}) }, { look: {} }),
         points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
-      : lean({ ...a, roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: +r.weight.toPrecision(6) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
+      : lean({ ...a, roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: +r.weight.toPrecision(6) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECT_D))),
   }, { meta: {}, view: null, look: {}, groups: [], rules: [] });
   return { type: 'FeatureCollection', charts: app, features: KINDS.filter((k) => k !== 'group').flatMap((k) => doc[KIND[k].list].map((el) => feature(doc, k, el))) };
 }
