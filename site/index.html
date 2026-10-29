@@ -28,7 +28,60 @@
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
   <script defer src="vendor/geographiclib-geodesic.min.js"></script>
   <link rel="stylesheet" href="style.css">
-  <link rel="modulepreload" href="vendor/maplibre-gl.mjs"> <!-- asked for with app.js, not after it -->
+  <!-- preload:start (tools/deps.mjs --write: every module app.js reaches, asked for with it, not level by level) -->
+  <link rel="modulepreload" href="vendor/maplibre-gl.mjs">
+  <link rel="modulepreload" href="vendor/maplibre-contour.mjs">
+  <link rel="modulepreload" href="catalog.js">
+  <link rel="modulepreload" href="hosts.js">
+  <link rel="modulepreload" href="style.js">
+  <link rel="modulepreload" href="cmems.js">
+  <link rel="modulepreload" href="geo.js">
+  <link rel="modulepreload" href="net.js">
+  <link rel="modulepreload" href="clip.js">
+  <link rel="modulepreload" href="gebco.js">
+  <link rel="modulepreload" href="zarr.js">
+  <link rel="modulepreload" href="legend.js">
+  <link rel="modulepreload" href="format.js">
+  <link rel="modulepreload" href="draw/drawing.js">
+  <link rel="modulepreload" href="draw/document.js">
+  <link rel="modulepreload" href="dom.js">
+  <link rel="modulepreload" href="draw/outlines.js">
+  <link rel="modulepreload" href="geodesy.js">
+  <link rel="modulepreload" href="draw/place.js">
+  <link rel="modulepreload" href="draw/file.js">
+  <link rel="modulepreload" href="draw/check.js">
+  <link rel="modulepreload" href="draw/attach.js">
+  <link rel="modulepreload" href="draw/lines.js">
+  <link rel="modulepreload" href="draw/generator.js">
+  <link rel="modulepreload" href="draw/store.js">
+  <link rel="modulepreload" href="draw/saving.js">
+  <link rel="modulepreload" href="draw/layers.js">
+  <link rel="modulepreload" href="draw/features.js">
+  <link rel="modulepreload" href="draw/drag.js">
+  <link rel="modulepreload" href="draw/labels.js">
+  <link rel="modulepreload" href="draw/snap.js">
+  <link rel="modulepreload" href="draw/clipboard.js">
+  <link rel="modulepreload" href="draw/panel.js">
+  <link rel="modulepreload" href="menu.js">
+  <link rel="modulepreload" href="draw/profile.js">
+  <link rel="modulepreload" href="fields.js">
+  <link rel="modulepreload" href="keys.js">
+  <link rel="modulepreload" href="draw/presets.js">
+  <link rel="modulepreload" href="draw/grid.js">
+  <link rel="modulepreload" href="draw/files.js">
+  <link rel="modulepreload" href="draw/tools.js">
+  <link rel="modulepreload" href="draw/icons.js">
+  <link rel="modulepreload" href="draw/tree.js">
+  <link rel="modulepreload" href="frame.js">
+  <link rel="modulepreload" href="search.js">
+  <link rel="modulepreload" href="gis.js">
+  <link rel="modulepreload" href="export.js">
+  <link rel="modulepreload" href="zip.js">
+  <link rel="modulepreload" href="geotiff.js">
+  <link rel="modulepreload" href="vector.js">
+  <link rel="modulepreload" href="png.js">
+  <link rel="modulepreload" href="values.js">
+  <!-- preload:end -->
   <script type="module" src="app.js"></script>
 </head>
 <body>

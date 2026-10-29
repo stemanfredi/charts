@@ -90,7 +90,8 @@ need replacing in a copy:
   seagrass tiles from EMODnet's service, which takes a minute or more per
   tile. Both say how to run them at their top.
 
-The security policy in `site/index.html` is generated from `site/hosts.js`,
+The security policy in `site/index.html` is generated from `site/hosts.js`, and the
+module preloads beside it from the imports of `site/app.js`,
 so a copy that adds a host adds it there and runs `node tools/deps.mjs --write`.
 
 ## Providers

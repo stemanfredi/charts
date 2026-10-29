@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // The page's libraries, copied from npm into site/vendor/ (the page has no build and loads them
-// from there, as its own files), and the page's Content-Security-Policy.
+// from there, as its own files), the page's Content-Security-Policy, and the preloads of its modules.
 //
 //   node tools/deps.mjs --write    copy the libraries, at package.json's versions, with their
-//                                  licences into site/vendor/, and write the policy (from the hosts
-//                                  in site/hosts.js) into index.html
+//                                  licences into site/vendor/, and write into index.html the policy
+//                                  (from the hosts in site/hosts.js) and a modulepreload for each
+//                                  module app.js reaches (a cold load asks for them at once, not
+//                                  nine import levels deep, one round trip each)
 //   node tools/deps.mjs --check    fail if site/vendor/ or the policy differ from that (offline;
 //                                  the unit tests check the same)
 //   node tools/deps.mjs            newer data periods in the EMODnet density WMS than catalog.js
@@ -12,6 +14,7 @@
 //
 // To upgrade a library: change its version in package.json, npm install, --write, then test the page.
 import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
+import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOSTS, cspSource } from '../site/hosts.js';
 
@@ -41,6 +44,23 @@ const META = `<meta http-equiv="Content-Security-Policy" content="${CSP}">`;
 const INDEX = new URL('../site/index.html', import.meta.url), VENDOR = new URL('../site/vendor/', import.meta.url);
 const MODULES = new URL('../node_modules/', import.meta.url);
 const BLOCK = /(<!-- csp:start[^>]*-->)[\s\S]*?(<!-- csp:end -->)/;
+const SITE = new URL('../site/', import.meta.url), PRELOAD = /(<!-- preload:start[^>]*-->)[\s\S]*?(<!-- preload:end -->)/;
+
+// the modules app.js imports statically, directly or through others, in the order they are met
+// (dynamic imports are left out: they are lazy on purpose); the libraries are not read into
+async function moduleGraph(entry = 'app.js') {
+  const seen = new Set();
+  const walk = async (name) => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    if (name.startsWith('vendor/')) return;
+    const src = await readFile(new URL(name, SITE), 'utf8');
+    for (const m of src.matchAll(/^import\s+(?:[^'";]*?\sfrom\s+)?['"](\.\.?\/[^'"]+)['"]/gm)) await walk(posix.normalize(posix.join(posix.dirname(name), m[1])));
+  };
+  await walk(entry);
+  seen.delete(entry); // the script tag asks for it
+  return [...seen];
+}
 
 // what site/vendor/ should hold: name → the bytes in node_modules (the libraries and their licences)
 async function wanted() {
@@ -54,9 +74,10 @@ async function wanted() {
   }
   return out;
 }
-const indexWith = (html) => {
-  if (!BLOCK.test(html)) throw new Error('csp markers not found in index.html');
-  return html.replace(BLOCK, (_, a, b) => `${a}\n  ${META}\n  ${b}`);
+const indexWith = (html, modules) => {
+  if (!BLOCK.test(html) || !PRELOAD.test(html)) throw new Error('csp or preload markers not found in index.html');
+  return html.replace(BLOCK, (_, a, b) => `${a}\n  ${META}\n  ${b}`)
+    .replace(PRELOAD, (_, a, b) => `${a}\n${modules.map((m) => `  <link rel="modulepreload" href="${m}">\n`).join('')}  ${b}`);
 };
 
 // what differs from --write's result: [] when nothing (the unit tests assert this)
@@ -69,7 +90,7 @@ export async function stale() {
   }
   for (const e of await readdir(VENDOR, { withFileTypes: true }).catch(() => [])) if (!w.has(e.name) || e.isDirectory()) out.push(`site/vendor/${e.name}: not a library of package.json's`);
   const html = await readFile(INDEX, 'utf8');
-  if (indexWith(html) !== html) out.push('index.html: the Content-Security-Policy');
+  if (indexWith(html, await moduleGraph()) !== html) out.push('index.html: the Content-Security-Policy or the preloads');
   return out;
 }
 
@@ -78,8 +99,8 @@ async function write() {
   const w = await wanted();
   for (const e of await readdir(VENDOR, { withFileTypes: true })) if (!w.has(e.name) || e.isDirectory()) await rm(new URL(e.name, VENDOR), { recursive: true }); // a library renamed or dropped, or anything else left there
   for (const [name, bytes] of w) await writeFile(new URL(name, VENDOR), bytes);
-  await writeFile(INDEX, indexWith(await readFile(INDEX, 'utf8')));
-  console.log('site/vendor/ and the policy written');
+  await writeFile(INDEX, indexWith(await readFile(INDEX, 'utf8'), await moduleGraph()));
+  console.log('site/vendor/, the policy and the preloads written');
 }
 
 async function check() {

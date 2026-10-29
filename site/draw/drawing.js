@@ -52,7 +52,8 @@ export class Drawing extends DrawStore {
     this.button = null; // the bar's button of the tool on (Shape › sector draws with 'sector')
     this.cursor = null;
     map.on('click', (e) => this.click(e));
-    map.on('mousemove', (e) => this.pointer(e));
+    let hoverRaf = 0, hoverEvent = null; // once a frame, the last move: pointer() queries the map's features
+    map.on('mousemove', (e) => { hoverEvent = e; if (!hoverRaf) hoverRaf = requestAnimationFrame(() => { hoverRaf = 0; this.pointer(hoverEvent); }); });
     this.dragEvents(map);
     this.areaEvents(map);
     this.keyEvents(map);

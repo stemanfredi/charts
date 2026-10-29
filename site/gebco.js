@@ -94,14 +94,15 @@ export const gebcoTile = (z, x, y) => gridTile(GEBCO, 'elevation', z, x, y, fals
 
 // MapLibre tile handler for gebco-tid://z/x/y: each cell coloured by the group of its code; land and
 // no data transparent
-const RGBA = new Map(); // code → [r, g, b] of its group
-for (const { codes: [lo, hi], colour } of DEPTH_SOURCES) for (let c = lo; c <= hi; c++) RGBA.set(c, [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16)));
+const RGBA = new Uint8ClampedArray(128 * 4); // code × 4 → r, g, b, 255 of its group (alpha 0: not drawn)
+for (const { codes: [lo, hi], colour } of DEPTH_SOURCES) for (let c = lo; c <= hi; c++) RGBA.set([...[1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16)), 255], c * 4);
 export async function tidTile({ url }) {
   const [z, x, y] = /^gebco-tid:\/\/(\d+)\/(\d+)\/(\d+)$/.exec(url).slice(1).map(Number);
   const codes = await gridTile(GEBCO_TID, 'tid', z, x, y, true), img = new ImageData(SIZE, SIZE);
-  for (let p = 0; p < codes.length; p++) {
-    const c = RGBA.get(codes[p]);
-    if (c) img.data.set([...c, 255], p * 4);
+  const d = img.data; // 65k cells a tile, on the page's thread: bytes written in place, nothing allocated per cell
+  for (let p = 0, q = 0; p < codes.length; p++, q += 4) {
+    const k = codes[p] * 4;
+    if (RGBA[k + 3]) { d[q] = RGBA[k]; d[q + 1] = RGBA[k + 1]; d[q + 2] = RGBA[k + 2]; d[q + 3] = 255; }
   }
   return { data: await createImageBitmap(img) };
 }
