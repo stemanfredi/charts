@@ -173,10 +173,14 @@ export const DRAW_LAYERS = [
   { id: 'draw-lhandle', type: 'symbol', source: 'drawlabel', filter: ['==', ['get', 'kind'], 'lhandle'],
     layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
     paint: { 'icon-color': '#ffffff', 'icon-halo-color': HANDLE_EDGE, 'icon-halo-width': 1.5 } },
-  // a point's centre: selected, a small white dot with the mark's rim (as a handle); hovered, a ring
+  // a point's centre: selected, a small white dot edged as a handle; hovered, a ring
   { id: 'draw-mark-point', type: 'circle', source: 'drawover', filter: ['all', ['in', ['get', 'kind'], ['literal', ['sel', 'hover']]], ['==', ['geometry-type'], 'Point']],
     paint: { 'circle-radius': ['match', ['get', 'kind'], 'sel', 5, 11], 'circle-color': '#ffffff', 'circle-opacity': ['match', ['get', 'kind'], 'sel', 1, 0],
-      'circle-stroke-color': MARK, 'circle-stroke-width': ['match', ['get', 'kind'], 'sel', 1.5, BAND], 'circle-stroke-opacity': ['match', ['get', 'kind'], 'sel', 1, HOVER] } },
+      'circle-stroke-color': ['match', ['get', 'kind'], 'sel', HANDLE_EDGE, MARK], 'circle-stroke-width': ['match', ['get', 'kind'], 'sel', 1.5, BAND], 'circle-stroke-opacity': ['match', ['get', 'kind'], 'sel', 1, HOVER] } },
+  // among several selected, each element's key points as its handles would look, inert (features.js dots)
+  { id: 'draw-mark-dot', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'dot'],
+    layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
+    paint: { 'icon-color': '#ffffff', 'icon-halo-color': HANDLE_EDGE, 'icon-halo-width': 1.5 } },
   // the values of the elements showing them, and of what is being drawn (features.js valueFeatures):
   // on top of everything
   { id: 'draw-value', type: 'symbol', source: 'drawvalue', filter: ['has', 'label'],

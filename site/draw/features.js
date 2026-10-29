@@ -60,14 +60,14 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   const markOf = (id) => (!want.marks ? null : sel.has(id) ? 'sel' : hover === id ? 'hover' : null);
   // What says "selected": the one element selected shows its handles and its own stroke, untouched
   // (as the drawing tools do: the edge is what one aligns to), a point a small white dot at its
-  // centre; among several selected, each shows such dots at its key points (dots(): a line's ends and
-  // vertices, an area's or an outline's corners), inert, thinned as handles are. The blue band
-  // along an element is for hovering only.
+  // centre; among several selected, each shows squares as handles look at its key points (dots(): a
+  // line's ends and vertices, an area's or an outline's corners), inert, thinned as handles are. The
+  // band along an element is for hovering only.
   const mark = (id, geometry, props = {}, dots = null) => {
     const kind = markOf(id);
     if (!kind) return kind;
     if (kind === 'sel' && geometry.type !== 'Point') {
-      if (sel.size > 1 && dots) for (const p of thinned(dots())) marks.push({ type: 'Feature', properties: { id, kind }, geometry: { type: 'Point', coordinates: p } });
+      if (sel.size > 1 && dots) for (const p of thinned(dots())) marks.push({ type: 'Feature', properties: { id, kind: 'dot' }, geometry: { type: 'Point', coordinates: p } }); // as handles look, inert
     } else marks.push({ type: 'Feature', properties: { id, kind, ...props }, geometry: fine(geometry) });
     return kind;
   };

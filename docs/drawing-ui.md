@@ -253,7 +253,7 @@ click on the map picks a root):
   outlines, symbols, names and values, labels; within each, the drawing order (§4).
 - **Marks** are yellow cased in white, seen on the sea's blue as on the chart: half strength for hovering (a band just outside the
   element), full for the selection and for targets. The one element selected shows its handles; among
-  several, dots at their key points. What is not made yet is dashed and dark. Selecting never moves the
+  several, the same squares at their key points, inert. What is not made yet is dashed and dark. Selecting never moves the
   map; Zoom to does.
 - **Clicks**, no tool on: the topmost element; the same place again, the next one down.
 - **Dragging** a selected element moves it (several together); one undo step; Esc puts it back;
