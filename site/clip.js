@@ -295,11 +295,23 @@ export function clipper({ template, mode, omtTileJson }) {
   // a tile's elevation in metres as the data has it (no mask): also what inland water is classified
   // from, at lower zooms too
   const raw = (z, x, y) => rawCache(`${z}/${x}/${y}`, () => (mode === 'sea' ? gebcoTile(z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y))));
-  // shared by several requesters, so no single requester's abort signal reaches a fetch
-  const elevation = (z, x, y, omtOffset = 1) => cache(`${z}/${x}/${y}/${omtOffset}`, async () => {
+  // Shared by several requesters (the shading and the contours ask for the same tile): the work goes on
+  // while any of them still waits, and stops between its steps once every one has given up (MapLibre
+  // aborts the tiles a quick zoom leaves behind), so the tiles now wanted are not queued behind them
+  const waiting = new Map(); // key → { n: requesters still waiting, ac: aborts the work }
+  const elevation = (z, x, y, omtOffset = 1, signal = null) => {
+    const key = `${z}/${x}/${y}/${omtOffset}`;
+    let w = waiting.get(key);
+    if (!w) waiting.set(key, w = { n: 0, ac: new AbortController() });
+    w.n++;
+    signal?.addEventListener('abort', () => { if (--w.n === 0) w.ac.abort(); }, { once: true });
+    return cache(key, () => cut(z, x, y, omtOffset, w.ac.signal).finally(() => waiting.delete(key)));
+  };
+  const cut = async (z, x, y, omtOffset, signal) => {
     const [tw, ts, te, tn] = tileBounds(z, x, y);
     const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
     const src = await raw(z, x, y);
+    if (signal.aborted) throw new Error('aborted'); // nobody waits: not cut (the lru forgets a make that fails: asked again, it is)
     // surface per tile pixel: 0, or a DATUMS surface for pixels inside its box
     const lonAt = (i) => tw + ((i + 0.5) / SIZE) * (te - tw);
     const latAt = (j) => latOf((y + (j + 0.5) / SIZE) / 2 ** z);
@@ -310,6 +322,7 @@ export function clipper({ template, mode, omtTileJson }) {
     };
     const mask = await seaMask({ omtTemplate, raw, waterLevel }, z, x, y, // px, py: a shore vertex's place, fractional
       (px, py) => src[Math.floor(py) * SIZE + Math.floor(px)] - surface(px, py), (px, py) => surface(px, py) !== 0, omtOffset);
+    if (signal.aborted) throw new Error('aborted');
     const out = new Float32Array(SIZE * SIZE);
     for (let j = 0; j < SIZE; j++) {
       for (let i = 0; i < SIZE; i++) {
@@ -322,11 +335,11 @@ export function clipper({ template, mode, omtTileJson }) {
     }
     if (mode === 'land' && z <= SPIKE_MAXZOOM) clampCoastalSpikes(out, mask.map((m) => m === DEPTH), SIZE, SIZE);
     return { h: out, mask };
-  });
+  };
   return {
     // Terrarium-encoded ImageBitmap for a raster-dem source
-    async bitmap(z, x, y) {
-      const { h: e } = await elevation(z, x, y);
+    async bitmap(z, x, y, signal) {
+      const { h: e } = await elevation(z, x, y, 1, signal);
       const img = new ImageData(SIZE, SIZE), o = img.data;
       for (let k = 0; k < e.length; k++) {
         // The GPU interpolates between pixels, and the tint edge falls where the value
@@ -338,8 +351,8 @@ export function clipper({ template, mode, omtTileJson }) {
       return createImageBitmap(img, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
     },
     // metres for maplibre-contour (512 px contour tiles: cut with the coastline of the same zoom)
-    async contourElevation(z, x, y) {
-      const { h: e } = await elevation(z, x, y, 0);
+    async contourElevation(z, x, y, signal) {
+      const { h: e } = await elevation(z, x, y, 0, signal);
       // lakes carry NO_DEPTH_M for the shading's grey; for contours they are just "not sea"
       // (+1 m), or every lake would be ringed by contours from 0 to 9000 m. Depths half a metre
       // shallower: GEBCO is in whole metres, so on a flat shelf whole groups of cells read exactly
@@ -395,7 +408,7 @@ const ask = (msg, signal) => new Promise((resolve, reject) => {
   const w = clipWorker(); // throws while it is not to be started: this tile fails
   const n = ++seq;
   replies.set(n, { resolve, reject });
-  signal?.addEventListener('abort', () => { replies.delete(n); reject(new Error('aborted')); }, { once: true });
+  signal?.addEventListener('abort', () => { replies.delete(n); reject(new Error('aborted')); if (worker === w) w.postMessage({ cancel: n }); }, { once: true });
   w.postMessage({ ...msg, seq: n });
 });
 
@@ -409,7 +422,7 @@ export function workerClipper({ template, mode, omtTileJson }) {
       if (abortController?.signal.aborted) throw new Error('aborted');
       return { data: await ask({ mode, op: 'bitmap', zxy: zxy(params.url) }, abortController?.signal) };
     },
-    getTile: async (url) => ({ data: { elevation: await ask({ mode, op: 'contourElevation', zxy: zxy(url) }) } }),
+    getTile: async (url, ac) => ({ data: { elevation: await ask({ mode, op: 'contourElevation', zxy: zxy(url) }, ac?.signal) } }),
     decodeImage: async (data) => ({ width: SIZE, height: SIZE, data: data.elevation }),
     metres: (z, x, y) => ask({ mode, op: 'metres', zxy: [z, x, y] }),
   };
