@@ -1,7 +1,7 @@
 // Pure helpers (no map, no DOM): angle and distance formatting, Mercator scale, text wrap.
 // Kept apart from app.js so they can be unit-tested in Node.
 
-import { norm360, NM, D2R } from './geo.js';
+import { norm360, norm180, NM, D2R } from './geo.js';
 
 // a length, an area, a bearing as read (in the display's units: 'km' or 'nm')
 export function fmtDist(m, units) {
@@ -143,7 +143,7 @@ export function distText(m, units) {
 // Export file name (and STAC id): chart-YYYYMMDD-HHMM in UTC, then the view's centre to 0.01°
 // (about 1 km), e.g. chart-20261020-1636-40.51N-17.16E: sorts by time, says where
 export function exportName(when, lat, lng) {
-  lng = ((((lng + 180) % 360) + 360) % 360) - 180;
+  lng = norm180(lng);
   const deg = (v, pos, neg) => { const t = Math.abs(v).toFixed(2); return `${t}${v >= 0 || t === '0.00' ? pos : neg}`; };
   return `chart-${when.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}-${deg(lat, 'N', 'S')}-${deg(lng, 'E', 'W')}`;
 }

@@ -12,6 +12,7 @@ import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ow
 import { resolve, targetPosition } from './attach.js';
 import { groupSizeOf } from './generator.js';
 import { positionsOf } from './lines.js';
+import { norm180 } from '../geo.js';
 
 const SIDES = ['left', 'right', 'alternate'];
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
@@ -298,7 +299,7 @@ const READ = {
 // ---- writing ---------------------------------------------------------------------------------
 
 const r7 = (v) => +v.toFixed(7), r3 = (v) => +v.toFixed(3), r4 = (v) => +v.toFixed(4);
-const pos = (p) => [r7(p[0]), r7(p[1])];
+const pos = (p) => [r7(norm180(p[0])), r7(p[1])]; // a click past ±180° is kept as the map has it, written in range (§2)
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // o without the fields equal to their defaults d; an object field against an object default field by
 // field, left out when nothing in it differs

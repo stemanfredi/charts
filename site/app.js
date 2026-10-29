@@ -12,7 +12,7 @@ import { savedView } from './draw/saving.js';
 import { drawView } from './draw/panel.js';
 import { profileOf } from './draw/profile.js';
 import { circle } from './geodesy.js';
-import { norm360, tileXY, TILE, D2R } from './geo.js';
+import { norm360, norm180, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
 import { $, h, svg, typing, NARROW, COMPACT } from './dom.js';
 import { choice } from './fields.js';
@@ -687,7 +687,7 @@ function updateGraticule() {
   const latTop = map.unproject([W / 2, 64]).lat, lonLeft = map.unproject([8, H / 2]).lng;
   const label = (coord, text, anchor) => f.push({ type: 'Feature', properties: { label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
   for (let lon = Math.ceil(w / step) * step; lon <= e; lon += step) {
-    const L = ((k0(lon) + 540) % 360) - 180;
+    const L = norm180(k0(lon));
     f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[lon, s], [lon, n]] } });
     if (edges) label([lon, latTop], fmtAngle(L, 'E', 'W', step), 'top');
   }
@@ -1125,11 +1125,11 @@ map.on('click', async (e) => {
   const source = DEPTH_SOURCES.find(({ codes: [a, b] }) => code >= a && code <= b);
   // −1: shallower than 1 m, or sea the data calls dry (clip.js)
   const depth = v >= -1 ? 'Under 1 m' : `${Math.floor(-v)} m`;
-  depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, depth), h('span', { class: 'at' }, `${dm(lat, 'N', 'S')} ${dm(((lng + 540) % 360) - 180, 'E', 'W')}`),
+  depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, depth), h('span', { class: 'at' }, `${dm(lat, 'N', 'S')} ${dm(norm180(lng), 'E', 'W')}`),
     h('small', {}, ['GEBCO 2026', source?.label.toLowerCase()].filter(Boolean).join(' · ')))).addTo(map);
 });
 // cursor position readout
-map.on('mousemove', (e) => { posEl.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(((e.lngLat.lng + 540) % 360) - 180, 'E', 'W')}`; });
+map.on('mousemove', (e) => { posEl.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(norm180(e.lngLat.lng), 'E', 'W')}`; });
 
 // ---- scale note: the Mercator scale bar is exact only at the centre latitude ------------
 // relative change of the Mercator scale (∝ 1/cos lat) across the view: from the lowest to the

@@ -3,7 +3,7 @@
 // and a measured one are the same number. Lines are densified geodesics, so what you see is the path the numbers
 // describe. Positions are [lon, lat], distances metres, azimuths degrees clockwise from true north.
 
-import { unrollTo } from './geo.js';
+import { unrollTo, norm180 } from './geo.js';
 
 // GeographicLib is a classic script on the page (window.geodesic); tests set globalThis.geodesic
 export const G = globalThis.geodesic.Geodesic.WGS84;
@@ -28,8 +28,8 @@ export function destination(p, azi, s) {
 // spans a few tens of km at most
 export function localFrame([lon0, lat0]) {
   const k = inverse([lon0, lat0], [lon0 + 1e-4, lat0]).s / 1e-4, m = inverse([lon0, lat0], [lon0, lat0 + 1e-4]).s / 1e-4;
-  const wrap = (d) => ((d + 540) % 360) - 180; // the short way round, across ±180° too
-  return { to: ([lon, lat]) => [wrap(lon - lon0) * k, (lat - lat0) * m], from: ([x, y]) => [wrap(lon0 + x / k), lat0 + y / m] };
+  // the short way round, across ±180° too
+  return { to: ([lon, lat]) => [norm180(lon - lon0) * k, (lat - lat0) * m], from: ([x, y]) => [norm180(lon0 + x / k), lat0 + y / m] };
 }
 // Points along the geodesic p→q, every ≤ step metres, with continuous longitude.
 export function densify(p, q, step = 20000) {
