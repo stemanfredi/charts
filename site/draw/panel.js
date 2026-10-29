@@ -885,7 +885,9 @@ export function drawView(root, ctx) {
     const offsetElsewhere = elements(drawing.doc).filter((x) => x.el.look?.offset != null); // where Offset is set on an element
     title = `Drawing · ${m.title?.trim() || 'Untitled drawing'}`;
     const titleField = Object.assign(meta('title', 'Title'), { placeholder: 'Untitled drawing' }); // what the tree and the bar call it while it has none
+    const when = (t) => new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
     return [row('Title', titleField), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
+      row('Created', fvalue(when(drawing.doc.created), { title: 'Last change: ' + when(drawing.doc.modified) })),
       lookBlock([{ kind: 'drawing', el: drawing.doc }], LOOK_FIELDS.drawing, 'Display', [
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Units', segOf('Distance units', [['km', 'km', 'Kilometres'], ['nm', 'NM', 'Nautical miles']], ctx.display.units, (v) => ctx.setDisplay({ units: v }))),

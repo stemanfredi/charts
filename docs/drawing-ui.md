@@ -158,7 +158,7 @@ the drawing.
 
 It shows one element, several (its head counts them by kind; what they share, set on all at once;
 one Look for all; how far apart two points are, and the bearing from the first to the second;
-**Connect…**), a group, or the drawing (title, description, author;
+**Connect…**), a group, or the drawing (title, description, author, when it was created;
 **Display**, the drawing's look, the distance units and the leg bearings; **Totals** by group or by a property, Copy). A field applies on Enter
 or when left, one undo step; a value that does not read stays marked and is not applied; Esc puts it
 back. ↑ ↓ nudge a number by its last digit (Shift: ten). Distances show to the decimetre (m), the
