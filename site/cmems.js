@@ -138,6 +138,7 @@ export async function cmemsTile({ url }, abortController) {
     g.drawImage(im, 0, 0);
     g.restore();
   });
+  for (const im of images) im?.close(); // drawn: freed now, not when collected
   return { data: c.transferToImageBitmap() };
 }
 
