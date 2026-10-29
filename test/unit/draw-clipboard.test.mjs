@@ -42,14 +42,13 @@ test('a copy pasted: new IDs and numbered names, moved, its group kept; attachme
   assert.equal(twice.name, 'Mark 2');
 });
 
-test('presets: a point\'s look kept under a name; stored; a file of them read back, what is not one left out', () => {
+test('presets: a point\'s own look kept under a name; stored; a file of them read back, what is not one left out', () => {
   const doc = emptyDoc(0);
-  const p = addPoint(doc, [10, 40], { bearing: 30, parts: [makePart('circle'), { ...makePart('sector', { radius: 2000, aperture: 45 }), fill: false, name: 'wide' }, makePart('triangle', { length: 80, width: 100 })] });
-  const pre = presetOf(doc, p, 'Mine');
+  const p = addPoint(doc, [10, 40], { bearing: 30, look: { stroke: { color: '#1f5f86' } }, parts: [makePart('circle'), { ...makePart('sector', { radius: 2000, aperture: 45 }), fill: false, name: 'wide' }, makePart('triangle', { length: 80, width: 100 })] });
+  const pre = presetOf(p, 'Mine');
   assert.deepEqual([pre.name, Object.keys(pre.point).sort(), pre.point.symbol, pre.point.parts], ['Mine', ['look', 'parts', 'symbol'], 'diamond', p.parts]); // its parts, not its bearing
   assert.notEqual(pre.point.parts[0], p.parts[0], 'a copy');
-  assert.equal(pre.point.look.stroke.color, '#e8590c');
-  assert.ok(!('minSize' in pre.point.look)); // the drawing's
+  assert.deepEqual(pre.point.look, { stroke: { color: '#1f5f86' } }); // what it sets itself, nothing it takes from the drawing or the defaults
   const back = readPresets(presetsFile([pre, { name: '' }, { name: 'x' }, pre]));
   assert.deepEqual(back.map((x) => x.name), ['Mine']);
   assert.deepEqual(back[0].point.parts, p.parts);

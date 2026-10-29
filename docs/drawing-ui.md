@@ -296,7 +296,8 @@ lives in this page, so it pastes into another drawing opened in it.
 
 ## 9. Presets
 
-**Save as preset…** (a point's Properties) keeps its symbol, parts, fill and stroke under a name. One
+**Save as preset…** (a point's Properties) keeps its symbol, parts and the fill and stroke it sets
+itself (not what it takes from the drawing or the defaults) under a name; Distribute along copies all of it. One
 with parts joins Shape's kinds, one without Point's. Placing one makes a point named after it, with
 the preset's name as a property; a right-click on it among the kinds renames or deletes it. Presets
 live in this browser only; **Download** › **Presets (JSON)** and **Open a file…** move them.

@@ -3,7 +3,7 @@
 // this browser only, never in the app or a drawing's file; a small file of their own moves them to
 // another browser (Export, Import). Local storage may be missing or refuse: every access is guarded.
 
-import { styleOf, SYMBOLS } from './document.js';
+import { SYMBOLS } from './document.js';
 import { parts, look } from './check.js';
 import { store } from '../dom.js';
 
@@ -17,9 +17,11 @@ export function loadPresets() {
 export function savePresets(list) {
   return store.set(KEY, JSON.stringify(list));
 }
-// a point as a preset named name: its symbol, its parts, and its fill and stroke as drawn
-export function presetOf(doc, p, name) {
-  return { name, point: structuredClone({ symbol: p.symbol, parts: p.parts, look: styleOf(doc, p) }) };
+// a point as a preset named name: its symbol, its parts, and the fill and stroke it sets itself (what
+// it takes from the drawing or the defaults, a point placed from it takes as well)
+export function presetOf(p, name) {
+  const { fill, stroke } = p.look;
+  return { name, point: structuredClone({ symbol: p.symbol, parts: p.parts, look: { ...(fill && { fill }), ...(stroke && { stroke }) } }) };
 }
 // the presets as a file, and back (what is not a preset left out); null: not a presets file
 export const presetsFile = (list) => `${JSON.stringify({ format: PRESETS_FORMAT, presets: list }, null, 2)}\n`;

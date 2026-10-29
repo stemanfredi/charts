@@ -294,7 +294,7 @@ export function drawView(root, ctx) {
         onclick: async () => {
           const name = (await askText('Save as preset', 'Name', el.name || 'Preset'))?.trim();
           if (!name) return;
-          const p = presetOf(drawing.doc, now(id), name);
+          const p = presetOf(now(id), name);
           drawing.presets = [...drawing.presets.filter((x) => x.name !== name), p];
           savePresets(drawing.presets);
           const tool = presetTool(p);
@@ -818,7 +818,7 @@ export function drawView(root, ctx) {
     const choose = (v) => {
       dform.preset = v;
       const pre = v.startsWith('preset:') && mine.find((x) => `preset:${x.name}` === v);
-      dform.copy = pre ? { symbol: pre.point.symbol, parts: structuredClone(pre.point.parts) } : null;
+      dform.copy = pre ? structuredClone(pre.point) : null; // its symbol, parts and own look, as placed by hand
       redo();
     };
     const reach = dform.copy ? Math.max(...dform.copy.parts.map((q) => q.radius ?? q.length / 2)) : null;

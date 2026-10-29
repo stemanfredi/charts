@@ -375,7 +375,7 @@ They are checked loosely: one without a valid, unused `id` is skipped.
 | `offset` | metres to one side |
 | `side` | `"left"`, `"right"` or `"alternate"`, facing along the line (round a part, left is outwards) |
 | `preset` | what each copy is: missing or `"circle"`, a circle of `radius` (a sector of `aperture`); another built-in kind (`"rings"`, `"rectangle"`…), its parts scaled so that the largest reaches `radius`; `"preset:<name>"`, one of the user's, kept in `copy` |
-| `copy` | a user's preset as it was chosen: `{ symbol, parts }` (parts as a point's, §6), its size its own |
+| `copy` | a user's preset as it was chosen: `{ symbol, parts, look }` (parts as a point's, §6; `look` its own fill and stroke, missing: none), its size its own |
 | `radius` | metres: the copies' reach, apart from the spacing; missing: 500 when they are made or edited again |
 | `aperture` | the circle's sector, this wide, facing away from what it follows; missing: circles |
 | `points` | each copy made: `t` its place along (0–1), `left` its side, `pos` where it was last put |

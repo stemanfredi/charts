@@ -181,7 +181,8 @@ function read(raw, app, known, now, report) {
         if (!along) c.skip('nothing it is along');
         taken.add(x.id);
         const d = (k) => (fin(x[k]) && x[k] >= 0 ? x[k] : 0);
-        const copy = isObj(x.copy) ? { symbol: SYMBOLS.includes(x.copy.symbol) ? x.copy.symbol : 'none', parts: parts(x.copy.parts, c) } : null;
+        const lk = isObj(x.copy) ? look(x.copy.look, c) : {};
+        const copy = isObj(x.copy) ? { symbol: SYMBOLS.includes(x.copy.symbol) ? x.copy.symbol : 'none', parts: parts(x.copy.parts, c), ...(Object.keys(lk).length && { look: lk }) } : null;
         return { id: x.id, kind: 'distribute', groupId: ref(x.groupId), copiesId: ref(x.copiesId), along: { element: along, part: Number.isInteger(x.along.part) && x.along.part >= 0 ? x.along.part : null },
           spacing: fin(x.spacing) && x.spacing > 0 ? x.spacing : null, count: Number.isInteger(x.count) && x.count > 0 ? x.count : null,
           startMargin: d('startMargin'), endMargin: d('endMargin'), offset: d('offset'), side: SIDES.includes(x.side) ? x.side : 'left',
@@ -402,7 +403,7 @@ export function toFile(doc) {
     rules: doc.rules.map((a) => (a.kind === 'distribute'
       ? lean({ ...a, along: { element: a.along.element, ...(a.along.part != null ? { part: a.along.part } : {}) }, spacing: a.spacing == null ? null : r3(a.spacing), radius: a.radius == null ? null : r3(a.radius),
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),
-        copy: a.copy && { symbol: a.copy.symbol, parts: a.copy.parts.map(partOut) },
+        copy: a.copy && lean({ symbol: a.copy.symbol, parts: a.copy.parts.map(partOut), look: lookOut(a.copy.look ?? {}) }, { look: {} }),
         points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
       : lean({ ...a, roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: +r.weight.toPrecision(6) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECTION_D))),
   }, { meta: {}, view: null, look: {}, groups: [], rules: [] });
