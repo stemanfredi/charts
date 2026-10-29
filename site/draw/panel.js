@@ -988,7 +988,7 @@ export function drawView(root, ctx) {
   // ---- map and files --------------------------------------------------------------------------
   function showOnMap(ids) {
     const b = boundsOf(drawing.doc, ids);
-    if (b) map.fitBounds(b, { padding: ctx.free?.() ?? 60, maxZoom: 20 }); // clear of the panel; close enough for a 6 m shape
+    if (b) map.fitBounds(b, { padding: ctx.free(), maxZoom: 20 }); // clear of the panel; close enough for a 6 m shape
   }
   root.replaceChildren(tree.box);
   ctx.props.append(inspHead, inspector);

@@ -316,11 +316,7 @@ function viewToAddress(v, q) {
 }
 const drawing = new Drawing(map, {
   known: KNOWN, getView: viewOf, units: () => display.units, bearings: () => display.bearings,
-  onChange: (what) => {
-    if (what === 'drag') return drawPanel.render('drag'); // its values on the map, and in Properties as it moves
-    if (what === 'draft') return drawPanel.render('draft'); // the touch row's Done
-    drawPanel.render(what);
-  },
+  onChange: (what) => drawPanel.render(what),
 });
 
 // ---- applying the state to the map ------------------------------------------

@@ -836,9 +836,9 @@ export class Drawing extends DrawStore {
 
   // a new element of the tool's kind at p, at its default size, as its variant says, selected (the
   // Point tool's click)
-  place(p, tool = this.tool) {
+  place(p) {
     let el;
-    this.change((doc) => { el = placeKind(doc, p, this.variant[tool === 'shape' ? 'shape' : 'point'], this.presets); });
+    this.change((doc) => { el = placeKind(doc, p, this.variant.point, this.presets); });
     this.select([el.id]);
     return el;
   }

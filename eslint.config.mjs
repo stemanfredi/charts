@@ -7,7 +7,7 @@ export default [
   { ignores: ['site/vendor/', '.tmp-*/'] }, // the libraries, as npm ships them; local scratch
   js.configs.recommended,
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
-  { files: ['site/**/*.js'], languageOptions: { globals: { ...globals.browser, ...globals.worker, geodesic: 'readonly' } } },
+  { files: ['site/**/*.js'], languageOptions: { globals: { ...globals.browser, ...globals.worker } } },
   { files: ['test/**/*.mjs', 'tools/**/*.mjs', '*.mjs'], languageOptions: { globals: { ...globals.node, ...globals.browser, map: 'readonly', drawing: 'readonly' } } }, // map, drawing: in page.evaluate
   { rules: { 'no-unused-vars': ['error', { caughtErrors: 'none' }], eqeqeq: ['error', 'always', { null: 'ignore' }], 'no-var': 'error', 'prefer-const': 'error', 'no-unused-expressions': ['error', { allowTernary: true }] } },
 ];
