@@ -60,7 +60,7 @@
   <!-- the map's foot (drawing-ui.md §1): one strip above the bottom row, between the panels (a
        phone: above its sheet). At its left, from the top: the note, the legends, the touch row; at
        its right the map's controls: my position, north when turned (zoom with a mouse; find a place too,
-       on a phone or a tablet) -->
+       on a tablet) -->
   <div id="foot" class="foot">
     <div id="footl" class="footl"><div id="legends" class="legends" aria-label="Legends"></div></div>
     <div id="mapctl" class="mapctl" role="group" aria-label="Map controls">
@@ -71,6 +71,8 @@
       <button type="button" id="compass" aria-label="Reset to north" title="Reset to north" hidden><i data-icon="compass"></i></button>
     </div>
   </div>
+  <!-- a phone's tools (frame.js, draw/tools.js): a bar along the bottom, under its sheet -->
+  <div id="dock" class="dock" role="toolbar" aria-label="Drawing tools"></div>
   <footer id="status" class="status"></footer>
 
   <dialog id="about" aria-labelledby="about-title">

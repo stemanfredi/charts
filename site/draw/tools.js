@@ -1,6 +1,7 @@
 // The drawing's tools (docs/drawing-ui.md §1, §2): their buttons in the bar (Undo, Redo, Select, Box
 // select, Point, Line, Shape, Label, Measure), a tool's kinds in a row under its button, the touch row over
-// the map's foot (with a finger). A tool with kinds remembers the one chosen last; while it is on,
+// the map's foot (with a finger). On a phone Undo and the tools are the dock, the bar along the bottom,
+// with Back, Snap and Done while a tool is on, the kinds in a row above it. A tool with kinds remembers the one chosen last; while it is on,
 // its key steps to the next kind and its button opens the row (app.js).
 
 import { h, NARROW } from '../dom.js';
@@ -63,7 +64,8 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     onclick: () => drawing.boxSelect(!drawing.boxNext) }, icon(...BOX_ICON));
   // With a finger (drawing-ui.md §1): what keys and a mouse do on a computer, each shown when it
   // applies. Back steps back one level (what is half drawn, else the tool, else the selection); Snap
-  // off places as Alt does; Undo (the bar has no room for it on a phone); Properties, while off.
+  // off places as Alt does. On a phone Back, Snap and Done are the dock's; the selection's actions are
+  // its sheet's head (frame.js)
   const touchBtn = (text, title, run) => h('button', { type: 'button', title, onclick: run }, text);
   const touch = {
     done: touchBtn('Done', 'End the line or measurement being drawn (Enter, or a double-click)', () => drawing.finish()),
@@ -71,24 +73,19 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     del: touchBtn('Delete', 'Delete the selection (Delete)', () => del([...drawing.sel])),
     dup: touchBtn('Duplicate', `A copy of the selection beside it (${MOD} D)`, () => drawing.duplicate()),
     snap: h('button', { type: 'button', title: 'Snap to what is drawn; off: placed exactly where tapped (Alt)', onclick: () => { drawing.snapOff = !drawing.snapOff; renderTools(); } }, 'Snap'),
-    box: touchBtn('Box', 'Box select: drag a box on the map, what lies inside it selected', () => drawing.boxSelect(!drawing.boxNext)),
-    undo: touchBtn('Undo', `Undo (${MOD} Z)`, () => drawing.undo()),
-    props: touchBtn('Properties', 'Its properties (I)', () => ctx.frame.setProps(true)),
   };
-  const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' }, Object.values(touch));
+  touch.done.classList.add('done');
+  const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' });
   document.querySelector('#footl').append(touchbar); // the map's foot, under the legends
   function renderTouch() {
-    const sel = drawing.sel.size > 0, tool = !!drawing.tool;
+    const sel = drawing.sel.size > 0, tool = !!drawing.tool, phone = NARROW.matches;
     touch.done.hidden = !(['line', 'measure'].includes(drawing.tool) && drawing.draft);
-    touch.back.hidden = !tool && !sel;
+    touch.back.hidden = !tool && (phone || !sel); // a phone: a tap on the map clears the selection
     touch.del.hidden = touch.dup.hidden = !sel || tool;
     touch.snap.hidden = !tool;
     touch.snap.setAttribute('aria-pressed', String(!drawing.snapOff));
-    touch.box.hidden = !NARROW.matches || tool; // a phone's bar has no room for it
-    touch.box.setAttribute('aria-pressed', String(!!drawing.boxNext));
-    touch.undo.hidden = !NARROW.matches || !drawing.undos.length;
-    touch.props.hidden = !NARROW.matches || !sel || tool || ctx.frame.props; // a phone's bar has no Properties toggle
-    touchbar.hidden = Object.values(touch).every((b) => b.hidden);
+    for (const b of toolBtns) b.hidden = phone && tool && b.dataset.tool !== drawing.button; // a phone: the tool on alone
+    touchbar.hidden = phone || [touch.done, touch.back, touch.del, touch.dup, touch.snap].every((b) => b.hidden);
   }
   // a kind's button: its name; a preset's, right-click to rename or delete it
   const kindBtn = (tool, v, name, onclick, pressed) => {
@@ -105,7 +102,8 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     kindsRow.replaceChildren(...vs.map(([v, name]) => kindBtn(tool, v, name, () => choose(tool, v), current(tool) === v)));
     // under its tool's button, as the bar's menus hang under theirs (4 px below the button, its left
     // edge on the button's), within the window
-    const from = toolBtns.find((x) => x.dataset.tool === tool);
+    // (a phone: above the dock, style.css)
+    const from = !NARROW.matches && toolBtns.find((x) => x.dataset.tool === tool);
     kindsRow.style.left = from && !kindsRow.hidden ? `${Math.max(0, Math.min(from.offsetLeft, innerWidth - kindsRow.offsetWidth - 6))}px` : '';
     kindsRow.style.top = from && !kindsRow.hidden ? `${from.offsetTop + from.offsetHeight + 4}px` : '';
   }
@@ -127,7 +125,23 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
   // and Box select; what makes elements; Measure; at its end Properties' toggle (app.js puts find a
   // place before it)
   const makes = toolBtns.filter((b) => b.dataset.tool !== 'measure'), measure = toolBtns.find((b) => b.dataset.tool === 'measure');
-  ctx.bar.replaceChildren(...fileBtns, sep(), ...ctx.frame.tabBtns, sep(), undoBtn, redoBtn, sep(), selectBtn, boxBtn, sep(), ...makes, sep(), measure, h('span', { class: 'grow' }), ctx.frame.rightBtn, kindsRow);
+  const makesSep = sep(), measureSep = sep();
+  ctx.bar.replaceChildren(...fileBtns, sep(), ...ctx.frame.tabBtns, sep(), undoBtn, redoBtn, sep(), selectBtn, boxBtn, makesSep, ...makes, measureSep, measure, h('span', { class: 'grow' }), ctx.frame.rightBtn, kindsRow);
+  // a phone: Undo and the tools in the dock (Back, Snap, Done with them); else in the bar, those three in the touch row
+  const dock = document.querySelector('#dock');
+  function placeTools() {
+    if (NARROW.matches) dock.replaceChildren(touch.back, undoBtn, ...toolBtns, touch.snap, touch.done, kindsRow);
+    else {
+      redoBtn.before(undoBtn);
+      makesSep.after(...makes);
+      measureSep.after(measure);
+      ctx.bar.append(kindsRow);
+      touchbar.replaceChildren(...Object.values(touch));
+    }
+    renderTouch();
+  }
+  NARROW.addEventListener?.('change', placeTools);
+  placeTools();
   function renderTools() {
     const on = drawing.button;
     selectBtn.setAttribute('aria-pressed', String(!on && !drawing.boxNext));

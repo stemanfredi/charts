@@ -11,7 +11,7 @@ import { start } from './browser.mjs';
 const VIEWPORTS = [['phone', 390, 844, true], ['tablet', 820, 1180, true], ['desktop', 1280, 800, false]];
 // overlays that must not collide (screen-space boxes of floating UI)
 const OVERLAYS = {
-  search: '#search', controls: '#mapctl', legend: '#legends', touch: '.touchbar', note: '.dnote', status: '#status', bar: '#bar', side: '#side', props: '#props',
+  search: '#search', controls: '#mapctl', legend: '#legends', touch: '.touchbar', note: '.dnote', status: '#status', bar: '#bar', dock: '#dock', side: '#side', props: '#props',
 };
 
 // a drawing as the app saves it (GeoJSON, version 1): a point with two sectors, a rectangle, a line

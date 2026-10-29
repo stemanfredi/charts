@@ -2,7 +2,8 @@
 // the left one with tabs (Layers, Elements: each a button in the bar), the right one Properties.
 // Each is as wide as dragged at its inner edge (double-click: the default), remembered in this browser. On a phone they are one
 // bottom sheet at a time, as tall as dragged at its grip (dragged down to the bottom: closed). Which tab is open (or none) and whether
-// Properties is on are the user's; Properties shows only while it has something to show (has()).
+// Properties is on are the user's; Properties shows only while it has something to show (has()). On a phone, while it is off and the
+// left is closed, what it shows peeks: its head alone at the bottom (its actions), a tap or a drag up on it Properties on.
 // What the panels hold is their modules': this only places them.
 
 import { h, store, NARROW } from './dom.js';
@@ -42,6 +43,11 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
   left.append(...tabs.map((t) => t.body), edge(left, 'left'));
   right.prepend(grip(right));
   right.append(edge(right, 'right'));
+  right.addEventListener('click', (e) => { if (right.classList.contains('peek') && !e.target.closest('button, input, select, a')) setProps(true); });
+  // a phone: the map's foot and fitting keep above the sheet shown, its height as laid out (the peek's is its head's)
+  const sized = new ResizeObserver(() => root.style.setProperty('--sheet-now', `${Math.max(...[left, right].map((e) => (e.hidden ? 0 : e.offsetHeight)))}px`));
+  sized.observe(left);
+  sized.observe(right);
 
   function drag(e, panel, what) {
     if (e.button !== 0) return;
@@ -50,7 +56,11 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
     el.setPointerCapture(e.pointerId);
     let down = false; // the sheet dragged most of the way down: closed when let go
     const move = (ev) => {
-      if (what === 'sheet') { const v = ((innerHeight - ev.clientY) / innerHeight) * 100; down = v < SHEET.min / 2; st.sh = clamp(v, SHEET); }
+      if (what === 'sheet') {
+        const v = ((panel.getBoundingClientRect().bottom - ev.clientY) / innerHeight) * 100; // from its foot (a phone's: the dock)
+        if (panel === right && !st.props) { if (v < SHEET.min / 2) return; st.props = true; } // the peek dragged up: Properties on
+        down = v < SHEET.min / 2; st.sh = clamp(v, SHEET);
+      }
       else if (what === 'left') st.lw = clamp(ev.clientX - panel.getBoundingClientRect().left, LEFT);
       else st.rw = clamp(panel.getBoundingClientRect().right - ev.clientX, RIGHT);
       place();
@@ -68,11 +78,12 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
   const yields = () => !!st.tab && left.hidden && !NARROW.matches;
   let told = false;
   function place() {
-    const wantsRight = st.props && st.has, both = !NARROW.matches && innerWidth - st.lw - st.rw >= MIN_MAP;
+    const wantsRight = st.has && (st.props || NARROW.matches), both = !NARROW.matches && innerWidth - st.lw - st.rw >= MIN_MAP;
     const showLeft = !!st.tab && (both || !wantsRight || (NARROW.matches && !st.props)), showRight = wantsRight && !(NARROW.matches && showLeft);
     if (!told && !left.hidden && !showLeft && st.tab && !NARROW.matches) { told = true; note('No room for both panels: Elements and Layers make way for Properties until it closes (or narrow either)'); }
     left.hidden = !showLeft;
     right.hidden = !showRight;
+    right.classList.toggle('peek', showRight && !st.props);
     for (const t of tabs) t.body.hidden = t.id !== st.tab;
     tabs.forEach((t, i) => tabBtns[i].setAttribute('aria-pressed', String(showLeft && t.id === st.tab)));
     left.setAttribute('aria-label', tabs.find((t) => t.id === st.tab)?.label ?? '');

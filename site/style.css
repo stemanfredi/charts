@@ -408,12 +408,13 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
    end find a place, About and Properties' toggle ---- */
 .bar { position: absolute; z-index: 9; left: 0; right: 0; top: 0; height: var(--bar-h); display: flex; align-items: center; gap: 2px; padding: 0 6px 1px;
   background: var(--bg2); box-shadow: inset 0 -1px var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
-.bar > button { position: relative; width: 28px; height: 28px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
-.bar > button svg { width: 18px; height: 18px; }
-.bar > button:hover { background: var(--line2); }
-.bar > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.dock { display: none; } /* a phone's (below) */
+:is(.bar, .dock) > button { position: relative; width: 28px; height: 28px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
+:is(.bar, .dock) > button svg { width: 18px; height: 18px; }
+:is(.bar, .dock) > button:hover { background: var(--line2); }
+:is(.bar, .dock) > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .bar > :is(.ptoggle, #b-find)[aria-pressed="true"], .bar > #b-find[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
-.bar > button:disabled { opacity: .35; cursor: default; background: none; }
+:is(.bar, .dock) > button:disabled { opacity: .35; cursor: default; background: none; }
 /* the file group: Open (a phone's ☰: the second icon), Download, Copy link */
 .bar > .filebtn svg + svg { display: none; }
 /* COMPACT (dom.js: a phone, or a finger's buttons under 1,280 px): the file group and About in Open's
@@ -425,7 +426,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 }
 /* Layers' spinner: in its button's corner */
 .bar > .ptab .spin { position: absolute; right: 2px; top: 2px; width: 9px; height: 9px; border-width: 1.5px; }
-.bar > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
+:is(.bar, .dock) > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
 /* dividers between the tools' groups: short, centred */
 .tsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; flex: none; }
 .bar > .grow { flex: 1; }
@@ -437,19 +438,31 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .kinds button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .kinds svg { width: 18px; height: 18px; }
 .kinds .initials { font-size: 12px; font-weight: 600; }
-@media (pointer: coarse) { .bar > button, .kinds button { width: 44px; height: 44px; } }
-/* a phone: the bar's tools alone (Undo in the touch row), no dividers; the panels a bottom sheet, as
-   tall as dragged at its grip, the map's controls and the touch row above it */
+@media (pointer: coarse) { :is(.bar, .dock) > button, .kinds button { width: 44px; height: 44px; } }
+/* a phone: the bar ☰, find a place, Layers, Elements; the dock along the bottom, Undo and the tools (while
+   one is on: Back, it, Snap, Done), its kinds in a row above it; the panels a bottom sheet over the dock, as
+   tall as dragged at its grip, the map's foot above it; Properties, while off, its head alone (a peek) */
 @media (max-width: 719px) {
-  :root { --sheet: min(var(--sheet-h), calc(100vh - var(--bar-h) - 160px)); } /* the sheet as tall as dragged, the map's foot and some map left */
-  .bar > :is(.tsep, .grow, .urbtn, .pright, .selbtn, .boxbtn) { display: none; } /* the touch row's: Properties, Undo, Back (Select), Box */
-  .kinds { max-width: calc(100vw - 12px); flex-wrap: wrap; } /* a tool's kinds on two lines rather than off the screen */
-  .bar { justify-content: space-between; }
-  .side, .props { top: auto; left: 0; right: 0; width: auto; height: var(--sheet); border: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; box-shadow: 0 -4px 16px rgba(20, 30, 40, .14); }
+  :root { --sheet: min(var(--sheet-h), calc(100vh - 2 * var(--bar-h) - 160px)); } /* the sheet as tall as dragged, the map's foot and some map left */
+  .bar > :is(.tsep, .grow, .urbtn, .pright, .selbtn, .boxbtn), #b-find { display: none; } /* find a place: the bar's field */
+  .bar > .search { order: 1; flex: 1 1 auto; min-width: 0; }
+  .bar > .ptab { order: 2; }
+  .dock { position: absolute; z-index: 9; left: 0; right: 0; bottom: 0; height: var(--bar-h); display: flex; align-items: center; justify-content: space-evenly; gap: 2px; padding: 1px 6px 0;
+    background: var(--bg2); box-shadow: inset 0 1px var(--line); }
+  .dock > button:not(:has(svg)) { width: auto; padding: 0 12px; font-size: 13px; } /* Back, Snap, Done: words */
+  .dock > button.done { background: var(--accent); color: #fff; }
+  .dock > .kinds { left: 6px; right: 6px; bottom: calc(100% + 4px); overflow-x: auto; } /* one row, sideways */
+  .dock > .kinds button { flex: none; }
+  .status { bottom: var(--bar-h); }
+  .foot { bottom: calc(var(--bar-h) + var(--status-h)); }
+  .side, .props { top: auto; bottom: var(--bar-h); left: 0; right: 0; width: auto; height: var(--sheet); border: 0; border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; box-shadow: 0 -4px 16px rgba(20, 30, 40, .14); }
+  .props.peek { height: auto; cursor: pointer; }
+  .props.peek > :not(.grip, .dinsphead) { display: none; }
+  .props.peek > .dinsphead { border-bottom: 0; }
   :is(.side, .props) > .edge { display: none; }
   .grip { display: grid; place-items: center; flex: none; height: 20px; cursor: row-resize; touch-action: none; }
   .grip::after { content: ""; width: 36px; height: 4px; border-radius: 2px; background: #c3ccd3; }
-  body:is(.has-left, .has-right) .foot { bottom: var(--sheet); }
+  body:is(.has-left, .has-right) .foot { bottom: calc(var(--bar-h) + var(--sheet-now, var(--sheet))); }
   body:is(.has-left, .has-right) .legends { display: none; } /* the map left is small: its legends with the panel shut */
 }
 .dinsphead { flex: none; display: flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 4px 0 6px; border-bottom: 1px solid var(--line); background: var(--bg); }

@@ -1131,26 +1131,45 @@ await section('the drawing', async () => {
 
 await section('with a finger, on a phone', async () => {
   // with a finger, on a phone (drawing-ui.md §1): the sheet closed to start with, Elements and
-  // Properties in it one at a time; the touch row over the map; handles larger
+  // Properties in it one at a time; the tools in the dock, Back and Snap there while one is on; what is
+  // selected peeks (Properties' head), a tap on it Properties; a finger held then dragged: a box; handles larger
   const fctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const fp = await open('#v=11/40.2/12.1/0&on=chart,coastline', fctx);
   const shown = () => fp.evaluate(() => [!document.querySelector('#side').hidden, !document.querySelector('#props').hidden]);
   const atStart = await shown();
+  const dock = await fp.evaluate(() => [...document.querySelectorAll('#dock > button')].filter((b) => b.offsetParent).map((b) => b.getAttribute('aria-label') || b.textContent).join());
   await fp.evaluate(() => drawing.setVariant('shape', 'circle'));
+  await fp.click('#dock [data-tool=shape]');
   await fp.touchscreen.tap(195, 300); // the centre…
   await fp.touchscreen.tap(195, 300); // …again: the default size
   const placed = await fp.evaluate(() => drawing.doc.points.length);
-  await fp.click('.touchbar button:has-text("Snap")'); // off: placed exactly where tapped
+  const drawingDock = await fp.evaluate(() => [...document.querySelectorAll('#dock > button')].filter((b) => b.offsetParent).map((b) => b.getAttribute('aria-label') || b.textContent).join());
+  await fp.click('#dock button:has-text("Snap")'); // off: placed exactly where tapped
   await fp.touchscreen.tap(150, 250);
   await fp.touchscreen.tap(150, 250);
   const freeTap = await fp.evaluate(() => [drawing.snapOff, drawing.doc.points.length]);
-  await fp.click('.touchbar button:has-text("Back")'); // the tool ends
+  await fp.click('#dock button:has-text("Back")'); // the tool ends
   const afterBack = await fp.evaluate(() => drawing.tool);
+  await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
+  const peek = await fp.evaluate(() => [!document.querySelector('#props').hidden, document.querySelector('#props').classList.contains('peek'), document.querySelector('#props').offsetHeight]);
   await fp.click('#bar .ptab[data-tab=elements]');
   const colOpen = await shown();
-  await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
-  await fp.click('.touchbar button:has-text("Properties")'); // Properties: the tree makes way
-  const layersOpen = await shown();
+  await fp.click('#bar .ptab[data-tab=elements]');
+  await fp.click('#props .dinsphead .ititle'); // the peek tapped: Properties
+  const propsOpen = await fp.evaluate(() => [!document.querySelector('#side').hidden, !document.querySelector('#props').hidden, document.querySelector('#props').classList.contains('peek')]);
+  await fp.evaluate(() => drawing.select([]));
+  // a finger held still, then dragged: a box, what lies inside selected
+  const boxed = await fp.evaluate(async () => {
+    const box = map.getCanvasContainer(), r = box.getBoundingClientRect(), q = drawing.doc.points.map((x) => map.project(x.position));
+    const [x0, y0] = [Math.min(...q.map((p) => p.x)) - 40, Math.min(...q.map((p) => p.y)) - 40], [x1, y1] = [Math.max(...q.map((p) => p.x)) + 40, Math.max(...q.map((p) => p.y)) + 40];
+    const ev = (type, x, y) => new PointerEvent(type, { pointerId: 7, bubbles: true, button: 0, clientX: r.left + x, clientY: r.top + y, pointerType: 'touch' });
+    box.dispatchEvent(ev('pointerdown', x0, y0));
+    await new Promise((res) => setTimeout(res, 650));
+    window.dispatchEvent(ev('pointermove', (x0 + x1) / 2, (y0 + y1) / 2));
+    window.dispatchEvent(ev('pointermove', x1, y1));
+    window.dispatchEvent(ev('pointerup', x1, y1));
+    return drawing.sel.size;
+  });
   await fp.evaluate(() => drawing.select([]));
   const handles = await fp.evaluate(() => map.getLayoutProperty('draw-handle', 'icon-size'));
   await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
@@ -1167,8 +1186,10 @@ await section('with a finger, on a phone', async () => {
     window.dispatchEvent(ev('pointerup', 1));
   });
   const after = await fp.evaluate(() => [drawing.doc.points[0].parts[0].radius, !!drawing.drag]);
-  check(atStart.join() === 'false,false' && placed === 1 && freeTap.join() === 'true,2' && afterBack === null && colOpen.join() === 'true,false' && layersOpen.join() === 'false,true',
-    `finger: the sheet closed to start with; a circle placed by two taps; Snap off; Back ends the tool; Elements and Properties one at a time (${atStart}; ${placed}; ${freeTap}; ${afterBack}; ${colOpen}; ${layersOpen})`);
+  check(atStart.join() === 'false,false' && dock === 'Undo,Point,Line,Shape,Label,Measure' && placed === 1 && drawingDock === 'Back,Undo,Shape,Snap' && freeTap.join() === 'true,2' && afterBack === null,
+    `finger: the sheet closed to start with; the dock Undo and the tools (${dock}); a circle placed by two taps, the dock then ${drawingDock}; Snap off; Back ends the tool (${atStart}; ${placed}; ${freeTap}; ${afterBack})`);
+  check(peek[0] && peek[1] && peek[2] < 120 && colOpen.join() === 'true,false' && propsOpen.join() === 'false,true,false' && boxed === 2,
+    `finger: what is selected peeks (${peek}); Elements in its place (${colOpen}); the peek tapped: Properties (${propsOpen}); held then dragged: a box selects ${boxed}`);
   check(handles === 1.75 && after[0] === rBefore && !after[1], `finger: handles drawn larger (${handles}); a second finger during a drag puts it back (${rBefore} → ${after[0]})`);
   check(!fp.errors.length, `finger: no errors ${fp.errors.join(' | ')}`);
   await fctx.close();

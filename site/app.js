@@ -995,22 +995,24 @@ drawPanel = drawView($('#dview'), {
 function free() {
   const p = { top: 60 + $('#bar').offsetHeight, right: 60, bottom: 60, left: 60 };
   const side = $('#side'), props = $('#props');
-  if (NARROW.matches) p.bottom += Math.max(...[side, props].map((e) => (e.hidden ? 0 : innerHeight - e.getBoundingClientRect().top)));
+  if (NARROW.matches) p.bottom += Math.max($('#dock').offsetHeight, ...[side, props].map((e) => (e.hidden ? 0 : innerHeight - e.getBoundingClientRect().top)));
   else {
     if (!side.hidden) p.left += side.getBoundingClientRect().right;
     if (!props.hidden) p.right += innerWidth - props.getBoundingClientRect().left;
   }
   return p;
 }
-// find a place: a field in the bar, before About and Properties (/ goes to it); where the bar has no
-// room (COMPACT), behind a lens with the map's controls, shown while it is used, gone when left
+// find a place: a field in the bar, before About and Properties (/ goes to it; a phone: after ☰, its
+// tools being in the dock); where the bar has no room (a tablet's), behind a lens with the map's
+// controls, shown while it is used, gone when left
 const findBtn = $('#b-find'), searchBox = $('#search');
 $('#mapctl').prepend(findBtn);
 const openAbout = () => { about.showModal(); showVersion(); };
 const aboutBtn = h('button', { type: 'button', class: 'aboutbtn', 'aria-label': 'About', title: 'About', onclick: openAbout }, icon(...ICON.info));
 frame.rightBtn.before(aboutBtn);
-const placeFind = () => (COMPACT.matches ? document.body.insertBefore(searchBox, $('#timepop')) : aboutBtn.before(searchBox));
+const placeFind = () => (COMPACT.matches && !NARROW.matches ? document.body.insertBefore(searchBox, $('#timepop')) : aboutBtn.before(searchBox));
 COMPACT.addEventListener?.('change', placeFind);
+NARROW.addEventListener?.('change', placeFind);
 placeFind();
 const setFinding = (on) => { document.body.classList.toggle('finding', on); findBtn.setAttribute('aria-expanded', String(on)); if (on) $('#q').focus(); };
 findBtn.addEventListener('click', () => setFinding(!document.body.classList.contains('finding')));
