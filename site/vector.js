@@ -15,7 +15,7 @@
 // touches itself (3 of 49 building features in central Taranto at zoom 14.5). GIS tools read them; QGIS's
 // "Fix geometries" repairs them.
 
-import { mercator, unmercator as lonLat, CIRC } from './geo.js';
+import { mercator, unmercator as lonLat, CIRC, signedArea2 } from './geo.js';
 
 const EXTENT = 4096; // vector tile units per tile edge (OpenMapTiles, maplibre-contour)
 const DIGITS = 1e7; // output to 7 decimals of a degree: about 1 cm
@@ -30,9 +30,7 @@ function tileQuad(z, x, y) {
 // Parts of polyline pts inside convex polygon quad (either winding): Cyrus–Beck per segment,
 // consecutive inside stretches kept as one part.
 export function clipLine(pts, quad) {
-  let area = 0;
-  for (let i = 0; i < quad.length; i++) { const [a, b] = [quad[i], quad[(i + 1) % quad.length]]; area += a[0] * b[1] - b[0] * a[1]; }
-  const sign = Math.sign(area);
+  const sign = Math.sign(signedArea2(quad));
   const edges = quad.map((a, i) => [a, quad[(i + 1) % quad.length]]);
   // > 0 inside the half-plane of edge a→b
   const side = ([a, b], p) => sign * ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]));

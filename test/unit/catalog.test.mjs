@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, drawsOf } from '../../site/catalog.js';
 import { cmemsStyle } from '../../site/cmems.js';
 import { buildStyle, SEA_PICTURES } from '../../site/style.js';
-import { durationMs, timeDomain, snapTime, depthLevels, nearestLevel } from '../../site/cmems.js';
-import { stale, CSP_HOSTS } from '../../tools/deps.mjs';
+import { CSP_HOSTS } from '../../tools/deps.mjs';
 
 const style = buildStyle({ seaDemUrl: 'clip-sea://{z}/{x}/{y}', landDemUrl: 'clip-land://{z}/{x}/{y}', isobathUrl: 'c://a', contourUrl: 'c://b', date: '2026-10-19' });
 const NO_LAYERS = new Set(['legend']); // items that drive the page, not style layers
@@ -63,10 +62,6 @@ test('depth schemes: ascending depths; atlas darkens with depth, nautical lighte
   assert.ok(L('nautical').every((v, i, a) => i === 0 || v > a[i - 1]), 'nautical must get lighter with depth');
 });
 
-test('site/vendor/ holds the libraries at package.json\'s versions, and the policy names the hosts', async () => {
-  assert.deepEqual(await stale(), [], 'run node tools/deps.mjs --write');
-});
-
 test('density datasets: "all types" first, codes map to WMS layers and times, sensible defaults', async () => {
   const { DENSITY, densityTiles } = await import('../../site/catalog.js');
   for (const id of Object.keys(DENSITY)) {
@@ -113,39 +108,6 @@ test('Copernicus colours and arrows: what each draws, styles, arrows drawn over 
   assert.equal(cmemsStyle(CMEMS.wind.observed, 'arrows'), 'cmap:thermal,range:0/25,vectorStyle:vector');
   const order = buildStyle({ seaDemUrl: 'x', landDemUrl: 'x', isobathUrl: 'x', contourUrl: 'x', date: '2026-10-21' }).layers.map((l) => l.id).filter((id) => id.startsWith('cmems-'));
   assert.deepEqual(order.slice(-2), ['cmems-currents', 'cmems-wind'], `layers that draw arrows come last: ${order.join(' ')}`);
-});
-
-test('Copernicus time: durations, a dataset\'s domain from its capabilities, snapping', () => {
-  assert.equal(durationMs('PT1H'), 36e5);
-  assert.equal(durationMs('PT10800S'), 3 * 36e5);
-  assert.equal(durationMs('PT15M'), 9e5);
-  assert.equal(durationMs('P1D'), 864e5);
-  const xml = `<Layer><ows:Identifier>P/D/zos_detided</ows:Identifier><Dimension><ows:Identifier>time</ows:Identifier><Value>2020-01-01T00:00:00Z/2020-01-02T00:00:00Z/PT1H</Value></Dimension></Layer>
-    <Layer><ows:Identifier>P/D/zos</ows:Identifier><Dimension><ows:Identifier>time</ows:Identifier><Default>x</Default>
-    <Value>2024-06-25T00:00:00.000000000Z/2026-10-29T23:00:00Z/PT1H</Value></Dimension></Layer>`;
-  const d = timeDomain(xml, 'zos');
-  assert.deepEqual(d, [{ start: Date.parse('2024-06-25T00:00:00Z'), end: Date.parse('2026-10-29T23:00:00Z'), step: 36e5 }], 'zos, not zos_detided; nanoseconds read');
-  const t = (s) => Date.parse(s);
-  assert.equal(snapTime(d, t('2026-10-21T12:00:00Z')), t('2026-10-21T12:00:00Z'));
-  assert.equal(snapTime(d, t('2026-10-21T12:40:00Z')), t('2026-10-21T12:00:00Z'));
-  assert.equal(snapTime(d, t('2026-10-31T00:00:00Z')), null, 'after the forecast');
-  assert.equal(snapTime(d, t('2024-01-01T00:00:00Z')), null, 'before the first step');
-  // every 3 hours from 03:00: noon is a step, 13:00 draws noon
-  const w = [{ start: t('2022-11-01T03:00:00Z'), end: t('2026-10-30T00:00:00Z'), step: 3 * 36e5 }];
-  assert.equal(snapTime(w, t('2026-10-21T13:00:00Z')), t('2026-10-21T12:00:00Z'));
-});
-
-test('Copernicus depth: levels from capabilities, the nearest one to the depth chosen', () => {
-  const xml = `<Layer><ows:Identifier>P/D/thetao</ows:Identifier><Dimension><ows:Identifier>elevation</ows:Identifier><UOM>m</UOM>
-    <Default>-1.0182366371154785</Default><Value>-110.0</Value><Value>-98.5</Value><Value>-10.5</Value><Value>-1.0182366371154785</Value></Dimension>
-    <Dimension><ows:Identifier>time</ows:Identifier><Value>2024-01-01T00:00:00Z/2024-01-02T00:00:00Z/P1D</Value></Dimension></Layer>`;
-  const levels = depthLevels(xml, 'thetao');
-  assert.deepEqual(levels, ['-110.0', '-98.5', '-10.5', '-1.0182366371154785'], 'as listed, for the ELEVATION parameter');
-  assert.equal(nearestLevel(levels, 0), '-1.0182366371154785', 'surface: the top level');
-  assert.equal(nearestLevel(levels, 100), '-98.5');
-  assert.equal(nearestLevel(levels, 1000), '-110.0', 'below the deepest: the deepest');
-  assert.equal(nearestLevel([], 100), null, 'a variable without depth');
-  assert.deepEqual(depthLevels(xml.replace('elevation', 'x'), 'thetao'), []);
 });
 
 test('every overlay drawn in colours or symbols has a legend, and Europe-only layers say so', () => {

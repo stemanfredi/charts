@@ -3,7 +3,7 @@
 // and a measured one are the same number. Lines are densified geodesics, so what you see is the path the numbers
 // describe. Positions are [lon, lat], distances metres, azimuths degrees clockwise from true north.
 
-import { unrollTo, norm180 } from './geo.js';
+import { unrollTo, norm180, signedArea2 } from './geo.js';
 
 // GeographicLib is a classic script on the page (window.geodesic); tests set globalThis.geodesic
 export const G = globalThis.geodesic.Geodesic.WGS84;
@@ -81,11 +81,7 @@ export function reachesPole(c, r) {
   return inverse(c, [c[0], c[1] >= 0 ? 90 : -90]).s <= r;
 }
 // a closed ring counter-clockwise, as GeoJSON wants its outer rings (RFC 7946)
-export function ccw(ring) {
-  let a = 0;
-  for (let i = 0; i < ring.length - 1; i++) a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-  return a < 0 ? ring.slice().reverse() : ring;
-}
+export const ccw = (ring) => (signedArea2(ring) < 0 ? ring.slice().reverse() : ring);
 // the geodesic area of a closed ring, m² (its sign ignored)
 export function areaOf(ring) {
   const poly = G.Polygon(false);

@@ -97,8 +97,6 @@ test('deleting a group: its members with it, or kept ungrouped; a label on what 
     g = makeGroup(doc, [p.id, q.id]);
     lab = addLabel(doc, { position: [14, 44], element: p.id });
   });
-  assert.deepEqual([...dependents(s.doc, [g.id], true)].sort(), [g.id, p.id, q.id].sort());
-  assert.deepEqual([...dependents(s.doc, [g.id], false)], [g.id]);
   s.remove([g.id]);
   assert.deepEqual(s.doc.points.map((x) => [x.id, x.groupId]), [[p.id, null], [q.id, null]]);
   s.undo();

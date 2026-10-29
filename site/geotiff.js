@@ -6,6 +6,7 @@
 // (zarr.js) use it too, in their latitude/longitude grids.
 
 import { CIRC, TILE } from './geo.js';
+import { escapeHtml } from './format.js';
 
 const HALF = CIRC / 2;
 const SIZE = TILE; // DEM tile edge, pixels
@@ -50,8 +51,7 @@ export const gridTransform = ({ x0, y0, pix }) => [pix, 0, x0 * pix - HALF, 0, -
 export function geotiff(values, w, h, t, { description = '', unit = 'metre', crs = 3857, bands = [{ description, unit }] } = {}) {
   const planes = values instanceof Float32Array ? [values] : values, n = planes.length;
   const ascii = (s) => new TextEncoder().encode(`${s}\0`);
-  const esc = (s) => String(s).replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`);
-  const meta = ascii(`<GDALMetadata>${bands.map((b, i) => `<Item name="DESCRIPTION" sample="${i}" role="description">${esc(b.description)}</Item><Item name="UNITTYPE" sample="${i}" role="unittype">${esc(b.unit)}</Item>`).join('')}</GDALMetadata>`);
+  const meta = ascii(`<GDALMetadata>${bands.map((b, i) => `<Item name="DESCRIPTION" sample="${i}" role="description">${escapeHtml(b.description)}</Item><Item name="UNITTYPE" sample="${i}" role="unittype">${escapeHtml(b.unit)}</Item>`).join('')}</GDALMetadata>`);
   // GeoKeys, pixel is area: projected EPSG:3857 in metres, or geographic EPSG:4326 in degrees
   const keys = crs === 4326 ? [1, 1, 0, 4, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326, 2054, 0, 1, 9102]
     : [1, 1, 0, 4, 1024, 0, 1, 1, 1025, 0, 1, 1, 3072, 0, 1, 3857, 3076, 0, 1, 9001];

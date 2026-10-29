@@ -4,10 +4,7 @@ How drawing and measuring behave: what the screen shows is not repeated here, on
 show (the layout's rules, snapping and attaching, order, the look's cascade, the rules, keys,
 storage). The file is in `drawing-format.md`.
 
-Code: `site/frame.js` the frame; `site/draw/`: `panel.js` the inspector, `tree.js`, `tools.js`,
-`files.js` (the bar's file group), `drawing.js` the map side, `snap.js`, `attach.js`, `drag.js`,
-`features.js` what the map draws and its handles, `generator.js` the rules, `clipboard.js`,
-`presets.js`, `place.js` what Point and Shape place; `site/keys.js`.
+Code: `site/frame.js` the frame, `site/draw/` the rest (architecture.md says which file holds what).
 
 ## 1. The layout
 
@@ -32,7 +29,8 @@ One layout at every width (`site/frame.js`).
   Layers' button turns while the map's layers load.
 - **Properties** (the inspector, §5), on the right: a switch of the user's (its toggle, **I**, or a
   double-click on an element). While on, it shows what is selected (or the drawing, its row
-  clicked) and goes when nothing is; selecting never turns it on. Its head: what it shows, then
+  clicked) and goes when nothing is; selecting never turns it on (a label placed does: its text is
+  there to be typed). Its head: what it shows, then
   **Zoom to**, **Duplicate**, **Group**, **Delete**.
 - Each panel is as wide as dragged at its inner edge (left 200–480 px, right 260–600; a
   double-click: 260 and 320); widths, the tab and the switch are remembered in this browser. Where

@@ -3,6 +3,8 @@
 
 import { norm360, norm180, NM, D2R } from './geo.js';
 
+export const escapeHtml = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`); // text set as markup (HTML or XML)
+
 // a length, an area, a bearing as read (in the display's units: 'km' or 'nm')
 export function fmtDist(m, units) {
   if (units === 'nm') return m < NM ? `${(m / NM).toFixed(3)} NM` : `${(m / NM).toFixed(m < 100 * NM ? 2 : 1)} NM`;

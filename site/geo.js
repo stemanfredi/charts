@@ -9,6 +9,9 @@ export const TILE = 256; // a raster tile's edge, pixels (the DEM and depth tile
 // an angle in degrees as 0 ≤ a < 360
 export const norm360 = (a) => ((a % 360) + 360) % 360;
 export const norm180 = (a) => norm360(a + 180) - 180; // a longitude in [−180, 180)
+export const samePosition = (a, b, tol = 1e-6) => Math.abs(a[0] - b[0]) < tol && Math.abs(a[1] - b[1]) < tol; // within tol degrees (1e-6: a file's rounding)
+// twice the signed area of a ring (closed or not) in its own plane: positive counter-clockwise
+export const signedArea2 = (ring) => ring.reduce((a, p, i) => { const q = ring[(i + 1) % ring.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0);
 // the nearest place on the planar segment a–b to p: { q, t (0–1 along it), d }
 export function nearestOnSegment(a, b, p) {
   const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;

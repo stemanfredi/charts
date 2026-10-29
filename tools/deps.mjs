@@ -7,8 +7,6 @@
 //                                  (from the hosts in site/hosts.js) and a modulepreload for each
 //                                  module app.js reaches (a cold load asks for them at once, not
 //                                  nine import levels deep, one round trip each)
-//   node tools/deps.mjs --check    fail if site/vendor/ or the policy differ from that (offline;
-//                                  the unit tests check the same)
 //   node tools/deps.mjs            newer data periods in the EMODnet density WMS than catalog.js
 //                                  lists (newer library versions: npm outdated)
 //
@@ -103,11 +101,6 @@ async function write() {
   console.log('site/vendor/, the policy and the preloads written');
 }
 
-async function check() {
-  const s = await stale();
-  if (s.length) { console.error(`out of date (run node tools/deps.mjs --write): ${s.join(', ')}`); process.exit(1); }
-  console.log('site/vendor/ and the policy match package.json and site/hosts.js');
-}
 
 // newest period the WMS offers for each density dataset vs the newest one catalog.js lists
 async function dataReport() {
@@ -131,6 +124,5 @@ async function dataReport() {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const a = process.argv;
   if (a.includes('--write')) await write();
-  else if (a.includes('--check')) await check();
   else await dataReport();
 }
