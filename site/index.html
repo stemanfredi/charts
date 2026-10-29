@@ -39,10 +39,10 @@
   <!-- top left: places (OpenStreetMap, via Photon) or coordinates (read here, never sent) -->
   <div id="search" class="search" role="search">
     <i data-icon="search"></i>
-    <input id="q" type="search" role="combobox" aria-label="Search places or coordinates" aria-autocomplete="list" aria-controls="results" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="Place, or 35 54N 14 31E">
+    <input id="q" type="search" role="combobox" aria-label="Search places or coordinates" aria-autocomplete="list" aria-controls="results-list" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="Place, or 35 54N 14 31E">
     <button type="button" id="q-clear" class="x" aria-label="Clear search" title="Clear" hidden>×</button>
     <div id="results" class="results" hidden>
-      <ul role="listbox" aria-label="Results"></ul>
+      <ul id="results-list" role="listbox" aria-label="Results"></ul>
       <p class="note">Places: Photon (komoot), OpenStreetMap data; the query and the map's area are sent there. Coordinates stay on this page.</p>
     </div>
   </div>

@@ -3,7 +3,7 @@
 // selected, the drawing itself) and edits it with fields. Fields apply on Enter or when they lose
 // focus, one undo step each.
 
-import { h, svg, typing, morph } from '../dom.js';
+import { h, svg, typing, morph, animate } from '../dom.js';
 import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
 import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
@@ -996,7 +996,7 @@ export function drawView(root, ctx) {
   // ---- map and files --------------------------------------------------------------------------
   function showOnMap(ids) {
     const b = boundsOf(drawing.doc, ids);
-    if (b) map.fitBounds(b, { padding: ctx.free(), maxZoom: 20 }); // clear of the panel; close enough for a 6 m shape
+    if (b) map.fitBounds(b, { padding: ctx.free(), maxZoom: 20, animate: animate() }); // clear of the panel; close enough for a 6 m shape
   }
   root.replaceChildren(tree.box);
   ctx.props.append(inspHead, inspector);
@@ -1037,7 +1037,7 @@ export function drawView(root, ctx) {
     if (typed || mod || e.altKey) return;
     // the tools' keys: app.js, from anywhere
     // ↑ ↓ step the tree, unless what has the focus takes them itself (a slider, a radio card, the map)
-    const ownArrows = e.target.closest?.('input[type=range], [role=radio], .maplibregl-canvas');
+    const ownArrows = e.target.closest?.('input[type=range], .maplibregl-canvas');
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !ownArrows && tree.step(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
     else if (e.key === 'F2' && drawing.sel.size === 1) { e.preventDefault(); tree.rename([...drawing.sel][0]); }
   });

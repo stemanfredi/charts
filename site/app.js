@@ -14,7 +14,7 @@ import { profileOf } from './draw/profile.js';
 import { circle } from './geodesy.js';
 import { norm360, norm180, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
-import { $, h, svg, typing, NARROW, COMPACT, store } from './dom.js';
+import { $, h, svg, typing, NARROW, COMPACT, store, animate } from './dom.js';
 import { choice } from './fields.js';
 import { keyEntry, openKey, keyList } from './keys.js';
 import { popup, note } from './menu.js';
@@ -232,7 +232,7 @@ function watchLocation(on) {
   watching = navigator.geolocation.watchPosition(({ coords }) => {
     const at = [coords.longitude, coords.latitude];
     showLocation({ at, accuracy: coords.accuracy });
-    if (!located) { located = true; map.flyTo({ center: at, zoom: Math.max(map.getZoom(), 13), padding: 0 }); }
+    if (!located) { located = true; map.flyTo({ center: at, zoom: Math.max(map.getZoom(), 13), padding: 0, animate: animate() }); }
   }, (e) => {
     const denied = e.code === e.PERMISSION_DENIED;
     if (denied) setLocating(false); // else it keeps trying (not found yet, or too slow): the button stays on
@@ -791,13 +791,13 @@ function baseBlock(items) {
     for (const [id, el] of Object.entries(infos)) el.hidden = !(open && state.on.has(id));
   };
   const cards = items.map((it) => {
-    const card = h('button', { type: 'button', role: 'radio', class: 'basecard', 'data-base': it.id, id: `i-${it.id}`, 'aria-checked': 'false', onclick: () => setOn(it.id, true) },
+    const card = h('button', { type: 'button', class: 'basecard', 'data-base': it.id, id: `i-${it.id}`, 'aria-pressed': 'false', onclick: () => setOn(it.id, true) },
       h('div', { class: 'thumb' }), h('span', {}, it.label));
     rows[it.id] = { row: card, input: card, controls: controlsOf(it), infos, more };
     return card;
   });
   return h('div', { class: 'base' },
-    h('div', { class: 'bases', role: 'radiogroup', 'aria-label': 'Base map' }, cards),
+    h('div', { class: 'bases', role: 'group', 'aria-label': 'Base map' }, cards),
     h('ul', {}, h('li', { class: 'item' }, ...items.map((it) => rows[it.id].controls),
       h('div', { class: 'line' }, h('span', { class: 'name' }, 'Source and licence'), more), ...Object.values(infos))));
 }
@@ -842,7 +842,7 @@ function renderMenu() {
     const r = rows[it.id];
     if (!r) continue; // Ocean data: below
     const on = state.on.has(it.id);
-    if (it.group === 'base') r.input.setAttribute('aria-checked', String(on));
+    if (it.group === 'base') r.input.setAttribute('aria-pressed', String(on));
     else r.input.checked = on;
     r.controls.hidden = !on || !(it.variants || kindOf(it.id)?.controls);
     if (on) kindOf(it.id)?.render?.(it, r.controls);
@@ -944,6 +944,9 @@ function renderStatus() {
 // the units the drawing's lengths and values, its labels and the exports use: a click on the scale
 // switches them
 scaleEl.addEventListener('click', () => setDisplay({ units: display.units === 'km' ? 'nm' : 'km' }));
+Object.assign(scaleEl, { tabIndex: 0 }); // a button, as the time chip: reached by keyboard too
+scaleEl.setAttribute('role', 'button');
+scaleEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scaleEl.click(); } });
 // the time shown, a chip on the bottom row: a click opens the field's calendar (the field itself in a
 // box over the chip, for a browser without a picker)
 const timePop = $('#timepop');
@@ -1131,6 +1134,7 @@ function scaleText() {
   scaleEl.textContent = scaleEl.textContent.replace(/\snm$/, '\u00a0NM');
   scaleEl.classList.toggle('varies', varies);
   scaleEl.title = `${why}Distance units: a click switches km and NM`;
+  scaleEl.setAttribute('aria-label', `Scale ${scaleEl.textContent}. ${scaleEl.title}`);
   scaleMark.hidden = !varies;
   scaleMark.title = why;
 }

@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light; /* no dark theme: a dark system draws its selects, pickers and scrollbars light too */
   --ink: #1f2c36; --soft: #5d6d79; --line: #d5dde3; --line2: #e9eef2; --bg: #ffffff; --bg2: #f5f7f9; --sel: #dcebf9; --hover: var(--line2);
   --accent: #1f5f86; --magenta: #b0127a; --err: #b42318; --warn: #b54708;
   /* --sel: what is selected or current, a pale blue; --hover: what the pointer is over where a click
@@ -77,6 +78,7 @@ svg { flex: none; }
 .spin { display: inline-block; flex: none; box-sizing: border-box; width: 12px; height: 12px; vertical-align: -1px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; visibility: hidden; } /* a box: a span left inline has no size, its border a thin stain */
 body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { *, ::before, ::after { transition: none !important; animation-duration: .01ms !important; } } /* the map's flights: dom.js animate */
 .x { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; width: 44px; height: 44px; border-radius: 6px; color: var(--soft); flex: none; }
 .x:hover { background: var(--line2); color: var(--ink); }
 #menu { overflow-y: auto; flex: 0 1 auto; min-height: 0; padding-bottom: 6px; overscroll-behavior: contain; }
@@ -101,7 +103,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .basecard[data-base="chart"] .thumb { background: linear-gradient(115deg, #f1ebdc 0 38%, #2b3a46 38% 39%, #cfe6f7 39% 62%, #a5cdec 62% 80%, #86b9e2 80%); }
 .basecard[data-base="sat"] .thumb { background: linear-gradient(115deg, #4d6b3c 0 30%, #8a8f6a 30% 40%, #1d3550 40% 75%, #13263b 75%); }
 .basecard span { padding: 0 4px 2px; }
-.basecard[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.basecard[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* a layer row: name (the whole row toggles), status hint, details button, switch on the right */
 .item { padding: 0 8px 0 12px; }
