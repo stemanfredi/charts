@@ -118,9 +118,11 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     kindsRow.hidden = vs.length < 2 || !kindsOpen;
     kindsRow.setAttribute('aria-label', `${TOOLS[tool]?.[0] ?? ''}: what it makes`);
     kindsRow.replaceChildren(...vs.map(([v, name]) => kindBtn(tool, v, name, () => choose(tool, v), current(tool) === v)));
-    // under its tool's button, within the window
+    // under its tool's button, as the bar's menus hang under theirs (4 px below the button, its left
+    // edge on the button's), within the window
     const from = toolBtns.find((x) => x.dataset.tool === tool);
-    kindsRow.style.left = from && !kindsRow.hidden ? `${Math.max(0, Math.min(from.offsetLeft - 5, innerWidth - kindsRow.offsetWidth - 6))}px` : '';
+    kindsRow.style.left = from && !kindsRow.hidden ? `${Math.max(0, Math.min(from.offsetLeft, innerWidth - kindsRow.offsetWidth - 6))}px` : '';
+    kindsRow.style.top = from && !kindsRow.hidden ? `${from.offsetTop + from.offsetHeight + 4}px` : '';
   }
   // a preset of the user's: renamed, or deleted
   async function presetMenu(name) {
