@@ -65,7 +65,7 @@ export function gisExport({ map, layersOf, kindOf, drawing, display, profiled, c
       const s = snapshot(src), { when, name, corners, layers } = s; // the view as captured, however long the rest takes
       const plain = h('canvas', { width: src.width, height: src.height });
       plain.getContext('2d').drawImage(src, 0, 0);
-      const chart = chartCanvas(src, s);
+      const pictures = Promise.all([pngOf(plain), chartPng(chartCanvas(src, s))]); // encoded now: two full-size canvases are not kept while the rest is read
       const transform = affine(corners, src.width, src.height);
       // vector/<item>.geojson for each item drawn with features in view, and the measurements
       const vectors = [];
@@ -125,7 +125,7 @@ export function gisExport({ map, layersOf, kindOf, drawing, display, profiled, c
             'proj:code': 'EPSG:4326', 'proj:shape': [r.h, r.w], 'proj:transform': r.transform, bands: r.names.map((n, k) => ({ name: n, data_type: 'float32', nodata: 'nan', unit: r.units[k] })) }])),
         },
       });
-      const [mapPng, chartFile] = await Promise.all([pngOf(plain), chartPng(chart)]);
+      const [mapPng, chartFile] = await pictures;
       download(await zip([
         { name: 'item.json', data: `${JSON.stringify(item, null, 2)}\n` },
         { name: 'map.png', data: mapPng },
