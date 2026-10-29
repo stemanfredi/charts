@@ -74,10 +74,10 @@ export function search(map, Marker, free) {
         .filter(({ properties: p }) => { const k = `${(p.name || '').toLowerCase()}|${resultKind(p)}|${p.city}`; return !seen.has(k) && seen.add(k); })
         .sort((a, b) => seaFirst(a) - seaFirst(b)).slice(0, 7);
       showResults(features.map((f) => {
-        const p = f.properties, e = Array.isArray(p.extent) && p.extent.length === 4 && p.extent.every(Number.isFinite) ? p.extent : null; // [west, north, east, south]
+        const p = f.properties, e = Array.isArray(p.extent) && p.extent.length === 4 && p.extent.every(Number.isFinite) ? p.extent : null; // [west, north, east, south]; across ±180° east < west: east taken past 180°
         return { go: true, name: p.name || p.street || text, at: f.geometry.coordinates,
           where: [resultKind(p), p.city !== p.name ? p.city : null, p.state, p.country].filter(Boolean).join(' · '),
-          bounds: e ? [[e[0], e[3]], [e[2], e[1]]] : null, zoom: ZOOM_OF[p.osm_value] || 14 };
+          bounds: e ? [[e[0], e[3]], [e[2] + (e[2] < e[0] ? 360 : 0), e[1]]] : null, zoom: ZOOM_OF[p.osm_value] || 14 };
       }));
     } catch (err) {
       if (err.name !== 'AbortError') showResults([{ name: 'Place search is not available right now', where: err.message }]);
