@@ -518,17 +518,11 @@ export class Drawing extends DrawStore {
     const ap = Math.round(norm360(inverse(c, q).azi - a.azi) * 10) / 10 || 360;
     return { centre: c, r: a.s, bearing: +norm360(a.azi + ap / 2).toFixed(4), aperture: ap >= 360 ? null : ap, first };
   }
-  // the polygon being drawn, to the cursor (closed back to its first corner)
-  draftPolygon() {
-    const d = this.draft;
-    if (this.tool !== 'polygon' || !d) return null;
-    const pts = [...d.pts, ...(this.cursor ? [this.cursor.p] : [])];
-    return { pts };
-  }
-  // the measurement being drawn, to the cursor: { pts, closed }, or null
-  draftMeasure() {
-    if (this.tool !== 'measure' || !this.draft) return null;
-    return { pts: [...this.draft.pts, ...(this.cursor ? [this.cursor.p] : [])], closed: false };
+  // the polygon (closed back to its first corner) or the measurement being drawn, to the cursor:
+  // { pts, closed }, or null
+  draftPath() {
+    if ((this.tool !== 'polygon' && this.tool !== 'measure') || !this.draft) return null;
+    return { pts: [...this.draft.pts, ...(this.cursor ? [this.cursor.p] : [])], closed: this.tool === 'polygon' };
   }
   // the line being drawn, to the cursor: its points
   draftLine() {
@@ -541,9 +535,10 @@ export class Drawing extends DrawStore {
   // what is being drawn: a shape, a sector, a polygon, or the line (what a click would join is marked
   // by snap.js, under the pointer only)
   draftFeatures() {
+    const line = (coordinates) => ({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates } });
+    const dot = (coordinates) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates } });
     const sh = this.draftShape();
     if (sh) {
-      const line = (coordinates) => ({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates } });
       // the reach from the centre to the pointer: a radius, drawn as a guide for a round shape only (an
       // outline faces north whatever the pointer's direction, so the line would say nothing)
       const { el } = sh, out = mainOutline(el) ? [] : [line([sh.centre, sh.to])];
@@ -552,23 +547,16 @@ export class Drawing extends DrawStore {
     }
     const sec = this.draftSector();
     if (sec) {
-      const line = (coordinates) => ({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates } });
       const out = [line([sec.centre, sec.first])];
       if (this.draft.pts[1] && sec.r > 0) out.push(line(sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture) : circle(sec.centre, sec.r)));
       return out;
     }
-    const poly = this.draftPolygon();
-    if (poly) return [{ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: poly.pts.length > 2 ? pathOf(poly.pts, true) : poly.pts } },
-      ...this.draft.pts.map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
-    const m = this.draftMeasure();
-    if (m) return [{ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: m.closed ? pathOf(m.pts, true) : m.pts } },
-      ...this.draft.pts.map((c) => ({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: c } }))];
+    const poly = this.draftPath();
+    if (poly) return [line(poly.closed && poly.pts.length > 2 ? pathOf(poly.pts, true) : poly.pts), ...this.draft.pts.map(dot)];
     if (this.tool !== 'line') return [];
-    const l = this.draftLine(), f = [];
-    if (!l) return f;
-    f.push({ type: 'Feature', properties: { kind: 'draft' }, geometry: { type: 'LineString', coordinates: l.pts } });
-    for (const p of l.pts.slice(0, this.cursor ? -1 : undefined)) f.push({ type: 'Feature', properties: { kind: 'draftpt' }, geometry: { type: 'Point', coordinates: p } });
-    return f;
+    const l = this.draftLine();
+    if (!l) return [];
+    return [line(l.pts), ...l.pts.slice(0, this.cursor ? -1 : undefined).map(dot)];
   }
 
   // the values of what is being drawn, as Measure always showed them: each leg's length, an area's
@@ -582,10 +570,10 @@ export class Drawing extends DrawStore {
       return valueFeatures({ ...this.doc, points: [], lines: [], areas: [], [KIND[dragged.kind].list]: [shows(dragged.el)] }, u, b); // it alone
     }
     if (sh) return valueFeatures(sh.doc, u, b);
-    const poly = this.draftPolygon() ?? this.draftMeasure();
+    const poly = this.draftPath();
     if (poly && poly.pts.length > 1) {
       const doc = emptyDoc(0), ps = poly.pts;
-      if (ps.length > 2 && poly.closed !== false) addArea(doc, ps, guideWithValues());
+      if (ps.length > 2 && poly.closed) addArea(doc, ps, guideWithValues());
       else addLine(doc, ps[0], ps.slice(1, -1), ps.at(-1), { ...guideWithValues(), id: DRAFT_ID });
       return valueFeatures(doc, u, b);
     }
