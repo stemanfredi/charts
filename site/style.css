@@ -437,7 +437,6 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 /* a tool's kinds: a row under its button, over the panel while they are picked */
 .kinds { position: absolute; display: flex; gap: 2px; padding: 4px;
   }
-/* a tool's kinds in the bar, in its place (tools.js WIDE): its buttons as the bar's, no card */
 .kinds button { min-width: 28px; min-height: 28px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
 .kinds button:hover { background: var(--line2); }
 .kinds button[aria-pressed="true"] { background: var(--accent); color: #fff; }

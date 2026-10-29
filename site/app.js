@@ -1082,7 +1082,7 @@ window.addEventListener('keydown', (e) => {
   else if (k.open === 'elements' || k.open === 'layers') frame.toggleTab(k.open);
   else if (k.open === 'props') frame.setProps(!frame.props);
   else if (k.tool[1] === 'box') drawing.boxSelect(!drawing.boxNext);
-  else drawPanel.press(k.tool[1]); // as its button: on, or off
+  else drawPanel.step(k.tool[1]); // on, off, or a tool with kinds its next
 });
 // the tooltips and About say the keys
 $('#about .keys').replaceChildren(...keyList());

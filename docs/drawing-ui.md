@@ -22,7 +22,8 @@ One layout at every width (`site/frame.js`).
   With a finger under 1,280 px (a tablet), as on a phone: **☰** in place of Open holds the
   file group and About, find a place is behind its lens with the map's controls. A tool with kinds
   is one button showing the kind in use and a corner mark; its kinds are a row under it as it goes
-  on, shut once one is picked or the map is clicked.
+  on, and again at a click on its button while it is on; shut once one is picked or the map is
+  clicked.
 - **Box select** (B): the next drag on the map, a mouse's or a finger's, draws a box; what lies
   inside is selected, then Select again. A drag with Select moves the map; Shift-drag is the box too.
 - **The left panel**: **Layers** or **Elements** (the tree, §4), as its
@@ -72,7 +73,9 @@ finger every target is 44 px. Text: 11, 12, 13, 14, 16 px (a × glyph 18 or 20).
 ## 2. Tools
 
 One tool is on at a time, and stays on after each placement; its button again, or Select, turns it
-off. Its key works from anywhere and does what its button does: on, or off.
+off; a tool with kinds (Shape; Point with presets) is turned off by Select, Esc or another tool, its
+button while on opening its kinds. Its key works from anywhere: on, or off; a tool with kinds, on,
+its next kind (its row open to show it).
 
 | Tool | Kinds | Makes |
 |---|---|---|
@@ -275,7 +278,7 @@ click on the map picks a root):
 | / | search |
 | L, E | the left panel on Layers, on Elements, or closed |
 | I | Properties on or off |
-| P, G, S, T, M | point, line, shape, label, measure |
+| P, G, S, T, M | point, line, shape, label, measure; again: off, or the next kind (Shape; Point with presets) |
 | B, Shift-drag | Box select: a box, what lies inside added to the selection |
 | Enter, double-click | finishes |
 | Backspace | takes back a point |

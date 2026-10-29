@@ -558,19 +558,20 @@ await section('the drawing', async () => {
   const shownE = await layoutNow();
   check(onTool.join() === 'Circle,true,true,0,true' && !hiddenE[2] && shownE[2] && order === 'Open,Download,Copy link,Layers,Elements,Undo',
     `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by its button, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
-  // a kind picked in the row: the tool on with it, the row shut; the key again: the tool off, as its
-  // button; again: on with the kind in use, its row open
+  // a kind picked in the row: the tool on with it, the row shut; the key again: the next kind, its
+  // row open; the button while it is on: the row again, the tool still on
   const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
   if (!(await shut())[0]) await dw.click('#bar button[data-tool=shape]'); // the row open (a click on a tab may have shut it)
   await dw.click('#bar .kinds button[aria-label="Rings"]');
   const picked = await shut();
   await dw.keyboard.press('s');
-  const off = await dw.evaluate(() => drawing.button);
-  await dw.keyboard.press('s');
-  const reopened = await shut();
+  const stepped = await shut();
   await dw.click('#bar .kinds button[aria-label="Circle"]');
-  check(picked.join() === 'false,rings' && off === null && reopened.join() === 'true,rings',
-    `tools: a kind picked in the row under the tool's button, the row shut (${picked}); the key again turns the tool off (${off}), again on, its row open (${reopened})`);
+  await dw.click('#bar button[data-tool=shape]');
+  const reopened = [...await shut(), await dw.evaluate(() => drawing.button)];
+  await dw.click('#bar .kinds button[aria-label="Circle"]');
+  check(picked.join() === 'false,rings' && stepped.join() === 'true,sector' && reopened.join() === 'true,circle,shape',
+    `tools: a kind picked in the row under the tool's button, the row shut (${picked}); the key again the next kind (${stepped}); the button while on, the row again (${reopened})`);
   await dw.mouse.click(DX + 500, 400);
   await dw.mouse.click(DX + 500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');

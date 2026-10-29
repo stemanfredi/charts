@@ -20,6 +20,7 @@ const KEYS = [
   { line: 3, key: 's', text: 'shape', tool: ['draw', 'shape'] },
   { line: 3, key: 't', text: 'label', tool: ['draw', 'label'] },
   { line: 3, key: 'm', text: 'measure', tool: ['draw', 'measure'] },
+  { line: 4, show: 'A tool\'s key again:', text: 'its next kind (Shape; Point with presets)' },
   { line: 4, show: '[Enter]', text: 'or double-click finishes' },
   { line: 4, show: '[Backspace]', text: 'takes back a point' },
   { line: 4, show: '[Esc]', text: 'cancels' },

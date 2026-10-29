@@ -1,7 +1,7 @@
 // The drawing's tools (docs/drawing-ui.md §1, §2): their buttons in the bar (Undo, Redo, Select, Box
 // select, Point, Line, Shape, Label, Measure), a tool's kinds in a row under its button, the touch row over
-// the map's foot (with a finger). A tool with kinds remembers the one chosen last; its key does what
-// its button does (app.js).
+// the map's foot (with a finger). A tool with kinds remembers the one chosen last; while it is on,
+// its key steps to the next kind and its button opens the row (app.js).
 
 import { h, NARROW } from '../dom.js';
 import { ask, askText } from '../menu.js';
@@ -12,8 +12,8 @@ import { keyOf, MOD } from '../keys.js';
 import { KIND_ICON, POINT_ICON, SELECT_ICON, BOX_ICON } from './icons.js';
 
 // drawing (drawing.js); ctx: { icon, units(), bar, frame, measureIcon }; del(ids): delete, asked
-// first (the touch row's); fileBtns: the bar's file group (files.js). Returns { press, renderTools,
-// renderTouch }.
+// first (the touch row's); fileBtns: the bar's file group (files.js). Returns { press, step,
+// renderTools, renderTouch }.
 export function createTools(drawing, ctx, { del, fileBtns }) {
   const { icon } = ctx;
   // the bar's hints: a name and its key, no more (drawing-ui.md says the rest)
@@ -27,11 +27,24 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     shape: [['circle', 'Circle'], ['rings', 'Rings'], ['sector', 'Sector'], outline('rectangle'), outline('ellipse'), outline('triangle'), ...OUTLINES.filter((k) => k.endsWith('-vehicle')).map(outline), ...presetsOf('shape')],
   })[tool] || [];
   const current = (tool) => drawing.variant[tool];
-  // A tool's button (or its key) pressed: on, or off when it is on. Its kinds are a row under its
-  // button, open as it goes on and shut once one is picked or the map is clicked: a menu, not a
-  // fixture; the tool's button shows the kind in use (drawing-ui.md §1)
+  // A tool's button pressed: on; when it is on, off, or for a tool with kinds its row opened (Esc,
+  // Select or another tool turns it off). Its kinds are a row under its button, open as it goes on and
+  // shut once one is picked or the map is clicked: a menu, not a fixture; the tool's button shows the
+  // kind in use (drawing-ui.md §1)
   let kindsOpen = false;
-  const press = (tool) => { kindsOpen = drawing.button !== tool; return kindsOpen ? drawing.start(tool) : drawing.stop(); };
+  const hasKinds = (tool) => variants(tool).length > 1;
+  const press = (tool) => {
+    if (drawing.button === tool && hasKinds(tool)) { kindsOpen = true; return renderKinds(); }
+    kindsOpen = drawing.button !== tool;
+    return kindsOpen ? drawing.start(tool) : drawing.stop();
+  };
+  // a tool's key: as its button, but on a tool with kinds that is on, the next kind (its row open to show it)
+  const step = (tool) => {
+    if (drawing.button !== tool || !hasKinds(tool)) return press(tool);
+    const vs = variants(tool).map(([v]) => v);
+    kindsOpen = true;
+    drawing.setVariant(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
+  };
   // a kind picked in its row: the tool on with it, the row shut
   const choose = (tool, v) => { kindsOpen = false; drawing.setVariant(tool, v); };
   drawing.map.getCanvasContainer().addEventListener('pointerdown', () => { if (kindsOpen) { kindsOpen = false; renderKinds(); } }, true);
@@ -125,12 +138,12 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
       const k = b.dataset.tool, v = variants(k).length > 1 ? current(k) : null;
       const paths = (v && POINT_ICON[v]) || (k === 'measure' ? ctx.measureIcon : KIND_ICON[k]);
       if (b.dataset.shows !== String(v)) { b.dataset.shows = String(v); b.querySelector('svg')?.replaceWith(icon(...paths)); }
-      b.classList.toggle('haskinds', variants(k).length > 1);
+      b.classList.toggle('haskinds', hasKinds(k));
     }
     undoBtn.disabled = !drawing.undos.length;
     redoBtn.disabled = !drawing.redos.length;
     renderTouch();
     renderKinds();
   }
-  return { press, renderTools, renderTouch };
+  return { press, step, renderTools, renderTouch };
 }

@@ -1069,6 +1069,6 @@ export function drawView(root, ctx) {
       renderTools();
     },
     importFile: (f) => files.importFile(f), // a file dropped on the map (app.js)
-    press: tools.press, // the tools' keys (app.js)
+    step: tools.step, // the tools' keys (app.js)
   };
 }
