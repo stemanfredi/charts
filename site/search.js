@@ -7,7 +7,7 @@ import { HOSTS } from './hosts.js';
 
 // Text that can only be coordinates, complete or not: digits with signs, separators, degree, minute
 // and second marks, hemisphere letters
-export const looksLikeCoords = (text) => /\d/.test(text) && /^[\d\s.,;:°º'"′″+\-NSEWnsew]+$/.test(text);
+export const looksLikeCoords = (text) => /\d/.test(text) && /^[\d\s.,;:°º'"′″+\-NSEWnsew]+$/.test(text) && (text.match(/[NSEW]/gi) || []).length <= 2 && !/[NSEW]{2}/i.test(text); // at most two hemisphere letters, apart: SS 11 is a name
 
 const PHOTON = `${HOSTS.photon}/api/`;
 // what a sea chart is mostly searched for comes first: places, the coast and the sea (capes, bays,

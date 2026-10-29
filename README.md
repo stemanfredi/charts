@@ -31,8 +31,9 @@ of its own: the page fetches each layer from its provider as you look at it.
 
 Drawings stay in your browser and are never sent anywhere. Tile requests
 necessarily tell each provider which area you are looking at; a hidden layer
-makes no request. Place names you type go to the search provider as you type;
-coordinates are read in the page. Your location, when you show it, stays in
+makes no request. Place names you type go to the search provider as you type,
+with the map's centre to a tenth of a degree; coordinates are read in the
+page. Your location, when you show it, stays in
 the page. The About dialog in the page says the same, and each layer's ⓘ
 names its provider.
 

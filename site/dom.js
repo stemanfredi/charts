@@ -44,7 +44,7 @@ export const h = (tag, attrs = {}, ...kids) => {
 // something else than it says; a button whose action hangs on more (a page to go to, a row to act
 // on) says it in its data-key. A field being typed in keeps its text; a field's
 // reset(text) (fields.js) takes the new one. Anything else is replaced, that subtree only.
-const NAMES = ['type', 'role', 'aria-label', 'data-r', 'data-id', 'data-grid', 'data-rows', 'data-v', 'data-tab', 'data-key'];
+const NAMES = ['type', 'role', 'aria-label', 'data-unit', 'data-r', 'data-id', 'data-grid', 'data-rows', 'data-v', 'data-tab', 'data-key'];
 const sameAs = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && NAMES.every((k) => a.getAttribute(k) === b.getAttribute(k))
   && (!(button(a) || button(b)) || (a.className === b.className && a.textContent === b.textContent))));
 const button = (el) => el.acts && (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button');

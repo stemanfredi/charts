@@ -72,9 +72,8 @@ export function askText(title, what, value = '') {
 // The note: what just happened, for a few seconds, a chip under the bar
 let noteEl = null, noteTimer = 0;
 export function note(text) {
-  if (!noteEl) document.body.append(noteEl = h('div', { class: 'dnote', role: 'status', hidden: true })); // a chip under the bar, at the centre
+  if (!noteEl) document.body.append(noteEl = h('div', { class: 'dnote', role: 'status' })); // a chip under the bar, at the centre; kept (empty) so that a reader announces the next
   clearTimeout(noteTimer);
   noteEl.textContent = text;
-  noteEl.hidden = false;
-  noteTimer = setTimeout(() => { noteEl.hidden = true; }, 4000);
+  noteTimer = setTimeout(() => { noteEl.textContent = ''; }, 4000);
 }

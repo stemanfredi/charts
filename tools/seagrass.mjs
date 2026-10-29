@@ -4,7 +4,7 @@
 // files at geodata.makaw.org/seagrass-2025/{z}/{x}/{y}.pbf (README: Hosting the data yourself); the
 // page reads them through its seagrass:// handler (app.js), asking only for the tiles the index lists.
 //
-//   node tools/seagrass.mjs download DIR       the product's zip into DIR, unzipped into DIR/shp
+//   node tools/seagrass.mjs download DIR       the product's zip into DIR, unzipped into DIR/shp (needs unzip)
 //   node tools/seagrass.mjs build DIR          DIR/tiles/seagrass-2025/: tiles, zooms 7–13, and
 //                                              index.json, the tiles there are (the page reads it)
 //
@@ -16,6 +16,7 @@
 import { openSync, readSync, closeSync, mkdirSync, writeFileSync, existsSync, statSync, createWriteStream } from 'node:fs';
 import { tileXY } from '../site/geo.js';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -179,7 +180,7 @@ async function download(dir) {
 }
 
 const [cmd, dir] = process.argv.slice(2);
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (cmd === 'download' && dir) await download(dir);
   else if (cmd === 'build' && dir) await build(dir);
   else { console.error('usage: node tools/seagrass.mjs download|build DIR'); process.exit(1); }

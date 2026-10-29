@@ -162,7 +162,7 @@ export async function readCells(store, name, ti, zi, { rows, cols }) {
   const m = store.meta(name), four = m.shape.length === 4, two = m.shape.length === 2;
   const [ct, cz, cy, cx] = four ? m.chunks : two ? [1, 1, ...m.chunks] : [m.chunks[0], 1, m.chunks[1], m.chunks[2]];
   const scale = m.attrs.scale_factor ?? 1, offset = m.attrs.add_offset ?? 0;
-  const fill = m.dtype === '<f4' ? Math.fround(m.fill_value) : m.fill_value;
+  const fill = m.fill_value == null ? NaN : m.dtype === '<f4' ? Math.fround(m.fill_value) : m.fill_value; // null: no cell is missing
   const out = new Float32Array(rows.length * cols.length).fill(NaN);
   // the rows by chunk row, the columns by chunk column: [output index, index within the chunk]
   const group = (idx, c) => idx.reduce((g, v, k) => { const b = Math.floor(v / c); if (!g.has(b)) g.set(b, []); g.get(b).push([k, v % c]); return g; }, new Map());

@@ -59,7 +59,7 @@ export function timeDomain(xml, variable) {
   return [...dim.matchAll(/<Value>([^<]*)<\/Value>/g)].flatMap(([, v]) => v.split(',')).map((v) => {
     const [a, b, step] = v.trim().split('/');
     return b ? { start: Date.parse(a), end: Date.parse(b), step: durationMs(step) } : { start: Date.parse(a), end: Date.parse(a), step: 0 };
-  }).filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end));
+  }).filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && Number.isFinite(r.step)); // a step in months is not read: the range is left out
 }
 // the dataset's time to draw for the time t (ms): the last step at or before t, or null if t is
 // outside every range

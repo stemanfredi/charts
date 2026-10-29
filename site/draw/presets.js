@@ -5,6 +5,7 @@
 
 import { pointSpec } from './check.js';
 import { store } from '../dom.js';
+import { note } from '../menu.js';
 
 const KEY = 'charts.presets';
 const PRESETS_FORMAT = 'charts-presets';
@@ -14,7 +15,7 @@ export function loadPresets() {
   return Array.isArray(v) ? clean(v) : [];
 }
 export function savePresets(list) {
-  return store.set(KEY, JSON.stringify(list));
+  if (!store.set(KEY, JSON.stringify(list))) note('The presets could not be saved in this browser (storage full or turned off)');
 }
 // a point as a preset named name: its symbol, its parts, and the fill and stroke it sets itself (what
 // it takes from the drawing or the defaults, a point placed from it takes as well)

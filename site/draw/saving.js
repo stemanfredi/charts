@@ -7,6 +7,7 @@
 import { emptyDoc } from './document.js';
 import { parse } from './file.js';
 import { store } from '../dom.js';
+import { note } from '../menu.js';
 
 const INDEX = 'charts.drawings', CURRENT = 'charts.drawings.current', OPENING = 'charts.drawings.opening';
 const KEY = (id) => `charts.drawing.${id}`;
@@ -82,6 +83,7 @@ export class Saving {
     }
     if (ok === !this.failed) return; // as it was: nothing to say
     this.failed = !ok;
+    if (!ok) note('The drawing could not be saved in this browser (storage full or turned off)');
     this.d.onChange('storage');
   }
   // the view only changed: kept with the drawing at its next save, or when the page goes; never by a
@@ -96,8 +98,8 @@ export class Saving {
   // the drawing id read and opened: its document, or null (not there, not readable)
   load(id) {
     const text = store.get(KEY(id));
-    const doc = text && parse(text, this.d.known).doc;
-    if (!doc) return null;
+    const { doc, report } = text ? parse(text, this.d.known) : { doc: null, report: { refused: 'This drawing is no longer in this browser' } };
+    if (!doc) { note(report.refused); return null; }
     this.id = id;
     store.set(CURRENT, id);
     this.otherTab = false;

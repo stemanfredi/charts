@@ -78,6 +78,7 @@ export function fields({ note, units }) {
     }, put, { 'aria-label': aria, class: 'dist', nudge: (t, up, big) => stepped(t, up, big, 0), bad: zero ? 'a distance, 0 or more, with m, km or NM' : 'a distance above 0, with m, km or NM',
       title: 'In the unit beside it, or with one', placeholder: 'mixed', ...attrs });
     input.unitText = () => UNIT_TEXT[unit];
+    input.dataset.unit = unit; // morph (dom.js) replaces the field when the unit it reads in changes
     return input;
   };
   // degrees: wrap (a bearing: any number, read modulo 360), else strictly between lo and hi; fixed:

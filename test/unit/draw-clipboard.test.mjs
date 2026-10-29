@@ -60,7 +60,7 @@ test('presets: a point\'s own look kept under a name; stored; a file of them rea
   const store = new Map();
   globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
   assert.deepEqual(loadPresets(), []);
-  assert.ok(savePresets([pre]));
+  savePresets([pre]);
   assert.deepEqual(loadPresets().map((x) => x.name), ['Mine']);
   delete globalThis.localStorage;
 });
