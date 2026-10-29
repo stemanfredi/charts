@@ -5,7 +5,7 @@
 // its key steps to the next kind and its button opens the row (app.js).
 
 import { h, NARROW } from '../dom.js';
-import { ask, askText } from '../menu.js';
+import { ask, askText, note } from '../menu.js';
 import { OUTLINES } from './document.js';
 import { OUTLINE_NAME } from './outlines.js';
 import { savePresets, presetTool } from './presets.js';
@@ -79,16 +79,16 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
   function renderTouch() {
     const sel = drawing.sel.size > 0, tool = !!drawing.tool, phone = NARROW.matches;
     touch.done.hidden = !(['line', 'measure'].includes(drawing.tool) && drawing.draft);
-    touch.back.hidden = !tool && (phone || !sel); // a phone: a tap on the map clears the selection
-    touch.del.hidden = touch.dup.hidden = !sel || tool;
+    touch.back.hidden = !tool; // a tap on the map clears the selection
+    touch.del.hidden = touch.dup.hidden = !sel || tool || !ctx.props.hidden; // Properties' head has them while it is shown
     for (const b of toolBtns) b.hidden = phone && tool && b.dataset.tool !== drawing.button; // a phone: the tool on alone
     touchbar.hidden = phone || [touch.done, touch.back, touch.del, touch.dup].every((b) => b.hidden);
   }
-  // a kind's button: its name; a preset's, right-click to rename or delete it
+  // a kind's button: its name; a preset's, pressed again while current (or right-clicked), renames or deletes it
   const kindBtn = (tool, v, name, onclick, pressed) => {
     const preset = v.startsWith('preset:');
-    return h('button', { type: 'button', 'aria-pressed': String(pressed), title: preset ? `${name} (preset, right-click)` : name, 'aria-label': name,
-      onclick, oncontextmenu: preset ? (e) => { e.preventDefault(); presetMenu(name); } : null },
+    return h('button', { type: 'button', 'aria-pressed': String(pressed), title: preset ? `${name} (preset: again to rename or delete)` : name, 'aria-label': name,
+      onclick: preset && pressed ? () => presetMenu(name) : onclick, oncontextmenu: preset ? (e) => { e.preventDefault(); presetMenu(name); } : null },
     preset ? h('span', { class: 'initials' }, name.slice(0, 2)) : icon(...(POINT_ICON[v] || KIND_ICON.point)));
   };
   function renderKinds() {
@@ -110,7 +110,8 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     if (a === 'delete') drawing.presets = drawing.presets.filter((x) => x.name !== name);
     if (a === 'rename') {
       const to = (await askText('Rename the preset', 'Name', name))?.trim();
-      if (!to || drawing.presets.some((x) => x.name === to)) return;
+      if (!to) return;
+      if (drawing.presets.some((x) => x.name === to)) return note(`A preset is already named “${to}”`);
       drawing.presets = drawing.presets.map((x) => (x.name === name ? { ...x, name: to } : x));
       for (const t of ['point', 'shape']) if (drawing.variant[t] === `preset:${name}`) drawing.variant[t] = `preset:${to}`;
     }

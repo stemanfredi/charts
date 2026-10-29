@@ -26,8 +26,8 @@ export const DEFAULT_STYLE = Object.freeze({
   stroke: Object.freeze({ color: '#e8590c', opacity: 1, width: 1.5, dash: 'solid' }),
 });
 // what a guide is drawn with, unless it or its group says otherwise: faint, dashed, one colour
-export const GUIDE_STROKE = Object.freeze({ color: '#6b7a86', opacity: 1, width: 1, dash: 'dashed' });
-export const GUIDE_STYLE = Object.freeze({ fill: Object.freeze({ color: '#6b7a86', opacity: 0.05 }), stroke: GUIDE_STROKE });
+export const GUIDE_STROKE = Object.freeze({ color: '#5d6d79', opacity: 1, width: 1, dash: 'dashed' });
+export const GUIDE_STYLE = Object.freeze({ fill: Object.freeze({ color: '#5d6d79', opacity: 0.05 }), stroke: GUIDE_STROKE });
 // what a measurement (a guide showing its values, Measure's tools make) is drawn with
 const MEASURE_COLOUR = '#b0127a';
 export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASURE_COLOUR, opacity: 0.08 }),
@@ -75,7 +75,7 @@ export const KINDS = Object.keys(KIND);
 export const LEADERS = ['arrow', 'none']; // a line to what it points at, an arrow head there; or none
 export const LABEL_SIZES = ['small', 'medium', 'large'];
 export const BACKGROUNDS = ['halo', 'box'];
-const LABEL_COLOUR = '#1f2933'; // a label's text, unless it or the drawing sets one
+const LABEL_COLOUR = '#1f2c36'; // a label's text, unless it sets one: the UI's ink (style.css --ink)
 export const LABEL_OFFSET = Object.freeze([40, -40]); // px: a new label's text, up and to the right of what it points at
 const NEW_RADIUS = 1000; // a new point's one radius: a neutral starting value, not a preset
 export const MAX_RADIUS = 1e7;

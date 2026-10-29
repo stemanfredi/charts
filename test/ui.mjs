@@ -87,8 +87,9 @@ for (const [name, width, height, touch] of VIEWPORTS) {
         }
         // targets: controls, except checkboxes/radios whose label is the target
         const small = [];
-        for (const el of document.querySelectorAll('button, select, summary, input, label')) {
+        for (const el of document.querySelectorAll('button, select, summary, input, label, [role=button]:not(#scale)')) {
           if (!seen(el) || el.closest('#menu details:not([open]) > ul')) continue;
+          if (!COARSE && el.closest('.status')) continue; // the bottom row's chips: text-sized with a mouse, as its links; a finger's 44 px (style.css)
           if (el.matches('input[type=checkbox], input[type=radio]') && (el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`)))) continue;
           if (el.matches('label') && !el.querySelector('input') && !el.htmlFor) continue; // plain text labels
           const b = el.getBoundingClientRect();

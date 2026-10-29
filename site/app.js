@@ -16,7 +16,6 @@ import { circle } from './geodesy.js';
 import { norm360, norm180, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
 import { $, h, svg, typing, NARROW, COMPACT, store, animate } from './dom.js';
-import { choice } from './fields.js';
 import { keyEntry, openKey, keyList } from './keys.js';
 import { popup, note } from './menu.js';
 import { createFrame } from './frame.js';
@@ -292,7 +291,7 @@ function applyView(v) {
 }
 function viewToAddress(v, q) {
   const c = v.center || [map.getCenter().lng, map.getCenter().lat];
-  q.set('v', [(v.zoom ?? map.getZoom()).toFixed(2), c[1].toFixed(5), c[0].toFixed(5), Math.round(v.bearing > 180 ? v.bearing - 360 : v.bearing)].join('/'));
+  q.set('v', [(v.zoom ?? map.getZoom()).toFixed(2), c[1].toFixed(5), c[0].toFixed(5), +(v.bearing > 180 ? v.bearing - 360 : v.bearing).toFixed(1)].join('/')); // a tenth of a degree: a drawing's bearing comes back as saved
   if (v.layers) {
     q.set('on', v.layers.map((l) => l.id).join(','));
     // what differs from the layer's default only (a file's layer lacking one: its default)
@@ -738,7 +737,6 @@ const frame = createFrame({ left: $('#side'), right: $('#props'), icon, onChange
 // ---- layers panel -----------------------------------------------------------
 const menu = $('#menu');
 const rows = {};
-let depthSeg = null; // the depth colours' control: rendered again with the menu
 function setVariant(id, v) {
   state.variant[id] = v;
   refresh(id);
@@ -761,17 +759,14 @@ function infoBlock(it) {
     it.info.url ? h('p', {}, h('a', { href: it.info.url, target: '_blank', rel: 'noopener noreferrer' }, it.info.url.replace(/^https:\/\/(www\.)?/, '').replace(/\/.*$/, ''))) : null);
 }
 function moreButton(label, onclick) {
-  return h('button', { class: 'more', type: 'button', title: 'Source, licence, resolution', 'aria-label': `About ${label}`, 'aria-expanded': 'false', onclick }, icon(...ICON.info));
+  return h('button', { class: 'more', type: 'button', title: 'Source, licence, resolution, opacity', 'aria-label': `About ${label}`, 'aria-expanded': 'false', onclick }, icon(...ICON.info));
 }
 // a ⓘ's click: its block shown or hidden
 const toggles = (info) => (e) => { info.hidden = !info.hidden; e.currentTarget.setAttribute('aria-expanded', String(!info.hidden)); };
 // what the item shows (scheme, source, its kind's controls) sits under its row while it is on
 function controlsOf(it) {
   let variant = null;
-  if (it.id === 'depth') {
-    variant = choice('Depth colours', [['atlas', 'Darker = deeper', it.variants.atlas], ['nautical', 'Darker = shallower', it.variants.nautical]], () => state.variant.depth, (v) => setVariant('depth', v));
-    depthSeg = variant;
-  } else if (it.variants) {
+  if (it.variants) {
     variant = h('select', { class: 'variant', 'aria-label': `${it.label} variant`, onchange: (e) => setVariant(it.id, e.target.value) },
       Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label)));
   }
@@ -855,7 +850,6 @@ function renderMenu() {
     const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
     if (rng) rng.value = state.opacity[it.id];
   }
-  depthSeg?.render();
   for (const slot in picks) picks[slot].value = state[slot];
   for (const [id, el] of Object.entries(dataInfos)) {
     el.hidden = !(dataMore.getAttribute('aria-expanded') === 'true' && state.on.has(id));
@@ -961,7 +955,8 @@ const timeBox = popup(timePop, {
 });
 Object.assign(shownEl, { tabIndex: 0 });
 shownEl.setAttribute('role', 'button');
-shownEl.addEventListener('click', (e) => { timeBox.toggle(shownEl, e); if (!timePop.hidden) { try { whenIn.showPicker(); } catch { /* no picker here: the field is open */ } } });
+// a click: the browser's calendar at once (the field stays hidden); where there is no picker, the field in its box
+shownEl.addEventListener('click', (e) => { try { whenIn.showPicker(); } catch { timeBox.toggle(shownEl, e); } });
 shownEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shownEl.click(); } });
 function renderUnits() {
   scale.setUnit(display.units === 'nm' ? 'nautical' : 'metric');
@@ -1183,7 +1178,7 @@ map.on('sourcedata', (e) => { if (!e.tile) renderCredits(); });
 // button says "Saving…" meanwhile, then "Failed" or "Partial" for a few seconds, its tooltip why.
 let exporting = false; // one export at a time, however often the buttons are clicked
 async function onFrame(b, fn, before = async () => {}) {
-  if (exporting) return;
+  if (exporting) { if (!b.hasAttribute('aria-busy')) flash(b, 'Wait…', 'Another export is being saved'); return; } // the other button: told; the one saving: left saying so
   exporting = true;
   const label = b.querySelector('span'), own = labelOf(b);
   clearTimeout(b.flashTimer); // a "Failed" still shown: this try replaces it

@@ -102,7 +102,7 @@ test('features: text at its screen offset, leader to the anchor, the arrow turne
   const f = labelFeatures(doc, view, new Set(['l1', 'l3', 'l5']), 'l6');
   const of = (id, kind) => f.filter((x) => x.properties.id === id && x.properties.kind === kind);
   const t = of('l1', 'label')[0];
-  assert.deepEqual([t.properties.text, t.properties.box, t.properties.mark, t.properties.px, t.properties.c], ['Start', 1, 'sel', 13, '#1f2933']);
+  assert.deepEqual([t.properties.text, t.properties.box, t.properties.mark, t.properties.px, t.properties.c], ['Start', 1, 'sel', 13, '#1f2c36']);
   const tp = view.project(t.geometry.coordinates), ap = view.project([12, 40]);
   near(tp[0] - ap[0], 0, 1e-6, 'x');
   near(tp[1] - ap[1], -100, 1e-6, 'up 100 px');
@@ -134,7 +134,7 @@ test('a label\'s colour: its own, else the default (a group adds nothing)', () =
   const other = withLabel(doc, 'l2', { element: 'a' });
   makeGroup(doc, [own.id, other.id]);
   const c = (id) => labelFeatures(doc, view).find((x) => x.properties.id === id && x.properties.kind === 'label').properties.c;
-  assert.deepEqual([c('l1'), c('l2')], ['#123456', '#1f2933']);
+  assert.deepEqual([c('l1'), c('l2')], ['#123456', '#1f2c36']);
 });
 
 test('deleting what a label points at leaves the label free, where it pointed; a split carries it on', () => {
@@ -181,7 +181,7 @@ test('new labels: on an element, its name with an arrow; free, text where clicke
   assert.deepEqual([a.name, a.text, a.leader, a.offset, a.anchor], ['', '{name}', 'arrow', [40, -40], { element: 'a' }]);
   assert.deepEqual([b.name, b.text, b.leader, b.offset, b.anchor], ['', 'Text', 'none', [0, 0], { position: [1, 2], element: null }]);
   assert.deepEqual(a.look, {}); // its colour: the group's, or the default
-  assert.equal(labelColour(doc, a), '#1f2933');
+  assert.equal(labelColour(doc, a), '#1f2c36');
   assert.equal(LOOK_FIELDS.label.includes('text.name'), false);
 });
 

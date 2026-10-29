@@ -6,7 +6,7 @@
 import { h, svg, typing, morph, animate } from '../dom.js';
 import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
+import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
 import { labelValues, labelText, TOKENS } from './labels.js';
 import { OUTLINE_NAME } from './outlines.js';
@@ -79,7 +79,7 @@ export function drawView(root, ctx) {
     const members = elements(doc).filter((x) => groupsOf(doc, x.el).some((g) => groups.includes(g.id))).length;
     if (members) {
       const a = await ask('Delete group', `The group${groups.length > 1 ? 's have' : ' has'} ${members} member${members > 1 ? 's' : ''}.`,
-        [['ungroup', 'Delete the group only (members kept)'], ['all', 'Delete the group and everything in it']]);
+        [['all', 'Delete the group and everything in it'], ['ungroup', 'Delete the group only (members kept)']]); // the main button keeps the most
       if (!a) return;
       withMembers = a === 'all';
     }
@@ -152,7 +152,7 @@ export function drawView(root, ctx) {
       shown('fill.color') ? row('Fill', colour('fill.color', 'Fill colour'), opacity('fill.opacity', 'Fill opacity (%)'), back('fill.color', 'fill.opacity')) : null,
       shown('stroke.color') ? row('Stroke', colour('stroke.color', 'Stroke colour'), opacity('stroke.opacity', 'Stroke opacity (%)'), back('stroke.color', 'stroke.opacity')) : null,
       shown('stroke.width') ? row('Width', num('stroke.width', 'Stroke width (px)', ...STROKE_WIDTH), funit('px'), back('stroke.width')) : null,
-      shown('stroke.dash') ? row('Dash', select('Dash', DASHES.map((d) => [d, d]), same('stroke.dash'), (v) => put('stroke.dash', v)), back('stroke.dash')) : null,
+      shown('stroke.dash') ? row('Dash', segOf('Dash', [['solid', '—', 'Solid'], ['dashed', '- -', 'Dashed'], ['dotted', '···', 'Dotted']], same('stroke.dash'), (v) => put('stroke.dash', v)), back('stroke.dash')) : null,
       shown('text.size') ? row('Text size', segOf('Text size', [['small', 'S', 'Small'], ['medium', 'M', 'Medium'], ['large', 'L', 'Large']], same('text.size'), (v) => put('text.size', v)), back('text.size')) : null,
       shown('text.color') ? row('Text colour', colour('text.color', 'Text colour'), back('text.color')) : null,
       shown('text.background') ? row('Background', segOf('Background', [['halo', 'Halo', 'A white halo'], ['box', 'Box', 'A white box']], same('text.background'), (v) => put('text.background', v)), back('text.background')) : null,
@@ -888,6 +888,7 @@ export function drawView(root, ctx) {
     return [row('Title', titleField), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
       lookBlock([{ kind: 'drawing', el: drawing.doc }], LOOK_FIELDS.drawing, 'Display', [
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
+        row('Units', segOf('Distance units', [['km', 'km', 'Kilometres'], ['nm', 'NM', 'Nautical miles']], ctx.display.units, (v) => ctx.setDisplay({ units: v }))),
         row('Leg bearings', check('', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { 'aria-label': 'Leg bearings', title: 'Beside each length on the map' }))]),
       n > 1 ? totalsBlock(keys.length ? by : null, groupName) : null,
       drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Download › Drawing (GeoJSON) keeps it as a file.') : null,
@@ -955,7 +956,7 @@ export function drawView(root, ctx) {
   function renderInspector() {
     placesRead.clear();
     const xs = drawing.selected();
-    if (form && selKey() !== form.sel) closeForm();
+    if (form && selKey() !== form.sel) { closeForm(); note('The form closed: the selection changed'); }
     ctx.frame.has(!!form || xs.length > 0 || showDrawing); // Properties shown while it has something, and is on
     tree.markDrawing(showDrawing && !xs.length);
     // not seen (off, or nothing to show): not built; built anew when it is (render('tool'))
@@ -1033,7 +1034,7 @@ export function drawView(root, ctx) {
     // the tools' keys: app.js, from anywhere
     // ↑ ↓ step the tree, unless what has the focus takes them itself (a slider, a radio card, the map)
     const ownArrows = e.target.closest?.('input[type=range], .maplibregl-canvas');
-    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !ownArrows && tree.step(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !ownArrows && ctx.frame.tab === 'elements' && tree.step(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault(); // the tree stepped only while seen
     else if (e.key === 'F2' && drawing.sel.size === 1) { e.preventDefault(); tree.rename([...drawing.sel][0]); }
   });
 
@@ -1051,7 +1052,11 @@ export function drawView(root, ctx) {
       if (what === 'place') { const { id, index } = drawing.currentPlace; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${{ line: 'points', area: 'corners', point: 'parts' }[kindOf(id)]}`, index, kindOf(id) !== 'point'); return; }
       if (what === 'area' && !drawing.sel.size) note('Nothing lies entirely inside the box'); // a box drawn: why nothing is selected
       // a label just placed (and selected, so shown): its text ready to be typed
-      if (what === 'placed') { const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return; }
+      if (what === 'placed') {
+        if (ctx.props.hidden) ctx.frame.setProps(true); // typing it is the point of placing it: Properties on, as a double-click does
+        if (shows === null) renderInspector();
+        const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return;
+      }
       // the selection only changed: the rows marked again, not built again (each row's value is a length
       // or an area, computed)
       if (what === 'sel') {

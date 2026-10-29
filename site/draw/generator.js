@@ -23,7 +23,7 @@
 import { inverse, destination, localFrame, lengthOf } from '../geodesy.js';
 import { norm360 } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
-import { addPoint, addDot, addLine, addGroup, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
+import { addPoint, addDot, addLine, addGroup, elements, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
 import { outlineOf } from './outlines.js';
 import { BUILT_IN, scaled } from './place.js';
 
@@ -467,6 +467,7 @@ export function refreshGenerated(doc) {
   const groups = new Set(doc.groups.map((g) => g.id));
   for (const r of doc.rules) for (const k of ['groupId', 'copiesId']) if (r[k] && !groups.has(r[k])) r[k] = null;
   const byId = new Map(doc.points.map((n) => [n.id, n]));
+  const was = doc.rules;
   doc.rules = doc.rules.filter((a) => {
     if (a.kind !== 'distribute') return true;
     a.points = a.points.filter((x) => byId.has(x.pointId)).sort((x, y) => x.t - y.t);
@@ -494,4 +495,11 @@ export function refreshGenerated(doc) {
     });
     return c.pointIds.some((id) => byId.has(id));
   });
+  // a rule gone (its line or every copy deleted) takes the groups it made, where they are left empty
+  const kept = new Set(doc.rules);
+  for (const r of was) if (!kept.has(r)) for (const id of [r.copiesId, r.groupId]) if (id) removeEmptyGroup(doc, id);
+}
+function removeEmptyGroup(doc, id) {
+  if (elements(doc).some(({ el }) => el.groupId === id) || doc.groups.some((g) => g.groupId === id)) return;
+  doc.groups = doc.groups.filter((g) => g.id !== id);
 }

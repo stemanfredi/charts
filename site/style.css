@@ -44,7 +44,7 @@ svg { flex: none; }
 .mapctl { flex: none; display: flex; flex-direction: column; gap: 2px; padding: 4px;
   }
 .mapctl button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--ink); display: grid; place-items: center; }
-.mapctl button svg { width: 18px; height: 18px; }
+.mapctl button svg { width: 20px; height: 20px; } /* as the bar's: the same 32 px button */
 .mapctl button:not(:disabled):hover { background: var(--hover); }
 .mapctl button[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
 .mapctl button[aria-pressed="true"] { background: var(--accent); color: #fff; } /* my location shown */
@@ -125,7 +125,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .item.partial .hint::after { color: var(--warn); }
 .switch {
   appearance: none; -webkit-appearance: none; margin: 0 4px 0 0; flex: none; cursor: pointer;
-  width: 34px; height: 20px; border-radius: 10px; background: #c3ccd3; position: relative; transition: background .15s;
+  width: 34px; height: 20px; border-radius: 10px; background: var(--line); position: relative; transition: background .15s;
 }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
 .switch:checked { background: var(--accent); }
@@ -324,7 +324,7 @@ body.finding .search { display: flex; }
 @media (min-width: 720px) and (pointer: fine), (min-width: 1280px) { #b-find { display: none; } }
 .results { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; padding: 4px; max-height: 60vh; overflow-y: auto; }
 .results ul { list-style: none; margin: 0; padding: 0; }
-.results li { min-height: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
+.results li { min-height: var(--row); padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; color: var(--ink); }
 .results li small { color: var(--soft); font-size: 11px; }
 .results li:hover { background: var(--hover); }
 .results li[aria-selected="true"] { background: var(--sel); }
@@ -387,9 +387,9 @@ dialog .action:hover { background: var(--hover); }
 }
 /* a line's depth profile (draw/panel.js profileBlock) */
 svg.profile { width: 100%; height: auto; display: block; background: var(--bg2); border-radius: 6px; touch-action: none; }
-svg.profile .psurface { stroke: #9fb3c8; stroke-dasharray: 3 3; stroke-width: 1; }
-svg.profile .pdepth { fill: none; stroke: #335f97; stroke-width: 1.5; stroke-linejoin: round; }
-svg.profile .pmax, svg.profile .pmin { fill: #335f97; }
+svg.profile .psurface { stroke: var(--soft); stroke-dasharray: 3 3; stroke-width: 1; }
+svg.profile .pdepth { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+svg.profile .pmax, svg.profile .pmin { fill: var(--accent); }
 svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 
 /* ---- the bar (drawing-ui.md §1): the file group, Layers and Elements, Undo and Redo, the tools; at its
@@ -447,7 +447,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
   .props.peek > .dinsphead { border-bottom: 0; }
   :is(.side, .props) > .edge { display: none; }
   .grip { display: grid; place-items: center; flex: none; height: 20px; cursor: row-resize; touch-action: none; }
-  .grip::after { content: ""; width: 36px; height: 4px; border-radius: 2px; background: #c3ccd3; }
+  .grip::after { content: ""; width: 36px; height: 4px; border-radius: 2px; background: var(--line); }
   body:is(.has-left, .has-right) .foot { bottom: calc(var(--bar-h) + var(--sheet-now, var(--sheet))); }
   body:is(.has-left, .has-right) .legends { display: none; } /* the map left is small: its legends with the panel shut */
 }
@@ -470,7 +470,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 /* the scale switches the units; the time a chip */
 #scale { cursor: pointer; }
 .pos.shown, .depthchip { cursor: pointer; }
-.depthchip { border: 0; height: auto; appearance: none; } /* a chip as the time's, its list the browser's */
+.depthchip { border: 0; height: auto; } /* a chip as the time's, its list the browser's (its arrow says it opens, as the time's ▾) */
+@media (pointer: coarse) { .pos.shown, .depthchip { min-height: 44px; display: inline-flex; align-items: center; } } /* a finger's targets: the one way to the calendar and the depth */
 .depthchip:hover { background: #fff; }
 .pos.shown::after { content: " ▾"; color: var(--soft); }
 .pos.shown:hover { background: #fff; }

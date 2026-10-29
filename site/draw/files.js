@@ -75,6 +75,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
     drawing.saving.add();
   }
   async function importFile(f) {
+    if (f.size > 64e6) return note('The file is larger than 64 MB: not read'); // read whole before anything is checked: a mistaken drop would stall the page
     let text;
     try { text = await f.text(); } catch (e) { return note(`The file could not be read: ${e.message}`); }
     const presets = readPresets(text);

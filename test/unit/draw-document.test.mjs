@@ -672,7 +672,7 @@ test('a label in a group keeps its own colour; else the default', () => {
   const l = addLabel(doc, { element: a.id }), m = addLabel(doc, { element: a.id });
   l.look.text = { color: '#111111' };
   makeGroup(doc, [l.id, m.id]);
-  assert.deepEqual([d.labelColour(doc, l), d.labelColour(doc, m)], ['#111111', '#1f2933']);
+  assert.deepEqual([d.labelColour(doc, l), d.labelColour(doc, m)], ['#111111', '#1f2c36']);
 });
 
 test('delete a group: members ungrouped, keeping their own parts, or deleted with it; ends attached to them freed', () => {

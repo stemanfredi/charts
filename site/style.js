@@ -268,9 +268,9 @@ function layers() {
 
 // the device's location, above everything: how sure it is (a circle of its accuracy), then the dot
 export const LOCATION_LAYERS = [
-  { id: 'mylocation-accuracy', type: 'fill', source: 'mylocation', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#2f6f9e', 'fill-opacity': 0.15, 'fill-outline-color': '#2f6f9e' } },
+  { id: 'mylocation-accuracy', type: 'fill', source: 'mylocation', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#1f5f86', 'fill-opacity': 0.15, 'fill-outline-color': '#1f5f86' } },
   { id: 'mylocation', type: 'circle', source: 'mylocation', filter: ['==', ['geometry-type'], 'Point'],
-    paint: { 'circle-radius': 7, 'circle-color': '#2f6f9e', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 } },
+    paint: { 'circle-radius': 7, 'circle-color': '#1f5f86', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 } },
 ];
 
 // the colour pictures drawn above EMODnet depth and under the isobaths (layers() puts them there):

@@ -38,7 +38,7 @@ const exportItem = async (page, id) => {
   await page.click(`#${id}`);
 };
 // the time line: behind the time chip on the bottom row
-const timeOpen = async (page) => { if (!(await page.isVisible('#when'))) await page.click('#shown'); };
+const timeOpen = async (page) => page.evaluate(() => { document.querySelector('#timepop').hidden = false; }); // the field's box (a click on the chip opens the browser's own picker)
 // the search: a field in the bar (a phone: behind its lens)
 const findOpen = async (page) => page.click((await page.isVisible('#b-find')) ? '#b-find' : '#q');
 
@@ -207,15 +207,16 @@ await section('search', async () => {
   let photonCalls = 0;
   sp.on('request', (r) => { if (r.url().includes('photon.komoot.io')) photonCalls++; });
   await findOpen(sp);
+  const arrived = (lat, lon, tol) => sp.waitForFunction(({ lat, lon, tol }) => { const c = map.getCenter(); return !map.isMoving() && Math.abs(c.lat - lat) < tol && Math.abs(c.lng - lon) < tol; }, { lat, lon, tol }, { timeout: 10000 }).catch(() => {});
   await sp.fill('#q', '35 54N 14 31E');
   await sp.keyboard.press('Enter');
-  await sp.waitForTimeout(2500);
+  await arrived(35.9, 14 + 31 / 60, 0.01);
   check((await near(35.9, 14 + 31 / 60, 0.01)) && photonCalls === 0, 'coordinates in the search box go there, without a request');
   await findOpen(sp);
   await sp.fill('#q', 'Valletta');
   await sp.waitForSelector('#results li[role=option]', { timeout: 15000 }).catch(() => {});
   await sp.keyboard.press('Enter');
-  await sp.waitForTimeout(2500);
+  await arrived(35.9, 14.51, 0.05);
   check((await near(35.9, 14.51, 0.05)) && photonCalls > 0, 'a place name is found (Photon) and the map goes there', true);
   check(sp.errors.length === 0, `search without errors ${sp.errors.join(' | ')}`);
   await sp.close();
@@ -228,7 +229,7 @@ await section('vessel density', async () => {
   check(await tr.evaluate(() => !!document.querySelector('#legends canvas[data-legend=traffic]')), 'vessel density legend shown', true);
   await tr.selectOption('.item:has(#i-traffic) select.variant', 't10');
   await tr.selectOption('.item:has(#i-traffic) select.period', '2019');
-  await tr.waitForTimeout(500); // the URL is written 250 ms after a change
+  await tr.waitForFunction(() => /per=traffic:2019/.test(location.hash), null, { timeout: 5000 }).catch(() => {}); // written 250 ms after a change
   const tiles = await tr.evaluate(() => map.getSource('traffic').tiles[0]);
   const hash = await tr.evaluate(() => location.hash);
   check(/vesseldensity_10avg&/.test(tiles) && /time=2019-/.test(tiles), 'ship type and year select the WMS layer and time');
@@ -268,7 +269,7 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   check(shownOn && minMax[0] > '2020' && minMax[1] > minMax[0] && !minMax[1].startsWith('2099'), `the field holds the dates the layers have (${minMax.join(' to ')})`, true);
   await timeOpen(cm);
   await cm.fill('#when input', aLocal);
-  await cm.waitForTimeout(1500);
+  await cm.waitForFunction((t) => location.hash.includes(`t=${t}`), new Date(ahead).toISOString().slice(0, 13), { timeout: 5000 }).catch(() => {});
   const [shownText, cmHash] = await cm.evaluate(() => [document.querySelector('#shown').textContent, location.hash]);
   check(!shownText.startsWith('Today') && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a time picked on the time line is drawn, shown beside the coordinates and kept in the link (${shownText})`);
   const cmAgain = await open(cmHash);

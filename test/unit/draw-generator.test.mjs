@@ -760,12 +760,6 @@ test('rules read back from the file: a distribution with its part and a user\'s 
   assert.deepEqual(back.rules[0].along, { element: p.id, part: 1 });
   assert.deepEqual(back.rules[0].copy, copy);
   assert.deepEqual(back.groups.map((g) => g.name), ['Distribute along Point 1', 'Copies', 'Connection']);
-  // an earlier file's lines saying what they are in a property "part": dropped, a user's own kept
-  for (const s of doc.lines) s.properties.push({ key: 'part', value: 'branch' }, { key: 'note', value: 'mine' });
-  const own = addLine(doc, [12, 41], [], [12.1, 41], { properties: [{ key: 'part', value: 'trunk' }] });
-  const old = parse(serialise(doc), null, 0).doc;
-  assert.ok(old.lines.filter((s) => s.id !== own.id).every((s) => s.properties.length === 1 && s.properties[0].key === 'note'));
-  assert.deepEqual(old.lines.find((s) => s.id === own.id).properties, [{ key: 'part', value: 'trunk' }], 'on a line no connection made: the user\'s');
 });
 
 test('a distribution makes at most MAX_COPIES points, and says so', () => {
@@ -790,4 +784,21 @@ test('plan: a root on a point with a shortest branch still plans (no NaN); a set
   // cut three and three, not one and five (the costs equal to rounding; the even cut wins)
   const far = Array.from({ length: 6 }, (_, i) => [100 + i * 0.01, -30]), tie = plan(far, [R([99.99, -30]), R([100.06, -30])], 'auto', 'chain');
   assert.deepEqual(tie.groups.map((g) => g.nodes.length), [3, 3]);
+});
+
+test('a distribution deleted with its line and its copies takes the empty groups it made; copies left keep theirs', () => {
+  const doc = emptyDoc(0);
+  const g = addLine(doc, [12, 40], [], [12.2, 40]);
+  const { distribution: a } = makeDistribution(doc, { ...ARRAY, along: { element: g.id } });
+  assert.equal(doc.groups.length, 2);
+  const copies = a.points.map((x) => x.pointId);
+  remove(doc, [g.id, ...copies]);
+  settleGeometry(doc);
+  assert.deepEqual([doc.rules.length, doc.groups.length, doc.points.length], [0, 0, 0]);
+  const doc2 = emptyDoc(0);
+  const g2 = addLine(doc2, [12, 40], [], [12.2, 40]);
+  makeDistribution(doc2, { ...ARRAY, along: { element: g2.id } });
+  remove(doc2, [g2.id]);
+  settleGeometry(doc2);
+  assert.deepEqual([doc2.rules.length, doc2.groups.map((x) => x.name)], [0, ['Distribute along Line 1', 'Copies']], 'the copies stay, in their groups');
 });

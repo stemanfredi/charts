@@ -159,7 +159,7 @@ the drawing.
 It shows one element, several (its head counts them by kind; what they share, set on all at once;
 one Look for all; how far apart two points are, and the bearing from the first to the second;
 **Connect…**), a group, or the drawing (title, description, author;
-**Display**, the drawing's look; **Totals** by group or by a property, Copy). A field applies on Enter
+**Display**, the drawing's look, the distance units and the leg bearings; **Totals** by group or by a property, Copy). A field applies on Enter
 or when left, one undo step; a value that does not read stays marked and is not applied; Esc puts it
 back. ↑ ↓ nudge a number by its last digit (Shift: ten). Distances show to the decimetre (m), the
 metre (km) or about 2 m (NM); what is typed is kept as typed. Properties is updated in place as the
@@ -311,7 +311,7 @@ lives in this page, so it pastes into another drawing opened in it.
 **Save as preset…** (a point's Properties) keeps its symbol, parts and the fill and stroke it sets
 itself (not what it takes from the drawing or the defaults) under a name; Distribute along copies all of it. One
 with parts joins Shape's kinds, one without Point's. Placing one makes a point named after it, with
-the preset's name as a property; a right-click on it among the kinds renames or deletes it. Presets
+the preset's name as a property; pressed again while current among the kinds (or right-clicked), it is renamed or deleted. Presets
 live in this browser only; **Download** › **Presets (JSON)** and **Open a file…** move them.
 
 ## 10. Deleting, and drawings in this browser

@@ -24,7 +24,6 @@ import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, resizeSide, moved } from
 // the ID of the line being drawn, as measured for its values: always the same, so the traces cached by
 // ID (lines.js) keep one entry for it, not one for each move of the pointer
 const DRAFT_ID = '~draft';
-const SNAP = 12; // px: a click this close to a point is on it (Connect's roots)
 // with a finger (drawing-ui.md §1): snapping reaches farther, handles are grabbed farther, a + is
 // added only along longer legs
 const SNAP_PX = FINGER ? 16 : SNAP_RADIUS, GRAB_PX = FINGER ? 22 : 5, MID_PX = FINGER ? 80 : 40;
@@ -346,9 +345,9 @@ export class Drawing extends DrawStore {
     const pts = [...(d.start ? [placeOfEnd(this.doc, d.start)] : []), ...d.pts].filter(Boolean);
     return { from: pts.at(-1) ?? null, prev: pts.at(-2) ?? null };
   }
-  // a point within SNAP px of a screen point, if any (the nearest): Connect's roots
+  // a point within snapping distance of a screen point, if any (the nearest): Connect's roots
   pointAt(point) {
-    let best = null, bd = SNAP;
+    let best = null, bd = SNAP_PX;
     for (const n of this.doc.points) {
       if (!isShown(this.doc, n)) continue;
       const q = this.map.project(n.position), d = Math.hypot(q.x - point.x, q.y - point.y);

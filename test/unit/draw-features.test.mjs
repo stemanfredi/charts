@@ -376,7 +376,7 @@ test('lines: guides and the others drawn, a click target each, halos, handles by
   assert.equal(s1.properties.sc, '#e8590c');
   assert.deepEqual([s1.geometry.coordinates[0], s1.geometry.coordinates.at(-1)], [[12, 41], [12.2, 41]]);
   const guide = f.find((x) => x.properties.kind === 'guide').properties;
-  assert.deepEqual([guide.dash, guide.sc, guide.sw], ['dashed', '#6b7a86', 3]); // a guide's look, its own width
+  assert.deepEqual([guide.dash, guide.sc, guide.sw], ['dashed', '#5d6d79', 3]); // a guide's look, its own width
   assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'LineString')), [], 'two selected: no bands');
   assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'dot')), [['s1', 'dot'], ['s1', 'dot'], ['s1', 'dot'], ['s2', 'dot'], ['s2', 'dot']], 'dots at their ends and vertices');
   assert.deepEqual(kindsOf(drawFeatures(doc, new Set(), 's1').features.filter((x) => x.properties.kind === 'hover' && x.geometry.type === 'LineString')), [['s1', 'hover']], 'hovered: the band');

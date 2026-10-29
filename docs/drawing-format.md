@@ -149,7 +149,7 @@ How an element is drawn is its **look**: one object, every field optional where 
 ```json
 { "fill": { "color": "#e8590c", "opacity": 0.15 },
   "stroke": { "color": "#e8590c", "opacity": 1, "width": 1.5, "dash": "solid" },
-  "text": { "name": false, "values": false, "size": "medium", "color": "#1f2933", "background": "halo" },
+  "text": { "name": false, "values": false, "size": "medium", "color": "#1f2c36", "background": "halo" },
   "offset": 0,
   "minSize": 12 }
 ```
@@ -178,7 +178,7 @@ Each field an element leaves out comes from the drawing's (the three it has), el
 | the drawing's (`charts.look`) | |
 | the defaults | |
 
-A label's colour, set nowhere, is `#1f2933`. `visible` is not part of the look: an element is drawn
+A label's colour, set nowhere, is `#1f2c36`. `visible` is not part of the look: an element is drawn
 only if every group it is in is visible.
 
 A group is only who is in it: joining or leaving one, or a group deleted, changes nothing of an
@@ -412,8 +412,7 @@ or point (or its part) is gone, or all of whose copies are, is dropped.
 
 Each line it makes is a plain line attached to the points it joins; what it is follows from its ends:
 in a tree, a trunk (root to hub) or a branch (hub to point); in a chain, a root link (from a root) or
-a link (point to point). A property `part` of `"trunk"`, `"branch"` or `"chain"` on them, which
-earlier files have, is dropped on reading. The plan: the points, in order, are
+a link (point to point). The plan: the points, in order, are
 cut into groups of consecutive points, each joined to one root, the cut and the roots chosen together
 as the cheapest, the sum of the groups' lengths each divided by its root's weight (a tie: the most
 even cut). Every tree has a hub of its own, never one of its points: where the median falls on a
@@ -475,7 +474,7 @@ The import report lists what was refused, skipped and repaired, before the drawi
 
 ## 12. Reading: refusals and skips
 
-**The whole file is refused** (nothing loads) when it is not JSON; its top level is not an object;
+**The whole file is refused** (nothing loads) when it is larger than 64 MB; it is not JSON; its top level is not an object;
 it is not GeoJSON; `charts.version` is a number other than 1; or its lines and areas hold more than
 1 000 000 positions together.
 
@@ -603,9 +602,9 @@ What a value is when the file leaves it out. Writing it with this value means th
 | feature | `charts.guide` | `false` |
 | default look | fill | `#e8590c`, opacity 0.15 |
 | default look | stroke | `#e8590c`, opacity 1, width 1.5, `"solid"` |
-| default look | text | `name` `false`, `values` `false`, `size` `"medium"`, `color` none (a label: `#1f2933`, its own only), `background` `"halo"` |
+| default look | text | `name` `false`, `values` `false`, `size` `"medium"`, `color` none (a label: `#1f2c36`, its own only), `background` `"halo"` |
 | default look | `offset`; `minSize` | `0`; `12` |
-| guide style | fill; stroke | `#6b7a86`, opacity 0.05; `#6b7a86`, opacity 1, width 1, `"dashed"` |
+| guide style | fill; stroke | `#5d6d79`, opacity 0.05; `#5d6d79`, opacity 1, width 1, `"dashed"` |
 | measurement style | fill; stroke | `#b0127a`, opacity 0.08; `#b0127a`, opacity 1, width 2, `"dashed"` |
 | group | `name`; `properties`; `visible` | `""`; `[]`; `true` |
 | group | `groupId` | `null` (at the top) |
