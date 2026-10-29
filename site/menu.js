@@ -49,7 +49,8 @@ export function dialog(title, body, buttons, cancel = 'Cancel', foot = null) {
     const done = (v) => { answer = v; askDialog.close(); };
     askDialog.replaceChildren(h('h2', { id: 'dask-title' }, title), body(done),
       h('div', { class: 'fbuttons' }, buttons.map(([v, t], i) => h('button', { type: 'button', class: i === buttons.length - 1 ? 'done' : '', onclick: () => done(typeof v === 'function' ? v() : v) }, t)),
-        h('button', { type: 'button', onclick: () => askDialog.close() }, cancel)), foot);
+        h('button', { type: 'button', onclick: () => askDialog.close() }, cancel)));
+    if (foot) askDialog.append(foot); // none: nothing (replaceChildren would write "null")
     askDialog.addEventListener('close', () => resolve(answer), { once: true });
     askDialog.showModal();
   });

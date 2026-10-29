@@ -667,6 +667,13 @@ await section('the drawing', async () => {
   check((await measuredNow()).length === 0, 'drawing: a file without measurements brings a drawing without them');
   const drawings = await dw.evaluate(() => drawing.saving.list().map((x) => x.title || 'Untitled'));
   check(drawings.length === 3, `drawing: every drawing kept in the list, the imported ones added (${drawings.join(', ')})`); // the first and two imported (an empty New left nothing)
+  // a drawing's Delete asks first, a question and its buttons only (an absent foot once printed "null")
+  await dw.click('#bar .filebtn');
+  await dw.locator('.dmenu .drawings .hact').last().click();
+  const asked = await dw.evaluate(() => document.querySelector('dialog[open]').textContent);
+  await dw.click('dialog[open] button:not(.done)');
+  await dw.keyboard.press('Escape');
+  check(/for good/.test(asked) && !/null/.test(asked), `drawing: Delete asks first, nothing else in the dialog (${asked})`);
   await dw.reload();
   await dw.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
   check((await dw.locator('.dlist .drow').count()) === 1, 'drawing: restored after a reload');
