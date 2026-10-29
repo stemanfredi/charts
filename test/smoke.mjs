@@ -1131,7 +1131,7 @@ await section('the drawing', async () => {
 
 await section('with a finger, on a phone', async () => {
   // with a finger, on a phone (drawing-ui.md §1): the sheet closed to start with, Elements and
-  // Properties in it one at a time; the tools in the dock, Back and Snap there while one is on; what is
+  // Properties in it one at a time; the tools in the dock, Back there while one is on, Undo and Redo; what is
   // selected peeks (Properties' head), a tap on it Properties; a finger held then dragged: a box; handles larger
   const fctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const fp = await open('#v=11/40.2/12.1/0&on=chart,coastline', fctx);
@@ -1144,10 +1144,10 @@ await section('with a finger, on a phone', async () => {
   await fp.touchscreen.tap(195, 300); // …again: the default size
   const placed = await fp.evaluate(() => drawing.doc.points.length);
   const drawingDock = await fp.evaluate(() => [...document.querySelectorAll('#dock > button')].filter((b) => b.offsetParent).map((b) => b.getAttribute('aria-label') || b.textContent).join());
-  await fp.click('#dock button:has-text("Snap")'); // off: placed exactly where tapped
-  await fp.touchscreen.tap(150, 250);
-  await fp.touchscreen.tap(150, 250);
-  const freeTap = await fp.evaluate(() => [drawing.snapOff, drawing.doc.points.length]);
+  await fp.click('#dock button[aria-label=Undo]');
+  const undone = await fp.evaluate(() => drawing.doc.points.length);
+  await fp.click('#dock button[aria-label=Redo]');
+  const redone = await fp.evaluate(() => drawing.doc.points.length);
   await fp.click('#dock button:has-text("Back")'); // the tool ends
   const afterBack = await fp.evaluate(() => drawing.tool);
   await fp.evaluate(() => drawing.select([drawing.doc.points[0].id]));
@@ -1186,9 +1186,9 @@ await section('with a finger, on a phone', async () => {
     window.dispatchEvent(ev('pointerup', 1));
   });
   const after = await fp.evaluate(() => [drawing.doc.points[0].parts[0].radius, !!drawing.drag]);
-  check(atStart.join() === 'false,false' && dock === 'Undo,Point,Line,Shape,Label,Measure' && placed === 1 && drawingDock === 'Back,Undo,Shape,Snap' && freeTap.join() === 'true,2' && afterBack === null,
-    `finger: the sheet closed to start with; the dock Undo and the tools (${dock}); a circle placed by two taps, the dock then ${drawingDock}; Snap off; Back ends the tool (${atStart}; ${placed}; ${freeTap}; ${afterBack})`);
-  check(peek[0] && peek[1] && peek[2] < 120 && colOpen.join() === 'true,false' && propsOpen.join() === 'false,true,false' && boxed === 2,
+  check(atStart.join() === 'false,false' && dock === 'Undo,Redo,Point,Line,Shape,Label,Measure' && placed === 1 && drawingDock === 'Back,Undo,Redo,Shape' && undone === 0 && redone === 1 && afterBack === null,
+    `finger: the sheet closed to start with; the dock Undo, Redo and the tools (${dock}); a circle placed by two taps, the dock then ${drawingDock}; Undo, Redo (${undone}, ${redone}); Back ends the tool (${atStart}; ${placed}; ${afterBack})`);
+  check(peek[0] && peek[1] && peek[2] < 120 && colOpen.join() === 'true,false' && propsOpen.join() === 'false,true,false' && boxed === 1,
     `finger: what is selected peeks (${peek}); Elements in its place (${colOpen}); the peek tapped: Properties (${propsOpen}); held then dragged: a box selects ${boxed}`);
   check(handles === 1.75 && after[0] === rBefore && !after[1], `finger: handles drawn larger (${handles}); a second finger during a drag puts it back (${rBefore} → ${after[0]})`);
   check(!fp.errors.length, `finger: no errors ${fp.errors.join(' | ')}`);

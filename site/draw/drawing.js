@@ -327,7 +327,7 @@ export class Drawing extends DrawStore {
   snapFor(point, e, { from = null, prev = null, exclude = new Set() } = {}) {
     const ll = this.map.unproject(point), raw = [ll.lng, ll.lat];
     let r;
-    if (e?.altKey || this.snapOff) r = { position: raw, to: null, kind: null }; // Alt, or Snap off (a finger's)
+    if (e?.altKey) r = { position: raw, to: null, kind: null }; // Alt: free
     else if (e?.shiftKey && from) r = { position: stepped(from, raw, prev), to: null, kind: null };
     else r = snapAt(this.doc, [point.x, point.y], this.view(), { ids: new Set(this.hitAt(point, SNAP_PX)), exclude, radius: SNAP_PX }) || { position: raw, to: null, kind: null };
     this.snapMark = r.kind ? { kind: r.kind, position: r.position } : null;

@@ -1,7 +1,7 @@
 // The drawing's tools (docs/drawing-ui.md §1, §2): their buttons in the bar (Undo, Redo, Select, Box
 // select, Point, Line, Shape, Label, Measure), a tool's kinds in a row under its button, the touch row over
-// the map's foot (with a finger). On a phone Undo and the tools are the dock, the bar along the bottom,
-// with Back, Snap and Done while a tool is on, the kinds in a row above it. A tool with kinds remembers the one chosen last; while it is on,
+// the map's foot (with a finger). On a phone Undo, Redo and the tools are the dock, the bar along the
+// bottom, with Back and Done while a tool is on, the kinds in a row above it. A tool with kinds remembers the one chosen last; while it is on,
 // its key steps to the next kind and its button opens the row (app.js).
 
 import { h, NARROW } from '../dom.js';
@@ -63,16 +63,15 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
   const boxBtn = h('button', { type: 'button', class: 'boxbtn', 'aria-label': 'Box select', 'aria-pressed': 'false', title: `Box select (${keyOf('box')})`,
     onclick: () => drawing.boxSelect(!drawing.boxNext) }, icon(...BOX_ICON));
   // With a finger (drawing-ui.md §1): what keys and a mouse do on a computer, each shown when it
-  // applies. Back steps back one level (what is half drawn, else the tool, else the selection); Snap
-  // off places as Alt does. On a phone Back, Snap and Done are the dock's; the selection's actions are
-  // its sheet's head (frame.js)
+  // applies. Back steps back one level (what is half drawn, else the tool, else the selection). On a
+  // phone Back and Done are the dock's; the selection's actions are its sheet's head (frame.js). A
+  // finger always snaps (a place near something, not on it: zoomed in, the 16 px are less)
   const touchBtn = (text, title, run) => h('button', { type: 'button', title, onclick: run }, text);
   const touch = {
     done: touchBtn('Done', 'End the line or measurement being drawn (Enter, or a double-click)', () => drawing.finish()),
     back: touchBtn('Back', 'Back one step: what is half drawn, else the tool, else the selection (Esc)', () => (drawing.tool ? drawing.escape() : drawing.select([]))),
     del: touchBtn('Delete', 'Delete the selection (Delete)', () => del([...drawing.sel])),
     dup: touchBtn('Duplicate', `A copy of the selection beside it (${MOD} D)`, () => drawing.duplicate()),
-    snap: h('button', { type: 'button', title: 'Snap to what is drawn; off: placed exactly where tapped (Alt)', onclick: () => { drawing.snapOff = !drawing.snapOff; renderTools(); } }, 'Snap'),
   };
   touch.done.classList.add('done');
   const touchbar = h('div', { class: 'touchbar', role: 'group', 'aria-label': 'Actions' });
@@ -82,10 +81,8 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     touch.done.hidden = !(['line', 'measure'].includes(drawing.tool) && drawing.draft);
     touch.back.hidden = !tool && (phone || !sel); // a phone: a tap on the map clears the selection
     touch.del.hidden = touch.dup.hidden = !sel || tool;
-    touch.snap.hidden = !tool;
-    touch.snap.setAttribute('aria-pressed', String(!drawing.snapOff));
     for (const b of toolBtns) b.hidden = phone && tool && b.dataset.tool !== drawing.button; // a phone: the tool on alone
-    touchbar.hidden = phone || [touch.done, touch.back, touch.del, touch.dup, touch.snap].every((b) => b.hidden);
+    touchbar.hidden = phone || [touch.done, touch.back, touch.del, touch.dup].every((b) => b.hidden);
   }
   // a kind's button: its name; a preset's, right-click to rename or delete it
   const kindBtn = (tool, v, name, onclick, pressed) => {
@@ -125,14 +122,14 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
   // and Box select; what makes elements; Measure; at its end Properties' toggle (app.js puts find a
   // place before it)
   const makes = toolBtns.filter((b) => b.dataset.tool !== 'measure'), measure = toolBtns.find((b) => b.dataset.tool === 'measure');
-  const makesSep = sep(), measureSep = sep();
-  ctx.bar.replaceChildren(...fileBtns, sep(), ...ctx.frame.tabBtns, sep(), undoBtn, redoBtn, sep(), selectBtn, boxBtn, makesSep, ...makes, measureSep, measure, h('span', { class: 'grow' }), ctx.frame.rightBtn, kindsRow);
-  // a phone: Undo and the tools in the dock (Back, Snap, Done with them); else in the bar, those three in the touch row
+  const historySep = sep(), makesSep = sep(), measureSep = sep();
+  ctx.bar.replaceChildren(...fileBtns, sep(), ...ctx.frame.tabBtns, historySep, undoBtn, redoBtn, sep(), selectBtn, boxBtn, makesSep, ...makes, measureSep, measure, h('span', { class: 'grow' }), ctx.frame.rightBtn, kindsRow);
+  // a phone: Undo, Redo and the tools in the dock (Back and Done with them); else in the bar, those two in the touch row
   const dock = document.querySelector('#dock');
   function placeTools() {
-    if (NARROW.matches) dock.replaceChildren(touch.back, undoBtn, ...toolBtns, touch.snap, touch.done, kindsRow);
+    if (NARROW.matches) dock.replaceChildren(touch.back, undoBtn, redoBtn, ...toolBtns, touch.done, kindsRow);
     else {
-      redoBtn.before(undoBtn);
+      historySep.after(undoBtn, redoBtn);
       makesSep.after(...makes);
       measureSep.after(measure);
       ctx.bar.append(kindsRow);

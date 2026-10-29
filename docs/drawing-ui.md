@@ -58,8 +58,9 @@ One layout at every width (`site/frame.js`).
 
 **On a phone** (under 720 px) the top is for looking, the bottom for doing. The bar holds **☰**
 (Open's menu with Download's, Copy link and About), find a place (a field), Layers and Elements. The
-**dock**, a bar along the bottom, holds Undo and the tools; while one is on: **Back**, the tool (its
-kinds a row above the dock, sideways), **Snap**, Undo and **Done** (a line or measurement being drawn).
+**dock**, a bar along the bottom, holds Undo, Redo and the tools; while one is on: **Back**, Undo,
+Redo, the tool (its kinds a row above the dock, sideways) and **Done** (a line or measurement being
+drawn).
 The panels are one bottom sheet at a time over the dock (half the screen; as tall as its grip is
 dragged, short of the bars, the map's foot and some map; closed when dragged to the bottom). What is
 selected, while Properties is off and the left panel closed, **peeks**: Properties' head alone (what it
@@ -69,8 +70,9 @@ place found are fitted to the map the bars and the panels leave.
 
 **With a finger** (a tablet; a phone's are the dock's and the peek's): a row over the map's foot:
 **Done** (a line or measurement being drawn), **Back** (one level, as Esc), **Delete** and
-**Duplicate** (a selection), **Snap** (a tool on; off places exactly where tapped, as Alt). Handles are 14 px, grabbed within 22 px; snapping reaches 16 px; a + only on legs over 80 px; a
-second finger during a drag puts it back and lets the map pinch.
+**Duplicate** (a selection). Handles are 14 px, grabbed within 22 px; snapping reaches 16 px, always
+(to place near something without snapping to it, zoom in); a + only on legs over 80 px; a second
+finger during a drag puts it back and lets the map pinch.
 
 **Colours and sizes**: pressed is blue, a panel shown pale blue, yellow the marks on the map (bands,
 targets, +), handles white edged in ink, magenta the map's own (measurements,
