@@ -23,7 +23,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
   function exportFile() {
     const text = drawing.text();
     const when = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-    const title = drawing.doc.meta.title.normalize('NFKD').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'chart';
+    const title = drawing.doc.meta.title.normalize('NFKD').replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'chart';
     ctx.download(text, `${title}-${when}.geojson`);
   }
   // one menu, opened from Open or from Download, with what that button holds

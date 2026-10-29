@@ -65,11 +65,15 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
       else st.rw = clamp(panel.getBoundingClientRect().right - ev.clientX, RIGHT);
       place();
     };
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', () => {
+    const up = () => { // let go, or taken by the browser (a second finger, a system gesture)
       el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
       if (down) { st.sh = SHEET.dflt; if (panel === left) setTab(null); else setProps(false); } else { place(); save(); }
-    }, { once: true });
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
   }
 
   // Both panels while the map keeps MIN_MAP px between them; else Properties, while shown, has the room

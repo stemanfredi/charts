@@ -43,6 +43,7 @@ export function popup(el, { place = () => {}, closed = () => {}, choose = true }
 // (Cancel, Esc), then a note. Resolves to the value chosen, or null. One at a time.
 let askDialog = null;
 export function dialog(title, body, buttons, cancel = 'Cancel', foot = null) {
+  if (askDialog?.open) return Promise.resolve(null); // one at a time: a second asked meanwhile is not
   if (!askDialog) document.body.append(askDialog = h('dialog', { class: 'dreport', 'aria-labelledby': 'dask-title' }));
   return new Promise((resolve) => {
     let answer = null;

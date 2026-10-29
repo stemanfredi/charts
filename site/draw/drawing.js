@@ -257,7 +257,12 @@ export class Drawing extends DrawStore {
   }
   // what the next click on the map attaches (Attach to…): a label's anchor (key 'anchor'), a line's
   // start or end; or nothing
-  startRepoint(id, key = 'anchor') { this.repointing = { id, key }; this.map.getCanvas().style.cursor = 'crosshair'; }
+  startRepoint(id, key = 'anchor') {
+    this.stop(); // a click on the map now attaches, not a tool's next point
+    this.boxSelect(false);
+    this.repointing = { id, key };
+    this.map.getCanvas().style.cursor = 'crosshair';
+  }
   cancelRepoint() { this.repointing = null; this.map.getCanvas().style.cursor = ''; }
   // what a click on the map picks while the generator's form is open (fn(nodeId, position)), or null
   setPicking(fn) { this.picking = fn; if (!fn && !this.tool) this.map.getCanvas().style.cursor = ''; }
@@ -638,6 +643,7 @@ export class Drawing extends DrawStore {
       };
       raf = requestAnimationFrame(() => move?.());
     });
+    window.addEventListener('pointercancel', () => { if (this.drag) this.cancelDrag(); }); // taken by the browser: as a second finger
     window.addEventListener('pointerup', () => {
       const d = this.drag;
       if (!d) return;

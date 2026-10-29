@@ -36,6 +36,7 @@ export function search(map, Marker, free) {
     q.setAttribute('aria-activedescendant', active >= 0 ? `r-${active}` : '');
   }
   function hideResults() {
+    hits = []; // not shown again on focus under a query they no longer answer
     results.hidden = true;
     q.setAttribute('aria-expanded', 'false');
     q.removeAttribute('aria-activedescendant');

@@ -179,7 +179,7 @@ test('new labels: on an element, its name with an arrow; free, text where clicke
   const doc = base();
   const a = addLabel(doc, { element: 'a' }), b = addLabel(doc, { position: [1, 2] });
   assert.deepEqual([a.name, a.text, a.leader, a.offset, a.anchor], ['', '{name}', 'arrow', [40, -40], { element: 'a' }]);
-  assert.deepEqual([b.name, b.text, b.leader, b.offset, b.anchor], ['', 'Text', 'none', [0, 0], { position: [1, 2] }]);
+  assert.deepEqual([b.name, b.text, b.leader, b.offset, b.anchor], ['', 'Text', 'none', [0, 0], { position: [1, 2], element: null }]);
   assert.deepEqual(a.look, {}); // its colour: the group's, or the default
   assert.equal(labelColour(doc, a), '#1f2933');
   assert.equal(LOOK_FIELDS.label.includes('text.name'), false);

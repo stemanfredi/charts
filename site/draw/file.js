@@ -290,7 +290,7 @@ const READ = {
     const offset = Array.isArray(o) && o.length >= 2 && fin(o[0]) && fin(o[1]) ? [Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, o[0])), Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, o[1]))]
       : (o !== undefined && c.warn('offset: not [x, y] pixels, the default used'), [...LABEL_OFFSET]);
     const one = (v, list, d, what) => (v === undefined ? d : list.includes(v) ? v : (c.warn(`${what}: unknown "${String(v).slice(0, 20)}", ${d} used`), d));
-    const a = { ...x, text: text(mine.text, c, 'text'), anchor: { position: at }, offset, leader: one(mine.leader, LEADERS, 'arrow', 'leader') };
+    const a = { ...x, text: text(mine.text, c, 'text'), anchor: { position: at, element: null }, offset, leader: one(mine.leader, LEADERS, 'arrow', 'leader') };
     const to = refIn(unpack(mine.anchor));
     if (to) anchored.push({ label: a, to });
     return a;

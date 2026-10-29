@@ -502,7 +502,7 @@ export function drawView(root, ctx) {
       chart,
       row('Seabed', h('span', { class: 'fvalue', title: 'A lower bound' },
         `${fmtDist(seabed, u)} along the seabed · ${fmtDist(length, u)} on the surface`),
-      h('button', { type: 'button', class: 'small', title: 'The profile as a file', onclick: () => ctx.download(profileCsv(p.prof), `${(el.name || 'line').replace(/[^\w-]+/g, '-')}-profile.csv`, 'text/csv') }, 'CSV')));
+      h('button', { type: 'button', class: 'small', title: 'The profile as a file', onclick: () => ctx.download(profileCsv(p.prof), `${(el.name || 'line').replace(/[^\p{L}\p{N}-]+/gu, '-')}-profile.csv`, 'text/csv') }, 'CSV')));
   }
   // a double-click on an element, with no tool on, turns Properties on (the map does not zoom)
   map.on('dblclick', (e) => { if (!drawing.tool && drawing.hitAt(e.point).length) { e.preventDefault(); ctx.frame.setProps(true); } });

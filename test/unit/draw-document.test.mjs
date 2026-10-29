@@ -366,9 +366,9 @@ test('labels: on an element, along a line, on a vertex, or free; checked; writte
   assert.deepEqual([l2.anchor.element, l2.anchor.edge, l2.anchor.at, l2.text, l2.leader, l2.look, text(l2).background], ['s', 0, 0.123456789, '', 'arrow', {}, 'halo']);
   assert.deepEqual(l2.anchor.position, resolve(doc, l2.anchor).position); // where it points
   assert.ok(Math.abs(resolve(doc, l2.anchor).along - 0.123456789 * resolve(doc, l2.anchor).length) < 1e-6);
-  assert.deepEqual([l3.anchor, l3.leader, l3.offset, l3.look, text(l3).size], [{ position: [12, 41] }, 'arrow', [40, -40], {}, 'medium']);
-  assert.deepEqual([l4.anchor, l5.anchor, l6.anchor], [{ position: [12, 42] }, { position: [12, 40], element: 's', edge: 0, at: 0 }, { position: [12, 40], element: 'a' }]);
-  assert.deepEqual([l8.anchor, l9.anchor, l10.anchor], [{ position: [12, 43] }, { position: d.centroid(doc.areas[0].points), element: 'ar' }, { position: [13, 42], element: 'ar', vertex: 2 }]);
+  assert.deepEqual([l3.anchor, l3.leader, l3.offset, l3.look, text(l3).size], [{ position: [12, 41], element: null }, 'arrow', [40, -40], {}, 'medium']);
+  assert.deepEqual([l4.anchor, l5.anchor, l6.anchor], [{ position: [12, 42], element: null }, { position: [12, 40], element: 's', edge: 0, at: 0 }, { position: [12, 40], element: 'a' }]);
+  assert.deepEqual([l8.anchor, l9.anchor, l10.anchor], [{ position: [12, 43], element: null }, { position: d.centroid(doc.areas[0].points), element: 'ar' }, { position: [13, 42], element: 'ar', vertex: 2 }]);
   assert.ok(!('name' in l1.look.text));
   for (const re of [/leader: unknown "zigzag"/, /offset: not \[x, y\]/, /size "huge" unknown/, /label l4: what it points at \(gone\) is not here; free/, /label l8: what it points at \(a\) is not here; free/]) warned(report, re);
   assert.deepEqual(doc.points[0].look, { text: { name: true } });

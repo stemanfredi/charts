@@ -229,7 +229,7 @@ export function addArea(doc, points, opts = {}) {
 // a line's end: at a point (its ID: attached to its centre, following it), attached otherwise (an end
 // { position, element, corner | edge and at | vertex }: attach.js), or a free position
 const endOf = (doc, x) => (typeof x === 'string' ? { position: [...doc.points.find((p) => p.id === x).position], element: x }
-  : Array.isArray(x) ? { position: [...x], element: null } : { ...structuredClone(x), position: [...x.position] });
+  : Array.isArray(x) ? { position: [...x], element: null } : { element: null, ...structuredClone(x), position: [...x.position] }); // free: element null, the one shape
 // A line from start to end (each a point's ID, an attached end, or a position) through positions, its
 // legs straight (geodesics). Returns it.
 export function addLine(doc, start, positions, end, opts = {}) {
@@ -255,7 +255,7 @@ export function removePart(p, i) { p.parts = p.parts.filter((_, k) => k !== i); 
 export function addLabel(doc, anchor) {
   const free = !anchor.element;
   // no name: it goes by its text (tree.js shownName)
-  const a = { ...base(doc, 'label', undefined, ''), text: free ? 'Text' : '{name}', anchor: clone(anchor), offset: free ? [0, 0] : [...LABEL_OFFSET], leader: free ? 'none' : 'arrow' };
+  const a = { ...base(doc, 'label', undefined, ''), text: free ? 'Text' : '{name}', anchor: { element: null, ...clone(anchor) }, offset: free ? [0, 0] : [...LABEL_OFFSET], leader: free ? 'none' : 'arrow' };
   doc.labels.push(a);
   return a;
 }

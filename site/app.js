@@ -228,14 +228,16 @@ function watchLocation(on) {
   if (watching != null) navigator.geolocation.clearWatch(watching);
   watching = null;
   if (!on) return;
+  let warned = false; // one note per watch: a watch not answered yet reports again and again
   watching = navigator.geolocation.watchPosition(({ coords }) => {
     const at = [coords.longitude, coords.latitude];
     showLocation({ at, accuracy: coords.accuracy });
     if (!located) { located = true; map.flyTo({ center: at, zoom: Math.max(map.getZoom(), 13), padding: 0 }); }
   }, (e) => {
-    if (e.code !== e.PERMISSION_DENIED) return; // not found yet, or too slow: it keeps trying
-    setLocating(false);
-    locate.title = 'Location not available: this site is not allowed to know it (the browser\'s site settings)';
+    const denied = e.code === e.PERMISSION_DENIED;
+    if (denied) setLocating(false); // else it keeps trying (not found yet, or too slow): the button stays on
+    if (!located && !warned) note(denied ? 'Location not available: this site is not allowed to know it (the browser\'s site settings)' : 'Location not available yet');
+    warned = true;
   }, { enableHighAccuracy: true, maximumAge: 10000 });
 }
 function setLocating(on) {
@@ -1189,7 +1191,11 @@ async function onFrame(b, fn, before = async () => {}) {
   };
   const failed = (e) => { console.error('export failed:', e.message); done('Failed', `Export failed: ${e.message}`); };
   try { await before(); } catch (e) { failed(e); return; }
+  // a provider that never answers: the map never idles; after a while the export fails instead of
+  // saying "Saving…" for ever (and dropping every later click)
+  const deadline = setTimeout(() => { map.off('idle', go); failed(new Error('the map did not finish loading')); }, 30000);
   const go = () => {
+    clearTimeout(deadline);
     drawing.showMarks(false); // the selection's highlight is not part of the picture, nor the device's location
     for (const id of LOCATION_LAYERS.map((l) => l.id)) map.setLayoutProperty(id, 'visibility', 'none');
     map.once('render', async () => {

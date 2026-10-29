@@ -40,7 +40,7 @@ export function placeKind(doc, p, kind, presets, d = 0) {
   const taken = idsOf(doc);
   const mine = kind?.startsWith('preset:') && presets.find((x) => x.name === kind.slice(7));
   if (mine) {
-    return addPoint(doc, p, { ...structuredClone(mine.point), bearing: 0, name: nextName(doc, 'point', mine.name.replace(/[^\w ]+/g, '').trim() || 'Point'),
+    return addPoint(doc, p, { ...structuredClone(mine.point), bearing: 0, name: nextName(doc, 'point', mine.name.replace(/[^\p{L}\p{N} ]+/gu, '').trim() || 'Point'),
       properties: [{ key: 'preset', value: mine.name }] }, taken);
   }
   const built = BUILT_IN[kind];
