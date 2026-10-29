@@ -667,7 +667,7 @@ await section('the drawing\'s files: imported again, dropped on the map, the lis
     map.getContainer().dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
   }, JSON.stringify(savedFile));
   await dw.click('dialog[open] button.done'); // the same layers again: no reload
-  await dw.waitForFunction(() => !document.querySelector('dialog[open]') && drawing.doc.points.length === 1);
+  await dw.waitForFunction(() => drawing.saving.list().length === 3); // imported once the dialog has closed: the third drawing of the list
   check((await measuredNow()).length === 0, 'drawing: a file without measurements brings a drawing without them');
   const drawings = await dw.evaluate(() => drawing.saving.list().map((x) => x.title || 'Untitled'));
   check(drawings.length === 3, `drawing: every drawing kept in the list, the imported ones added (${drawings.join(', ')})`); // the first and two imported (an empty New left nothing)
