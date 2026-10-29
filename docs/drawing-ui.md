@@ -43,7 +43,7 @@ One layout at every width (`site/frame.js`).
   The bottom row between the panels: credits, the time shown (a chip: a click opens its calendar),
   the depth shown when a layer has one (a chip: a click opens its list), the cursor's position, the
   scale (a click switches km and NM).
-- **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`, `pm=km`), never the
+- **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`), never the
   drawing. The drawing goes out as a file (**Download** › **Drawing (GeoJSON)**, with the view) and
   comes in by **Open a file…** or a file dropped on the map, after a report (what it holds, what was skipped and
   why); a presets file adds its presets (§9).
@@ -159,7 +159,8 @@ its **actions** (one row of buttons: Edit… and Select all for what a rule made
 Save as preset…, Select members, Connect…), its **Look**, then its foot (**In group**, **Guide**,
 **Data**). Every number is 12 px, of one width; a unit stands beside its value in grey (a distance
 field shows its number, its unit next to it or in the column's head: typed with another unit, it is
-read in that one).
+read in that one). One rule for every distance: metres below 1 km, else km; with NM, NM. A column
+takes one unit by its largest value.
 
 - **Rows**: a label, one value or a pair (latitude · longitude, colour · opacity), and a last column
   for an action (detach, attach, ↺). A box ticked is a row like any other.
@@ -169,7 +170,7 @@ read in that one).
   actions (and what did not fit the columns) in a bar over the list, shown only then, and on keys
   (Insert, Ctrl/⌘ Delete); ↑ ↓ and Enter keep the column. Past 100 rows, a page at a time. **Copy**
   gives every row, tab-separated, for a spreadsheet. Numbers are right-aligned, with fixed decimals:
-  degrees to 6 (a decimetre), distances in the column's unit (km or NM, in its head) to 3, bearings
+  degrees to 6 (a decimetre), distances in the column's unit (in its head) to the metre, bearings
   to 1.
 - **Sections** have the heads of Layers' groups, the arrow at the right where one folds: **Data**, open while it has properties of the user's;
   **Depth profile**, read when opened; **Totals**, open to start with.
@@ -197,8 +198,7 @@ read in that one).
   **Depth profile**: the depth along it from the depth shading's grid (at most 1,000 places), its
   extremes, a chart linked to the map both ways, its length along the seabed, CSV.
 - A point's **Parts** are its own: circles, sectors, outlines; a table of Kind, **Size** (a radius, an
-  outline's length), **Across** (a sector's aperture in °, an outline's width), in m or km (a click
-  on the head switches; with NM, NM), and Fill; the row
+  outline's length), **Across** (a sector's aperture in °, an outline's width), and Fill; the row
   current has its name and **Shown** in the bar. One way to add one: the table's empty last row. A
   part's handle pressed on the map makes its row current. All parts share the point's Bearing (a
   sector centred on it, an outline facing it).
