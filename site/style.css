@@ -165,9 +165,9 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .drow .kind { flex: none; color: var(--accent); display: grid; place-items: center; }
 .drow .kind svg { width: 16px; height: 16px; }
 :is(.drow, .drawings) .dname { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 0 8px; min-height: var(--row); }
-.drow .dname { padding: 0 4px; }
+.drow .dname { padding: 0 4px; min-width: 44px; } /* a finger's target even beside a long value, which gives way (below) */
 .drow input.dname { border: 1px solid var(--accent); border-radius: 6px; background: #fff; }
-:is(.drow, .drawings) .val { flex: none; font-family: var(--mono); font-size: 11px; color: var(--soft); white-space: nowrap; }
+:is(.drow, .drawings) .val { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); font-size: 11px; color: var(--soft); white-space: nowrap; }
 .dlist .empty { padding: 8px 12px; color: var(--soft); }
 .dinspect { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 0 16px; overscroll-behavior: contain; display: flex; flex-direction: column; }
 /* a property grid (docs/drawing-ui.md §5): rows ruled across the panel, a label column, fields
