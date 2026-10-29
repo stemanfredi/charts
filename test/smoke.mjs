@@ -545,7 +545,7 @@ await section('the drawing', async () => {
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Aerial vehicle,Surface vehicle,Underwater vehicle',
     `tools: Shape's kinds a row under its button, round a centre first, then the outlines, then the vehicles (${sub})`);
   // the bar across the top, the kind in use pressed in it; the left panel open on Elements, hidden by
-  // its button, back with E; Properties hidden with nothing selected (it has nothing to show); the
+  // its button, back with E; Properties shows the drawing with nothing selected; the
   // bar's order: the file group (Open, the title, Download, Copy link), Layers, Elements, Undo…
   const layoutNow = () => dw.evaluate(() => [document.querySelector('#bar .kinds button[aria-pressed=true]')?.getAttribute('aria-label') ?? '', !!document.querySelector('#bar button[data-tool=shape]')?.offsetParent,
     !document.querySelector('#side').hidden, Math.round(document.querySelector('#bar').getBoundingClientRect().top), document.querySelector('#props').hidden]);
@@ -557,8 +557,8 @@ await section('the drawing', async () => {
   const hiddenE = await layoutNow();
   await dw.keyboard.press('e');
   const shownE = await layoutNow();
-  check(onTool.join() === 'Circle,true,true,0,true' && !hiddenE[2] && shownE[2] && order === 'Open,Download,Copy link,Layers,Elements,Undo',
-    `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by its button, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
+  check(onTool.join() === 'Circle,true,true,0,false' && !hiddenE[2] && shownE[2] && order === 'Open,Download,Copy link,Layers,Elements,Undo',
+    `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by its button, back with E; Properties shows the drawing with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
   // a kind picked in the row: the tool on with it, the row shut; the key again: the tool off; a
   // right-click on the button: on again, the row open
   const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);

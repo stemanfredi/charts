@@ -3,7 +3,7 @@
 // selected, the drawing itself) and edits it with fields. Fields apply on Enter or when they lose
 // focus, one undo step each.
 
-import { h, svg, typing, morph, animate } from '../dom.js';
+import { h, svg, typing, morph, animate, NARROW } from '../dom.js';
 import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
 import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, addPart, makePart, followedPart, mainOutline, roundParts, PART_KINDS, ROUND, SYMBOLS, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
@@ -52,14 +52,7 @@ export function drawView(root, ctx) {
   const { renderTools } = tools;
 
   // ---- the tree (tree.js), its first row the drawing ------------------------------------------
-  // The drawing shown in Properties (its row clicked), until something is selected
-  let showDrawing = false;
-  function openDrawing() {
-    drawing.select([]);
-    showDrawing = true;
-    renderInspector();
-  }
-  const tree = createTree(drawing, ctx, { facts: fx, openDrawing });
+  const tree = createTree(drawing, ctx, { facts: fx });
   // the tree built only while it is seen (a large drawing's rows cost tens of ms per change); built
   // when its tab opens (render('tool'), after any change of the frame)
   let listStale = false;
@@ -120,9 +113,11 @@ export function drawView(root, ctx) {
   // else the drawing's), "mixed" where they differ; a change sets it on each of them, ↺ takes it back.
   // A group has no look of its own: it reaches its members. Only the fields their kinds have (a line
   // no fill, a label its text, a shape its minimum size); fields: those to show, else all of those.
+  // xs with each group replaced by its members (its subgroups' too), none twice
+  const flat = (xs) => [...new Map(xs.flatMap((x) => (x.kind === 'group' ? membersOf(drawing.doc, x.el.id, true).filter((m) => m.kind !== 'group') : [x])).map((x) => [x.el.id ?? 'drawing', x])).values()];
   function lookBlock(xs, fields = null, title = 'Look', extra = []) {
     const doc = drawing.doc;
-    xs = [...new Map(xs.flatMap((x) => (x.kind === 'group' ? membersOf(doc, x.el.id, true).filter((m) => m.kind !== 'group') : [x])).map((x) => [x.el.id ?? 'drawing', x])).values()];
+    xs = flat(xs);
     if (!xs.length && !extra.length) return null; // an empty group
     const has = (x, f) => LOOK_FIELDS[x.kind].includes(f) && !(f === 'text.values' && x.kind === 'point' && !roundParts(x.el).length); // a point's values: its radii
     const shown = (f) => (!fields || fields.includes(f)) && xs.some((x) => has(x, f));
@@ -212,7 +207,7 @@ export function drawView(root, ctx) {
   const commonTop = (kind, id) => {
     const el = now(id);
     title = `${kindTitle(kind, el)} · ${shownName(drawing.doc, kind, el, ctx.units())}`;
-    return [ruleRow(id)?.row, row('Name', textField(id, 'name', 'Name'))];
+    return [ruleRow(id)?.row, kind === 'label' ? null : row('Name', textField(id, 'name', 'Name'))]; // a label is its text
   };
   const ruleActs = (id) => ruleRow(id)?.acts ?? [];
   // and its foot: the group it is in, Guide, its data (Delete: in the head)
@@ -293,6 +288,7 @@ export function drawView(root, ctx) {
         onclick: async () => {
           const name = (await askText('Save as preset', 'Name', el.name || 'Preset'))?.trim();
           if (!name) return;
+          if (drawing.presets.some((x) => x.name === name) && !(await ask('Save as preset', `Replace the preset “${name}”?`, [[() => true, 'Replace']]))) return;
           const p = presetOf(now(id), name);
           drawing.presets = [...drawing.presets.filter((x) => x.name !== name), p];
           savePresets(drawing.presets);
@@ -578,7 +574,7 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     const direct = membersOf(doc, id);
     const below = membersOf(doc, id, true).filter((x) => x.kind !== 'group'); // everything in it, its subgroups' too
-    const shownEye = eyeFor(drawing, icon, () => membersOf(drawing.doc, id, true), 'members', id);
+    const shownEye = eyeFor(drawing, icon, () => [item(id)], 'members'); // the group's own flag, as its row's eye: one flag hides them all
     shownEye.render();
     // its members as the tree counts them (everything in it, its subgroups' too), and its subgroups
     const allSubs = membersOf(doc, id, true).length - below.length;
@@ -648,8 +644,8 @@ export function drawView(root, ctx) {
     title = `${xs.length} elements · ${Object.entries(counts).map(([k, n]) => plural(n, kindName(k).toLowerCase())).join(', ')}`;
     return [between ? row('Apart', distValue(between.s, { title: 'From the first to the second' })) : null,
     between ? row('Bearing 1→2', fvalue(norm360(between.azi).toFixed(1), { title: `From ${label(xs[0].kind, xs[0].el)} to ${label(xs[1].kind, xs[1].el)}` }), funit('°T')) : null,
-    ...sharedRows(xs),
-    xs.some((x) => x.kind === 'label') ? leaderRow(xs.filter((x) => x.kind === 'label')) : null,
+    ...sharedRows(flat(xs)),
+    flat(xs).some((x) => x.kind === 'label') ? leaderRow(flat(xs).filter((x) => x.kind === 'label')) : null,
     actionsRow(pointIds.length > 1 ? h('button', { type: 'button', class: 'small', title: 'Lines from roots to these points', onclick: () => openConnect(pointIds) }, 'Connect…') : null),
     lookBlock(xs),
     groupRow(ids),
@@ -823,7 +819,7 @@ export function drawView(root, ctx) {
         ...(dform.copy && !mine.some((x) => `preset:${x.name}` === dform.preset) ? [[dform.preset, `${dform.preset.slice(7)} (as copied)`]] : [])], dform.preset, choose, { title: 'What each copy is' })), // a preset renamed or deleted since: its copy is kept
       dform.copy ? row('Radius', distValue(reach, { title: 'The preset\'s own' }))
         : row('Radius', withUnit(F.dist(() => dform.radius, (m) => { dform.radius = m; redo(); }, 'Radius', { check: (m) => (m >= MAX_RADIUS ? 'too large' : null), title: dform.preset === 'circle' ? 'Each circle\'s, whatever the spacing' : 'Its largest part\'s reach, whatever the spacing' }))),
-      dform.preset === 'circle' ? row('Sector', segOf('Sector', [[null, 'None', 'circles'], ...[90, 180, 270].map((a) => [a, `${a}°`, arc ? 'facing outwards' : 'facing away from the line'])], dform.aperture, (v) => { dform.aperture = v; redo(); })) : null,
+      dform.preset === 'circle' ? row('Aperture', F.angle(() => dform.aperture, (v) => { dform.aperture = v; redo(); }, `Aperture (degrees): a sector ${arc ? 'facing outwards' : 'facing away from the line'}; empty: a circle`, { wrap: false, none: true }), funit('°')) : null,
       editing ? null : row('In group', select('Group', [['', 'none (at the top)'], ...doc.groups.map((g) => [g.id, groupPath(drawing.doc, g)])], dform.groupId ?? '', (v) => { dform.groupId = v || null; }, { title: 'Where its group goes' })),
       h('p', { class: 'note fsummary' }, points.length ? `${copies(points.length)}.` : `No copy fits: ${arc ? 'the part' : 'the line'} is shorter than the margins, or the spacing too long.`),
       differs ? h('p', { class: 'note warn' }, `Another number of points (${editing.points.length} now): they are made anew${was ? ', and connected again' : ''}. Changes made to those by hand are lost; Undo brings them back.`) : null,
@@ -952,8 +948,7 @@ export function drawView(root, ctx) {
     placesRead.clear();
     const xs = drawing.selected();
     if (form && selKey() !== form.sel) { closeForm(); note('The form closed: the selection changed'); }
-    ctx.frame.has(!!form || xs.length > 0 || showDrawing); // Properties shown while it has something, and is on
-    tree.markDrawing(showDrawing && !xs.length);
+    ctx.frame.has(!!form || xs.length > 0 || !NARROW.matches); // Properties shown while it has something (a computer: the drawing, with nothing selected), and is on
     // not seen (off, or nothing to show): not built; built anew when it is (render('tool'))
     if (ctx.props.hidden) { shows = null; return; }
     const what = `${form ? `${form.kind}:${form.sel}` : ''}|${selKey()}`;
@@ -1049,14 +1044,13 @@ export function drawView(root, ctx) {
       if (what === 'area' && !drawing.sel.size) note('Nothing lies entirely inside the box'); // a box drawn: why nothing is selected
       // a label just placed (and selected, so shown): its text ready to be typed
       if (what === 'placed') {
-        if (ctx.props.hidden) ctx.frame.setProps(true); // typing it is the point of placing it: Properties on, as a double-click does
+        if (ctx.props.hidden) ctx.frame.showProps(true); // typing it is the point of placing it: Properties shown (the user's switch as it was)
         if (shows === null) renderInspector();
         const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return;
       }
       // the selection only changed: the rows marked again, not built again (each row's value is a length
       // or an area, computed)
       if (what === 'sel') {
-        showDrawing = false; // something else selected, or nothing (the drawing's row: openDrawing)
         if (!listStale) tree.mark();
       } else renderList();
       renderInspector();

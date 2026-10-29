@@ -196,12 +196,8 @@ export function setLook(x, path, v) {
 // the field at path of a look
 export const lookField = (l, path) => path.split('.').reduce((o, k) => o?.[k], l);
 // whether an element is drawn: shown itself, and every group it is in too (a hidden group hides
-// everything in it); within (a group's id): as far as that group goes, it included
-export function isShown(doc, el, within = null) {
-  if (!el.visible) return false;
-  for (const g of groupsOf(doc, el)) { if (g.visible === false) return false; if (g.id === within) break; }
-  return true;
-}
+// everything in it)
+export const isShown = (doc, el) => !!el.visible && groupsOf(doc, el).every((g) => g.visible !== false);
 
 // ---- making elements (they change doc in place; the caller keeps the undo snapshot) -----------
 

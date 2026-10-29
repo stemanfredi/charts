@@ -28,9 +28,10 @@ One layout at every width (`site/frame.js`).
   button in the bar (or **L**, **E**) chose: pressed again, it closes. At first it is open on Layers;
   Layers' button turns while the map's layers load.
 - **Properties** (the inspector, §5), on the right: a switch of the user's (its toggle, **I**, or a
-  double-click on an element). While on, it shows what is selected (or the drawing, its row
-  clicked) and goes when nothing is; selecting never turns it on (a label placed does: its text is
-  there to be typed). Its head: what it shows, then
+  double-click on an element). While on, it shows what is selected, else the drawing (its title,
+  its display, its totals); on a phone it goes when nothing is. The left panel making way for it, or
+  a label placed (its text there to be typed), shows or hides it for the moment: the switch comes
+  back as it was at its next press. Its head: what it shows, then
   **Zoom to**, **Duplicate**, **Group**, **Delete**.
 - Each panel is as wide as dragged at its inner edge (left 200–480 px, right 260–600; a
   double-click: 260 and 320); widths, the tab and the switch are remembered in this browser. Where
@@ -105,8 +106,8 @@ presets) opens its kinds.
 - **Sector**: the centre; the radius and one edge; the other edge, clockwise (back on the first: a
   circle). Esc goes one click back.
 - **Label**: points at what snapping finds (else an area's centre, a place on a line), or is free
-  text where clicked; its text selected, ready to type. It has no name of its own: the tree and
-  Properties show it by its text as it reads (a name typed wins).
+  text where clicked; its text selected, ready to type. It has no name of its own: the tree shows
+  it by its text as it reads, and renames it by its text.
 - What is drawn or dragged shows its values on the map (legs, total, area, radius). Exact lengths and
   bearings are typed afterwards, in the points' and corners' tables (§5).
 - **Shift**: 15° steps from the leg before (from north for the first). **Alt**: nothing snapped or
@@ -219,7 +220,7 @@ takes one unit by its largest value.
   a line; **Text offset**, where its text was dragged to (↺: back); **Leader**, when attached. Look:
   text size, colour, background (halo or box).
 - A **group**: **Members** as the tree counts them (everything in it, its subgroups' too) and its
-  subgroups, with an eye for all of them; **Totals** as the drawing's, its members only, by subgroup
+  subgroups, with the group's eye (as its row's); **Totals** as the drawing's, its members only, by subgroup
   (Copy); **Select members**; **Look · sets each member** (a group has no look of its own); its foot
   as every element's.
 - **Guide** (points, lines, areas): faint and dashed, left out of the totals.
@@ -237,7 +238,7 @@ click on the map picks a root):
 
 - **By** spacing or count; **Margins** at the start and the end; **Offset** left, right or
   alternating (Out, In round a part); **Copy**, a built-in kind or a preset of yours; **Radius**
-  (500 m to start with; a preset keeps its size); **Sector** (none, 90°, 180°, 270°, facing away);
+  (500 m to start with; a preset keeps its size); **Aperture** (a sector facing away; empty: circles);
   **In group**.
 - It makes a group "Distribute along" and the name, holding **Copies** and, when connected,
   **Connection**.
@@ -308,7 +309,8 @@ lives in this page, so it pastes into another drawing opened in it.
 **Save as preset…** (a point's Properties) keeps its symbol, parts and the fill and stroke it sets
 itself (not what it takes from the drawing or the defaults) under a name; Distribute along copies all of it. One
 with parts joins Shape's kinds, one without Point's. Placing one makes a point named after it, with
-the preset's name as a property; pressed again while current among the kinds (or right-clicked), it is renamed or deleted. Presets
+the preset's name as a property; pressed again while current among the kinds (or right-clicked), it is renamed or deleted. Saving one
+under a name in use asks before replacing it (a file's replaces). Presets
 live in this browser only; **Download** › **Presets (JSON)** and **Open a file…** move them.
 
 ## 10. Deleting, and drawings in this browser

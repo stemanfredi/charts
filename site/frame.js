@@ -22,11 +22,12 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
   const saved = store.json(KEY) ?? {};
   const st = {
     tab: NARROW.matches ? null : saved.tab === null || tabs.some((t) => t.id === saved.tab) ? saved.tab : 'layers', // the left's tab, or null: closed (at first: Layers)
-    props: NARROW.matches ? false : saved.props !== false, // Properties on (on a phone: off to start with)
+    props: NARROW.matches ? false : saved.props !== false, // Properties shown now (on a phone: off to start with)
+    wants: saved.props !== false, // the user's switch, saved; what the app shows for a moment (showProps) does not change it
     has: false, // Properties has something to show
     lw: clamp(saved.lw, LEFT), rw: clamp(saved.rw, RIGHT), sh: clamp(saved.sh, SHEET),
   };
-  const save = () => store.set(KEY, JSON.stringify({ tab: st.tab, props: st.props, lw: st.lw, rw: st.rw, sh: st.sh }));
+  const save = () => store.set(KEY, JSON.stringify({ tab: st.tab, props: st.wants, lw: st.lw, rw: st.rw, sh: st.sh }));
   const root = document.documentElement;
 
   // the bar's toggles: a button per left tab (the left panel open on it, or closed when it shows it; while
@@ -58,7 +59,7 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
     const move = (ev) => {
       if (what === 'sheet') {
         const v = ((panel.getBoundingClientRect().bottom - ev.clientY) / innerHeight) * 100; // from its foot (a phone's: the dock)
-        if (panel === right && !st.props) { if (v < SHEET.min / 2) return; st.props = true; } // the peek dragged up: Properties on
+        if (panel === right && !st.props) { if (v < SHEET.min / 2) return; st.props = st.wants = true; } // the peek dragged up: Properties on
         down = v < SHEET.min / 2; st.sh = clamp(v, SHEET);
       }
       else if (what === 'left') st.lw = clamp(ev.clientX - panel.getBoundingClientRect().left, LEFT);
@@ -105,14 +106,20 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
     place();
     save();
   }
+  // the user's switch (its button, I); showProps: the app's, for now (the left panel making way, a
+  // label placed): the switch as saved comes back at its next press
   function setProps(on) {
+    st.wants = on;
+    showProps(on);
+    save();
+  }
+  function showProps(on) {
     st.props = on;
     if (on && NARROW.matches) st.tab = null;
     place();
-    save();
   }
   function toggleTab(id) {
-    if (yields()) { setTab(id); setProps(false); } else setTab(st.tab === id ? null : id);
+    if (yields()) { setTab(id); showProps(false); } else setTab(st.tab === id ? null : id);
   }
   NARROW.addEventListener?.('change', place);
   addEventListener('resize', place);
@@ -121,7 +128,7 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
     tabBtns, rightBtn,
     get tab() { return st.tab; },
     get props() { return st.props; },
-    setProps,
+    setProps, showProps,
     toggleTab, // its button or key: open there, or closed when it is
     has: (v) => { if (v !== st.has) { st.has = v; place(); } }, // Properties has something to show, or not
   };

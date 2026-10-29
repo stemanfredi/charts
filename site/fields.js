@@ -83,8 +83,9 @@ export function fields({ note, units }) {
   };
   // degrees: wrap (a bearing: any number, read modulo 360), else strictly between lo and hi; fixed:
   // its decimals always shown (a table's column)
-  const angle = (get, put, aria, { lo = 0, hi = 360, wrap = true, fixed = null } = {}) => field(() => { const v = get(); return v == null ? '' : fixed == null ? `${+v.toFixed(4)}` : v.toFixed(fixed); }, (t) => {
+  const angle = (get, put, aria, { lo = 0, hi = 360, wrap = true, fixed = null, none = false } = {}) => field(() => { const v = get(); return v == null ? '' : fixed == null ? `${+v.toFixed(4)}` : v.toFixed(fixed); }, (t) => {
     const v = num(t.replace('°', ''));
+    if (t.trim() === '' && none) return null; // none: empty is a value of its own (no sector)
     if (t.trim() === '' || !Number.isFinite(v)) return undefined;
     if (wrap) return norm360(v);
     return v > lo && v < hi ? v : undefined;
