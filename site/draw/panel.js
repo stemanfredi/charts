@@ -586,7 +586,7 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     const direct = membersOf(doc, id);
     const below = membersOf(doc, id, true).filter((x) => x.kind !== 'group'); // everything in it, its subgroups' too
-    const shownEye = eyeFor(drawing, icon, () => membersOf(drawing.doc, id, true), 'members');
+    const shownEye = eyeFor(drawing, icon, () => membersOf(drawing.doc, id, true), 'members', id);
     shownEye.render();
     // its members as the tree counts them (everything in it, its subgroups' too), and its subgroups
     const allSubs = membersOf(doc, id, true).length - below.length;

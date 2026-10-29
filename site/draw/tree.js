@@ -26,13 +26,18 @@ export const shownName = (doc, kind, el, units) => (kind === 'label' && !el.name
 // a group's name with the groups it is in: "A › B"
 export const groupPath = (doc, g) => [...groupsOf(doc, g).reverse(), g].map((x) => label('group', x)).join(' › ');
 
+const showAll = (drawing, v, xs, within) => drawing.change((doc) => { for (const x of xs) find(doc, x.el.id).el.visible = v; if (v && within) find(doc, within).el.visible = true; });
+// el drawn as far as group gid goes: it shown, and every group between, gid too
+const shownIn = (doc, el, gid) => { if (!el.visible) return false; for (const g of groupsOf(doc, el)) { if (!g.visible) return false; if (g.id === gid) break; } return true; };
 // An eye for all of xs() (what: what they are, for its label): every one shown, a click hides them
-// all; some or none, a click shows them all. render() when they change.
-const showAll = (drawing, v, xs) => drawing.change((doc) => { for (const x of xs) find(doc, x.el.id).el.visible = v; });
-export function eyeFor(drawing, icon, xs, what) {
-  const b = h('button', { type: 'button', class: 'deye', onclick: () => { const all = xs(); showAll(drawing, !all.every((x) => x.el.visible), all); } });
+// all; some or none, a click shows them all. render() when they change. A group's Members eye
+// (within: the group's id) counts what is drawn in the group (itself and its subgroups shown too),
+// and showing them all shows the group as well.
+export function eyeFor(drawing, icon, xs, what, within = null) {
+  const seen = (x) => (within ? shownIn(drawing.doc, x.el, within) : x.el.visible);
+  const b = h('button', { type: 'button', class: 'deye', onclick: () => { const all = xs(); showAll(drawing, !all.every(seen), all, within); } });
   b.render = () => {
-    const all = xs(), on = all.filter((x) => x.el.visible).length, every = !!all.length && on === all.length;
+    const all = xs(), on = all.filter(seen).length, every = !!all.length && on === all.length;
     b.setAttribute('aria-pressed', on && !every ? 'mixed' : String(every));
     b.setAttribute('aria-label', `${every ? 'Hide' : 'Show'} all ${what}`);
     b.title = every ? 'All shown: click to hide them all' : on ? 'Some hidden: click to show them all' : 'All hidden: click to show them all';
