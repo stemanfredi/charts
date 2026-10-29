@@ -417,7 +417,7 @@ export function drawView(root, ctx) {
   const partHead = (text) => (ctx.units() === 'nm' ? `${text} NM` : h('span', { class: 'hunit', title: 'Click: m or km', onclick: () => ctx.setDisplay({ small: ctx.display.small === 'm' ? 'km' : 'm' }) }, `${text} ${ctx.display.small}`));
   const inUnit = (m) => (m / (ctx.units() === 'nm' ? 1852 : 1000)).toFixed(3);
   // a table of places (a line's points, an area's corners, a point's parts): its row k made current
-  // (k: the place's index), the table at its page; from the map (a place pressed: drawing.place)
+  // (k: the place's index), the table at its page; from the map (a place pressed: drawing.pressedPlace)
   function pickPlace(table, k, paged = true) {
     const from = paged ? k - (k % PAGE) : 0, name = paged ? `${table}@${from}` : table;
     if (paged) pageAt.set(table, from);
@@ -1041,7 +1041,7 @@ export function drawView(root, ctx) {
       if (what === 'draft') return tools.renderTouch();
       if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
       // a line's point or an area's corner pressed on the map: its row in the table made current
-      if (what === 'place') { const { id, index } = drawing.place; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${{ line: 'points', area: 'corners', point: 'parts' }[kindOf(id)]}`, index, kindOf(id) !== 'point'); return; }
+      if (what === 'place') { const { id, index } = drawing.pressedPlace; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${{ line: 'points', area: 'corners', point: 'parts' }[kindOf(id)]}`, index, kindOf(id) !== 'point'); return; }
       if (what === 'area' && !drawing.sel.size) note('Nothing lies entirely inside the box'); // a box drawn: why nothing is selected
       // a label just placed (and selected, so shown): its text ready to be typed
       if (what === 'placed') { const t = inspector.querySelector('.ltext'); t?.focus(); t?.select(); return; }

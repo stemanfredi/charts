@@ -31,8 +31,9 @@ const SNAP_PX = FINGER ? 16 : SNAP_RADIUS, GRAB_PX = FINGER ? 22 : 5, MID_PX = F
 const placeOfEnd = (doc, x) => (typeof x === 'string' ? doc.points.find((n) => n.id === x)?.position : Array.isArray(x) ? x : x?.position);
 export class Drawing extends DrawStore {
   // onChange(what): 'doc' (the document changed), 'sel' (the selection), 'tool', 'draft' (what is
-  // being drawn), 'drag', 'zoom', 'area' (a box select ended), 'placed' (a label placed: its text to
-  // type), 'storage' (saving failed or another tab saved). known: what the app offers, for parse().
+  // being drawn), 'drag', 'area' (a box select ended), 'place' (a handle pressed: pressedPlace),
+  // 'placed' (a label placed: its text to type), 'storage' (saving failed or another tab saved).
+  // known: what the app offers, for parse().
   // getView(): the map's view in the format's terms. units(): the display units ('km' | 'nm');
   // bearings(): each leg's bearing shown beside its length.
   constructor(map, { onChange, known, getView, units = () => 'km', bearings = () => false }) {
@@ -616,7 +617,7 @@ export class Drawing extends DrawStore {
       // Properties' table made current (place: the element and the row's index, a line's start 0)
       const index = h?.role === 'vertex' ? +h.ref + 1 : h?.role === 'end' ? (+h.ref ? find(this.doc, h.id)?.el.vertices.length + 1 : 0) : h?.role === 'ppoint' ? +h.ref
         : ['radius', 'aperture', 'corner', 'side'].includes(h?.role) ? parseInt(h.ref, 10) : null;
-      if (index != null) { this.place = { id: h.id, index }; this.onChange('place'); }
+      if (index != null) { this.pressedPlace = { id: h.id, index }; this.onChange('place'); }
       map.dragPan.disable();
       const ll = map.unproject([pt.x, pt.y]);
       this.drag = { ...grab, start: [ll.lng, ll.lat], from: pt, orig: JSON.stringify(this.doc), moved: false, pointer: e.pointerId };
