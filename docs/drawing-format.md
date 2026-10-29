@@ -32,7 +32,7 @@ short example; §16 lists every default.
 | Stroke width | screen pixels, 0.5–20. |
 | Text | any string, kept verbatim, never interpreted. |
 | Time | ISO 8601 in UTC, whole seconds: `"2026-10-22T09:30:00Z"`. |
-| ID | string, 1–64 characters from `A–Z a–z 0–9 _ -`, unique across the whole drawing (elements, groups and rules alike). A radius has none: it is named by its place in its point's list. |
+| ID | string, 1–64 characters from `A–Z a–z 0–9 _ -`, unique across the whole drawing (elements, groups and rules alike). A part has none: it is named by its place in its point's list. |
 
 The app makes random 8-character IDs. Any unique IDs will do (`a`, `l1`, `p-main`); the app keeps
 them. A feature's `id` given as a number is read as text.
@@ -123,7 +123,7 @@ An unknown layer, variant, period, data entry or depth is skipped with a warning
 | Property | Notes |
 |---|---|
 | `name` | free text |
-| its properties | one column each, in their order, values as text (a description, a category: properties like any other; the totals can count by any key). | A key equal to one of the names in this table, or `charts`, is written `p_<key>`; a repeated key `<key>_2`, `<key>_3`… |
+| its properties | one column each, in their order, values as text (a description, a category: properties like any other; the totals can count by any key). A key equal to one of the names in this table, or `charts`, is written `p_<key>`; a repeated key `<key>_2`, `<key>_3`… |
 | `stroke`, `stroke-width`, `stroke-opacity` | the element's own stroke colour, width and opacity (§6) |
 | `fill`, `fill-opacity` | the element's own fill (points and areas) |
 
@@ -291,7 +291,8 @@ A bare ID (`"a"`) is read as `{ "element": "a" }`. Indices count from 0. An area
 counted in its own order (§7.6: the geometry's ring reversed when `reversed` is set). An outline's
 corners are those of its silhouette in order (`site/draw/outlines.js`): a rectangle's front right,
 back right, back left, front left; a triangle's apex, back right, back left. An ellipse's are the
-samples of its curve: the app attaches to its edge.
+samples of its curve: the app attaches to its edge. On a point with outlines, `"part"` says which
+(its place in the point's `parts`); missing: its largest outline.
 
 The position is written in the geometry too, so other tools see the line or the label where it is.
 On reading, **the reference wins**: it goes where what it points at is, and the report counts the
@@ -474,11 +475,15 @@ The import report lists what was refused, skipped and repaired, before the drawi
 ## 12. Reading: refusals and skips
 
 **The whole file is refused** (nothing loads) when it is not JSON; its top level is not an object;
-it is not GeoJSON; or `charts.version` is a number other than 1.
+it is not GeoJSON; `charts.version` is a number other than 1; or its lines and areas hold more than
+1 000 000 positions together.
+
+**Limits:** past 20 000 elements the rest are skipped; a text is cut to 10 000 characters; past 200
+properties on one element and 100 parts on one point the rest are dropped (each with a warning).
 
 **One feature or element is skipped** (the rest loads; the report gives its ID and why) when it is not
 a Feature; it has no geometry; its geometry is a GeometryCollection or of another type; a position is
-not `[longitude, latitude]` or out of range; a line has fewer than two positions, or more than
+not `[longitude, latitude]` or its latitude out of range (a longitude past ±180° is brought back); a line has fewer than two positions, or more than
 100 000; an area fewer than three corners, or more than 100 000. A group or rule without a valid, unused ID is skipped, a rule of another kind, and a
 Distribute along without `along`.
 
@@ -612,7 +617,7 @@ What a value is when the file leaves it out. Writing it with this value means th
 | area | `reversed` | `false` |
 | label | `text` | `""` |
 | label | `anchor` | none: free, at the geometry |
-| reference | `at` | `0` |
+| reference | `at`; `part` | `0`; none: the point's largest outline |
 | label | `offset` | `[40, -40]` |
 | label | `leader` | `"arrow"` |
 | label | `look` | `{}`: as any element's |
