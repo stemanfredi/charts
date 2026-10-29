@@ -55,7 +55,7 @@ const state = {
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
 // drawing's inspector): the drawing's lengths and values, labels and exports follow them
-const display = { units: 'km', bearings: false };
+const display = { units: 'km', bearings: false, small: 'm' }; // small: a part's size in m or km (NM: NM)
 
 function readHash() {
   const q = new URLSearchParams(location.hash.slice(1));
@@ -83,6 +83,7 @@ function readHash() {
   if (q.has('menu')) state.menu = q.get('menu') === '1'; // menu=1: Layers open
   display.bearings = q.get('brg') === '1';
   if (q.get('u') === 'nm') display.units = 'nm';
+  if (q.get('pm') === 'km') display.small = 'km';
 }
 
 let hashTimer = 0;
@@ -311,6 +312,7 @@ function viewToAddress(v, q) {
   }
   if (v.units === 'nm') q.set('u', 'nm'); else q.delete('u');
   if (v.bearings) q.set('brg', '1'); else q.delete('brg');
+  if (display.small === 'km') q.set('pm', 'km'); else q.delete('pm');
 }
 const drawing = new Drawing(map, {
   known: KNOWN, getView: viewOf, units: () => display.units, bearings: () => display.bearings,

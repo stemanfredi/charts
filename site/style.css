@@ -292,6 +292,7 @@ button.small.link:hover { border-color: var(--line); }
 .dinspect .lgrid td.n input:not([type=checkbox]) { text-align: right; font-family: var(--mono); font-size: 12px; padding: 0 3px; }
 .lgrid td.n .fvalue { display: block; padding: 0 4px; text-align: right; font-family: var(--mono); }
 .lgrid th.n { text-align: right; }
+.lgrid th .hunit { cursor: pointer; text-decoration: underline dotted; } /* a Parts head: a click, m or km */
 /* a row's sub-row (a vertex's handles): across the row, held at the grid's left edge as it scrolls */
 .fsummary { color: var(--ink); background: var(--bg2); border-radius: 6px; padding: 6px 8px; }
 .fblock { display: flex; flex-direction: column; }

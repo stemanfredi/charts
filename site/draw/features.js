@@ -209,12 +209,12 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
       const centre = (e) => e.element && e.edge == null && e.vertex == null;
       const endRole = (e, i) => (centre(e) && doc.points.some((p) => p.id === e.element) ? { role: 'point', ref: e.element } : { role: 'end', ref: i ? 1 : 0 });
       handles(sg.id, an.map((a, i) => ({ p: a.position, ...(i === 0 ? endRole(sg.start, 0) : i === last ? endRole(sg.end, 1) : { role: 'vertex', ref: i - 1 }) })), true);
-      // a + halfway along each leg long enough on screen: dragging it adds a point there
+      // a + halfway along each leg long enough on screen, on the line as drawn (a smooth line's curve):
+      // dragging it adds a point there
       if (mpp) {
-        const mids = [];
+        const tr = lineTrace(doc, sg), mids = [];
         for (let i = 0; i < last; i++) {
-          const a = an[i].position, b = an[i + 1].position, d = inverse(a, b);
-          if (d.s / ground(a[1]) > midPx) mids.push({ p: destination(a, d.azi, d.s / 2), role: 'mid', ref: i, kind: 'mid' });
+          if (tr.legs[i] / ground(an[i].position[1]) > midPx) mids.push({ p: pointsAlong(tr.coords, [(tr.at[i] + tr.at[i + 1]) / 2])[0].position, role: 'mid', ref: i, kind: 'mid' });
         }
         handles(sg.id, mids);
       }

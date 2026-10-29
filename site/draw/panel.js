@@ -234,13 +234,13 @@ export function drawView(root, ctx) {
     return { ...next, fill: part.fill, shown: part.shown, name: part.name };
   };
   function partsBlock(id) {
-    const el = now(id), u = ctx.units(), U = colUnitText();
+    const el = now(id), u = ctx.units();
     const fits = (m) => drawable(now(id), m);
     const at = (i, fn) => drawing.change((d) => { fn(find(d, id).el.parts[i]); reattach(d, id); }); // part i as it is now; what points at its corners stays where it was
     const adder = (aria, text) => select(aria, [['', text], ...PART_KINDS.map((k) => [k, PART_NAME[k]])], '', (k) => { if (k) set(id, (x) => addPart(x, k)); }, { title: 'Add a part' });
     const box = (i, key, aria) => check('', el.parts[i][key], (v) => at(i, (y) => { y[key] = v; }), { 'aria-label': `Part ${i + 1} ${aria}` });
     const PARTS_COPY = ['#', 'Kind', 'Radius m', 'Aperture °', 'Length m', 'Width m', 'Fill', 'Shown', 'Name'];
-    const dist = (i, key, aria) => distField(() => now(id).parts[i][key], (m) => at(i, (y) => { y[key] = m; }), aria, (m) => (m >= MAX_RADIUS || (key === 'radius' && !fits(m)) ? 'too large' : null), { in: colUnit() });
+    const dist = (i, key, aria) => distField(() => now(id).parts[i][key], (m) => at(i, (y) => { y[key] = m; }), aria, (m) => (m >= MAX_RADIUS || (key === 'radius' && !fits(m)) ? 'too large' : null), { in: partUnit() });
     // its size, two columns, in the column's unit: a round part's radius and a sector's aperture (°), an outline's length and width
     const size = (part, i) => (part.radius ? dist(i, 'radius', `Part ${i + 1} radius`) : dist(i, 'length', `Part ${i + 1} length`));
     const across = (part, i) => (part.kind === 'sector'
@@ -254,8 +254,8 @@ export function drawView(root, ctx) {
     // Shown in the bar over the grid, with Delete
     const table = listGrid({ name: `${id}:parts`,
       columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 },
-        { head: `Size ${U}`, width: 80, cls: 'n', title: 'Radius, or length' },
-        { head: `Across ${U}`, width: 64, cls: 'n', title: 'Aperture, or width' },
+        { head: partHead('Size'), width: 80, cls: 'n', title: 'Radius, or length' },
+        { head: partHead('Across'), width: 64, cls: 'n', title: 'Aperture, or width' },
         { head: 'Fill', width: 40 }],
       rows: el.parts.map((part, i) => ({ cells: [`${i + 1}`, kind(part, i), size(part, i), across(part, i), box(i, 'fill', 'filled')],
       cls: part.radius && !fits(part.radius) ? 'warn' : null })),
@@ -412,9 +412,12 @@ export function drawView(root, ctx) {
   // a table of places' first columns; with its leg and bearing 304 px, inside Properties' 320
   // with a scroll bar: degrees in 6 decimals, distances to the metre (up to 999 km), bearings to a tenth
   const PLACE_COLUMNS = [{ head: '#', width: 28, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
-  // a table's distances: one unit for the column (its head says it), km or NM as the display's
+  // a table's distances: one unit for the column (its head says it), km or NM as the display's; a
+  // part's size in m or km (the display's small), a click on the head switching them (NM stays)
   const colUnit = () => (ctx.units() === 'nm' ? 'nm' : 'km');
   const colUnitText = () => (ctx.units() === 'nm' ? 'NM' : 'km');
+  const partUnit = () => (ctx.units() === 'nm' ? 'nm' : ctx.display.small);
+  const partHead = (text) => (ctx.units() === 'nm' ? `${text} NM` : h('span', { class: 'hunit', title: 'Click: m or km', onclick: () => ctx.setDisplay({ small: ctx.display.small === 'm' ? 'km' : 'm' }) }, `${text} ${ctx.display.small}`));
   const inUnit = (m) => (m / (ctx.units() === 'nm' ? 1852 : 1000)).toFixed(3);
   // a table of places (a line's points, an area's corners, a point's parts): its row k made current
   // (k: the place's index), the table at its page; from the map (a place pressed: drawing.place)
@@ -620,21 +623,20 @@ export function drawView(root, ctx) {
       // their parts, part by part: every row at least two points have; a cell set on those it applies to
       // (a size: each round part's radius and each outline's length at once; across: a sector's aperture,
       // an outline's width, each where two or more have one)
-      const U = colUnitText();
       const partsAt = (i) => nowPts().map((p) => p.parts[i]).filter(Boolean);
       const rows = Array.from({ length: Math.max(...pts.map((x) => x.el.parts.length)) }, (_, i) => i).filter((i) => partsAt(i).length > 1);
       const at = (i, fn) => drawing.change((d) => { for (const x of pts) { const p = find(d, x.el.id).el; if (p.parts[i]) fn(p.parts[i], p); reattach(d, x.el.id); } });
       const tooFar = (m) => (m >= MAX_RADIUS ? 'too large' : null);
       const kindCell = (i) => select(`Part ${i + 1} kind of each`, PART_KINDS.map((k) => [k, PART_NAME[k]]), same(partsAt(i), (q) => q.kind), (v) => at(i, (q, p) => { p.parts[i] = asKind(q, v); }));
-      const sizeCell = (i) => distField(() => same(partsAt(i), (q) => q.radius ?? q.length), (m) => at(i, (q) => { if (q.radius != null) q.radius = m; else q.length = m; }), `Part ${i + 1} size of each`, tooFar, { in: colUnit() });
+      const sizeCell = (i) => distField(() => same(partsAt(i), (q) => q.radius ?? q.length), (m) => at(i, (q) => { if (q.radius != null) q.radius = m; else q.length = m; }), `Part ${i + 1} size of each`, tooFar, { in: partUnit() });
       const acrossCell = (i) => {
         const sectors = partsAt(i).filter((q) => q.aperture != null).length, outlines = partsAt(i).filter((q) => q.width != null).length;
         return [sectors > 1 ? h('span', { class: 'vpair' }, angleField(() => same(partsAt(i).filter((q) => q.aperture != null), (q) => q.aperture), (v) => at(i, (q) => { if (q.aperture != null) q.aperture = v; }), `Part ${i + 1} aperture of each`, 0, 360, false), funit('°')) : null,
-          outlines > 1 ? distField(() => same(partsAt(i).filter((q) => q.width != null), (q) => q.width), (m) => at(i, (q) => { if (q.width != null) q.width = m; }), `Part ${i + 1} width of each`, tooFar, { in: colUnit() }) : null];
+          outlines > 1 ? distField(() => same(partsAt(i).filter((q) => q.width != null), (q) => q.width), (m) => at(i, (q) => { if (q.width != null) q.width = m; }), `Part ${i + 1} width of each`, tooFar, { in: partUnit() }) : null];
       };
       if (rows.length) out.push(h('div', { class: 'fblock' }, h('h3', { title: 'Every part two or more points have' }, 'Parts · of each point'),
         listGrid({ name: 'shared:parts', plain: true, head: true,
-          columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 }, { head: `Size ${U}`, width: 80, cls: 'n', title: 'Radius, or length' }, { head: `Across ${U}`, width: 64, cls: 'n', title: 'Aperture, or width' }, { head: 'Fill', width: 40 }],
+          columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 }, { head: partHead('Size'), width: 80, cls: 'n', title: 'Radius, or length' }, { head: partHead('Across'), width: 64, cls: 'n', title: 'Aperture, or width' }, { head: 'Fill', width: 40 }],
           rows: rows.map((i) => ({ cells: [`${i + 1}`, kindCell(i), sizeCell(i), acrossCell(i),
             check('', same(partsAt(i), (q) => q.fill), (v) => at(i, (q) => { q.fill = v; }), { 'aria-label': `Part ${i + 1} filled, each` })] })) })));
     }

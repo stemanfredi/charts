@@ -42,7 +42,7 @@ One layout at every width (`site/frame.js`).
   position, zoom in and out, north (only when turned). Nothing else sits there, so nothing overlaps.
   The bottom row between the panels: credits, the time shown (a chip: a click opens its calendar,
   and the depth when a layer has one), the cursor's position, the scale (a click switches km and NM).
-- **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`), never the
+- **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`, `pm=km`), never the
   drawing. The drawing goes out as a file (**Download** › **Drawing (GeoJSON)**, with the view) and
   comes in by **Open a file…** or a file dropped on the map, after a report (what it holds, what was skipped and
   why); a presets file adds its presets (§9).
@@ -63,7 +63,8 @@ Both start closed. Zoom to and a place found are fitted to the map the bar and t
 places exactly where tapped, as Alt), **Undo** and **Properties** (a phone: a selection, Properties off). Handles are 14 px, grabbed within 22 px; snapping reaches 16 px; a + only on legs over 80 px; a
 second finger during a drag puts it back and lets the map pinch.
 
-**Colours and sizes**: pressed is blue, a panel shown pale blue, magenta the map's own (measurements,
+**Colours and sizes**: pressed is blue, a panel shown pale blue, yellow the marks on the map (bands,
+targets, +), handles white edged in ink, magenta the map's own (measurements,
 the search's pin). With a mouse the bar is 35 px (28 px buttons), rows 24 px, heads 30 px; with a
 finger every target is 44 px. Text: 11, 12, 13, 14, 16 px (a × glyph 18 or 20).
 
@@ -194,7 +195,8 @@ read in that one).
   **Depth profile**: the depth along it from the depth shading's grid (at most 1,000 places), its
   extremes, a chart linked to the map both ways, its length along the seabed, CSV.
 - A point's **Parts** are its own: circles, sectors, outlines; a table of Kind, **Size** (a radius, an
-  outline's length), **Across** (a sector's aperture in °, an outline's width) and Fill; the row
+  outline's length), **Across** (a sector's aperture in °, an outline's width), in m or km (a click
+  on the head switches; with NM, NM), and Fill; the row
   current has its name and **Shown** in the bar. One way to add one: the table's empty last row. The
   row current draws its part over on the map; a part's handle pressed on the map makes its row
   current. All parts share the point's Bearing (a sector centred on it, an outline facing it).
@@ -248,7 +250,7 @@ from its bearing, a sector's arc, an outline's ring) opens a form in Properties:
 
 - **Stacking**, bottom to top: points' circles and sectors, areas, lines (guides under), shapes'
   outlines, symbols, names and values, labels; within each, the drawing order (§4).
-- **Marks** are one blue cased in white: half strength for hovering (a band just outside the
+- **Marks** are yellow cased in white, seen on the sea's blue as on the chart: half strength for hovering (a band just outside the
   element), full for the selection and for targets. The one element selected shows its handles; among
   several, dots at their key points. What is not made yet is dashed and dark. Selecting never moves the
   map; Zoom to does.

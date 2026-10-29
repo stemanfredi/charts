@@ -67,13 +67,13 @@ export function fields({ note, units }) {
     return t;
   };
   // a distance in the display units (a suffix may say another: 500 m, 1.2 NM). zero: 0 allowed;
-  // check(m): an error text, or null; in: a unit of its own ('km', 'nm'), its number alone shown to the
-  // metre (a table's column, its unit in the head)
+  // check(m): an error text, or null; in: a unit of its own ('m', 'km', 'nm'), its number alone shown
+  // to the metre, or to the unit's thousandth (a table's column, its unit in the head)
   // The number alone is shown; its unit is beside it (the field's unitText(): the panel's row says
   // it), or in a table's head
   const dist = (get, put, aria, { zero = false, check = () => null, in: fixed = null, ...attrs } = {}) => {
     let unit;
-    const input = field(() => { const v = get(); if (v == null) { unit = fixed || (units() === 'nm' ? 'nm' : 'km'); return ''; } if (fixed) { unit = fixed; return (v / UNIT_M[fixed]).toFixed(3); } const t = distText(v, units()); unit = t.unit; return zero && !v ? '0' : `${t.value}`; }, (t) => {
+    const input = field(() => { const v = get(); if (v == null) { unit = fixed || (units() === 'nm' ? 'nm' : 'km'); return ''; } if (fixed) { unit = fixed; return (v / UNIT_M[fixed]).toFixed(fixed === 'm' ? 0 : 3); } const t = distText(v, units()); unit = t.unit; return zero && !v ? '0' : `${t.value}`; }, (t) => {
       const m = zero && t.trim() === '0' ? 0 : parseDist(t, unit);
       return m === null || (zero ? m < 0 : m <= 0) || check(m) ? undefined : m;
     }, put, { 'aria-label': aria, class: 'dist', nudge: (t, up, big) => stepped(t, up, big, 0), bad: zero ? 'a distance, 0 or more, with m, km or NM' : 'a distance above 0, with m, km or NM',

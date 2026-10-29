@@ -2,10 +2,11 @@
 // features.js and labels.js make their features), the symbols as signed distance fields, and which
 // layers a click hits, a press grabs, the PNG export hides.
 
-// The marks of interaction (drawing-ui.md §7), one blue cased in white, seen on chart, sea and
-// satellite: hovered at half strength; selected, and what a click would hit, at full. What is not made
-// yet (being drawn, a form's preview) is dashed and dark (DRAFT). Measurements keep magenta: content.
-const MARK = '#1c7ed6', MARK_CASE = '#ffffff', HOVER = 0.7, DRAFT = '#1f2c36'; // HOVER: every hover mark's strength (band, ring, label)
+// The marks of interaction (drawing-ui.md §7): yellow cased in white (seen on the sea's blue, the chart's
+// white, satellite) for the bands, the targets and the + marks, hovered at half strength, selected and
+// what a click would hit at full; the handles white, edged in ink. What is not made yet (being drawn,
+// a form's preview) is dashed and dark (DRAFT). Measurements keep magenta: content.
+const MARK = '#ffc400', MARK_CASE = '#ffffff', HANDLE_EDGE = '#1f2c36', HOVER = 0.7, DRAFT = '#1f2c36'; // HOVER: every hover mark's strength (band, ring, label)
 
 // the symbols and the label box, added to the map once its style is loaded
 export function addIcons(map) {
@@ -110,7 +111,7 @@ export const DRAW_LAYERS = [
   // handles at the outline's key points: small squares, white with a dark edge
   { id: 'draw-handle', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'handle'],
     layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': '#ffffff', 'icon-halo-color': MARK, 'icon-halo-width': 1.5 } },
+    paint: { 'icon-color': '#ffffff', 'icon-halo-color': HANDLE_EDGE, 'icon-halo-width': 1.5 } },
   // the forms' previews: the points a distribution would make (faint diamonds), Connect's roots (rings) and lines
   { id: 'draw-ghostline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'ghostline'],
     paint: { 'line-color': DRAFT, 'line-opacity': 0.75, 'line-width': 2, 'line-dasharray': [3, 2] } },
@@ -173,7 +174,7 @@ export const DRAW_LAYERS = [
       'icon-color': '#ffffff', 'icon-halo-color': ['get', 'c'], 'icon-halo-width': 1 } },
   { id: 'draw-lhandle', type: 'symbol', source: 'drawlabel', filter: ['==', ['get', 'kind'], 'lhandle'],
     layout: { 'icon-image': 'draw-handle', 'icon-size': HANDLE_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
-    paint: { 'icon-color': '#ffffff', 'icon-halo-color': MARK, 'icon-halo-width': 1.5 } },
+    paint: { 'icon-color': '#ffffff', 'icon-halo-color': HANDLE_EDGE, 'icon-halo-width': 1.5 } },
   // a point's centre: selected, a small white dot with the mark's rim (as a handle); hovered, a ring
   { id: 'draw-mark-point', type: 'circle', source: 'drawover', filter: ['all', ['in', ['get', 'kind'], ['literal', ['sel', 'hover']]], ['==', ['geometry-type'], 'Point']],
     paint: { 'circle-radius': ['match', ['get', 'kind'], 'sel', 5, 11], 'circle-color': '#ffffff', 'circle-opacity': ['match', ['get', 'kind'], 'sel', 1, 0],
