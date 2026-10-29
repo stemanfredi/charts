@@ -125,18 +125,18 @@ await section('URL state, Link, Measure, a bad link', async () => {
 });
 
 await section('the frame', async () => {
-  // the bar always there across the top; Layers the left panel's tab, its
-  // key closing it; its toggle opening it again where it was
+  // the bar always there across the top; Layers the left panel's tab, its key closing it; its toggle
+  // opening it again where it was; the panel open never in the link
   const pv = await open('#v=6/41/12/0', ctx, 'layers');
   const now = () => pv.evaluate(() => [!document.querySelector('#side').hidden && document.querySelector('#bar .ptab[aria-pressed=true]')?.dataset.tab, Math.round(document.querySelector('#bar').getBoundingClientRect().top),
-    new URLSearchParams(location.hash.slice(1)).get('menu')]);
+    new URLSearchParams(location.hash.slice(1)).has('menu')]);
   const opened = await now();
   await pv.keyboard.press('l');
   await pv.waitForTimeout(400);
   const closed = await now();
   await pv.click('#bar .ptab[data-tab=layers]');
   const back = await now();
-  check(opened.join() === 'layers,0,1' && closed.join() === 'false,0,0' && back[0] === 'layers', `Layers a tab of the left panel, closed by its key, opened again by its button in the bar; the bar at the top (${opened}; ${closed}; ${back})`);
+  check(opened.join() === 'layers,0,false' && closed.join() === 'false,0,false' && back[0] === 'layers', `Layers a tab of the left panel, closed by its key, opened again by its button in the bar; the bar at the top; not in the link (${opened}; ${closed}; ${back})`);
   // the drawing renamed by a double-click on its row, the tree's first (an undo puts it back)
   await pv.click('#bar .ptab[data-tab=elements]');
   await pv.dblclick('.droot .dname');
