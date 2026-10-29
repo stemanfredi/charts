@@ -21,7 +21,7 @@ function at(lon, lat, z) {
 }
 
 await section('the page and its clipper', async () => {
-  await page.goto(`${base}#v=3/0/0/0&on=chart&menu=0`);
+  await page.goto(`${base}#v=3/0/0/0&on=chart`);
   await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
   // the page's own pipeline: the sea clipper in its worker, as the depth layers use it
   await page.evaluate(async () => {

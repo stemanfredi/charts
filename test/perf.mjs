@@ -18,7 +18,7 @@ for (let r = 0; r < runs; r++) {
       const s = await q.sizes().catch(() => null); net[0]++; net[1] += s?.responseBodySize || 0;
     });
     const t0 = Date.now();
-    await p.goto(`${server.url}#v=${v}/0&on=chart,coastline,depth,isobaths&menu=0`);
+    await p.goto(`${server.url}#v=${v}/0&on=chart,coastline,depth,isobaths`);
     await p.waitForFunction(() => window.map?.loaded() && map.areTilesLoaded() && !document.body.classList.contains('loading'), null, { timeout: 180000, polling: 100 });
     (out[name] ||= []).push({ ms: Date.now() - t0, net: [...net] });
     await ctx.close();

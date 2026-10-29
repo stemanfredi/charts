@@ -38,8 +38,12 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       if (typeof menu === 'string') await page.addInitScript(SEED, DRAWING);
       // a zoomed-out view (scale note shown), four stacked legends (they once ran over the
       // credits), a measurement
-      await page.goto(`${base}#v=5/45/14/0&menu=${typeof menu === 'string' ? 0 : menu}&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
+      await page.goto(`${base}#v=5/45/14/0&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
       await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
+      // 1: the left panel on Layers; else not on Layers (Elements, where a computer opens on Layers)
+      const onLayers = await page.locator('#bar .ptab[data-tab=layers]').getAttribute('aria-pressed') === 'true';
+      if (menu === 1 && !onLayers) await page.click('#bar .ptab[data-tab=layers]');
+      if (menu !== 1 && onLayers) await page.click('#bar .ptab[data-tab=elements]');
       await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 44], [], [13, 44.5], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
       // the left panel (on a phone closed to start with): open on Elements; an element (or the drawing)
       // selected, its properties shown (on a phone in place of the tree)

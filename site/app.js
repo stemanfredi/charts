@@ -50,7 +50,6 @@ const state = {
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
   open: new Set(['base', 'sea']),
-  menu: null, // the address's menu=1: Layers open (menu=0: not); null: as the frame was left (frame.js)
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
@@ -80,7 +79,6 @@ function readHash() {
     if (Object.hasOwn(DENSITY, k) && DENSITY[k].periods.includes(val)) state.period[k] = val;
   }
   if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => GROUPS.some((x) => x.id === g)));
-  if (q.has('menu')) state.menu = q.get('menu') === '1'; // menu=1: Layers open
   display.bearings = q.get('brg') === '1';
   if (q.get('u') === 'nm') display.units = 'nm';
 }
@@ -102,7 +100,6 @@ function writeHashNow() {
   if (!timeOn().length) q.delete('t');
   if (!depthOn().length) q.delete('dz');
   q.set('g', [...state.open].join(','));
-  q.set('menu', frame.tab === 'layers' ? '1' : '0');
   drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
   setHash(q);
 }
@@ -1281,7 +1278,6 @@ map.on('load', () => {
   renderMenu();
   renderUnits();
   ready = true;
-  if (state.menu !== null) frame.setTab(state.menu ? 'layers' : frame.tab === 'layers' ? 'elements' : frame.tab); // the address's
   writeHash(); // the URL, now with everything applied
   scaleNote();
   scaleUnits();

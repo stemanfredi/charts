@@ -25,7 +25,7 @@ One layout at every width (`site/frame.js`).
   on, shut once one is picked or the map is clicked.
 - **Box select** (B): the next drag on the map, a mouse's or a finger's, draws a box; what lies
   inside is selected, then Select again. A drag with Select moves the map; Shift-drag is the box too.
-- **The left panel**: **Layers** (`menu=1` in the address) or **Elements** (the tree, §4), as its
+- **The left panel**: **Layers** or **Elements** (the tree, §4), as its
   button in the bar (or **L**, **E**) chose: pressed again, it closes. At first it is open on Layers;
   Layers' button turns while the map's layers load.
 - **Properties** (the inspector, §5), on the right: a switch of the user's (its toggle, **I**, or a
