@@ -362,16 +362,17 @@ body.finding .search { display: flex; }
 .pos { font: 11px var(--mono); color: var(--ink); white-space: nowrap; }
 .pos:empty { display: none; }
 .readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; flex: none; }
-/* credits: always on screen, on one line ending in "…" where they do not fit; a tap shows them all */
-.credits { display: flex; flex: 0 1 auto; min-width: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); }
-.credits.foldable { cursor: pointer; }
-.credits-text { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.credits.open .credits-text { white-space: normal; }
+/* credits: always on screen, on one line; what does not fit scrolls sideways under a fade at the end
+   (over the padding only, where it all fits; at the scroll's end the text stops before it) */
+.credits { flex: 0 1 auto; min-width: 0; padding: 1px 14px 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85);
+  white-space: nowrap; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; -webkit-mask-image: linear-gradient(to left, transparent, #000 14px); mask-image: linear-gradient(to left, transparent, #000 14px); }
+.credits::-webkit-scrollbar { display: none; }
 .credits a { color: var(--ink); text-decoration: none; }
 .credits a:hover { text-decoration: underline; }
 .maplibregl-ctrl-scale { border-color: var(--ink); color: var(--ink); background: rgba(255, 255, 255, .85); font: 11px var(--font); }
 #scale { margin: 0 !important; }
-#scale.varies { color: var(--warn); border-color: var(--warn); } /* "≈": the scale varies across the view */
+#scale.varies { color: var(--warn); border-color: var(--warn); } /* the scale varies across the view: "≈" beside it */
+.scalemark { margin-right: -4px; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.85); font-size: 13px; color: var(--warn); cursor: default; }
 
 /* ---- about ---- */
 dialog { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 30px rgba(20,30,40,.25); max-width: min(460px, calc(100vw - 32px)); padding: 16px 20px; color: var(--ink); }
@@ -382,14 +383,8 @@ dialog .keys { margin: 0; padding-left: 18px; }
 kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg2); }
 dialog .action { justify-content: center; border: 1px solid var(--line); margin-top: 12px; }
 
-/* ---- phones: no cursor position; the credits an ⓘ, a tap on it all of them over the row ---- */
-@media (max-width: 719px) {
-  .pos:not(.shown, .depthchip) { display: none; } /* no cursor on a phone; the time and depth shown stay */
-  .credits:not(.open) { flex: none; width: 24px; height: 24px; padding: 0; border-radius: 50%; justify-content: center; align-items: center; font-size: 14px; color: var(--ink); }
-  .credits:not(.open) .credits-text { display: none; }
-  .credits:not(.open)::before { content: "\24D8"; } /* ⓘ */
-  .credits.open { position: absolute; left: 10px; right: 10px; bottom: 6px; padding: 4px 8px; }
-}
+/* ---- phones: no cursor position ---- */
+@media (max-width: 719px) { .pos:not(.shown, .depthchip) { display: none; } } /* the time and depth shown stay */
 /* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, Snap, Undo, Properties, over the map's foot, at its left */
 .touchbar { display: none; }
 @media (pointer: coarse) {

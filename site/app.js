@@ -181,8 +181,7 @@ $('#nostart').remove(); // started (index.html)
 // ---- bottom row: credits; time shown, cursor position, the scale
 // One scale bar, in the display's units (the switch beside it); the PNG export draws a double
 // one, km and NM (png.js). Credits are always on screen (Esri: data attribution "always visible";
-// OSM likewise), on one line: what does not fit ends in "…", and a tap on the line shows it all; on a
-// phone an ⓘ, a tap on it the line (MapLibre's compact attribution).
+// OSM likewise), on one line: what does not fit fades at its end and is scrolled sideways.
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
 const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time the layers show
@@ -191,23 +190,12 @@ const depthEl = h('select', { class: 'pos depthchip', id: 'depth', 'aria-label':
 const scale = new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' });
 const scaleEl = scale.onAdd(map);
 scaleEl.id = 'scale';
+const scaleMark = h('span', { class: 'scalemark', hidden: true }, '≈');
 const creditsText = h('span', { class: 'credits-text' });
 const credits = h('div', { class: 'credits' }, creditsText);
-// a tap unfolds them only when they are cut ("…", a phone's ⓘ), and folds them again; the hint says which
-const cut = () => NARROW.matches || creditsText.scrollWidth > creditsText.clientWidth;
-function creditsHint() {
-  const open = credits.classList.contains('open');
-  credits.classList.toggle('foldable', open || cut());
-  credits.title = open ? 'Tap to fold the credits' : cut() ? 'Tap for all the credits' : '';
-}
-credits.addEventListener('pointerenter', creditsHint);
-credits.addEventListener('click', (e) => {
-  if (!e.target.closest('a') && (credits.classList.contains('open') || cut())) credits.classList.toggle('open');
-  creditsHint();
-});
 // credits on the left; the time shown, cursor position and scale on the right (not for navigation:
 // About and the exports say it)
-statusEl.append(credits, h('div', { class: 'readout' }, shownEl, depthEl, posEl, scaleEl));
+statusEl.append(credits, h('div', { class: 'readout' }, shownEl, depthEl, posEl, scaleMark, scaleEl));
 // the legends sit above the bottom row, whose height follows its credits
 new ResizeObserver(() => { document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`); snapLegends(); }).observe(statusEl);
 
@@ -1130,17 +1118,20 @@ function scaleVariation() {
   return mercatorVariation(b.getSouth(), b.getNorth());
 }
 // its length as MapLibre writes it, with NM for its "nm" (the nanometre's symbol), as on charts and in
-// Measure; where the scale varies across the view, "≈" before it, by how much in its tooltip
+// Measure; where the scale varies across the view, "≈" beside it (outside the bar: its length stays
+// what it says), by how much in their tooltips
 function scaleText() {
-  const v = scaleVariation(), varies = v > NOTE_AT;
-  scaleEl.textContent = `${varies ? '≈\u00a0' : ''}${scaleEl.textContent.replace(/^≈\s/, '').replace(/\snm$/, '\u00a0NM')}`;
+  const v = scaleVariation(), varies = v > NOTE_AT, why = varies ? `The scale varies ${(v * 100).toFixed(0)}% across the view: this length is the centre's. ` : '';
+  scaleEl.textContent = scaleEl.textContent.replace(/\snm$/, '\u00a0NM');
   scaleEl.classList.toggle('varies', varies);
-  scaleEl.title = `${varies ? `The scale varies ${(v * 100).toFixed(0)}% across the view: this length is the centre's. ` : ''}Distance units: a click switches km and NM`;
+  scaleEl.title = `${why}Distance units: a click switches km and NM`;
+  scaleMark.hidden = !varies;
+  scaleMark.title = why;
 }
 
 // ---- credits, and the exports (PNG: png.js; GIS: below) ----------------------------------------
 // the credits of what is drawn: each shown source's own (catalog.js), once, the base map's first
-// (OpenStreetMap and Esri ask for theirs to be seen, and a line that does not fit is cut at its end)
+// (OpenStreetMap and Esri ask for theirs to be seen, and a line that does not fit scrolls from its start)
 const baseSources = new Set(ITEMS.filter((it) => it.group === 'base').flatMap((it) => (layersOf[it.id] || []).map((l) => l.source)));
 function creditParts() {
   const srcs = [];
