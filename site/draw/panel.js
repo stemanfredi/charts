@@ -698,7 +698,7 @@ export function drawView(root, ctx) {
     drawing.stop(); // a click on the map now picks a root, not a tool's next point
     drawing.boxSelect(false);
     form = { ...f, sel: selKey() };
-    drawing.setPicking(picks() ? pick : null);
+    drawing.setPicking(picks() ? pick : null, true);
     formPreview();
     renderInspector();
   }
@@ -745,7 +745,7 @@ export function drawView(root, ctx) {
     drawing.setPreview(form.kind === 'distribute' ? c.positions : [], joined ? c.roots.map((r) => r.position) : [], c.plan ? lines(c.positions, c.roots, c.plan, con.pattern) : []);
   }
   // a setting changed: the preview and the form follow
-  const formChanged = () => { drawing.setPicking(picks() ? pick : null); formPreview(); renderInspector(); };
+  const formChanged = () => { drawing.setPicking(picks() ? pick : null, true); formPreview(); renderInspector(); };
   // a click on the map while roots are picked: on a point, it is a root or no longer one; anywhere
   // else, a new root there (on one, it goes)
   function pick(nid, pos) {
@@ -1042,6 +1042,7 @@ export function drawView(root, ctx) {
         return renderTools();
       }
       if (what === 'draft') return tools.renderTouch();
+      if (what === 'cancel') { closeForm(); return renderInspector(); } // Esc or a right-click on the map with a form open
       if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
       // a line's point or an area's corner pressed on the map: its row in the table made current
       if (what === 'place') { const { id, index } = drawing.currentPlace; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${{ line: 'points', area: 'corners', point: 'parts' }[kindOf(id)]}`, index, kindOf(id) !== 'point'); return; }
@@ -1064,6 +1065,6 @@ export function drawView(root, ctx) {
       renderTools();
     },
     importFile: (f) => files.importFile(f), // a file dropped on the map (app.js)
-    step: tools.step, // the tools' keys (app.js)
+    press: tools.press, // the tools' keys (app.js)
   };
 }

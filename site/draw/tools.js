@@ -2,7 +2,7 @@
 // select, Point, Line, Shape, Label, Measure), a tool's kinds in a row under its button, the touch row over
 // the map's foot (with a finger). On a phone Undo, Redo and the tools are the dock, the bar along the
 // bottom, with Back and Done while a tool is on, the kinds in a row above it. A tool with kinds remembers the one chosen last; while it is on,
-// its key steps to the next kind and its button opens the row (app.js).
+// its key and its button toggle it, a right-click on its button opens the row (app.js).
 
 import { h, NARROW } from '../dom.js';
 import { ask, askText, note } from '../menu.js';
@@ -13,7 +13,7 @@ import { keyOf, MOD } from '../keys.js';
 import { KIND_ICON, POINT_ICON, SELECT_ICON, BOX_ICON } from './icons.js';
 
 // drawing (drawing.js); ctx: { icon, units(), bar, frame, measureIcon }; del(ids): delete, asked
-// first (the touch row's); fileBtns: the bar's file group (files.js). Returns { press, step,
+// first (the touch row's); fileBtns: the bar's file group (files.js). Returns { press,
 // renderTools, renderTouch }.
 export function createTools(drawing, ctx, { del, fileBtns }) {
   const { icon } = ctx;
@@ -28,30 +28,22 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     shape: [['circle', 'Circle'], ['rings', 'Rings'], ['sector', 'Sector'], outline('rectangle'), outline('ellipse'), outline('triangle'), ...OUTLINES.filter((k) => k.endsWith('-vehicle')).map(outline), ...presetsOf('shape')],
   })[tool] || [];
   const current = (tool) => drawing.variant[tool];
-  // A tool's button pressed: on; when it is on, off, or for a tool with kinds its row opened (Esc,
-  // Select or another tool turns it off). Its kinds are a row under its button, open as it goes on and
-  // shut once one is picked or the map is clicked: a menu, not a fixture; the tool's button shows the
-  // kind in use (drawing-ui.md §1)
+  // A tool's button (or key) pressed: on; pressed again, off. Its kinds are a row under its button,
+  // open as it goes on (and at a right-click on its button) and shut once one is picked or the map is
+  // clicked: a menu, not a fixture; the tool's button shows the kind in use (drawing-ui.md §1)
   let kindsOpen = false;
   const hasKinds = (tool) => variants(tool).length > 1;
   const press = (tool) => {
-    if (drawing.button === tool && hasKinds(tool)) { kindsOpen = true; return renderKinds(); }
     kindsOpen = drawing.button !== tool;
     return kindsOpen ? drawing.start(tool) : drawing.stop();
   };
-  // a tool's key: as its button, but on a tool with kinds that is on, the next kind (its row open to show it)
-  const step = (tool) => {
-    if (drawing.button !== tool || !hasKinds(tool)) return press(tool);
-    const vs = variants(tool).map(([v]) => v);
-    kindsOpen = true;
-    drawing.setVariant(tool, vs[(vs.indexOf(current(tool)) + 1) % vs.length]);
-  };
+  const openKinds = (tool) => { if (!hasKinds(tool)) return; if (drawing.button !== tool) drawing.start(tool); kindsOpen = true; renderKinds(); };
   // a kind picked in its row: the tool on with it, the row shut
   const choose = (tool, v) => { kindsOpen = false; drawing.setVariant(tool, v); };
   drawing.map.getCanvasContainer().addEventListener('pointerdown', () => { if (kindsOpen) { kindsOpen = false; renderKinds(); } }, true);
   // the bar's tools
   const toolBtns = Object.entries(TOOLS).map(([k, [text]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', 'aria-label': text, title: `${text} (${keyOf(k)})`,
-    onclick: () => press(k) }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k]))));
+    onclick: () => press(k), oncontextmenu: (e) => { e.preventDefault(); openKinds(k); } }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k]))));
   const undoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Undo', title: `Undo (${MOD} Z)`, onclick: () => drawing.undo() }, icon('M9 14 4 9l5-5', 'M4 9h10a6 6 0 0 1 0 12h-3'));
   const redoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Redo', title: `Redo (${MOD} Shift Z)`, onclick: () => drawing.redo() }, icon('m15 14 5-5-5-5', 'M20 9H10a6 6 0 0 0 0 12h3'));
   const sep = () => h('span', { class: 'tsep', 'aria-hidden': 'true' });
@@ -82,6 +74,7 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     touch.back.hidden = !tool; // a tap on the map clears the selection
     touch.del.hidden = touch.dup.hidden = !sel || tool || !ctx.props.hidden; // Properties' head has them while it is shown
     for (const b of toolBtns) b.hidden = phone && tool && b.dataset.tool !== drawing.button; // a phone: the tool on alone
+    boxBtn.hidden = phone && tool;
     touchbar.hidden = phone || [touch.done, touch.back, touch.del, touch.dup].every((b) => b.hidden);
   }
   // a kind's button: its name; a preset's, pressed again while current (or right-clicked), renames or deletes it
@@ -128,7 +121,7 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
   // a phone: Undo, Redo and the tools in the dock (Back and Done with them); else in the bar, those two in the touch row
   const dock = document.querySelector('#dock');
   function placeTools() {
-    if (NARROW.matches) dock.replaceChildren(touch.back, undoBtn, redoBtn, ...toolBtns, touch.done, kindsRow);
+    if (NARROW.matches) dock.replaceChildren(touch.back, undoBtn, redoBtn, boxBtn, ...toolBtns, touch.done, kindsRow);
     else {
       historySep.after(undoBtn, redoBtn);
       makesSep.after(...makes);
@@ -157,5 +150,5 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     renderTouch();
     renderKinds();
   }
-  return { step, renderTools, renderTouch };
+  return { press, renderTools, renderTouch };
 }

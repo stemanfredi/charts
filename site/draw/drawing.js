@@ -60,6 +60,7 @@ export class Drawing extends DrawStore {
     this.boxNext = false; // Box select on: the next drag on the map draws the box (boxSelect)
     this.repointing = null; // { id, key }: what the next click attaches a label's anchor or a line's end to (its inspector's Attach to…)
     this.picking = null; // the Connect form: what a click on the map picks (roots)
+    this.keepSel = false; // a form open: a click on the map changes nothing (the form is filled from what was selected)
     this.currentPlace = null; // the place current on the element selected (setPlace)
     this.marksOn = true;
     // what each tool with kinds makes (its row of kinds; drawing-ui.md §2): Point a symbol or a preset
@@ -172,6 +173,7 @@ export class Drawing extends DrawStore {
     if (this.tool === 'sector') return this.sectorClick(e.point, e.originalEvent);
     // picking (Connect's roots): a click on a point or anywhere is for the picker, not a selection
     if (this.picking && !this.tool) { this.picking(this.pointAt(e.point), p); return; } // a point, or a place (no point there)
+    if (this.keepSel && !this.tool) return;
     if (this.tool === 'label') return this.placeLabel(e.point, p);
     if (this.repointing) { // a label's anchor or a line's end attached to what is clicked (its inspector's Attach to…)
       const { id, key } = this.repointing;
@@ -267,7 +269,7 @@ export class Drawing extends DrawStore {
   }
   cancelRepoint() { this.repointing = null; this.map.getCanvas().style.cursor = ''; }
   // what a click on the map picks while the generator's form is open (fn(nodeId, position)), or null
-  setPicking(fn) { this.picking = fn; if (!fn && !this.tool) this.map.getCanvas().style.cursor = ''; }
+  setPicking(fn, keepSel = !!fn) { this.picking = fn; this.keepSel = keepSel; if (!fn && !this.tool) this.map.getCanvas().style.cursor = ''; }
   // a tool's variant chosen (its row of kinds): the tool on with it
   setVariant(button, v) {
     this.variant[button] = v;
@@ -394,6 +396,8 @@ export class Drawing extends DrawStore {
     this.select([seg.id]);
     this.onChange('draft');
   }
+  // Undo while a line or measurement is being drawn: its last point back (Backspace too)
+  undo() { if (this.draft && this.draft.pts.length) this.undoPoint(); else super.undo(); }
   undoPoint() {
     const d = this.draft;
     if (!d) return;
@@ -662,14 +666,15 @@ export class Drawing extends DrawStore {
     this.render();
     this.onChange('drag');
   }
-  // The keys and clicks of what is being drawn, from anywhere but a field or a dialog: Enter
-  // finishes the line or polygon (so does a double-click), Backspace takes back a point, a
-  // right-click (not a right drag, which rotates the map) steps back one level, and Esc steps back
-  // one level too: a drag undone, Attach to… given up, what is half-drawn dropped, else the tool
-  // ended, else the selection cleared.
+  // The keys and clicks of what is being drawn, from anywhere but a field or a dialog: Enter, a
+  // double-click or a right-click (not a right drag, which rotates the map) finishes the line or
+  // polygon, as in QGIS; a right-click with nothing to finish steps back one level, as Esc does:
+  // a drag undone, a form closed, Attach to… given up, what is half-drawn dropped, else the tool
+  // ended, else the selection cleared. Backspace (or Undo) takes back a point.
   keyEvents(map) {
     const escape = () => {
       if (this.drag) return this.cancelDrag();
+      if (this.keepSel) return this.onChange('cancel'); // the form's Cancel
       if (this.repointing) { this.cancelRepoint(); return this.onChange('sel'); }
       if (this.tool) return this.escape();
       if (this.boxNext) return this.boxSelect(false);
@@ -677,7 +682,7 @@ export class Drawing extends DrawStore {
     };
     let right = null;
     map.on('mousedown', (e) => { if (e.originalEvent.button === 2) right = e.point; });
-    map.on('contextmenu', (e) => { if (right && Math.hypot(e.point.x - right.x, e.point.y - right.y) <= 3) escape(); });
+    map.on('contextmenu', (e) => { if (right && Math.hypot(e.point.x - right.x, e.point.y - right.y) <= 3) { if (this.finishesOnDoubleClick() && this.pathPoints().length >= 2) this.finish(); else escape(); } });
     map.on('dblclick', (e) => { if (this.finishesOnDoubleClick()) { e.preventDefault(); this.finish(); } });
     window.addEventListener('keydown', (e) => {
       if (typing(e.target) || document.querySelector('dialog[open]')) return;
@@ -809,32 +814,20 @@ export class Drawing extends DrawStore {
       Object.assign(box.style, { left: `${from.x}px`, top: `${from.y}px`, width: '0px', height: '0px' });
       box.hidden = false;
     };
-    // a finger held still on the map with no tool (half a second), then dragged: the box (Shift-drag's);
-    // moved first, or a second finger: the map's pan or pinch
-    let hold = null;
-    const unhold = () => { if (hold) { clearTimeout(hold.timer); hold = null; } };
-    // first (capture, after a drag's): Shift pressed on the map with no tool, not on what a drag takes
+    // first (capture, after a drag's): Shift pressed on the map with no tool, or Box select pressed
+    // (a finger's way too: the dock's button), not on what a drag takes
     map.getCanvasContainer().addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'touch') {
-        if (hold || from) { unhold(); return; }
-        if (this.tool || this.drag || this.picking) return;
-        const p = at(e);
-        hold = { p, id: e.pointerId, timer: setTimeout(() => { hold = null; if (!this.drag && !this.tool) { begin(p); navigator.vibrate?.(10); } }, 500) };
-        return;
-      }
-      if (this.tool || this.drag || !(e.shiftKey || this.boxNext) || e.button !== 0 || e.ctrlKey || e.metaKey) return;
+      if (this.tool || this.drag || !(e.shiftKey || this.boxNext) || (e.button !== 0 && e.pointerType !== 'touch') || e.ctrlKey || e.metaKey) return;
+      if (from) return; // a second finger
       begin(at(e));
     }, true);
-    map.getCanvasContainer().addEventListener('contextmenu', (e) => { if (e.pointerType === 'touch' || hold || from) e.preventDefault(); }); // a long press's menu: the box's instead
-    window.addEventListener('pointercancel', unhold);
+    map.getCanvasContainer().addEventListener('contextmenu', (e) => { if (from) e.preventDefault(); }); // a long press's menu while the box is drawn
     window.addEventListener('pointermove', (e) => {
-      if (hold && e.pointerId === hold.id) { const p = at(e); if (Math.hypot(p.x - hold.p.x, p.y - hold.p.y) > 8) unhold(); }
       if (!from) return;
       const p = at(e);
       Object.assign(box.style, { left: `${Math.min(from.x, p.x)}px`, top: `${Math.min(from.y, p.y)}px`, width: `${Math.abs(p.x - from.x)}px`, height: `${Math.abs(p.y - from.y)}px` });
     });
     window.addEventListener('pointerup', (e) => {
-      if (hold && e.pointerId === hold.id) unhold();
       if (!from) return;
       const p = at(e), a = from;
       from = null;

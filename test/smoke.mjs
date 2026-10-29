@@ -559,20 +559,19 @@ await section('the drawing', async () => {
   const shownE = await layoutNow();
   check(onTool.join() === 'Circle,true,true,0,true' && !hiddenE[2] && shownE[2] && order === 'Open,Download,Copy link,Layers,Elements,Undo',
     `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by its button, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
-  // a kind picked in the row: the tool on with it, the row shut; the key again: the next kind, its
-  // row open; the button while it is on: the row again, the tool still on
+  // a kind picked in the row: the tool on with it, the row shut; the key again: the tool off; a
+  // right-click on the button: on again, the row open
   const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
   if (!(await shut())[0]) await dw.click('#bar button[data-tool=shape]'); // the row open (a click on a tab may have shut it)
   await dw.click('#bar .kinds button[aria-label="Rings"]');
   const picked = await shut();
   await dw.keyboard.press('s');
-  const stepped = await shut();
-  await dw.click('#bar .kinds button[aria-label="Circle"]');
-  await dw.click('#bar button[data-tool=shape]');
+  const off = [...await shut(), await dw.evaluate(() => drawing.button)];
+  await dw.click('#bar button[data-tool=shape]', { button: 'right' });
   const reopened = [...await shut(), await dw.evaluate(() => drawing.button)];
   await dw.click('#bar .kinds button[aria-label="Circle"]');
-  check(picked.join() === 'false,rings' && stepped.join() === 'true,sector' && reopened.join() === 'true,circle,shape',
-    `tools: a kind picked in the row under the tool's button, the row shut (${picked}); the key again the next kind (${stepped}); the button while on, the row again (${reopened})`);
+  check(picked.join() === 'false,rings' && off.join() === 'false,rings,' && reopened.join() === 'true,rings,shape',
+    `tools: a kind picked in the row under the tool's button, the row shut (${picked}); the key again: off (${off}); a right-click on the button: on, the row again (${reopened})`);
   await dw.mouse.click(DX + 500, 400);
   await dw.mouse.click(DX + 500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');
@@ -1146,8 +1145,8 @@ await section('with a finger, on a phone', async () => {
   const shown = () => fp.evaluate(() => [!document.querySelector('#side').hidden, !document.querySelector('#props').hidden]);
   const atStart = await shown();
   const dock = await fp.evaluate(() => [...document.querySelectorAll('#dock > button')].filter((b) => b.offsetParent).map((b) => b.getAttribute('aria-label') || b.textContent).join());
-  await fp.evaluate(() => drawing.setVariant('shape', 'circle'));
   await fp.click('#dock [data-tool=shape]');
+  await fp.evaluate(() => drawing.setVariant('shape', 'circle')); // the tool stays on
   await fp.touchscreen.tap(195, 300); // the centre…
   await fp.touchscreen.tap(195, 300); // …again: the default size
   const placed = await fp.evaluate(() => drawing.doc.points.length);
@@ -1166,13 +1165,13 @@ await section('with a finger, on a phone', async () => {
   await fp.click('#props .dinsphead .ititle'); // the peek tapped: Properties
   const propsOpen = await fp.evaluate(() => [!document.querySelector('#side').hidden, !document.querySelector('#props').hidden, document.querySelector('#props').classList.contains('peek')]);
   await fp.evaluate(() => drawing.select([]));
-  // a finger held still, then dragged: a box, what lies inside selected
+  // Box select in the dock, then a finger dragged: a box, what lies inside selected
+  await fp.click('#dock button[aria-label="Box select"]');
   const boxed = await fp.evaluate(async () => {
     const box = map.getCanvasContainer(), r = box.getBoundingClientRect(), q = drawing.doc.points.map((x) => map.project(x.position));
     const [x0, y0] = [Math.min(...q.map((p) => p.x)) - 40, Math.min(...q.map((p) => p.y)) - 40], [x1, y1] = [Math.max(...q.map((p) => p.x)) + 40, Math.max(...q.map((p) => p.y)) + 40];
     const ev = (type, x, y) => new PointerEvent(type, { pointerId: 7, bubbles: true, button: 0, clientX: r.left + x, clientY: r.top + y, pointerType: 'touch' });
     box.dispatchEvent(ev('pointerdown', x0, y0));
-    await new Promise((res) => setTimeout(res, 650));
     window.dispatchEvent(ev('pointermove', (x0 + x1) / 2, (y0 + y1) / 2));
     window.dispatchEvent(ev('pointermove', x1, y1));
     window.dispatchEvent(ev('pointerup', x1, y1));
@@ -1194,10 +1193,10 @@ await section('with a finger, on a phone', async () => {
     window.dispatchEvent(ev('pointerup', 1));
   });
   const after = await fp.evaluate(() => [drawing.doc.points[0].parts[0].radius, !!drawing.drag]);
-  check(atStart.join() === 'false,false' && dock === 'Undo,Redo,Point,Line,Shape,Label,Measure' && placed === 1 && drawingDock === 'Back,Undo,Redo,Shape' && undone === 0 && redone === 1 && afterBack === null,
+  check(atStart.join() === 'false,false' && dock === 'Undo,Redo,Box select,Point,Line,Shape,Label,Measure' && placed === 1 && drawingDock === 'Back,Undo,Redo,Shape' && undone === 0 && redone === 1 && afterBack === null,
     `finger: the sheet closed to start with; the dock Undo, Redo and the tools (${dock}); a circle placed by two taps, the dock then ${drawingDock}; Undo, Redo (${undone}, ${redone}); Back ends the tool (${atStart}; ${placed}; ${afterBack})`);
   check(peek[0] && peek[1] && peek[2] < 120 && colOpen.join() === 'true,false' && propsOpen.join() === 'false,true,false' && boxed === 1,
-    `finger: what is selected peeks (${peek}); Elements in its place (${colOpen}); the peek tapped: Properties (${propsOpen}); held then dragged: a box selects ${boxed}`);
+    `finger: what is selected peeks (${peek}); Elements in its place (${colOpen}); the peek tapped: Properties (${propsOpen}); Box select then a drag selects ${boxed}`);
   check(handles === 1.75 && after[0] === rBefore && !after[1], `finger: handles drawn larger (${handles}); a second finger during a drag puts it back (${rBefore} → ${after[0]})`);
   check(!fp.errors.length, `finger: no errors ${fp.errors.join(' | ')}`);
   await fctx.close();

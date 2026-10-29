@@ -19,11 +19,11 @@ One layout at every width (`site/frame.js`).
   With a finger under 1,280 px (a tablet), as on a phone: **☰** in place of Open holds the
   file group and About, find a place is behind its lens with the map's controls. A tool with kinds
   is one button showing the kind in use and a corner mark; its kinds are a row under it as it goes
-  on, and again at a click on its button while it is on; shut once one is picked or the map is
-  clicked.
+  on, and at a right-click on its button; shut once one is picked or the map is clicked. A tool's
+  button or key pressed again turns it off.
 - **Box select** (B): the next drag on the map, a mouse's or a finger's, draws a box; what lies
-  inside is selected, then Select again. A drag with Select moves the map; Shift-drag is the box too,
-  and so is a finger held still half a second, then dragged.
+  inside is selected, then Select again. A drag with Select moves the map; Shift-drag is the box too.
+  On a phone its button is in the dock.
 - **The left panel**: **Layers** or **Elements** (the tree, §4), as its
   button in the bar (or **L**, **E**) chose: pressed again, it closes. At first it is open on Layers;
   Layers' button turns while the map's layers load.
@@ -56,7 +56,7 @@ One layout at every width (`site/frame.js`).
 
 **On a phone** (under 720 px) the top is for looking, the bottom for doing. The bar holds **☰**
 (Open's menu with Download's, Copy link and About), find a place (a field), Layers and Elements. The
-**dock**, a bar along the bottom, holds Undo, Redo and the tools; while one is on: **Back**, Undo,
+**dock**, a bar along the bottom, holds Undo, Redo, Box select and the tools; while one is on: **Back**, Undo,
 Redo, the tool (its kinds a row above the dock, sideways) and **Done** (a line or measurement being
 drawn).
 The panels are one bottom sheet at a time over the dock (half the screen; as tall as its grip is
@@ -80,9 +80,8 @@ finger every target is 44 px. Text: 11, 12, 13, 14, 16 px (a × glyph 18 or 20).
 ## 2. Tools
 
 One tool is on at a time, and stays on after each placement; its button again, or Select, turns it
-off; a tool with kinds (Shape; Point with presets) is turned off by Select, Esc or another tool, its
-button while on opening its kinds. Its key works from anywhere: on, or off; a tool with kinds, on,
-its next kind (its row open to show it).
+off. Its key works from anywhere: on, or off. A right-click on a tool with kinds (Shape; Point with
+presets) opens its kinds.
 
 | Tool | Kinds | Makes |
 |---|---|---|
@@ -99,10 +98,10 @@ its next kind (its row open to show it).
   (the stalk, or Bearing). A **rectangle** or **ellipse** goes corner to corner instead (**Shift**: a
   square, a circle). The second click on the first: the default size. A preset of the user's keeps
   its size: one click.
-- **Line**: as Measure, a click per point, snapped to what is drawn; Enter, a double-click or Done
-  ends it at its last point, attached when its first or last point snapped to something it can
-  attach to; a click on its first point (three or more) closes it into an area. Backspace takes back
-  a point.
+- **Line**: as Measure, a click per point, snapped to what is drawn; Enter, a double-click, a
+  right-click or Done ends it at its last point, attached when its first or last point snapped to something it can
+  attach to; a click on its first point (three or more) closes it into an area. Backspace or Undo
+  takes back a point.
 - **Sector**: the centre; the radius and one edge; the other edge, clockwise (back on the first: a
   circle). Esc goes one click back.
 - **Label**: points at what snapping finds (else an area's centre, a place on a line), or is free
@@ -112,8 +111,8 @@ its next kind (its row open to show it).
   bearings are typed afterwards, in the points' and corners' tables (§5).
 - **Shift**: 15° steps from the leg before (from north for the first). **Alt**: nothing snapped or
   attached.
-- **Esc** or a right-click steps back one level: what is half drawn, else the
-  tool, else Attach to… waiting, else the selection.
+- **Esc** (or a right-click with nothing to finish) steps back one level: what is half drawn, else
+  the tool, else a form open, else Attach to… waiting, else the selection.
 
 ### 2.2 Snapping and attaching
 
@@ -285,9 +284,9 @@ click on the map picks a root):
 | / | search |
 | L, E | the left panel on Layers, on Elements, or closed |
 | I | Properties on or off |
-| P, G, S, T, M | point, line, shape, label, measure; again: off, or the next kind (Shape; Point with presets) |
+| P, G, S, T, M | point, line, shape, label, measure; again: off |
 | B, Shift-drag | Box select: a box, what lies inside added to the selection |
-| Enter, double-click | finishes |
+| Enter, double-click, right-click | finishes |
 | Backspace | takes back a point |
 | Esc, right-click | steps back one level |
 | ↑ ↓ | previous, next element in the tree |
