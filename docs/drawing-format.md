@@ -68,7 +68,7 @@ kinds the stacking is fixed (drawing-ui.md §7). The writer writes points, then 
 | `charts.created`, `charts.modified` | missing or not a time: the time of import |
 | `charts.meta` | three free-text fields |
 | `charts.view` | §4. Missing: importing leaves the map's view and layers as they are. |
-| `charts.look` | the drawing's look (§6): what every element takes unless it says otherwise |
+| `charts.look` | the drawing's look (§6): `text.name`, `offset`, `minSize` only, what every element takes unless it says otherwise; any other field is ignored (warning) |
 | `charts.groups` | §7.1 |
 | `charts.rules` | §8 |
 
@@ -164,12 +164,12 @@ How an element is drawn is its **look**: one object, every field optional where 
 | `minSize` | screen pixels, 0–200: an outline whose long side is shorter than this on screen is drawn enlarged (display only, dotted); 0: always real size. The drawing's only. |
 
 Where it is written: an element's colours, opacities and stroke width as the common style names
-(§5), the rest in its `charts.look`; the drawing's in `charts.look` (§3). Only what each sets itself.
+(§5), the rest in its `charts.look`; the drawing's in `charts.look` (§3: names on the map, offset, minimum size). Only what each sets itself.
 A group has no look.
 
 ### The cascade
 
-Each field an element leaves out comes from the drawing's, else from the defaults (§16):
+Each field an element leaves out comes from the drawing's (the three it has), else from the defaults (§16):
 
 | Layer, from the top | |
 |---|---|
@@ -256,7 +256,7 @@ two of these.
   "start": { "element": "a" },
   "end": { "element": "s", "vertex": 2 },
   "smooth": true,
-  "vertices": [ { "name": "bend 1", "properties": [] } ]
+  "vertices": [ { "name": "bend 1" } ]
 }
 ```
 
@@ -264,7 +264,7 @@ two of these.
 |---|---|
 | `start`, `end` | what each end is attached to (§7.4); missing: a free end, where the geometry says |
 | `smooth` | `true`: a smooth curve through its vertices; missing or `false`: straight legs |
-| `vertices` | one entry per interior position of the geometry, in order: an optional `name` and `properties` (`[{ key, value }]`). Vertices have no ID. Written only when one of them has something; matched to the positions by order. |
+| `vertices` | one entry per interior position of the geometry, in order: an optional `name`. Vertices have no ID. Written only when one of them has something; matched to the positions by order. |
 
 **Legs.** A straight line's legs are the **geodesics** between its anchors (as the ruler draws
 them). A smooth line's (with at least one vertex) are cubic Béziers in the map's projection (Web
@@ -612,7 +612,7 @@ What a value is when the file leaves it out. Writing it with this value means th
 | point | `parts` | `[]` |
 | line | `start`, `end` | free |
 | line | `vertices` | each `{}` |
-| vertex | `name`; `properties` | `""`; `[]` |
+| vertex | `name` | `""` |
 | line | `smooth` | `false` |
 | area | `reversed` | `false` |
 | label | `text` | `""` |

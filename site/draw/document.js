@@ -239,7 +239,7 @@ export function addLine(doc, start, positions, end, opts = {}) {
   doc.lines.push(s);
   return s;
 }
-const vertex = (p) => ({ position: [...p], name: '', properties: [] });
+const vertex = (p) => ({ position: [...p], name: '' });
 // a part added to a point: a round one twice the reach of the last round one (filled when it is the
 // first), an outline of the default size; one taken away (by its place)
 export function addPart(p, kind = 'circle') {
@@ -296,13 +296,13 @@ export function remove(doc, ids, withMembers = false) {
 // addVertex, removeVertex)
 export function insertVertex(line, index, position) { line.vertices.splice(index, 0, vertex(position)); }
 export function deleteVertex(line, index) { line.vertices.splice(index, 1); }
-// Split a line at its vertex index: the vertex becomes a point (a dot, with the vertex's name and
-// properties), the line ends there, and a new line carries on from it with the rest, both attached
+// Split a line at its vertex index: the vertex becomes a point (a dot, with the vertex's name), the
+// line ends there, and a new line carries on from it with the rest, both attached
 // to it (what points at the line: attach.js splitKeeping). Returns the new point.
 export function splitLine(doc, lineId, index) {
   const s = doc.lines.find((x) => x.id === lineId), v = s.vertices[index];
   const taken = idsOf(doc);
-  const p = addPoint(doc, v.position, { name: v.name || nextName(doc, 'point'), properties: clone(v.properties), symbol: 'dot', parts: [] }, taken);
+  const p = addPoint(doc, v.position, { name: v.name || nextName(doc, 'point'), symbol: 'dot', parts: [] }, taken);
   const rest = { ...clone(s), id: newId(doc, taken), name: nextName(doc, 'line'), start: { position: [...v.position], element: p.id }, end: clone(s.end),
     vertices: clone(s.vertices.slice(index + 1)) };
   s.end = { position: [...v.position], element: p.id };
@@ -357,6 +357,7 @@ export const LOOK_FIELDS = {
   area: [...STYLE_FIELDS, 'text.name', 'text.values'],
   line: [...STYLE_FIELDS.slice(2), 'text.name', 'text.values', 'offset'],
   label: ['text.size', 'text.color', 'text.background'],
+  drawing: ['text.name', 'offset', 'minSize'], // the drawing's own look: what its Display sets, nothing else
 };
 // Move an element (or a group) into the group gid, or out of any (null): only its membership changes,
 // never its look; never into itself or a group inside it.

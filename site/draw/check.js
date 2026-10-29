@@ -107,10 +107,9 @@ export function ownStyle(s, c, fill) {
   part('stroke', DEFAULT_STYLE.stroke, check('stroke'));
   return out;
 }
-// A look as the file has it (an element's own, the drawing's): what it sets, each value
-// checked; what is not valid is left out (warned). fill: whether it can have one (a line cannot);
-// drawing: the drawing's (its minimum display size).
-export function look(l, c, fill = true, drawing = false) {
+// An element's own look as the file has it: what it sets, each value checked; what is not valid is
+// left out (warned). fill: whether it can have one (a line cannot).
+export function look(l, c, fill = true) {
   if (l === undefined || l === null) return {};
   if (!isObj(l)) { c.warn('look: not an object, ignored'); return {}; }
   const out = ownStyle({ fill: l.fill, stroke: l.stroke }, c, fill);
@@ -128,7 +127,21 @@ export function look(l, c, fill = true, drawing = false) {
   }
   const a = offset(l.offset, c);
   if (a !== null) out.offset = a;
-  if (drawing && l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
+  return out;
+}
+// The drawing's look: what its Display sets (names on the map, offset, minimum size), each checked;
+// anything else is not the drawing's (warned, left out)
+export function drawingLook(l, c) {
+  if (l === undefined || l === null) return {};
+  if (!isObj(l)) { c.warn('look: not an object, ignored'); return {}; }
+  const out = {}, t = isObj(l.text) ? l.text : {};
+  if (typeof t.name === 'boolean') out.text = { name: t.name };
+  else if (t.name !== undefined) c.warn('look text name: not true or false, ignored');
+  const a = offset(l.offset, c);
+  if (a !== null) out.offset = a;
+  if (l.minSize != null) { const m = minSize(l.minSize, c, 'look minSize'); if (m !== null) out.minSize = m; }
+  const other = [...Object.keys(l).filter((k) => !['text', 'offset', 'minSize'].includes(k)), ...Object.keys(t).filter((k) => k !== 'name').map((k) => `text.${k}`)];
+  if (other.length) c.warn(`look ${other.join(', ')}: not the drawing's (an element's own), ignored`);
   return out;
 }
 // a point's parts (document.js makePart), each named by its place in the list (part 1, 2…)

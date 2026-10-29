@@ -126,16 +126,17 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     xs = [...new Map(xs.flatMap((x) => (x.kind === 'group' ? membersOf(doc, x.el.id, true).filter((m) => m.kind !== 'group') : [x])).map((x) => [x.el.id ?? 'drawing', x])).values()];
     if (!xs.length && !extra.length) return null; // an empty group
-    const has = (x, f) => x.kind === 'drawing' || LOOK_FIELDS[x.kind].includes(f);
+    const has = (x, f) => LOOK_FIELDS[x.kind].includes(f);
     const shown = (f) => (!fields || fields.includes(f)) && xs.some((x) => has(x, f));
     const looks = xs.map((x) => (x.kind === 'label' ? { ...lookOf(doc, x.el), text: { ...lookOf(doc, x.el).text, color: labelColour(doc, x.el) } } : lookOf(doc, x.el)));
     const same = (f) => { const vs = xs.map((x, i) => (has(x, f) ? lookField(looks[i], f) : undefined)).filter((v) => v !== undefined); return vs.every((v) => v === vs[0]) ? vs[0] : null; };
     const target = (d, x) => (x.kind === 'drawing' ? d : find(d, x.el.id).el);
     // live: shown as it changes (a colour being picked), the undo step made when it is set
     const put = (f, v, live = false) => (live ? drawing.preview : drawing.change).call(drawing, (d) => { for (const x of xs) if (has(x, f)) setLook(target(d, x), f, v); });
-    const above = xs.some((x) => x.kind === 'drawing') ? 'the default' : 'the drawing\'s';
+    // what ↺ gives back: the drawing's, for what the drawing sets; else the default
+    const aboveOf = (f) => (xs.some((x) => x.kind === 'drawing') || !LOOK_FIELDS.drawing.includes(f) ? 'the default' : 'the drawing\'s');
     const back = (...fs) => (xs.some((x) => fs.some((f) => has(x, f) && lookField(x.el.look, f) !== undefined))
-      ? h('button', { type: 'button', class: 'x', title: `Back to ${above}`, 'aria-label': `${fs[0]} back to ${above}`,
+      ? h('button', { type: 'button', class: 'x', title: `Back to ${aboveOf(fs[0])}`, 'aria-label': `${fs[0]} back to ${aboveOf(fs[0])}`,
         onclick: () => drawing.change((d) => { for (const x of xs) for (const f of fs) if (has(x, f)) setLook(target(d, x), f, undefined); }) }, '↺') : null);
     const mixed = (v) => (v === null ? h('span', { class: 'mixed' }, 'mixed') : null);
     const colour = (f, aria) => {
@@ -889,7 +890,7 @@ export function drawView(root, ctx) {
     title = `Drawing · ${m.title?.trim() || 'Untitled drawing'}`;
     const titleField = Object.assign(meta('title', 'Title'), { placeholder: 'Untitled drawing' }); // what the tree and the bar call it while it has none
     return [row('Title', titleField), row('Description', meta('description', 'Description', true)), row('Author', meta('author', 'Author')),
-      lookBlock([{ kind: 'drawing', el: drawing.doc }], ['text.name', 'offset', 'minSize'], 'Display', [
+      lookBlock([{ kind: 'drawing', el: drawing.doc }], LOOK_FIELDS.drawing, 'Display', [
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Leg bearings', check('', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { 'aria-label': 'Leg bearings', title: 'Beside each length on the map' }))]),
       n > 1 ? totalsBlock(keys.length ? by : null, groupName) : null,

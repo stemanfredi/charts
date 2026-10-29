@@ -585,14 +585,14 @@ test('attached ends follow their point; a point gone leaves them free where they
   assert.deepEqual(s.start.position, [0, 0.5]);
 });
 
-test('split a line at a vertex: a dot carrying the vertex\'s own, both lines attached to it', () => {
+test('split a line at a vertex: a dot carrying the vertex\'s name, both lines attached to it', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]);
   const s = addLine(doc, a.id, [[1, 0], [2, 0], [3, 0]], [4, 0], { name: 'Main' });
-  Object.assign(s.vertices[1], { name: 'bend', properties: [{ key: 'k', value: 'v' }] });
+  Object.assign(s.vertices[1], { name: 'bend' });
   const p = splitLine(doc, s.id, 1);
   const rest = doc.lines[1];
-  assert.deepEqual([p.symbol, p.parts, p.name, p.properties, p.position], ['dot', [], 'bend', [{ key: 'k', value: 'v' }], [2, 0]]);
+  assert.deepEqual([p.symbol, p.parts, p.name, p.properties, p.position], ['dot', [], 'bend', [], [2, 0]]);
   assert.deepEqual([s.end, s.vertices.map((v) => v.position)], [{ position: [2, 0], element: p.id }, [[1, 0]]]);
   assert.deepEqual([rest.start, rest.end, rest.vertices.map((v) => v.position), rest.name],
     [{ position: [2, 0], element: p.id }, { position: [4, 0], element: null }, [[3, 0]], 'Line 1']);

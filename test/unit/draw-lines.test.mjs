@@ -191,10 +191,10 @@ test('split: a vertex becomes a dot both parts are attached to; lengths unchange
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.4, 40]);
   const s = addLine(doc, a.id, [[12.1, 40.05], [12.2, 40.1], [12.3, 40.05]], b.id, { name: 'Main' });
-  Object.assign(s.vertices[1], { name: 'Mark', properties: [{ key: 'k', value: 'v' }] });
+  Object.assign(s.vertices[1], { name: 'Mark' });
   const whole = lineTrace(doc, s).length;
   const p = splitLine(doc, s.id, 1);
-  assert.deepEqual([p.name, p.position, p.properties, p.symbol, p.parts], ['Mark', [12.2, 40.1], [{ key: 'k', value: 'v' }], 'dot', []]);
+  assert.deepEqual([p.name, p.position, p.properties, p.symbol, p.parts], ['Mark', [12.2, 40.1], [], 'dot', []]);
   const [first, rest] = doc.lines;
   assert.deepEqual([first.id, first.end, first.vertices.length], [s.id, { position: [12.2, 40.1], element: p.id }, 1]);
   assert.deepEqual([rest.start, rest.end, rest.vertices.length], [{ position: [12.2, 40.1], element: p.id }, { position: [12.4, 40], element: b.id }, 1]);

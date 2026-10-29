@@ -8,7 +8,7 @@
 
 import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET,
   emptyDoc, newId, columnsOf } from './document.js';
-import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, parts, readView } from './check.js';
+import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, drawingLook, parts, readView } from './check.js';
 import { resolve, targetPosition } from './attach.js';
 import { groupSizeOf } from './generator.js';
 import { positionsOf } from './lines.js';
@@ -78,7 +78,7 @@ function read(raw, app, known, now, report) {
       doc.meta = { title: text(m.title, c, 'title'), description: text(m.description, c, 'description'), author: text(m.author, c, 'author') };
     }
     if (app.view != null) doc.view = readView(app.view, known, ctx('view'));
-    doc.look = look(app.look, ctx('look'), true, true);
+    doc.look = drawingLook(app.look, ctx('look'));
     for (const x of Array.isArray(app.groups) ? app.groups : []) {
       const g = attempt('group', x?.id, (c) => {
         if (!isObj(x)) c.skip('not an object');
@@ -263,7 +263,7 @@ const READ = {
       smooth: flag(mine.smooth, c, 'smooth'),
       vertices: pts.slice(1, -1).map((position, k) => {
         const v = isObj(meta[k]) ? meta[k] : {};
-        return { position, name: text(v.name, c, `vertex ${k + 1} name`), properties: properties(v.properties, c) };
+        return { position, name: text(v.name, c, `vertex ${k + 1} name`) };
       }) };
     // its ends attached: { element, vertex | edge and at } (attach.js)
     for (const end of ['start', 'end']) {
@@ -315,7 +315,7 @@ const partOut = (r) => lean({ kind: r.kind, radius: r.radius && r3(r.radius), ap
   fill: r.fill, shown: r.shown, name: r.name },
 { radius: undefined, aperture: undefined, length: undefined, width: undefined, fill: true, shown: true, name: '' });
 const VIEW_D = { center: null, zoom: null, bearing: 0, layers: null, data: null, units: 'km', bearings: false };
-const VERTEX_D = { name: '', properties: [] };
+const VERTEX_D = { name: '' };
 const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: null, aperture: null, preset: null, copy: null };
 const CONNECTION_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, hubs: [] };
 
@@ -368,7 +368,7 @@ function feature(doc, kind, el) {
     if (el.parts.length) mine.parts = el.parts.map(partOut);
   } else if (kind === 'line') {
     geometry = { type: 'LineString', coordinates: positionsOf(el).map(pos) };
-    const vs = el.vertices.map((v) => lean({ name: v.name, properties: v.properties.map((p) => ({ ...p })) }, VERTEX_D));
+    const vs = el.vertices.map((v) => lean({ name: v.name }, VERTEX_D));
     Object.assign(mine, lean({ start: endOut(el.start), end: endOut(el.end), smooth: el.smooth },
     { start: null, end: null, smooth: false }));
     if (vs.some((v) => Object.keys(v).length)) mine.vertices = vs;
