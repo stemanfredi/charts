@@ -946,8 +946,8 @@ scaleEl.addEventListener('click', () => setDisplay({ units: display.units === 'k
 Object.assign(scaleEl, { tabIndex: 0 }); // a button, as the time chip: reached by keyboard too
 scaleEl.setAttribute('role', 'button');
 scaleEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scaleEl.click(); } });
-// the time shown, a chip on the bottom row: a click opens the field's calendar (the field itself in a
-// box over the chip, for a browser without a picker)
+// the time shown, a chip on the bottom row: a click opens the field in a box over the chip, with its
+// calendar
 const timePop = $('#timepop');
 const timeBox = popup(timePop, {
   place: () => {
@@ -957,8 +957,9 @@ const timeBox = popup(timePop, {
 });
 Object.assign(shownEl, { tabIndex: 0 });
 shownEl.setAttribute('role', 'button');
-// a click: the browser's calendar at once (the field stays hidden); where there is no picker, the field in its box
-shownEl.addEventListener('click', (e) => { try { whenIn.showPicker(); } catch { timeBox.toggle(shownEl, e); } });
+// a click: the field in its box over the chip, and the browser's calendar opened from it at once (the
+// browser hangs the calendar from the field: hidden, it would fall to the window's corner); again, closed
+shownEl.addEventListener('click', (e) => { if (!timePop.hidden) return timeBox.close(); timeBox.open(shownEl, e.detail === 0); try { whenIn.showPicker(); } catch { /* no picker: the field itself, in its box */ } });
 shownEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shownEl.click(); } });
 function renderUnits() {
   scale.setUnit(display.units === 'nm' ? 'nautical' : 'metric');
