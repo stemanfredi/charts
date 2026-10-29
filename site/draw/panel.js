@@ -1030,7 +1030,9 @@ export function drawView(root, ctx) {
     if (!typed && (e.key === 'Delete' || (mac && e.metaKey && e.key === 'Backspace')) && drawing.sel.size) { e.preventDefault(); del([...drawing.sel]); return; }
     if (typed || mod || e.altKey) return;
     // the tools' keys: app.js, from anywhere
-    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && tree.step(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
+    // ↑ ↓ step the tree, unless what has the focus takes them itself (a slider, a radio card, the map)
+    const ownArrows = e.target.closest?.('input[type=range], [role=radio], .maplibregl-canvas');
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !ownArrows && tree.step(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
     else if (e.key === 'F2' && drawing.sel.size === 1) { e.preventDefault(); tree.rename([...drawing.sel][0]); }
   });
 
