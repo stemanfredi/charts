@@ -81,7 +81,8 @@ finger every target is 44 px. Text: 11, 12, 13, 14, 16 px (a × glyph 18 or 20).
 ## 2. Tools
 
 One tool is on at a time, and stays on after each placement; its button again, or Select, turns it
-off. Its key works from anywhere: on, or off. A right-click on a tool with kinds (Shape; Point with
+off. Its key works from anywhere but a panel's control (a button, a box: focus there keeps the letters
+for it): on, or off. A right-click on a tool with kinds (Shape; Point with
 presets) opens its kinds.
 
 | Tool | Kinds | Makes |

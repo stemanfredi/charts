@@ -646,13 +646,12 @@ await section('the drawing', async () => {
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
   await dw.setInputFiles('input[type=file][accept*=geojson]', { name: 'x.geojson', mimeType: 'application/geo+json', buffer: Buffer.from(exported) });
-  await Promise.all([dw.waitForEvent('load'), dw.click('dialog[open] button.done')]);
-  await dw.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
-  await dw.waitForTimeout(800);
+  await dw.click('dialog[open] button.done'); // its view has the page's layers: the map moves, no reload
+  await dw.waitForFunction(() => Math.abs(map.getCenter().lat - 40.2) < 0.01);
   const c = await dw.evaluate(() => map.getCenter());
   const mAfter = JSON.stringify(await measuredNow());
   check((await dw.evaluate(() => drawing.doc.points.length)) === 1 && Math.abs(c.lat - 40.2) < 0.01 && Math.abs(c.lng - 12.1) < 0.01 && mAfter === '[[12.2,40.3]]',
-    `drawing: New, then the file opened again: its element, its view and its measurement (${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}; ${mAfter})`);
+    `drawing: New, then the file opened again (no reload: its layers are the page's): its element, its view and its measurement (${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}; ${mAfter})`);
   // a file without the measurement: its drawing has none (they are each drawing's)
   savedFile.features = savedFile.features.filter((f) => f !== ruler);
   // dropped on the map: imported as from the menu (its report first)
@@ -661,9 +660,8 @@ await section('the drawing', async () => {
     dt.items.add(new File([text], 'other.geojson', { type: 'application/geo+json' }));
     map.getContainer().dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
   }, JSON.stringify(savedFile));
-  await Promise.all([dw.waitForEvent('load'), dw.click('dialog[open] button.done')]);
-  await dw.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
-  await dw.waitForTimeout(500);
+  await dw.click('dialog[open] button.done'); // the same layers again: no reload
+  await dw.waitForFunction(() => !document.querySelector('dialog[open]') && drawing.doc.points.length === 1);
   check((await measuredNow()).length === 0, 'drawing: a file without measurements brings a drawing without them');
   const drawings = await dw.evaluate(() => drawing.saving.list().map((x) => x.title || 'Untitled'));
   check(drawings.length === 3, `drawing: every drawing kept in the list, the imported ones added (${drawings.join(', ')})`); // the first and two imported (an empty New left nothing)

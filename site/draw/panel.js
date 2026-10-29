@@ -1038,7 +1038,7 @@ export function drawView(root, ctx) {
       }
       if (what === 'draft') return tools.renderTouch();
       if (what === 'cancel') { closeForm(); return renderInspector(); } // Esc or a right-click on the map with a form open
-      if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
+      if (what === 'drag') { if (!drawing.drag) renderInspector(); return; } // when it is let go (the map shows its values while it moves); the tree then too
       // a line's point or an area's corner pressed on the map: its row in the table made current
       if (what === 'place') { const { id, index } = drawing.currentPlace; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${{ line: 'points', area: 'corners', point: 'parts' }[kindOf(id)]}`, index, kindOf(id) !== 'point'); return; }
       if (what === 'area' && !drawing.sel.size) note('Nothing lies entirely inside the box'); // a box drawn: why nothing is selected

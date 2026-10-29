@@ -40,6 +40,7 @@ export class Saving {
     this.viewMoved = false; // the view moved since the last save
     this.otherTab = false;
     this.id = store.get(CURRENT) || newKey(); // the drawing open: saved once it holds something
+    if (!store.get(CURRENT)) store.set(CURRENT, this.id); // CURRENT: what a new tab opens; written when a drawing is opened, not at every save (a tab's saves do not switch another tab's drawing at its reload)
     window.addEventListener('storage', (e) => { if (e.key === KEY(this.id)) { this.otherTab = true; this.d.onChange('storage'); } });
     // a change still waiting to be saved when the page goes (closed, reloaded, hidden): saved now
     const flush = () => { if (this.timer || this.viewMoved) this.now(); };
@@ -79,7 +80,6 @@ export class Saving {
       const index = readIndex().filter((x) => x.id !== this.id);
       index.push({ id: this.id, title: this.d.doc.meta.title, modified: this.d.doc.modified, size: text.length });
       store.set(INDEX, JSON.stringify(index));
-      store.set(CURRENT, this.id);
     }
     if (ok === !this.failed) return; // as it was: nothing to say
     this.failed = !ok;
@@ -110,6 +110,7 @@ export class Saving {
   add(doc = emptyDoc()) {
     this.now();
     this.id = newKey();
+    store.set(CURRENT, this.id);
     this.otherTab = false;
     this.d.adopt(doc);
     this.now();

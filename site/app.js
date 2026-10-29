@@ -279,12 +279,16 @@ function viewOf() {
     units: display.units, bearings: display.bearings,
   };
 }
-// Apply a file's view and measurements (either may be null: left as they are): as the address the
-// app writes, then a reload, so the app's own checked reading of the address applies them (no second
-// way of applying layers or measurements). The drawing is saved first: it comes back after the reload.
+// Apply a file's view (null: left as it is): as the address the app writes, then a reload, so the
+// app's own checked reading of the address applies it (no second way of applying layers). A view
+// that differs from the page's in its camera alone (the same layers, time, depth and units: a
+// drawing opened where it was) moves the map instead. The drawing is saved first: it comes back
+// after the reload.
 function applyView(v) {
-  const q = new URLSearchParams(location.hash.slice(1));
+  const q = new URLSearchParams(location.hash.slice(1)), was = new URLSearchParams(q);
   viewToAddress(v, q);
+  const butCamera = (p) => { const r = new URLSearchParams(p); r.delete('v'); return r.toString(); };
+  if (butCamera(q) === butCamera(was)) { map.jumpTo({ center: v.center || map.getCenter(), zoom: v.zoom ?? map.getZoom(), bearing: v.bearing ?? 0 }); writeHashNow(); return; } // the address says it at once
   drawing.saving.now();
   setHash(q);
   location.reload();
@@ -1070,7 +1074,7 @@ about.querySelector('[data-close]').addEventListener('click', () => about.close(
 // the single keys (keys.js), from anywhere: search, the panels, or a tool
 // (draw/drawing.js handles the keys of what is being drawn; draw/panel.js the drawing's own)
 window.addEventListener('keydown', (e) => {
-  if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]') || typing(e.target)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]') || typing(e.target) || e.target.closest?.('#side, #props')) return; // from a panel's control (a button, a box ticked): its own (WCAG 2.1.4)
   const k = keyEntry(e.key);
   if (!k?.open && !k?.tool) return;
   if (k.open === 'search') { e.preventDefault(); setFinding(true); }
