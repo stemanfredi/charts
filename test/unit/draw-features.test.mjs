@@ -105,7 +105,7 @@ test('selection and hover: a halo just outside, handles, a mark at the centre, n
   Object.assign(h, { id: 'h', look: { stroke: { width: 4 } } });
   Object.assign(h.parts[0], { length: 10, width: 5 });
   const f = drawFeatures(doc, new Set(['n', 'h', 's', 'gm']), 'm').features;
-  const marks = f.filter((x) => ['sel', 'hover', 'handle'].includes(x.properties.kind));
+  const marks = f.filter((x) => ['sel', 'dot', 'hover', 'handle'].includes(x.properties.kind));
   const halo = (id) => marks.filter((x) => x.properties.id === id && x.geometry.type === 'Polygon');
   // several selected: no bands, dots (a point's centre; an outline's four corners); the hovered one a
   // band at its largest shown round part, with the stroke width to clear
@@ -132,7 +132,7 @@ test('selection and hover: a halo just outside, handles, a mark at the centre, n
   assert.deepEqual(handles('gm').map((x) => x.properties.role), ['radius', 'radius', 'radius', 'radius']); // a member's parts: its own
   assert.ok(gm.groupId);
   // the dot at a selected point's centre, the ring round a hovered one's; a shape's four corners
-  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && x.properties.kind !== 'handle')), [['h', 'sel'], ['h', 'sel'], ['h', 'sel'], ['h', 'sel'], ['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel']]); // outlines are drawn before the points' centres
+  assert.deepEqual(kindsOf(marks.filter((x) => x.geometry.type === 'Point' && x.properties.kind !== 'handle')), [['h', 'dot'], ['h', 'dot'], ['h', 'dot'], ['h', 'dot'], ['n', 'sel'], ['m', 'hover'], ['s', 'sel'], ['gm', 'sel']]); // outlines are drawn before the points' centres
   // the element's own features are unchanged by being selected
   assert.deepEqual(f.filter((x) => !marks.includes(x)), drawFeatures(doc).features);
 });
@@ -155,7 +155,7 @@ test('a selected outline: corners and a rotate stalk at its front; drawn enlarge
   // among several selected: dots at the corners, no band, no handles
   const two = drawFeatures(doc, new Set([h.id, addShape(doc, [13, 40]).id]), null, { zoom: 20 }).features;
   assert.equal(two.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Polygon').length, 0);
-  assert.equal(two.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Point').length, 8);
+  assert.equal(two.filter((x) => x.properties.kind === 'dot').length, 8);
   assert.equal(two.filter((x) => x.properties.kind === 'handle').length, 0);
 });
 
@@ -378,7 +378,7 @@ test('lines: guides and the others drawn, a click target each, halos, handles by
   const guide = f.find((x) => x.properties.kind === 'guide').properties;
   assert.deepEqual([guide.dash, guide.sc, guide.sw], ['dashed', '#6b7a86', 3]); // a guide's look, its own width
   assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'LineString')), [], 'two selected: no bands');
-  assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'Point')), [['s1', 'sel'], ['s1', 'sel'], ['s1', 'sel'], ['s2', 'sel'], ['s2', 'sel']], 'dots at their ends and vertices');
+  assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'dot')), [['s1', 'dot'], ['s1', 'dot'], ['s1', 'dot'], ['s2', 'dot'], ['s2', 'dot']], 'dots at their ends and vertices');
   assert.deepEqual(kindsOf(drawFeatures(doc, new Set(), 's1').features.filter((x) => x.properties.kind === 'hover' && x.geometry.type === 'LineString')), [['s1', 'hover']], 'hovered: the band');
   // handles: an attached end moves its point, a free end itself, a vertex itself
   const handles = (fs, id, kind = 'handle') => fs.filter((x) => x.properties.kind === kind && x.properties.id === id).map((x) => [x.properties.role, x.properties.ref]);
