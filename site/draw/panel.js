@@ -60,7 +60,11 @@ export function drawView(root, ctx) {
     renderInspector();
   }
   const tree = createTree(drawing, ctx, { facts: () => facts, openDrawing });
-  const renderList = () => { computeFacts(); tree.render(); };
+  // the tree built only while it is seen (a large drawing's rows cost tens of ms per change); built
+  // when its tab opens (render('tool'), after any change of the frame)
+  let listStale = false;
+  const listSeen = () => !root.closest('[hidden]');
+  const renderList = () => { computeFacts(); listStale = !listSeen(); if (!listStale) tree.render(); };
   const drawElements = () => elements(drawing.doc);
   // the inspector's head: what it shows, the actions on it (renderHead), its fold
   let title = ''; // what the inspector shows, said in its head (set by the inspector built)
@@ -955,6 +959,10 @@ export function drawView(root, ctx) {
     placesRead.clear();
     const xs = drawing.selected();
     if (form && selKey() !== form.sel) closeForm();
+    ctx.frame.has(!!form || xs.length > 0 || showDrawing); // Properties shown while it has something, and is on
+    tree.markDrawing(showDrawing && !xs.length);
+    // not seen (off, or nothing to show): not built; built anew when it is (render('tool'))
+    if (ctx.props.hidden) { shows = null; return; }
     const what = `${form ? `${form.kind}:${form.sel}` : ''}|${selKey()}`;
     // a field being edited, when something else is to be shown, is applied first, to the element it belongs to
     if (what !== shows && inspector.contains(document.activeElement)) document.activeElement.blur();
@@ -967,8 +975,6 @@ export function drawView(root, ctx) {
     shows = what;
     inspector.scrollTop = top;
     renderHead(xs);
-    tree.markDrawing(showDrawing && !xs.length);
-    ctx.frame.has(!!form || xs.length > 0 || showDrawing); // Properties shown while it has something, and is on
   }
   // The inspector's head (drawing-ui.md §5): what it shows, then Zoom to, Duplicate, Group and Delete
   // for the selection (with nothing selected, Zoom to all of it; none while a form is open).
@@ -1036,7 +1042,11 @@ export function drawView(root, ctx) {
   // ---- rendering ---------------------------------------------------------------------------
   return {
     render(what) {
-      if (what === 'tool') return renderTools();
+      if (what === 'tool') { // also after any change of the frame: what has just come into view built
+        if (listStale && listSeen()) { listStale = false; tree.render(); }
+        if (shows === null && !ctx.props.hidden) renderInspector();
+        return renderTools();
+      }
       if (what === 'draft') return tools.renderTouch();
       if (what === 'drag') return renderInspector(); // once a frame (drawing.js): in place, the tree after it is let go
       // a line's point or an area's corner pressed on the map: its row in the table made current
@@ -1048,7 +1058,7 @@ export function drawView(root, ctx) {
       // or an area, computed)
       if (what === 'sel') {
         showDrawing = false; // something else selected, or nothing (the drawing's row: openDrawing)
-        tree.mark();
+        if (!listStale) tree.mark();
       } else renderList();
       renderInspector();
       if (form && what === 'doc') formPreview(); // the form's preview follows the drawing (an undo, its line edited)
