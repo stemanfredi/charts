@@ -727,8 +727,8 @@ function itemStatus(id) {
 }
 
 // ---- small builders ---------------------------------------------------------
-// a 20 px line icon from SVG path data; a path given as [d, colour] is filled in that colour
-const icon = (...paths) => svg('svg', { viewBox: '0 0 24 24', width: 20, height: 20, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
+// an 18 px line icon (the bar's size; style.css sizes it where it differs) from SVG path data; a path given as [d, colour] is filled in that colour
+const icon = (...paths) => svg('svg', { viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
   paths.map((d) => (Array.isArray(d) ? svg('path', { d: d[0], fill: d[1], stroke: d[1] }) : svg('path', { d }))));
 const ICON = {
   search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'],

@@ -1,8 +1,8 @@
 :root {
   --ink: #1f2c36; --soft: #5d6d79; --line: #d5dde3; --line2: #e9eef2; --bg: #ffffff; --bg2: #f5f7f9; --sel: #dcebf9; --hover: var(--line2);
   --accent: #1f5f86; --magenta: #b0127a; --err: #b42318; --warn: #b54708;
-  /* --sel: what is selected or current, a tint of the map's marks' blue (draw/layers.js MARK); --hover:
-     what the pointer is over where a click does something; --accent: what is pressed, and the focus */
+  /* --sel: what is selected or current, a pale blue; --hover: what the pointer is over where a click
+     does something; --accent: what is pressed, and the focus */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
@@ -10,6 +10,7 @@
   --lw: 260px; --rw: 320px; --sheet-h: 52vh; /* the panels' widths, a phone's sheet's height: frame.js */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
+  accent-color: var(--accent); /* a box ticked, a slider: in the colour of what is pressed */
 }
 @media (pointer: fine) { :root { --row: 36px; } }
 @media (pointer: coarse) { :root { --bar-h: 49px; } } /* a finger's targets: 44 px */
@@ -24,7 +25,7 @@ body { font: 13px/1.4 var(--font); color: var(--ink); background: #f1ebdc; overf
 /* a button read as a link (About's Reload) */
 .linkbtn { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
 #map { position: absolute; inset: 0; }
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 svg { flex: none; }
@@ -130,7 +131,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 /* an icon button (an eye, a fold, an action, ⓘ): no box until pointed at; as tall as a row */
 :is(.more, .deye, .hact) { flex: none; width: var(--row); height: var(--row); border: 0; padding: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--soft); }
 :is(.more, .deye, .hact):hover { background: var(--line2); color: var(--ink); }
-:is(.more, .deye, .hact) svg { width: 16px; height: 16px; }
+:is(.more, .deye, .hact, .x) svg { width: 16px; height: 16px; }
 .more[aria-expanded="true"] { background: var(--line2); color: var(--accent); }
 .controls { display: grid; gap: 6px; padding: 0 8px 8px 0; }
 .controls select {
@@ -143,7 +144,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 
 .opacity { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
 .opacity span { flex: none; min-width: 52px; }
-.opacity input[type=range] { flex: 1; height: var(--row); accent-color: var(--accent); margin: 0; }
+.opacity input[type=range] { flex: 1; height: var(--row); margin: 0; }
 .info { margin: 0 8px 8px 0; padding: 6px 8px; background: var(--bg2); border-left: 2px solid var(--accent); font-size: 12px; color: var(--soft); }
 .info p { margin: 2px 0; }
 .info .opacity { margin: 0 0 4px; }
@@ -196,7 +197,7 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .flabel { flex: none; width: 78px; color: var(--soft); font-size: 12px; }
 .frow > input:not([type]), .frow > textarea, .frow > input[spellcheck] { flex: 1; min-width: 0; }
 .dinspect input:not([type=checkbox]):not([type=radio]):not([type=color]), .dinspect textarea, .dinspect select {
-  min-height: var(--row); border: 1px solid transparent; border-radius: 0; padding: 0 8px; background: transparent; font: inherit; min-width: 0;
+  min-height: var(--row); border: 1px solid transparent; border-radius: 0; padding: 0 8px; background: transparent; min-width: 0;
 }
 .dinspect :is(input:not([type=checkbox]):not([type=radio]):not([type=color]), textarea, select):hover { background: var(--hover); }
 .dinspect :is(input, textarea, select):focus { outline: 2px solid var(--accent); outline-offset: -2px; background: #fff; }
@@ -235,7 +236,7 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 .funit { color: var(--soft); font-size: 12px; }
 .mixed { font-size: 11px; color: var(--warn); }
 /* the box being dragged (Shift-drag), on the map */
-.dbox { position: absolute; border: 1.5px solid #1c7ed6; background: rgba(28, 126, 214, .1); /* the marks' blue (draw/layers.js) */ pointer-events: none; z-index: 2; }
+.dbox { position: absolute; border: 1.5px solid #ffc400; background: rgba(255, 196, 0, .1); /* the marks' yellow (draw/layers.js MARK) */ pointer-events: none; z-index: 2; }
 /* a group's row: a caret folds its members */
 .dfold { flex: none; width: 20px; height: var(--row); border: 0; background: none; padding: 0; display: grid; place-items: center; color: var(--soft); }
 .dfold::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(-45deg); transition: transform .15s; }
