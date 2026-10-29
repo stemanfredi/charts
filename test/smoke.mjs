@@ -1051,10 +1051,9 @@ await section('the drawing', async () => {
   const partsNow = await dw.evaluate((id) => drawing.doc.points.find((x) => x.id === id).parts.map((q) => q.kind).join(), pid);
   check(movedTo === 'Point 3 leg length' && vertsLeft === 0 && partsNow === 'circle,rectangle',
     `list grids: ↓ to the next row (${movedTo}); the row's bar deletes its vertex (${vertsLeft} left); a part added from the empty row (${partsNow})`);
-  // a point's parts linked to the map: a row clicked draws its part over; a part's handle pressed on
-  // the map picks its row
+  // a point's parts linked to the map: a part's handle pressed on the map picks its row
   await dw.click('.dinspect [data-grid$=":parts"] tr[data-r="1"] td:first-child');
-  const partMarked = await dw.evaluate(() => drawing.placeMark?.line?.length > 4);
+  const partMarked = await dw.evaluate(() => !drawing.placeMark); // a row clicked draws nothing over: its handles say it
   const rh = await dw.evaluate((id) => { const x = drawing.doc.points.find((q) => q.id === id); map.jumpTo({ center: x.position, zoom: 14 }); return [0, 0, x.parts[0].radius]; }, pid);
   await dw.waitForTimeout(300);
   const handle = await dw.evaluate(async ([id]) => { const { destination } = await import('./geodesy.js'); const x = drawing.doc.points.find((q) => q.id === id), q = map.project(destination(x.position, 90, x.parts[0].radius)), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; }, [pid]);
@@ -1063,7 +1062,7 @@ await section('the drawing', async () => {
   await dw.mouse.up();
   await dw.waitForTimeout(300);
   const partPicked = await dw.evaluate(() => document.querySelector('.dinspect .lbar .funit')?.textContent);
-  check(partMarked && partPicked === 'Part 1:', `parts: a row clicked draws its part over on the map (${partMarked}); a part's handle pressed picks its row (${partPicked}, ${Math.round(rh[2])} m)`);
+  check(partMarked && partPicked === 'Part 1:', `parts: a row clicked marks nothing on the map (${partMarked}); a part's handle pressed picks its row (${partPicked}, ${Math.round(rh[2])} m)`);
   // a list's Copy: its rows, tab-separated, a header first
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
   await dw.click('.dinspect .fblock:has(h3:has-text("Points")) button:has-text("Copy")');

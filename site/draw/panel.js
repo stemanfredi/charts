@@ -9,13 +9,13 @@ import { FINGER } from './layers.js';
 import { find, elements, groupsOf, membersOf, canHold, label, kindName, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, labelColour, addPart, makePart, followedPart, mainOutline, PART_KINDS, ROUND, SYMBOLS, DASHES, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, offsetOf, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
 import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
 import { labelValues, labelText, TOKENS } from './labels.js';
-import { OUTLINE_NAME, outlineOf } from './outlines.js';
+import { OUTLINE_NAME } from './outlines.js';
 import { lineTrace, totals, breakdown, nearestAlong, positionsOf } from './lines.js';
 import { profileCsv } from './profile.js';
 import { COPY_RADIUS, distribute, lines, plan, planConnection, makeDistribution, editDistribution, connect, reconnect, unconnect, alongTrace, alongOf,
   distributions, connections, ruleOf, distributionOf, connectionOn, changedByHand, giveBack, removePartOf, MAX_COPIES, MAX_TREE } from './generator.js';
 import { BUILT_IN, builtInName } from './place.js';
-import { boundsOf, drawable, ringOf } from './features.js';
+import { boundsOf, drawable } from './features.js';
 import { inverse, areaOf, pathOf, destination, perimeterOf } from '../geodesy.js';
 import { norm360 } from '../geo.js';
 import { fields, choice, select, check } from '../fields.js';
@@ -248,8 +248,6 @@ export function drawView(root, ctx) {
       : part.radius ? null : dist(i, 'width', `Part ${i + 1} ${WIDTH_NAME[part.kind] || 'width'}`));
     const kind = (part, i) => select(`Part ${i + 1} kind`, PART_KINDS.map((k) => [k, PART_NAME[k]]), part.kind, (v) => drawing.change((d) => { const x = find(d, id).el; x.parts[i] = asKind(x.parts[i], v); reattach(d, id); }));
     const removeAt = (i) => drawing.change((d) => { removePartOf(d, id, i); reattach(d, id); });
-    // the part as drawn, for the mark of its row on the map
-    const ringAt = (i) => { const x = now(id), part = x.parts[i]; return part && (part.radius ? ringOf(x, part) : outlineOf(x.position, x.bearing, part.length, part.width, part.kind).ring); };
     // the grid fits the panel's 320 px: #, Kind, Size, Across, Fill; the row current has its name and
     // Shown in the bar over the grid, with Delete
     const table = listGrid({ name: `${id}:parts`,
@@ -263,8 +261,7 @@ export function drawView(root, ctx) {
       actions: (i) => ({ label: `Part ${i + 1}`, buttons: [field(() => now(id).parts[i].name, (t) => t, (v) => at(i, (y) => { y.name = v; }), { 'aria-label': `Part ${i + 1} name`, placeholder: 'name' }),
         check('Shown', now(id).parts[i].shown, (v) => at(i, (y) => { y.shown = v; }), { 'aria-label': `Part ${i + 1} shown` }),
         act('Delete', `${MOD} Delete`, () => removeAt(i))] }),
-      keys: { remove: removeAt },
-      current: (i) => drawing.markPlace(i == null ? null : ringAt(i) && { line: ringAt(i) }) });
+      keys: { remove: removeAt } });
     const far = el.parts.find((part) => part.radius && !fits(part.radius));
     return h('div', { class: 'fblock' },
       h('h3', {}, `Parts (${el.parts.length})`, copyBtn(() => [PARTS_COPY,
@@ -704,6 +701,8 @@ export function drawView(root, ctx) {
   // roots are picked on the map while the form connects
   const picks = () => form && (form.kind === 'connect' || dform.connect);
   function openForm(f) {
+    drawing.stop(); // a click on the map now picks a root, not a tool's next point
+    drawing.boxSelect(false);
     form = { ...f, sel: selKey() };
     drawing.setPicking(picks() ? pick : null);
     formPreview();
@@ -992,7 +991,7 @@ export function drawView(root, ctx) {
   // ---- map and files --------------------------------------------------------------------------
   function showOnMap(ids) {
     const b = boundsOf(drawing.doc, ids);
-    if (b) map.fitBounds(b, { padding: ctx.free?.() ?? 60, maxZoom: 16 }); // clear of the panel
+    if (b) map.fitBounds(b, { padding: ctx.free?.() ?? 60, maxZoom: 20 }); // clear of the panel; close enough for a 6 m shape
   }
   root.replaceChildren(tree.box);
   ctx.props.append(inspHead, inspector);

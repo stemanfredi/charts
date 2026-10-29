@@ -197,9 +197,9 @@ read in that one).
 - A point's **Parts** are its own: circles, sectors, outlines; a table of Kind, **Size** (a radius, an
   outline's length), **Across** (a sector's aperture in °, an outline's width), in m or km (a click
   on the head switches; with NM, NM), and Fill; the row
-  current has its name and **Shown** in the bar. One way to add one: the table's empty last row. The
-  row current draws its part over on the map; a part's handle pressed on the map makes its row
-  current. All parts share the point's Bearing (a sector centred on it, an outline facing it).
+  current has its name and **Shown** in the bar. One way to add one: the table's empty last row. A
+  part's handle pressed on the map makes its row current. All parts share the point's Bearing (a
+  sector centred on it, an outline facing it).
   **Distribute along…** goes round the part whose row is current (the form can choose another).
   **Data**: its properties as keys and values.
 - A **label**: its text, with value codes ({name}, {along}…: **+ name** and the like insert them) and,
@@ -221,7 +221,8 @@ from, and can be edited again. What a rule makes is in a group of its own; anyth
 **Select all**.
 
 **Distribute along…** (a line, or a point round one of its parts, clockwise: a circle's whole round
-from its bearing, a sector's arc, an outline's ring) opens a form in Properties:
+from its bearing, a sector's arc, an outline's ring) opens a form in Properties (any tool goes off: a
+click on the map picks a root):
 
 - **By** spacing or count; **Margins** at the start and the end; **Offset** left, right or
   alternating (Out, In round a part); **Copy**, a built-in kind or a preset of yours; **Radius**

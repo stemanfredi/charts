@@ -134,8 +134,6 @@ export const DRAW_LAYERS = [
       'circle-stroke-color': ['match', ['get', 'kind'], 'snapvertex', MARK, MARK_CASE], 'circle-stroke-width': ['match', ['get', 'kind'], 'snapvertex', 3, 1.5] } },
   // the place of the row current in Properties' table (a line's point, an area's corner): ringed, as a
   // mark (not in the exports)
-  { id: 'draw-mark-placeline', type: 'line', source: 'drawover', filter: ['==', ['get', 'kind'], 'placeline'], layout: { 'line-join': 'round' },
-    paint: { 'line-color': MARK, 'line-width': 4, 'line-opacity': 0.7 } }, // a part's row: the part drawn over
   { id: 'draw-mark-place', type: 'circle', source: 'drawover', filter: ['==', ['get', 'kind'], 'place'],
     paint: { 'circle-radius': 11, 'circle-opacity': 0, 'circle-stroke-color': MARK, 'circle-stroke-width': 3 } },
   { id: 'draw-snapcross', type: 'symbol', source: 'drawover', filter: ['==', ['get', 'kind'], 'snapcrossing'],

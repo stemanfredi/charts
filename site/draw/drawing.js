@@ -127,8 +127,7 @@ export class Drawing extends DrawStore {
       // where a click or a drag would snap: a ring on a vertex, a cross at a crossing, a dot on an edge
       if (this.snapMark) over.push({ type: 'Feature', properties: { kind: `snap${this.snapMark.kind}` }, geometry: { type: 'Point', coordinates: this.snapMark.position } });
       // the place of the row current in Properties' table (a line's point, an area's corner): ringed
-      if (this.placeMark) over.push(this.placeMark.line ? { type: 'Feature', properties: { kind: 'placeline' }, geometry: { type: 'LineString', coordinates: this.placeMark.line } }
-        : { type: 'Feature', properties: { kind: 'place' }, geometry: { type: 'Point', coordinates: this.placeMark } });
+      if (this.placeMark) over.push({ type: 'Feature', properties: { kind: 'place' }, geometry: { type: 'Point', coordinates: this.placeMark } });
       set('drawover', over);
       this.renderLabels();
     }
@@ -228,8 +227,8 @@ export class Drawing extends DrawStore {
   }
 
   // ---- what the panel sets ------------------------------------------------------------------
-  // what the row current in Properties' table is, marked on the map: a place (a position: ringed), a
-  // part ({ line: its outline's coordinates }: drawn over), or null: none
+  // the place of the row current in Properties' table (a line's point, an area's corner), ringed on
+  // the map, or null: none
   markPlace(p) {
     const key = p ? JSON.stringify(p) : null;
     if (key === this.placeKey) return;
