@@ -20,9 +20,9 @@ One layout at every width (`site/frame.js`).
   **Shape**, **Label**; **Measure**; at its end **find a place** (a field; / goes to it), **About**
   and the **Properties** toggle. The drawing is named in Elements' first row and its Properties.
   With a finger under 1,280 px (a tablet), as on a phone: **☰** in place of Open holds the
-  file group and About, find a place is behind its lens with the map's controls. With a mouse and room (a window from 1,280 px), a tool's kinds are buttons in the bar in its place (Shape's ten), each the tool on with that kind.
-  Otherwise the tool's one button shows the kind in use and a corner mark; its kinds are a row under
-  it as it goes on, shut once one is picked or the map is clicked. Its key again: the next kind.
+  file group and About, find a place is behind its lens with the map's controls. A tool with kinds
+  is one button showing the kind in use and a corner mark; its kinds are a row under it as it goes
+  on, shut once one is picked or the map is clicked.
 - **Box select** (B): the next drag on the map, a mouse's or a finger's, draws a box; what lies
   inside is selected, then Select again. A drag with Select moves the map; Shift-drag is the box too.
 - **The left panel**: **Layers** (`menu=1` in the address) or **Elements** (the tree, §4), as its
@@ -59,7 +59,7 @@ sheet at a time (half the screen; as tall as its grip is dragged, short of the b
 some map; closed when dragged to the bottom).
 Both start closed. Zoom to and a place found are fitted to the map the bar and the panels leave.
 
-**With a finger**: a row over the map's foot: **Done** (a line, polygon or measurement being drawn),
+**With a finger**: a row over the map's foot: **Done** (a line or measurement being drawn),
 **Back** (one level, as Esc), **Delete** and **Duplicate** (a selection), **Snap** (a tool on; off
 places exactly where tapped, as Alt), **Undo** and **Properties** (a phone: a selection, Properties off). Handles are 14 px, grabbed within 22 px; snapping reaches 16 px; a + only on legs over 80 px; a
 second finger during a drag puts it back and lets the map pinch.
@@ -72,13 +72,13 @@ finger every target is 44 px. Text: 11, 12, 13, 14, 16 px (a × glyph 18 or 20).
 ## 2. Tools
 
 One tool is on at a time, and stays on after each placement; its button again, or Select, turns it
-off. Its key works from anywhere; again, while it is on, it moves to its next kind.
+off. Its key works from anywhere and does what its button does: on, or off.
 
 | Tool | Kinds | Makes |
 |---|---|---|
 | Point | symbol, the user's presets without extent | a point: a marker, the same size at every zoom |
-| Line | none | a line |
-| Shape | circle, rings, sector, rectangle, ellipse, triangle, polygon, three vehicles, the user's presets with extent | a point with parts and no symbol (a polygon: an area), named after its kind, its preset kept as the property `preset` |
+| Line | none | a line; closed on its first point, an area |
+| Shape | circle, rings, sector, rectangle, ellipse, triangle, three vehicles, the user's presets with extent | a point with parts and no symbol, named after its kind, its preset kept as the property `preset` |
 | Label | none | a label |
 | Measure | none | nothing, unless kept (§3) |
 
@@ -89,9 +89,10 @@ off. Its key works from anywhere; again, while it is on, it moves to its next ki
   (the stalk, or Bearing). A **rectangle** or **ellipse** goes corner to corner instead (**Shift**: a
   square, a circle). The second click on the first: the default size. A preset of the user's keeps
   its size: one click.
-- **Line**: a click per vertex; a click on something it can attach to ends it there, attached; Enter
-  or a double-click ends it at the last vertex, free. Backspace takes back a vertex.
-- **Polygon**: a click per corner; a click on the first corner, Enter or a double-click closes it.
+- **Line**: as Measure, a click per point, snapped to what is drawn; Enter, a double-click or Done
+  ends it at its last point, attached when its first or last point snapped to something it can
+  attach to; a click on its first point (three or more) closes it into an area. Backspace takes back
+  a point.
 - **Sector**: the centre; the radius and one edge; the other edge, clockwise (back on the first: a
   circle). Esc goes one click back.
 - **Label**: points at what snapping finds (else an area's centre, a place on a line), or is free
@@ -275,7 +276,6 @@ click on the map picks a root):
 | L, E | the left panel on Layers, on Elements, or closed |
 | I | Properties on or off |
 | P, G, S, T, M | point, line, shape, label, measure |
-| a tool's key again | its next kind |
 | B, Shift-drag | Box select: a box, what lies inside added to the selection |
 | Enter, double-click | finishes |
 | Backspace | takes back a point |

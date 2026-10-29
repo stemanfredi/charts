@@ -535,15 +535,14 @@ await section('the drawing', async () => {
   const own = (f) => f.properties.charts; // the app's own part of a feature
   const featuresOf = (fc, kind) => (fc?.features || []).filter((f) => own(f)?.kind === kind && !(own(f).guide && own(f).look?.text?.values));
   const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
-  await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind)
-  // with a mouse and room in the bar: Shape's kinds are buttons in the bar, in its place
-  const sub = await dw.locator('#bar .kinds.inline:not([hidden]) button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
-  check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Polygon,Aerial vehicle,Surface vehicle,Underwater vehicle',
-    `tools: Shape's kinds in the bar, round a centre first, then the outlines, then the vehicles (${sub})`);
+  await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind), its kinds a row under its button
+  const sub = await dw.locator('#bar .kinds:not([hidden]) button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
+  check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Aerial vehicle,Surface vehicle,Underwater vehicle',
+    `tools: Shape's kinds a row under its button, round a centre first, then the outlines, then the vehicles (${sub})`);
   // the bar across the top, the kind in use pressed in it; the left panel open on Elements, hidden by
   // its button, back with E; Properties hidden with nothing selected (it has nothing to show); the
   // bar's order: the file group (Open, the title, Download, Copy link), Layers, Elements, Undo…
-  const layoutNow = () => dw.evaluate(() => [document.querySelector('#bar .kinds.inline button[aria-pressed=true]')?.getAttribute('aria-label') ?? '', !!document.querySelector('#bar button[data-tool=shape]')?.offsetParent,
+  const layoutNow = () => dw.evaluate(() => [document.querySelector('#bar .kinds button[aria-pressed=true]')?.getAttribute('aria-label') ?? '', !!document.querySelector('#bar button[data-tool=shape]')?.offsetParent,
     !document.querySelector('#side').hidden, Math.round(document.querySelector('#bar').getBoundingClientRect().top), document.querySelector('#props').hidden]);
   const onTool = await layoutNow();
   const order = await dw.evaluate(() => [...document.querySelectorAll('#bar > button')].slice(0, 6).map((b) => b.getAttribute('aria-label')).join());
@@ -553,29 +552,21 @@ await section('the drawing', async () => {
   const hiddenE = await layoutNow();
   await dw.keyboard.press('e');
   const shownE = await layoutNow();
-  check(onTool.join() === 'Circle,false,true,0,true' && !hiddenE[2] && shownE[2] && order === 'Open,Download,Copy link,Layers,Elements,Undo',
+  check(onTool.join() === 'Circle,true,true,0,true' && !hiddenE[2] && shownE[2] && order === 'Open,Download,Copy link,Layers,Elements,Undo',
     `tools: the bar at the top (${order}), the kind in use pressed in it; the left panel open, hidden by its button, back with E; Properties hidden with nothing selected (${onTool}; ${hiddenE[2]}; ${shownE[2]})`);
-  // a kind clicked in the bar: the tool on with it; the key again: the next kind
-  await dw.click('#bar .kinds.inline button[aria-label="Rings"]');
-  const pickedIn = (await layoutNow())[0];
-  await dw.keyboard.press('s');
-  const nextIn = (await layoutNow())[0];
-  // without the room (a narrower window): the tool's one button, its kinds a row under it, shut once
-  // one is picked; the key again opens it on the next kind
-  await dw.setViewportSize({ width: 1000, height: 800 });
-  await dw.waitForTimeout(200);
-  const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds:not(.inline)')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
-  await dw.keyboard.press('s');
-  const opened = await shut();
-  await dw.click('#bar .kinds:not(.inline) button[aria-label="Rings"]');
+  // a kind picked in the row: the tool on with it, the row shut; the key again: the tool off, as its
+  // button; again: on with the kind in use, its row open
+  const shut = () => dw.evaluate(() => [!!document.querySelector('#bar .kinds')?.offsetParent, document.querySelector('#bar button[data-tool=shape]').dataset.shows]);
+  if (!(await shut())[0]) await dw.click('#bar button[data-tool=shape]'); // the row open (a click on a tab may have shut it)
+  await dw.click('#bar .kinds button[aria-label="Rings"]');
   const picked = await shut();
-  await dw.setViewportSize({ width: 1280, height: 800 });
-  await dw.waitForTimeout(200);
-  await dw.keyboard.press('Escape');
   await dw.keyboard.press('s');
-  await dw.click('#bar .kinds.inline button[aria-label="Circle"]');
-  check(pickedIn === 'Rings' && nextIn === 'Sector' && opened.join() === 'true,rectangle' && picked.join() === 'false,rings',
-    `tools: a kind clicked in the bar (${pickedIn}), the key the next (${nextIn}); narrower, a row under the tool's button, opened by its key (${opened}), shut once one is picked (${picked})`);
+  const off = await dw.evaluate(() => drawing.button);
+  await dw.keyboard.press('s');
+  const reopened = await shut();
+  await dw.click('#bar .kinds button[aria-label="Circle"]');
+  check(picked.join() === 'false,rings' && off === null && reopened.join() === 'true,rings',
+    `tools: a kind picked in the row under the tool's button, the row shut (${picked}); the key again turns the tool off (${off}), again on, its row open (${reopened})`);
   await dw.mouse.click(DX + 500, 400);
   await dw.mouse.click(DX + 500, 400); // its centre again: the default size
   await dw.keyboard.press('Escape');
@@ -893,10 +884,10 @@ await section('the drawing', async () => {
   const square = await boxOf([DX + 300, 560], [DX + 380, 600]);
   check(sized[0] === 0 && Math.abs(sized[1] - sized[3]) < 2 && Math.abs(sized[2] - sized[4]) < 2 && Math.abs(sized[5] - DX - 340) <= 1 && Math.abs(sized[6] - 480) <= 1 && square[1] === square[2] && Math.abs(square[1] - square[4]) < 2,
     `shapes: a rectangle corner to corner, facing north, centred between them; Shift a square (${sized.map((v) => Math.round(v))}; ${square.slice(1, 3).map(Math.round)})`);
-  // a polygon closed by a click on its first corner; a sector in three clicks
+  // a line closed into an area by a click on its first point; a sector in three clicks
   await dw.keyboard.press('Escape');
-  await dw.evaluate(() => { drawing.variant.shape = 'polygon'; });
-  await dw.keyboard.press('s');
+  await dw.evaluate(() => drawing.stop());
+  await dw.keyboard.press('g');
   const areasBefore = await dw.evaluate(() => drawing.doc.areas.length);
   for (const [x, y] of [[450, 450], [520, 450], [500, 520], [451, 451]]) await dw.mouse.click(DX + x, y);
   const closed = await dw.evaluate(() => [drawing.doc.areas.length, drawing.doc.areas.at(-1)?.points.length, !!drawing.draft]);
@@ -909,7 +900,7 @@ await section('the drawing', async () => {
     map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').map((f) => f.geometry.type)[0]]; });
   await dw.keyboard.press('Escape');
   check(closed.join() === `${areasBefore + 1},3,false` && sec[0] === 'sector:true:90' && sec[1] === 'Sector' && sec[2] === 'Polygon',
-    `shapes: a polygon closed on its first corner (${closed}); a sector in three clicks (${sec})`);
+    `shapes: a line closed into an area on its first point (${closed}); a sector in three clicks (${sec})`);
   await dw.evaluate(() => drawing.remove([drawing.doc.points.at(-1).id, drawing.doc.areas.at(-1).id])); // the checks after these find the drawing as it was
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('Escape');
@@ -924,7 +915,8 @@ await section('the drawing', async () => {
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('g');
   await dw.mouse.click(sc.x - 150, sc.y - 60);
-  await dw.mouse.click(sc.x + 3, sc.y + 2); // within the snapping radius of the corner: the line ends there, attached
+  await dw.mouse.click(sc.x + 3, sc.y + 2); // within the snapping radius of the corner: snapped there
+  await dw.keyboard.press('Enter'); // ended there, attached
   await dw.keyboard.press('Escape');
   const att = await dw.evaluate((id) => {
     const s = drawing.doc.lines.at(-1), before = [...s.end.position];
@@ -945,7 +937,7 @@ await section('the drawing', async () => {
   await dw.keyboard.press('g');
   await dw.mouse.click(host.x, host.y + 120);
   await dw.mouse.click(host.x, host.y);
-  await dw.keyboard.press('Escape');
+  await dw.keyboard.press('Enter');
   await dw.keyboard.press('Escape');
   const onLeg = await dw.evaluate((h) => { const s = drawing.doc.lines.at(-1); return { end: s.end, n: drawing.doc.lines.find((x) => x.id === h.id).vertices.length, id: s.id }; }, host);
   check(onLeg.end.element === host.id && onLeg.end.edge === 0 && onLeg.end.at > 0.2 && onLeg.end.at < 0.8 && onLeg.n === host.n,

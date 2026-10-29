@@ -439,10 +439,6 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .kinds { position: absolute; display: flex; gap: 2px; padding: 4px;
   }
 /* a tool's kinds in the bar, in its place (tools.js WIDE): its buttons as the bar's, no card */
-.bar .kinds.inline { position: static; display: inline-flex; align-items: center; gap: 0; padding: 0; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: none; } /* one group between dividers like the bar's others */
-.bar .kinds.inline::before, .bar .kinds.inline::after { content: ""; width: 1px; height: 20px; background: var(--line); flex: none; } /* 6 px each side, as the bar's gap and margin give the others */
-.bar .kinds.inline::before { margin: 0 6px 0 4px; } .bar .kinds.inline::after { margin: 0 4px 0 6px; }
-.bar .kinds.inline button { width: 28px; height: 28px; padding: 0; }
 .kinds button { min-width: 28px; min-height: 28px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
 .kinds button:hover { background: var(--line2); }
 .kinds button[aria-pressed="true"] { background: var(--accent); color: #fff; }
