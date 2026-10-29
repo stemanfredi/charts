@@ -36,9 +36,10 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
       // the Draw view with a drawing: a node with two parts (its inspector shown) and a shape
       if (typeof menu === 'string') await page.addInitScript(SEED, DRAWING);
+      await page.addInitScript(() => localStorage.setItem('charts.groups.open', '["base","sea","data"]')); // the Layers groups open
       // a zoomed-out view (scale note shown), four stacked legends (they once ran over the
       // credits), a measurement
-      await page.goto(`${base}#v=5/45/14/0&g=base,sea,data&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
+      await page.goto(`${base}#v=5/45/14/0&col=waves:height&arr=currents:surface&on=chart,coastline,depth,isobaths,traffic,legend`);
       await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
       // 1: the left panel on Layers; else not on Layers (Elements, where a computer opens on Layers)
       const onLayers = await page.locator('#bar .ptab[data-tab=layers]').getAttribute('aria-pressed') === 'true';

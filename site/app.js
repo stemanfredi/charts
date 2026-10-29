@@ -14,7 +14,7 @@ import { profileOf } from './draw/profile.js';
 import { circle } from './geodesy.js';
 import { norm360, norm180, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
-import { $, h, svg, typing, NARROW, COMPACT } from './dom.js';
+import { $, h, svg, typing, NARROW, COMPACT, store } from './dom.js';
 import { choice } from './fields.js';
 import { keyEntry, openKey, keyList } from './keys.js';
 import { popup, note } from './menu.js';
@@ -41,6 +41,8 @@ const hour = (t) => Math.floor(t / 36e5) * 36e5; // the hour a time falls in (ms
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10); // its day (UTC)
 
 // ---- state (mirrored in the URL hash) ---------------------------------------
+// the Layers groups open: kept in this browser, as the panel's tab (frame.js), not in the link
+const GROUPS_OPEN = 'charts.groups.open', groupsOpen = store.json(GROUPS_OPEN);
 const state = {
   on: new Set(ITEMS.filter((it) => it.on).map((it) => it.id)),
   variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, Object.keys(it.variants)[0]])),
@@ -49,7 +51,7 @@ const state = {
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
   period: Object.fromEntries(Object.entries(DENSITY).map(([id, d]) => [id, d.defaultPeriod])), // density datasets
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
-  open: new Set(['base', 'sea']),
+  open: new Set(Array.isArray(groupsOpen) ? groupsOpen.filter((g) => GROUPS.some((x) => x.id === g)) : ['base', 'sea']),
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
@@ -78,7 +80,6 @@ function readHash() {
     const [k, val] = kv.split(':');
     if (Object.hasOwn(DENSITY, k) && DENSITY[k].periods.includes(val)) state.period[k] = val;
   }
-  if (q.has('g')) state.open = new Set(q.get('g').split(',').filter((g) => GROUPS.some((x) => x.id === g)));
   display.bearings = q.get('brg') === '1';
   if (q.get('u') === 'nm') display.units = 'nm';
 }
@@ -99,7 +100,6 @@ function writeHashNow() {
   viewToAddress(viewOf(), q);
   if (!timeOn().length) q.delete('t');
   if (!depthOn().length) q.delete('dz');
-  q.set('g', [...state.open].join(','));
   drawing.saving.viewChanged(); // saved with the drawing, for a page opened without a view
   setHash(q);
 }
@@ -832,7 +832,7 @@ function dataBlock(items, sections) {
 function groupBlock(g) {
   const items = ITEMS.filter((it) => it.group === g.id);
   const det = h('details', { 'data-group': g.id, open: state.open.has(g.id),
-    ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); writeHash(); } },
+    ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); store.set(GROUPS_OPEN, JSON.stringify([...state.open])); } },
     h('summary', {}, h('span', { class: 'gname' }, g.label), h('span', { class: 'count', title: 'Layers on' })),
     g.sections ? dataBlock(items, g.sections) : g.exclusive ? baseBlock(items) : h('ul', {}, items.map(itemRow)));
   det._items = items;

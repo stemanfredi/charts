@@ -14,10 +14,12 @@ const referred = new Set();
 ctx.on('request', (r) => { const u = new URL(r.url()); if (u.origin !== new URL(base).origin && r.headers().referer) referred.add(u.host); });
 
 // a page at hash, loaded, its errors collected (in: another context, a phone's)
-// tab: the left panel's tab to open on ('layers', 'elements'), as the frame keeps it in this browser
-async function open(hash, inCtx = ctx, tab = null) {
+// tab: the left panel's tab to open on ('layers', 'elements'), as the frame keeps it in this browser;
+// groups: the Layers groups open, as the page keeps them in this browser
+async function open(hash, inCtx = ctx, tab = null, groups = null) {
   const page = await inCtx.newPage();
   if (tab) await page.addInitScript((t) => { const k = 'charts.frame'; localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) || '{}'), tab: t })); }, tab);
+  if (groups) await page.addInitScript((gs) => localStorage.setItem('charts.groups.open', JSON.stringify(gs)), groups);
   page.errors = []; // the page's own: thrown errors, and what it logs as an error
   page.providerErrors = []; // a provider's: a resource the browser could not load (an HTTP 500, a refused tile)
   page.on('pageerror', (e) => page.errors.push(e.message));
@@ -169,7 +171,7 @@ await section('the frame', async () => {
 await section('NASA true colour', async () => {
   // NASA true colour opened at now: the time goes no later than NASA's newest day, and the tiles
   // are of the day shown (no older day passed off as it)
-  const tc = await open('#v=5/40/10/0&g=data&col=gibs:terra&on=chart,coastline', ctx, 'layers');
+  const tc = await open('#v=5/40/10/0&col=gibs:terra&on=chart,coastline', ctx, 'layers', ['data']);
   await tc.waitForFunction(() => map.getLayoutProperty('gibs-terra', 'visibility') === 'visible' && /t=/.test(location.hash), null, { timeout: 20000 }).catch(() => {});
   await tc.waitForTimeout(500);
   const [tcTiles, tcHash, rowsOn, tcNotes] = await tc.evaluate(() => [map.getSource('gibs-terra').tiles[0], location.hash, document.querySelector('#when').hidden ? 'hidden' : 'shown',
@@ -182,7 +184,7 @@ await section('NASA true colour', async () => {
 await section('a zoom', async () => {
   // a zoom alone updates what depends on it: a layer out of its range greyed out with its hint,
   // the depth shading's legend gone above zoom 12
-  const zm = await open('#v=8/43.6/13.6/0&on=chart,coastline,depth,seamarks,legend&g=sea', ctx, 'layers');
+  const zm = await open('#v=8/43.6/13.6/0&on=chart,coastline,depth,seamarks,legend', ctx, 'layers', ['sea']);
   const zoomed = () => zm.evaluate(() => [document.querySelector('.item:has(#i-seamarks) .hint').textContent, document.querySelector('.item:has(#i-seamarks)').classList.contains('dim'), !!document.querySelector('#legends canvas[data-legend=depth]')]);
   const z8 = await zoomed();
   await zm.evaluate(() => map.jumpTo({ zoom: 13.5 }));
@@ -221,7 +223,7 @@ await section('search', async () => {
 
 await section('vessel density', async () => {
   // vessel density (EMODnet, off by default): loads, has a legend, type and year change the tiles
-  const tr = await open('#v=7/37.5/14/0&on=chart,coastline,traffic,legend&g=shipping', ctx, 'layers');
+  const tr = await open('#v=7/37.5/14/0&on=chart,coastline,traffic,legend', ctx, 'layers', ['shipping']);
   check(tr.errors.length === 0 && !(await tr.evaluate(() => document.querySelector('#i-traffic').closest('.item').classList.contains('error'))), `vessel density loads ${tr.errors.join(' | ')}`, true);
   check(await tr.evaluate(() => !!document.querySelector('#legends canvas[data-legend=traffic]')), 'vessel density legend shown', true);
   await tr.selectOption('.item:has(#i-traffic) select.variant', 't10');
@@ -236,7 +238,7 @@ await section('vessel density', async () => {
 
 await section('route density', async () => {
   // route density (EMSA, monthly): newest month by default, month and type change the tiles
-  const rt = await open('#v=7/37.5/14/0&on=chart,coastline,routes,legend&g=shipping', ctx, 'layers');
+  const rt = await open('#v=7/37.5/14/0&on=chart,coastline,routes,legend', ctx, 'layers', ['shipping']);
   check(rt.errors.length === 0 && !(await rt.evaluate(() => document.querySelector('#i-routes').closest('.item').classList.contains('error'))), `route density loads ${rt.errors.join(' | ')}`, true);
   await rt.selectOption('.item:has(#i-routes) select.variant', 't04');
   await rt.selectOption('.item:has(#i-routes) select.period', '2025-11');
@@ -250,7 +252,7 @@ await section('route density', async () => {
 
 await section('Copernicus layers, the time line, About, the manifest, my location', async () => {
   // Copernicus sea state, waves in colour and currents in arrows: tiles load, the legends show
-  const cm = await open('#v=6/40/14/0&col=waves:height&arr=currents:surface&on=chart,coastline,legend&g=data', ctx, 'layers');
+  const cm = await open('#v=6/40/14/0&col=waves:height&arr=currents:surface&on=chart,coastline,legend', ctx, 'layers', ['data']);
   await cm.waitForFunction(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2, null, { timeout: 30000 }).catch(() => {});
   const cmBroken = await cm.evaluate(() => [...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('.name').textContent} (${r.title})`));
   check(cmBroken.length === 0 && cm.errors.length === 0, `Copernicus waves and currents load ${cmBroken.join(', ')} ${cm.errors.join(' | ')}`, true);
@@ -315,7 +317,7 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
 await section('the Ocean data menus', async () => {
   // the Ocean data menus: waves in colours, currents in arrows; wind in arrows; currents in both
   // draw speed and direction; none
-  const sl = await open('#v=6/40/14/0&col=waves:height&arr=currents:surface&on=chart,coastline&g=data', ctx, 'layers');
+  const sl = await open('#v=6/40/14/0&col=waves:height&arr=currents:surface&on=chart,coastline', ctx, 'layers', ['data']);
   const looks = () => sl.evaluate(() => ['waves', 'currents', 'wind'].map((id) => (map.getLayoutProperty(`cmems-${id}`, 'visibility') === 'visible' ? `${id}:${/cmems:\/\/\w+\/\w+\/(\w+)/.exec(map.getSource(`cmems-${id}`).tiles[0] || '')?.[1]}` : '')).filter(Boolean).join(' '));
   await sl.waitForTimeout(1000);
   const l1 = await looks();
@@ -338,7 +340,7 @@ await section('the Ocean data menus', async () => {
 await section('water properties at a depth', async () => {
   // water properties at a depth from the link: "100 m deep" in its chip beside the time's, each model
   // at its own level (the export records it), no note under the row
-  const wp = await open('#v=5/40/10/0&col=temperature:depth&on=chart,coastline,legend&g=data&dz=100', ctx, 'layers');
+  const wp = await open('#v=5/40/10/0&col=temperature:depth&on=chart,coastline,legend&dz=100', ctx, 'layers', ['data']);
   await wp.waitForFunction(() => !!document.querySelector('#legends canvas[data-legend=temperature]')?.style.width, null, { timeout: 30000 }).catch(() => {});
   const [wpDepth, wpNotes, wpBroken] = await wp.evaluate(() => [document.querySelector('#depth').value + ' ' + document.querySelector('#depth').selectedOptions[0]?.textContent,
     document.querySelectorAll('.item .note:not([hidden])').length, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
@@ -352,7 +354,7 @@ await section('water properties at a depth', async () => {
 await section('a satellite observation', async () => {
   // a satellite observation opened at now: the time goes no later than its latest day, and the
   // day shown is the day drawn
-  const ob = await open('#v=5/40/10/0&col=sst:measured&on=chart,coastline,legend&g=data', ctx, 'layers');
+  const ob = await open('#v=5/40/10/0&col=sst:measured&on=chart,coastline,legend', ctx, 'layers', ['data']);
   await ob.waitForFunction(() => /t=/.test(location.hash) && !!document.querySelector('#legends canvas[data-legend=sst]')?.style.width, null, { timeout: 30000 }).catch(() => {});
   await ob.waitForTimeout(1500);
   const [obT, obWithin, obShown, obDay, obBroken] = await ob.evaluate(() => {
