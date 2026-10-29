@@ -7,7 +7,7 @@
 import { start } from './browser.mjs';
 
 // phone and tablet are touch devices (pointer: coarse, 44 px targets); desktop has a mouse (36 px; 24
-// in the panels, 28 in the bar, 32 in the map's controls and the search bar)
+// in the panels, 28 (32 drawn) in the bar, 32 in the map's controls and the search bar)
 const VIEWPORTS = [['phone', 390, 844, true], ['tablet', 820, 1180, true], ['desktop', 1280, 800, false]];
 // overlays that must not collide (screen-space boxes of floating UI)
 const OVERLAYS = {
@@ -60,7 +60,7 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       await page.waitForTimeout(800);
       if (process.env.UI_SHOTS) await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}-${typeof menu === 'string' ? menu : menu ? 'menu' : 'map'}.png` });
       const r = await page.evaluate(({ OVERLAYS }) => {
-        // with a mouse 36 px, but 24 in the panels (grids of rows), 28 in the bar, 32 in the map's controls
+        // with a mouse 36 px, but 24 in the panels (grids of rows), 28 (32 drawn) in the bar, 32 in the map's controls
         const COARSE = matchMedia('(pointer: coarse)').matches, MIN = COARSE ? 44 : 36, minOf = (el) => (COARSE ? MIN : el.closest('#side, #props') ? 24 : el.closest('#bar') ? 28 : el.closest('#mapctl, #search') ? 32 : MIN);
         const seen = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[hidden]') === null; };
         const boxes = {};

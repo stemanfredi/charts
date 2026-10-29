@@ -6,7 +6,7 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
-  --bar-h: 35px;        /* the bar across the top (its edge inside it) */
+  --bar-h: 39px;        /* the bar across the top (its edge inside it) */
   --lw: 260px; --rw: 320px; --sheet-h: 52vh; /* the panels' widths, a phone's sheet's height: frame.js */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
@@ -324,11 +324,11 @@ dialog.dreport button.done { background: var(--accent); border-color: var(--acce
 .search:focus-within { border-color: var(--accent); }
 body.finding .search { display: flex; }
 /* a computer's: in the bar, always shown; the lens not needed */
-.bar > .search { position: relative; top: auto; right: auto; display: flex; flex: 0 1 320px; min-width: 160px; width: auto; min-height: 30px; margin: 0 4px; box-shadow: none; }
-.bar > .search input { height: 28px; } /* the bar's 28 px; a finger's 44 */
-.bar > .search .x { width: 28px; height: 28px; }
+.bar > .search { position: relative; top: auto; right: auto; display: flex; flex: 0 1 320px; min-width: 160px; width: auto; min-height: 34px; margin: 0 4px; box-shadow: none; }
+.bar > .search input { height: 32px; } /* the bar's 32 px; a finger's 44 */
+.bar > .search .x { width: 32px; height: 32px; }
 @media (pointer: coarse) { .bar > .search { min-height: 46px; } .bar > .search input { height: 44px; } .bar > .search .x { width: 44px; height: 44px; } }
-@media (min-width: 720px) and (max-width: 899px) { .bar > .search { min-width: 140px; } } /* a narrow window: the tools first */
+@media (min-width: 720px) and (max-width: 899px) { .bar > .search { min-width: 100px; } } /* a narrow window: the tools first */
 @media (min-width: 720px) and (pointer: fine), (min-width: 1280px) { #b-find { display: none; } }
 .results { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; padding: 4px; max-height: 60vh; overflow-y: auto; }
 .results ul { list-style: none; margin: 0; padding: 0; }
@@ -404,8 +404,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .bar { position: absolute; z-index: 9; left: 0; right: 0; top: 0; height: var(--bar-h); display: flex; align-items: center; gap: 2px; padding: 0 6px 1px;
   background: var(--bg2); box-shadow: inset 0 -1px var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
 .dock { display: none; } /* a phone's (below) */
-:is(.bar, .dock) > button { position: relative; width: 28px; height: 28px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
-:is(.bar, .dock) > button svg { width: 18px; height: 18px; }
+:is(.bar, .dock) > button { position: relative; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
+:is(.bar, .dock) > button svg { width: 20px; height: 20px; } /* with a mouse; a finger's 18 (below) */
 :is(.bar, .dock) > button:hover { background: var(--line2); }
 :is(.bar, .dock) > button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .bar > :is(.ptoggle, #b-find)[aria-pressed="true"], .bar > #b-find[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
@@ -423,17 +423,17 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .bar > .ptab .spin { position: absolute; right: 2px; top: 2px; width: 9px; height: 9px; border-width: 1.5px; }
 :is(.bar, .dock) > button.haskinds::after { content: ""; position: absolute; right: 3px; bottom: 3px; border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .55; }
 /* dividers between the tools' groups: short, centred */
-.tsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; flex: none; }
+.tsep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; flex: none; }
 .bar > .grow { flex: 1; }
 /* a tool's kinds: a row under its button, over the panel while they are picked */
 .kinds { position: absolute; display: flex; gap: 2px; padding: 4px;
   }
-.kinds button { min-width: 28px; min-height: 28px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
+.kinds button { min-width: 32px; min-height: 32px; padding: 0 4px; border: 0; border-radius: 6px; background: none; display: flex; align-items: center; justify-content: center; }
 .kinds button:hover { background: var(--line2); }
 .kinds button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-.kinds svg { width: 18px; height: 18px; }
+.kinds svg { width: 20px; height: 20px; }
 .kinds .initials { font-size: 12px; font-weight: 600; }
-@media (pointer: coarse) { :is(.bar, .dock) > button, .kinds button { width: 44px; height: 44px; } }
+@media (pointer: coarse) { :is(.bar, .dock) > button, .kinds button { width: 44px; height: 44px; } :is(.bar, .dock) > button svg, .kinds svg { width: 18px; height: 18px; } }
 /* a phone: the bar ☰, find a place, Layers, Elements; the dock along the bottom, Undo and the tools (while
    one is on: Back, it, Snap, Done), its kinds in a row above it; the panels a bottom sheet over the dock, as
    tall as dragged at its grip, the map's foot above it; Properties, while off, its head alone (a peek) */

@@ -76,7 +76,7 @@ finger during a drag puts it back and lets the map pinch.
 
 **Colours and sizes**: pressed is blue, a panel shown pale blue, yellow the marks on the map (bands,
 targets, +), handles white edged in ink, magenta the map's own (measurements,
-the search's pin). With a mouse the bar is 35 px (28 px buttons), rows 24 px, heads 30 px; with a
+the search's pin). With a mouse the bar is 39 px (32 px buttons, 20 px icons), rows 24 px, heads 30 px; with a
 finger every target is 44 px. Text: 11, 12, 13, 14, 16 px (a × glyph 18 or 20).
 
 ## 2. Tools
