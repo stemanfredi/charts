@@ -271,7 +271,7 @@ function viewOf() {
   const own = { variant: state.variant, opacity: state.opacity, period: state.period };
   return {
     center: [+c.lng.toFixed(7), +c.lat.toFixed(7)], zoom: map.getZoom(), bearing: norm360(map.getBearing()),
-    layers: [...state.on].map((id) => {
+    layers: [...state.on].filter((id) => byId[id].group !== 'data').map((id) => { // the data layers: data below
       const d = defaultsOf(byId[id]), l = { id };
       for (const k of ['variant', 'opacity', 'period']) if (id in own[k] && own[k][id] !== d[k]) l[k] = own[k][id];
       return l;
@@ -723,7 +723,7 @@ const ICON = {
   link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
   png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
   zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
-  compass: [['m12 3 4 9h-8z', '#b42318'], 'm12 21-4-9h8z'],
+  compass: [['m12 3 4 9h-8z', 'var(--err)'], 'm12 21-4-9h8z'],
   locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v5', 'M12 8h.01'],
   ruler: ['M3 17 17 3l4 4L7 21z', 'm7 13 2 2M10 10l2 2M13 7l2 2'],

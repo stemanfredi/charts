@@ -497,8 +497,7 @@ export function drawView(root, ctx) {
     return h('div', { class: 'fblock', 'data-key': `profile ${++profileBuilt}` }, head, // profileCursor is this one's: never kept by morph
       row('Depth', fvalue(`${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}`), at),
       chart,
-      row('Seabed', fvalue(
-        `${fmtDist(seabed, u)} along the seabed · ${fmtDist(length, u)} on the surface`),
+      row('Seabed', fvalue(`${fmtDist(seabed, u)} along the seabed · ${fmtDist(length, u)} on the surface`, { title: 'A lower bound' }),
       h('button', { type: 'button', class: 'small', title: 'The profile as a file', onclick: () => ctx.download(profileCsv(p.prof), `${(el.name || 'line').replace(/[^\p{L}\p{N}-]+/gu, '-')}-profile.csv`, 'text/csv') }, 'CSV')));
   }
   // a double-click on an element, with no tool on, turns Properties on (the map does not zoom)
