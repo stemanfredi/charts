@@ -362,10 +362,11 @@ body.finding .search { display: flex; }
 .pos { font: 11px var(--mono); color: var(--ink); white-space: nowrap; }
 .pos:empty { display: none; }
 .readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; flex: none; }
-/* credits: always on screen, on one line; what does not fit scrolls sideways under a fade at the end
-   (over the padding only, where it all fits; at the scroll's end the text stops before it) */
-.credits { flex: 0 1 auto; min-width: 0; padding: 1px 14px 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85);
-  white-space: nowrap; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; -webkit-mask-image: linear-gradient(to left, transparent, #000 14px); mask-image: linear-gradient(to left, transparent, #000 14px); }
+/* credits: always on screen, on one line; what does not fit scrolls sideways, faded at the end while
+   some of it is out of sight (.cut, app.js) */
+.credits { flex: 0 1 auto; min-width: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85);
+  white-space: nowrap; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
+.credits.cut { -webkit-mask-image: linear-gradient(to left, transparent, #000 18px); mask-image: linear-gradient(to left, transparent, #000 18px); }
 .credits::-webkit-scrollbar { display: none; }
 .credits a { color: var(--ink); text-decoration: none; }
 .credits a:hover { text-decoration: underline; }

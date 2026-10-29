@@ -193,6 +193,10 @@ scaleEl.id = 'scale';
 const scaleMark = h('span', { class: 'scalemark', hidden: true }, '≈');
 const creditsText = h('span', { class: 'credits-text' });
 const credits = h('div', { class: 'credits' }, creditsText);
+// the fade at its end only while some of it is out of sight (cut, and not scrolled to its end)
+const fadeCredits = () => credits.classList.toggle('cut', credits.scrollLeft + credits.clientWidth < credits.scrollWidth - 1);
+credits.addEventListener('scroll', fadeCredits, { passive: true });
+new ResizeObserver(fadeCredits).observe(credits);
 // credits on the left; the time shown, cursor position and scale on the right (not for navigation:
 // About and the exports say it)
 statusEl.append(credits, h('div', { class: 'readout' }, shownEl, depthEl, posEl, scaleMark, scaleEl));
@@ -1159,6 +1163,7 @@ function renderCredits() {
     if (key === creditsKey) return;
     creditsKey = key;
     creditsText.replaceChildren(...parts.flatMap((p, i) => [...(i ? [' | '] : []), ...creditNodes(p)]));
+    fadeCredits();
   });
 }
 map.on('styledata', renderCredits);
