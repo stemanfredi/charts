@@ -45,7 +45,7 @@ svg { flex: none; }
 .mapctl button:hover { background: var(--line2); }
 .mapctl button[aria-expanded="true"] { background: var(--sel); color: var(--accent); }
 .mapctl button[aria-pressed="true"] { background: var(--accent); color: #fff; } /* my location shown */
-@media (pointer: coarse) { .mapctl button { width: 44px; height: 44px; } }
+@media (pointer: coarse) { .mapctl button { width: 44px; height: 44px; } #zoom-in, #zoom-out { display: none; } } /* a finger pinches */
 /* the map's foot (drawing-ui.md §1): one strip above the bottom row, between the panels; at its left,
    stacked, the note, the legends, the touch row; at its right the map's controls. Nothing else there. */
 .foot { position: absolute; z-index: 6; left: 0; right: 0; bottom: var(--status-h); display: flex; align-items: flex-end; gap: 8px; padding: 0 8px 8px 10px; pointer-events: none; }
