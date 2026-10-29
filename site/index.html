@@ -47,12 +47,9 @@
     </div>
   </div>
 
-  <!-- the time shown and the depth (the layers that use them): its chip on the bottom row opens the field's calendar -->
+  <!-- the time shown (the layers that use it): its chip on the bottom row opens the field's calendar -->
   <div id="timepop" class="timepop" hidden>
-    <div id="when" class="when" role="group" aria-label="Time and depth shown">
-      <input type="datetime-local" step="3600" required aria-label="Time shown">
-      <label class="depthsel" hidden><span>Depth</span><select aria-label="Depth below the surface"></select></label>
-    </div>
+    <div id="when" class="when"><input type="datetime-local" step="3600" required aria-label="Time shown"></div>
   </div>
   <!-- the frame (frame.js, drawing-ui.md §1): the bar across the top; the left panel, Elements and
        Layers as tabs; the right panel, Properties -->

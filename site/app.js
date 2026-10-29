@@ -188,7 +188,9 @@ $('#nostart').remove(); // started (index.html)
 // OSM likewise), on one line: what does not fit ends in "…", and a tap on the line shows it all.
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
-const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time (and depth) the layers show
+const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time the layers show
+// the depth they show, a chip of its own beside it: a click opens its list (ocean data at a depth only)
+const depthEl = h('select', { class: 'pos depthchip', id: 'depth', 'aria-label': 'Depth below the surface', title: 'Depth shown: each model at its level nearest it', hidden: true });
 const scale = new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' });
 const scaleEl = scale.onAdd(map);
 scaleEl.id = 'scale';
@@ -211,7 +213,7 @@ credits.addEventListener('click', (e) => {
 });
 // credits on the left; the scale note, time shown, cursor position and scale on the right (not for
 // navigation: About and the exports say it)
-statusEl.append(credits, h('div', { class: 'readout' }, scaleNoteEl, shownEl, posEl, scaleEl));
+statusEl.append(credits, h('div', { class: 'readout' }, scaleNoteEl, shownEl, depthEl, posEl, scaleEl));
 // the legends sit above the bottom row, whose height follows its credits
 new ResizeObserver(() => { document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`); snapLegends(); }).observe(statusEl);
 
@@ -609,7 +611,7 @@ function setTime(t) {
 // has (min, max: the browser's calendar greys out the rest, the field's tooltip names them); the
 // chip opens the calendar itself. Every layer draws the time shown at its own time resolution:
 // that hour, the 3-hour step holding it, that day.
-const when = $('#when'), whenIn = $('input', when), depthSel = $('.depthsel', when), shown = shownEl;
+const when = $('#when'), whenIn = $('input', when), shown = shownEl;
 const pad = (n) => String(n).padStart(2, '0');
 const depthWords = (d) => (d ? `${d} m deep` : 'surface'); // each model at its level nearest the depth chosen
 const fmtDate = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
@@ -638,12 +640,13 @@ whenIn.addEventListener('input', () => {
   const v = whenIn.validity;
   if (!(v.valueMissing || v.badInput || v.rangeUnderflow || v.rangeOverflow)) setTime(new Date(whenIn.value).getTime());
 });
-$('select', depthSel).append(...CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m` : 'Surface')));
-$('select', depthSel).addEventListener('change', (e) => setDepth(+e.target.value));
+depthEl.append(...CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m deep` : 'Surface')));
+depthEl.addEventListener('change', (e) => setDepth(+e.target.value));
 function renderWhen() {
   const on = timeOn().length > 0, deep = depthOn().length > 0;
   when.hidden = !on;
   shown.hidden = !on;
+  depthEl.hidden = !(on && deep);
   if (!on) return;
   updateRange();
   const d = new Date(state.time), hr = hourly();
@@ -651,18 +654,15 @@ function renderWhen() {
   whenIn.max = local(range[1]);
   whenIn.title = `Data: ${fmtDate(range[0])} – ${fmtDate(range[1])}`;
   if (document.activeElement !== whenIn) whenIn.value = local(state.time); // not while a time is typed in it
-  depthSel.hidden = !deep;
-  $('select', depthSel).value = state.depth;
-  // beside the coordinates: "Today 18:00 · 100 m deep" (each model at its level nearest the depth
-  // chosen), or "Wed 21 Oct" when only daily layers are on: their day, in UTC as the products have it
+  depthEl.value = state.depth;
+  // beside the coordinates: "Today 18:00", or "Wed 21 Oct" when only daily layers are on: their day,
+  // in UTC as the products have it (the depth: its own chip)
   const tz = hr ? undefined : 'UTC', same = (a) => a.toLocaleDateString('en', { timeZone: tz }) === d.toLocaleDateString('en', { timeZone: tz });
   const part = (o) => d.toLocaleDateString([], { ...o, timeZone: tz });
   const day = same(new Date()) ? 'Today' // "Wed 21 Oct", in this order in every locale
     : `${part({ weekday: 'short' })} ${d.toLocaleDateString('en', { day: 'numeric', timeZone: tz })} ${part({ month: 'short' })}`;
-  shown.textContent = [[day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' '),
-    deep ? depthWords(state.depth) : ''].filter(Boolean).join(' · ');
-  shown.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}`
-    + `${deep ? `; depth: ${state.depth ? `${state.depth} m below the surface, each model at its level nearest it` : 'the surface'}` : ''}. A click: the calendar`;
+  shown.textContent = [day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' ');
+  shown.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}. A click: the calendar`;
 }
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
 const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
@@ -959,7 +959,7 @@ function renderStatus() {
 scaleEl.title = 'Distance units: a click switches km and NM';
 scaleEl.addEventListener('click', () => setDisplay({ units: display.units === 'km' ? 'nm' : 'km' }));
 // the time shown, a chip on the bottom row: a click opens the field's calendar (the field itself in a
-// box over the chip, with the depth select when a depth layer is on, for a browser without a picker)
+// box over the chip, for a browser without a picker)
 const timePop = $('#timepop');
 const timeBox = popup(timePop, {
   place: () => {
@@ -988,10 +988,10 @@ drawPanel = drawView($('#dview'), {
   measureIcon: ICON.ruler, free: () => free(), bar: $('#bar'), props: $('#props'), frame,
   // the bar's file group (draw/files.js): the view's outputs in Download, Copy link, About (a phone's ☰)
   outputs, copyLink: () => copyLink(), about: () => openAbout(), linkIcon: ICON.link, aboutIcon: ICON.info,
-  // an imported drawing added to the list and opened, with its view and layers; one of the list opened
-  // where it was drawn
+  // a drawing imported, or one of the list, opened with its view: where it was, its layers, time,
+  // depth and units
   onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
-  openDrawing: (id) => { const v = drawing.saving.open(id); if (v?.center) map.jumpTo({ center: v.center, zoom: v.zoom ?? map.getZoom(), bearing: v.bearing ?? 0 }); },
+  openDrawing: (id) => { const v = drawing.saving.open(id); if (v) applyView(v); },
   download: (text, name, type = 'application/geo+json') => download(new Blob([text], { type }), name),
   profile: (trace) => profileFor(trace),
 });
@@ -1113,7 +1113,7 @@ async function depthAt([lng, lat], z) {
 }
 map.on('click', async (e) => {
   if (drawing.tool || drawing.picking || drawing.repointing || !(state.on.has('depth') || state.on.has('isobaths'))) return;
-  if (drawing.hitAt(e.point).length) return; // a click on a drawing selects it
+  if (e.cleared || drawing.hitAt(e.point).length) return; // a click on a drawing selects it; one that cleared the selection does only that
   const { lng, lat } = e.lngLat, z = Math.min(DEM_SEA_MAX, Math.floor(map.getZoom()) + 1); // 256 px DEM tiles at z show at map zoom z − 1
   const [v, code] = await Promise.all([depthAt([lng, lat], z).catch(() => null), tidAt(lng, lat).catch(() => null)]);
   if (v === null) { depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, 'Depth not available'), h('small', {}, 'GEBCO 2026 could not be read'))).addTo(map); return; }

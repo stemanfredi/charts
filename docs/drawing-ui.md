@@ -40,8 +40,9 @@ One layout at every width (`site/frame.js`).
 - **The map's foot**: one strip above the bottom row, between the panels (a phone: above its sheet).
   At its left, stacked: the legends, the touch row; at its right **the map's controls**: my
   position, zoom in and out, north (only when turned). Nothing else sits there, so nothing overlaps.
-  The bottom row between the panels: credits, the time shown (a chip: a click opens its calendar,
-  and the depth when a layer has one), the cursor's position, the scale (a click switches km and NM).
+  The bottom row between the panels: credits, the time shown (a chip: a click opens its calendar),
+  the depth shown when a layer has one (a chip: a click opens its list), the cursor's position, the
+  scale (a click switches km and NM).
 - **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`, `pm=km`), never the
   drawing. The drawing goes out as a file (**Download** › **Drawing (GeoJSON)**, with the view) and
   comes in by **Open a file…** or a file dropped on the map, after a report (what it holds, what was skipped and
@@ -280,7 +281,7 @@ click on the map picks a root):
 | Backspace | takes back a point |
 | Esc, right-click | steps back one level |
 | ↑ ↓ | previous, next element in the tree |
-| Delete (Mac: also ⌘ Backspace) | deletes the selection |
+| Delete (Mac: also ⌘ Backspace) | deletes the place current (a line's point, a corner, a part: pressed on the map or its row), else the selection |
 | F2 | rename |
 | Ctrl/⌘ Z, Ctrl/⌘ Shift Z (or Ctrl Y) | undo, redo |
 | Ctrl/⌘ C, V, D | copy, paste, duplicate |
@@ -306,7 +307,8 @@ live in this browser only; **Download** › **Presets (JSON)** and **Open a file
   where they were; labels on it stay, free. A group with members asks first: the group only (what is
   in it goes to the group above), or everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.
-  **Open** lists the drawings in this browser (last change, size): a click opens one where it was
-  drawn, a bin deletes it for good (asked first); **+ New drawing** adds one.
+  **Open** lists the drawings in this browser (last change, size): a click opens one with its view (where
+  it was drawn, its layers, time, depth and units, as an import does), a bin deletes it for good
+  (asked first); **+ New drawing** adds one.
 - When the browser refuses to save, Properties says so (Download › Drawing keeps it as a file); when
   another tab saved the same drawing, it says so, with **Reload**.

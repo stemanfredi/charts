@@ -334,17 +334,16 @@ await section('the Ocean data menus', async () => {
 });
 
 await section('water properties at a depth', async () => {
-  // water properties at a depth from the link: "100 m deep" beside the time, each model at its own
-  // level (the export records it), no note under the row
+  // water properties at a depth from the link: "100 m deep" in its chip beside the time's, each model
+  // at its own level (the export records it), no note under the row
   const wp = await open('#v=5/40/10/0&col=temperature:depth&on=chart,coastline,legend&menu=1&g=data&dz=100');
   await wp.waitForFunction(() => !!document.querySelector('#legends canvas[data-legend=temperature]')?.style.width, null, { timeout: 30000 }).catch(() => {});
-  const [wpDepth, wpNotes, wpBroken] = await wp.evaluate(() => [document.querySelector('#when .depthsel select').value + ' ' + document.querySelector('#shown').textContent,
+  const [wpDepth, wpNotes, wpBroken] = await wp.evaluate(() => [document.querySelector('#depth').value + ' ' + document.querySelector('#depth').selectedOptions[0]?.textContent,
     document.querySelectorAll('.item .note:not([hidden])').length, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)]);
-  check(/^100 .* · 100 m deep$/.test(wpDepth) && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, set on the time line and shown as "100 m deep": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`, true);
-  // the depth on a row of its own, under the time line, which keeps its width
-  await timeOpen(wp);
-  const [inW, below] = await wp.evaluate(() => { const i = document.querySelector('#when input').getBoundingClientRect(), d = document.querySelector('#when .depthsel').getBoundingClientRect(); return [i.width, d.top >= i.bottom]; });
-  check(below && inW >= 150, `the depth sits under the time line, which keeps its width (${Math.round(inW)} px)`);
+  check(wpDepth === '100 100 m deep' && !wpNotes && !wpBroken.length && !wp.errors.length, `temperature at 100 m, shown in the depth chip as "100 m deep": ${wpDepth} ${wpBroken.join(' ')} ${wp.errors.join(' | ')}`, true);
+  // the depth's chip beside the time's, a list of its own; the time's chip says the time only
+  const [chips, timeText] = await wp.evaluate(() => { const t = document.querySelector('#shown').getBoundingClientRect(), d = document.querySelector('#depth').getBoundingClientRect(); return [d.width > 0 && Math.abs(d.top - t.top) < 4 && d.left >= t.right, document.querySelector('#shown').textContent]; });
+  check(chips && !/deep/.test(timeText), `the depth a chip beside the time's (${timeText})`);
   await wp.close();
 });
 
