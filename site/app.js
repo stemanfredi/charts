@@ -1,6 +1,6 @@
 import * as maplibregl from './vendor/maplibre-gl.mjs';
 import mlcontour from './vendor/maplibre-contour.mjs';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LEGENDS, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS, INK, esriAttribution } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
@@ -30,7 +30,7 @@ const byId = Object.assign(Object.create(null), Object.fromEntries(ITEMS.map((it
 // is an item at a variant ('waves:height'), in the menus of what it can draw (drawsOf: currents in
 // both, speed and direction)
 const DATA = ITEMS.filter((it) => it.group === 'data');
-const variantsOf = (it) => Object.keys(it.kind === 'gibs' ? GIBS : CMEMS[it.id]);
+const variantsOf = (it) => (it.group === 'data' ? Object.keys(it.kind === 'gibs' ? GIBS : CMEMS[it.id]) : it.variants ? Object.keys(it.variants) : null); // its choices, by key
 const drawsOfEntry = (it, v) => (it.kind === 'gibs' ? ['colour'] : drawsOf(CMEMS[it.id][v]));
 const entryLabel = (it, v, slot) => (it.kind === 'gibs' ? `NASA ${GIBS[v].label.replace('True colour', 'true colour')}`
   : it.id === 'currents' ? (slot === 'colour' ? 'Current speed' : 'Currents') : CMEMS[it.id][v].label);
@@ -45,10 +45,10 @@ const dayOf = (t) => new Date(t).toISOString().slice(0, 10); // its day (UTC)
 // the Layers groups open: kept in this browser, as the panel's tab (frame.js), not in the link
 const GROUPS_OPEN = 'charts.groups.open', groupsOpen = store.json(GROUPS_OPEN);
 // a layer as it starts: its first variant, its own opacity, a density dataset's default period
-const defaultsOf = (it) => ({ variant: it.variants ? Object.keys(it.variants)[0] : undefined, opacity: it.opacity ?? undefined, period: DENSITY[it.id]?.defaultPeriod });
+const defaultsOf = (it) => ({ variant: variantsOf(it)?.[0], opacity: it.opacity ?? undefined, period: DENSITY[it.id]?.defaultPeriod });
 const state = {
   on: new Set(ITEMS.filter((it) => it.on).map((it) => it.id)),
-  variant: Object.fromEntries(ITEMS.filter((it) => it.variants).map((it) => [it.id, defaultsOf(it).variant])),
+  variant: Object.fromEntries(ITEMS.filter((it) => variantsOf(it)).map((it) => [it.id, defaultsOf(it).variant])),
   opacity: Object.fromEntries(ITEMS.filter((it) => it.opacity != null).map((it) => [it.id, it.opacity])),
   time: hour(Date.now()), // the map's time: the hour shown (ms), now by default
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
@@ -373,7 +373,7 @@ const ISOBATH_INK = {
   nautical: { line: '#3d6a91', text: '#3d6a91', halo: LIGHT_HALO },
 };
 const PICTURES = new Set(SEA_PICTURES); // drawn above EMODnet depth (style.js)
-const isPicture = (id) => state.on.has(id) && (PICTURES.has(id) || (byId[id].group === 'data' && looks[id] !== 'arrows'));
+const isPicture = (id) => state.on.has(id) && (PICTURES.has(id) || (byId[id].group === 'data' && drawnAs(id) !== 'arrows'));
 function isobathInk() {
   if (ITEMS.some((it) => isPicture(it.id))) return ISOBATH_INK.picture;
   if (state.on.has('emodnetdepth')) return ISOBATH_INK.emodnet;
@@ -503,7 +503,7 @@ const KINDS = {
   classes: {
     legend(id) {
       // the URL of its service's legend, the URLs of several, or the classes themselves
-      const src = CLASS_LEGENDS[id](state.variant[id]), urls = typeof src === 'string' ? [src] : typeof src[0] === 'string' ? src : null;
+      const src = byId[id].legend(state.variant[id]), urls = typeof src === 'string' ? [src] : typeof src[0] === 'string' ? src : null;
       return { key: urls ? urls.join(' ') : `${id}:${state.variant[id]}`, ready: urls ? classesOf(urls) : src,
         paint: (el, cls) => { drawClasses(el, byId[id].label, [byId[id].variants?.[state.variant[id]], byId[id].legendSub].filter(Boolean).join(' · '), cls); return `${byId[id].label} legend: ${cls.map((c) => c.label).join(', ')}`; } };
     },
@@ -543,7 +543,7 @@ const KINDS = {
     depth: cmemsDepth,
     show(id) {
       const depth = cmemsDepth(id) ? state.depth : 0; // no new tiles for a depth change it ignores
-      map.getSource(`cmems-${id}`).setTiles([`cmems://${id}/${state.variant[id]}/${looks[id] || 'both'}/${state.time}/${depth}/{z}/{x}/{y}`]);
+      map.getSource(`cmems-${id}`).setTiles([`cmems://${id}/${state.variant[id]}/${drawnAs(id) || 'both'}/${state.time}/${depth}/{z}/{x}/{y}`]);
       applyItem(id);
     },
     // each dataset from its first step to the end of its last (a daily mean covers its day, a
@@ -572,18 +572,16 @@ const hourly = () => timeOn().some((it) => kindOf(it.id).time(it.id) === 'hour')
 // The menus' entries switch their items on at their variants, drawing colours, arrows, or both
 // (currents chosen in both menus); the group's other items go off. Two colour layers cannot be
 // read together, nor two sets of arrows: the menus hold one of each.
-const looks = {}; // item → what it draws: 'colour', 'arrows' or 'both'
+// what a data item draws now: 'colour', 'arrows', 'both' or '' (off), from the two slots
+const drawnAs = (id) => { const c = entryOf(state.colour)?.id === id, a = entryOf(state.arrows)?.id === id; return c && a ? 'both' : c ? 'colour' : a ? 'arrows' : ''; };
+const dataShown = {}; // item → 'draws:variant' as its source is set now ('' off): refreshed only when that changes
 function applyData() {
-  const { id: ci, variant: cv } = entryOf(state.colour) ?? {}, { id: ai, variant: av } = entryOf(state.arrows) ?? {};
+  const { id: ci, variant: cv } = entryOf(state.colour) ?? {}, { variant: av } = entryOf(state.arrows) ?? {};
   for (const it of DATA) {
-    const was = state.on.has(it.id) ? `${looks[it.id]}:${state.variant[it.id]}` : '';
-    const look = it.id === ci ? (it.id === ai ? 'both' : 'colour') : it.id === ai ? 'arrows' : '';
-    if (look) {
-      state.on.add(it.id);
-      looks[it.id] = look;
-      state.variant[it.id] = it.id === ci ? cv : av;
-    } else state.on.delete(it.id);
-    if ((look && `${look}:${state.variant[it.id]}`) !== was) refresh(it.id);
+    const look = drawnAs(it.id);
+    if (look) { state.on.add(it.id); state.variant[it.id] = it.id === ci ? cv : av; } else state.on.delete(it.id);
+    const key = look && `${look}:${state.variant[it.id]}`;
+    if (key !== (dataShown[it.id] ?? '')) { dataShown[it.id] = key; refresh(it.id); }
   }
 }
 
@@ -1237,7 +1235,7 @@ function snapshot(src) {
   // each layer with what it is drawn with: at (its variant, the time and depth: its values are read at these), and for
   // item.json its period (density), its day (NASA daily), what it draws (colours, arrows: Copernicus)
   const layers = drawnItems().map((it) => ({ ...it, assets: [], at: { variant: state.variant[it.id], t, depth: state.depth },
-    period: DENSITY[it.id] ? state.period[it.id] : undefined, date: it.kind === 'gibs' ? gibsDay : undefined, draws: it.kind === 'cmems' ? looks[it.id] : undefined }));
+    period: DENSITY[it.id] ? state.period[it.id] : undefined, date: it.kind === 'gibs' ? gibsDay : undefined, draws: it.kind === 'cmems' ? drawnAs(it.id) : undefined }));
   return {
     when, name: exportName(when, c.lat, c.lng), at: `${dm(c.lat, 'N', 'S')} ${dm(c.lng, 'E', 'W')}`, lat: c.lat,
     zoom: map.getZoom(), bearing: map.getBearing(), link: location.href, credits: attributionText(), layers, legends: legendWant.map((id) => legendEls[id]),
@@ -1265,7 +1263,7 @@ function exportPng(b) {
 function drawnItems() {
   const z = map.getZoom();
   return ITEMS.filter((it) => (layersOf[it.id] || []).some((l) => map.getLayoutProperty(l.id, 'visibility') === 'visible' && z >= (l.minzoom ?? 0) && z < (l.maxzoom ?? 24)))
-    .map((it) => ({ ...it, variant: it.variants && state.variant[it.id] })); // the variant's key, as the file's view and item.json's at.variant
+    .map((it) => ({ ...it, variant: variantsOf(it) && state.variant[it.id] })); // the variant's key, as the file's view and item.json's at.variant
 }
 const exportZip = gisExport({ map, layersOf, kindOf, drawing, display, profiled, clips: { sea: seaClip, land: landClip }, cmemsDrawn, snapshot, onFrame, download });
 

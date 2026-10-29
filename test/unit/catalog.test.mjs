@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, OVERLAYS, CLASS_LEGENDS, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, drawsOf } from '../../site/catalog.js';
+import { GROUPS, ITEMS, DEPTH_SCHEMES, DEM_TILES, EMODNET_DEPTH_STOPS, domainEnd, gibsDomainUrl, CMEMS, drawsOf } from '../../site/catalog.js';
 import { cmemsStyle } from '../../site/cmems.js';
 import { buildStyle, SEA_PICTURES } from '../../site/style.js';
 import { CSP_HOSTS } from '../../tools/deps.mjs';
@@ -88,8 +88,6 @@ test('GIBS: the newest date a layer has, from DescribeDomains', () => {
 test('Copernicus: items, variants and parts agree; styles fix the range', () => {
   for (const it of ITEMS.filter((i) => i.kind === 'cmems')) {
     assert.ok(CMEMS[it.id], `${it.id} has datasets`);
-    if (it.variants) assert.deepEqual(Object.keys(it.variants), Object.keys(CMEMS[it.id]));
-    else assert.equal(Object.keys(CMEMS[it.id]).length, 1, `${it.id}: one choice, or variants in the menu`);
     assert.ok(style.layers.some((l) => l.metadata?.item === it.id && l.source === `cmems-${it.id}`));
   }
   for (const v of Object.values(CMEMS).flatMap(Object.values)) {
@@ -111,11 +109,11 @@ test('Copernicus colours and arrows: what each draws, styles, arrows drawn over 
 });
 
 test('every overlay drawn in colours or symbols has a legend, and Europe-only layers say so', () => {
-  for (const id of Object.keys(OVERLAYS)) {
-    const it = ITEMS.find((i) => i.id === id);
-    const legend = it.kind === 'classes' ? CLASS_LEGENDS[id] : it.kind === 'emodnet' ? EMODNET_DEPTH_STOPS : null;
-    assert.ok(legend, `${id}: no legend`);
-    if (it.kind === 'classes') for (const v of Object.keys(it.variants || { all: 1 })) assert.ok(CLASS_LEGENDS[id](v), `${id} ${v}: no legend`);
+  for (const it of ITEMS.filter((i) => i.tiles || i.kind === 'classes')) {
+    const legend = it.kind === 'classes' ? it.legend : it.kind === 'emodnet' ? EMODNET_DEPTH_STOPS : null;
+    assert.ok(legend, `${it.id}: no legend`);
+    if (it.kind === 'classes') for (const v of Object.keys(it.variants || { all: 1 })) assert.ok(it.legend(v), `${it.id} ${v}: no legend`);
+    if (it.tiles) for (const v of Object.keys(it.variants || { all: 1 })) assert.ok(it.tiles[v], `${it.id} ${v}: no tiles`);
   }
   // EMODnet's and EMSA's data cover European seas, but for the UKHO's wrecks (worldwide)
   for (const it of ITEMS) if (it.group !== 'labels' && /EMODnet|EMSA/.test(it.info.src) && !/worldwide/.test(it.info.res)) assert.match(it.label, /\(Europe\)$/, `${it.id}: Europe only, not in its name`);

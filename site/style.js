@@ -1,7 +1,7 @@
 // The map's style, from the catalogue: every source, and every layer in draw order. A layer belongs
 // to a menu item through metadata.item; layers of a hidden item are set to visibility:none, and
 // MapLibre requests no tiles for a source whose layers are all hidden.
-import { DEM_SEA_MAX, DEM_LAND_MAX, OMT_TILEJSON, DENSITY, densityTiles, OVERLAYS, OVERLAY_MAXZOOM, OVERLAY_CREDIT, OVERLAY_FAINT, HA_CREDIT, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
+import { DEM_SEA_MAX, DEM_LAND_MAX, OMT_TILEJSON, DENSITY, densityTiles, HA_CREDIT, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
 import { HOSTS } from './hosts.js';
 import { escapeHtml } from './format.js';
 
@@ -53,8 +53,8 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
       attribution: '<a href="https://www.emsa.europa.eu/">EMSA</a> (CC BY 4.0) via ' + HA_CREDIT },
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '© <a href="https://openseamap.org">OpenSeaMap</a> contributors (CC BY-SA)',
       tiles: [`${HOSTS.openseamap}/seamark/{z}/{x}/{y}.png`] },
-    ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
-      { type: 'raster', tileSize: 256, maxzoom: OVERLAY_MAXZOOM[item] ?? 18, tiles, attribution: OVERLAY_CREDIT[item] || HA_CREDIT }]))),
+    ...Object.fromEntries(ITEMS.filter((it) => it.tiles).flatMap((it) => Object.entries(it.tiles).map(([v, tiles]) => [`ov-${it.id}-${v}`,
+      { type: 'raster', tileSize: 256, maxzoom: it.tileMaxzoom ?? 18, tiles, attribution: it.credit || HA_CREDIT }]))),
     // GEBCO's type identifier grid, coloured by gebco.js (gebco-tid://); level 0 from zoom 8, then magnified
     'gebco-tid': { type: 'raster', tileSize: 256, maxzoom: 10, tiles: ['gebco-tid://{z}/{x}/{y}'], attribution: ATTR_GEBCO },
     graticule: empty(),
@@ -86,13 +86,13 @@ const PIER_M = 3, PIER_OUTLINE_PX = 0.6;
 const pierWidth = (extra) => ['interpolate', ['linear'], ['zoom'],
   ...[13, 14, 15, 16, 17, 18, 19, 20, 22].flatMap((z) => [z, +(Math.max(1, (PIER_M * 2 ** z) / 55346) + extra).toFixed(2)])];
 const m = (item, variant) => ({ metadata: variant ? { item, variant } : { item } });
-// an overlay's layers, one per variant (OVERLAYS), from its item's minzoom; a variant drawn lighter
-// than the item's opacity says so (OVERLAY_FAINT: app.js multiplies the opacity by it)
-const overlayLayers = (items) => items.flatMap((item) => {
-  const vs = Object.keys(OVERLAYS[item]), minzoom = ITEMS.find((it) => it.id === item).minzoom;
+// an item's layers from its tiles, one per variant, from its minzoom; a variant drawn lighter than
+// the item's opacity says so (its faint: app.js multiplies the opacity by it)
+const overlayLayers = (ids) => ids.flatMap((id) => {
+  const it = ITEMS.find((x) => x.id === id), vs = Object.keys(it.tiles);
   return vs.map((v) => {
-    const l = { ...raster(`ov-${item}-${v}`, item, vs.length > 1 ? v : undefined), ...(minzoom && { minzoom }) };
-    if (OVERLAY_FAINT[`${item}:${v}`]) l.metadata.opacity = OVERLAY_FAINT[`${item}:${v}`];
+    const l = { ...raster(`ov-${id}-${v}`, id, vs.length > 1 ? v : undefined), ...(it.minzoom && { minzoom: it.minzoom }) };
+    if (it.faint?.[v]) l.metadata.opacity = it.faint[v];
     return l;
   });
 });

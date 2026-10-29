@@ -55,7 +55,7 @@ export const densityTiles = (id, type, period) => wms(HA_WMS, DENSITY[id].layer(
 // EMODnet layers drawn by EMODnet's own services (tiles, WMS), as they come: item → variant → tiles.
 // Depth (EMODnet Bathymetry's model, about 115 m in European waters: the styles that leave land to
 // the chart), seabed substrate (EMODnet Geology, 1:250k, Folk classes: its legend from the
-// service, CLASS_LEGENDS), and what is built, sunk or set aside at sea (EMODnet Human Activities).
+// service, each item's legend), and what is built, sunk or set aside at sea (EMODnet Human Activities).
 const GEOLOGY_WMS = `${HOSTS.emodnetGeology}/geoserver/gtk/wms`;
 const MR_WMS = `${HOSTS.vliz}/geoserver/MarineRegions/wms`;
 // Marine Regions' zones, drawn landward first, with their fills (its legends name each "Single symbol")
@@ -63,33 +63,10 @@ const MR_ZONES = [['eez_internal_waters', 'Internal waters', '#3D9EFF'], ['eez_a
   ['eez_12nm', 'Territorial sea (12 NM)', '#0B6A67'], ['eez_24nm', 'Contiguous zone (24 NM)', '#0D827E']];
 const FOLK = { folk5: 'folk_5_substrate_class', folk7: 'folk_7_substrate_class' }; // the substrate's styles by variant
 const bathy = (style) => [`${HOSTS.emodnetBathymetry}/latest/${style}/web_mercator/{z}/{x}/{y}.png`];
-export const OVERLAYS = {
-  emodnetdepth: { multicolour: bathy('mean_multicolour'), rainbow: bathy('mean_rainbowcolour') },
-  substrate: Object.fromEntries(Object.entries(FOLK).map(([v, style]) => [v, wms(GEOLOGY_WMS, 'seabed_substrate_250k', style)])),
-  // the World Bank's tiles of its global shipping density (with the IMF): world, all vessels, coarse
-  worlddensity: { all: [`${HOSTS.arcgisTiles}/tiles/iQ1dY19aHwbSDYIF/arcgis/rest/services/Shipping_density_all_vessels_2015_to_2020/MapServer/tile/{z}/{y}/{x}`] },
-  wrecks: { all: wms(HA_WMS, 'wwshipwrecks') },
-  cables: { telecom: wms(HA_WMS, 'telecablesactual'), power: wms(HA_WMS, 'powercables') },
-  pipelines: { all: wms(HA_WMS, 'pipelines') },
-  platforms: { all: wms(HA_WMS, 'platforms') },
-  windfarms: { all: wms(HA_WMS, 'windfarmspoly,windfarms') },
-  military: { all: wms(HA_WMS, 'militaryareaspoly,militaryareas') },
-  protected: { natura: wms(HA_WMS, 'natura2000areas'), mpa: wms(HA_WMS, 'marineprotectedareas') },
-  // Marine Regions (VLIZ): the limits as lines, or the zones they bound as fills, in its own styles
-  maritime: { limits: wms(MR_WMS, 'MarineRegions:eez_boundaries'), zones: wms(MR_WMS, MR_ZONES.map(([l]) => `MarineRegions:${l}`).join(',')) },
-};
-// variants drawn lighter than their item's opacity: Marine Regions fills its zones at 80%, which
-// would hide the sea beneath them
-export const OVERLAY_FAINT = { 'maritime:zones': 0.5 };
-export const OVERLAY_MAXZOOM = { emodnetdepth: 12, worlddensity: 10 }; // the zoom their tiles stop at (18: as WMS, any)
-// each overlay's credit; EMODnet Human Activities' where not given
-export const OVERLAY_CREDIT = {
-  worlddensity: '<a href="https://datacatalog.worldbank.org/search/dataset/0037580">World Bank Group, IMF</a> (CC BY 4.0)',
-  maritime: '<a href="https://www.marineregions.org">Marine Regions</a> (VLIZ, CC BY 4.0)',
-  emodnetdepth: '<a href="https://emodnet.ec.europa.eu/en/bathymetry">EMODnet Bathymetry</a>',
-  substrate: '<a href="https://emodnet.ec.europa.eu/en/geology">EMODnet Geology</a>',
-  wrecks: `${HA_CREDIT} (wrecks: UKHO)`,
-};
+// An item drawn from its provider's tiles says so on its entry: tiles (per variant), tileMaxzoom (the
+// zoom its tiles stop at; 18 as WMS, any), credit (its attribution; EMODnet Human Activities' when
+// none), faint (a variant drawn lighter than the item's opacity), and for kind 'classes' legend(variant):
+// the URL of its service's legend, the URLs of several, or the classes themselves
 // EMODnet Bathymetry's model as data (GIS export): its Zarr store, as EDITO's catalogue lists it
 // (collection emodnet-elevation, DTM 2024): elevation in metres, 1/16 arc-minute, chunks of ~1°
 export const EMODNET_DTM = `${HOSTS.cloudferro}/emodnet/emodnet_bathymetry/14157/bathymetry_dtm_2024.zarr`;
@@ -131,33 +108,6 @@ export const EMODNET_DEPTH_STOPS = {
   multicolour: [[0, '#ff5f64'], [10, '#ff0007'], [50, '#ded634'], [150, '#bedc30'], [450, '#71e044'], [1000, '#3cc6bf'], [2000, '#3144d6'], [3500, '#31315f'], [6000, '#000038']],
   rainbow: [[0, '#db000e'], [5, '#ff0911'], [40, '#d4dc1f'], [200, '#3ac845'], [500, '#33b6c3'], [3000, '#326cc4'], [4800, '#382a93'], [5500, '#8547bc'], [6000, '#bf00dc']],
 };
-export const CLASS_LEGENDS = {
-  // GEBCO's type identifier grid, by group (gebco.js draws it)
-  depthsource: () => DEPTH_SOURCES.map(({ label, colour }) => ({ label, colour })),
-  // AIS positions per cell, as the World Bank's tile service colours them (its legend's swatches)
-  worlddensity: () => [['< 100 k', '#1b0c42'], ['100–250 k', '#4c0c6b'], ['250–500 k', '#791c6e'], ['0.5–1 M', '#a62d61'], ['1–5 M', '#cf4447'],
-    ['5–10 M', '#ee6925'], ['10–15 M', '#fc9b06'], ['15–25 M', '#f8d13c'], ['25–60 M', '#fdffa5']].map(([label, colour]) => ({ label, colour })),
-  seagrass: () => SEAGRASS_CLASSES.map(({ label, colour }) => ({ label, colour })),
-  substrate: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${FOLK[variant]}`,
-  // EMODnet Human Activities' own legends (GetLegendGraphic): a layer drawn from several (areas and
-  // points) has the classes of each, once
-  wrecks: () => haLegend('wwshipwrecks'),
-  pipelines: () => haLegend('pipelines'),
-  platforms: () => haLegend('platforms'),
-  windfarms: () => haLegend('windfarmspoly', 'windfarms'),
-  military: () => haLegend('militaryareaspoly', 'militaryareas'),
-  protected: (variant) => haLegend({ natura: 'natura2000areas', mpa: 'marineprotectedareas' }[variant]),
-  // Marine Regions: the limits from its legend (line types, dashed as drawn); the zones as its fills
-  maritime: (variant) => (variant === 'zones' ? MR_ZONES.map(([, label, fill]) => ({ label, colour: `${fill}55` })) // as drawn: its 80%, at half
-    : `${MR_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=eez_boundaries`),
-  // EMODnet draws each cable in the colour of who reported it (its WMS legend: telecom cables red,
-  // with a centre line of that colour; power cables in greys)
-  cables: (variant) => (variant === 'power'
-    ? [['Norway (NVE)', '#1e1e1e'], ['Netherlands', '#666666'], ['France (SHOM)', '#999999'], ['Germany (BSH)', '#000000']].map(([label, colour]) => ({ label, colour, line: true }))
-    : [['Germany (BSH)', '#00dc00'], ['Spain (CICA)', '#e6e600'], ['Malta', '#ff78ff'], ['Netherlands', '#fafafa'], ['France (SHOM)', '#00e6e6'],
-      ['France (SIGCables)', '#ff8c00'], ['UK (OGA)', '#3737ff']].map(([label, colour]) => ({ label, colour, line: true, casing: '#ff0000' }))),
-};
-
 export const ESRI_META = `${HOSTS.esri}/ArcGIS/rest/services/World_Imagery/MapServer?f=json`;
 
 export const GIBS = {
@@ -251,7 +201,6 @@ export const CMEMS = {
 export const drawsOf = (v) => ({ solidAndVector: ['colour', 'arrows'], vector: ['arrows'] })[v.vector] || ['colour'];
 
 // an item's variants from its datasets: key → label (the menu's and the link's)
-const labelsOf = (vs) => Object.fromEntries(Object.entries(vs).map(([k, v]) => [k, v.label]));
 // depths offered for the 3D variables, metres below the surface (0: the model's top level)
 export const CMEMS_DEPTHS = [0, 10, 20, 50, 100, 200, 500, 1000];
 // ---- menu -------------------------------------------------------------------
@@ -295,38 +244,68 @@ export const ITEMS = [
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 2,
     info: { src: 'Contoured in your browser from GEBCO 2026 (maplibre-contour)', lic: 'As GEBCO', res: 'At the depths nautical charts use, more of them as you zoom in: 3000 and 5000 m from zoom 2 (ridges, trenches, abyssal plains); 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: GEBCO\'s cells are about 460 m, many of them interpolated where there are no surveys. As coarse as the grid beneath: smoothed shapes, not surveyed soundings. Traced on the depths cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'depthsource', group: 'sea', label: 'Depth sources (GEBCO)', opacity: 0.6, kind: 'gebcotid', legendSub: 'where the depths come from',
+    legend: () => DEPTH_SOURCES.map(({ label, colour }) => ({ label, colour })), // GEBCO's type identifier grid, by group (gebco.js draws it)
     info: { src: 'GEBCO 2026 type identifier grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: GEBCO_LIC, res: 'For each of GEBCO\'s 15″ cells (about 460 m), how its depth was obtained: surveyed (multibeam, single-beam, seismic, lidar, soundings), estimated (predicted from satellite gravity, interpolated, from chart contours), or taken from another grid or of unknown origin. Zoomed out, each cell shows the most common source of the cells it covers (the less certain on a tie). The depth shading and isobaths are only as good as their source here. Its codes go in the GIS export', url: 'https://www.gebco.net' } },
   { id: 'emodnetdepth', group: 'sea', label: 'EMODnet depth (Europe)', opacity: 1, kind: 'emodnet',
     variants: { multicolour: 'Multicolour', rainbow: 'Rainbow' },
+    tiles: { multicolour: bathy('mean_multicolour'), rainbow: bathy('mean_rainbowcolour') }, tileMaxzoom: 12, credit: '<a href="https://emodnet.ec.europa.eu/en/bathymetry">EMODnet Bathymetry</a>',
     info: { src: 'EMODnet Bathymetry digital terrain model, drawn by EMODnet (tiles); its values go in the GIS export', lic: EMODNET_LIC, res: 'About 115 m (1/16 arc-minute) in European seas, from surveys where there are, a coarser model elsewhere; no data outside Europe. Mean depth, in EMODnet\'s own colours (its legend: not linear in depth). Referenced to lowest astronomical tide. Not for navigation', url: 'https://emodnet.ec.europa.eu/en/bathymetry' } },
   { id: 'substrate', group: 'sea', label: 'Seabed substrate (Europe)', opacity: 0.8, kind: 'classes',
     variants: { folk5: 'Folk 5 classes', folk7: 'Folk 7 classes' },
+    tiles: Object.fromEntries(Object.entries(FOLK).map(([v, style]) => [v, wms(GEOLOGY_WMS, 'seabed_substrate_250k', style)])), credit: '<a href="https://emodnet.ec.europa.eu/en/geology">EMODnet Geology</a>',
+    legend: (variant) => `${GEOLOGY_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=seabed_substrate_250k&style=${FOLK[variant]}`,
     info: { src: 'EMODnet Geology seabed substrate (WMS)', lic: EMODNET_LIC, res: '1:250 000, European seas; what the seabed is made of (mud, sand, coarse sediment, mixed, rock), in Folk classes. Compiled from national surveys: varies by country', url: 'https://emodnet.ec.europa.eu/en/geology' } },
   { id: 'seagrass', group: 'sea', label: 'Seagrass (Europe)', opacity: 0.8, minzoom: SEAGRASS_ZOOMS[0], kind: 'classes', legendSub: 'meadows; dots: where surveys found it',
+    legend: () => SEAGRASS_CLASSES.map(({ label, colour }) => ({ label, colour })),
     info: { src: 'EMODnet Seabed Habitats, seagrass cover (Essential Ocean Variable), 2025: maps of meadows and survey points from national agencies, OSPAR and research, cut into tiles at geodata.makaw.org (tools/seagrass.mjs)', lic: `${EMODNET_LIC} (its Caribbean part, CC BY-NC, is left out)`, res: 'European seas, from zoom 7; as mapped by each survey, so complete in some places (French and Italian coasts) and absent in others. The species from each map\'s own habitat names. Anchoring on Posidonia oceanica is banned or restricted in much of the Mediterranean: check the local rules', url: 'https://emodnet.ec.europa.eu/en/seabed-habitats' } },
   { id: 'traffic', group: 'shipping', label: 'Vessel density (Europe)', opacity: 0.85, kind: 'density',
     variants: DENSITY.traffic.types,
     info: { src: 'EMODnet Human Activities vessel density (Cogea), from AIS bought from CLS, ORBCOMM and vesseltracker.com', lic: 'EMODnet open data, no access constraints; attribution requested', res: '1 km grid, annual averages of hours per km² per month, 2017–2024. EU and neighbouring seas only. 2024 is incomplete (satellite AIS lost from June). Not real time', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
   { id: 'worlddensity', group: 'shipping', label: 'Vessel density (world)', opacity: 0.85, kind: 'classes', legendSub: 'AIS positions per cell, 2015–2020',
+    tiles: { all: [`${HOSTS.arcgisTiles}/tiles/iQ1dY19aHwbSDYIF/arcgis/rest/services/Shipping_density_all_vessels_2015_to_2020/MapServer/tile/{z}/{y}/{x}`] }, tileMaxzoom: 10, // the World Bank's tiles (with the IMF): world, all vessels, coarse
+    credit: '<a href="https://datacatalog.worldbank.org/search/dataset/0037580">World Bank Group, IMF</a> (CC BY 4.0)',
+    // AIS positions per cell, as the World Bank's tile service colours them (its legend's swatches)
+    legend: () => [['< 100 k', '#1b0c42'], ['100–250 k', '#4c0c6b'], ['250–500 k', '#791c6e'], ['0.5–1 M', '#a62d61'], ['1–5 M', '#cf4447'],
+      ['5–10 M', '#ee6925'], ['10–15 M', '#fc9b06'], ['15–25 M', '#f8d13c'], ['25–60 M', '#fdffa5']].map(([label, colour]) => ({ label, colour })),
     info: { src: 'World Bank Group and IMF, Global Shipping Traffic Density (all vessels), from the World Bank\'s tile service', lic: 'CC BY 4.0', res: 'World, Jan 2015 to Feb 2021 (the tiles say 2015–2020), all vessels: AIS positions counted per cell, aggregated for drawing (the service says to 0.5°). Coarser than the data: for the oceans\' lanes; in European seas Vessel density is finer. Not real time', url: 'https://datacatalog.worldbank.org/search/dataset/0037580' } },
   { id: 'routes', group: 'shipping', label: 'Route density (Europe)', opacity: 0.85, kind: 'density',
     variants: DENSITY.routes.types,
     info: { src: 'EMSA route density, via EMODnet Human Activities: ship tracks rebuilt from terrestrial and satellite AIS, counting the routes that cross each cell', lic: 'CC BY 4.0 · European Maritime Safety Agency (EMSA)', res: '1 km grid, monthly totals since January 2019, about 3 months behind. EU and neighbouring seas only. Counts passages, not time spent (see Vessel density for hours)', url: 'https://www.emsa.europa.eu/related-operational-projects/traffic-density-maps.html' } },
   { id: 'wrecks', group: 'uses', label: 'Wrecks', opacity: 1, minzoom: 9, kind: 'classes',
+    tiles: { all: wms(HA_WMS, 'wwshipwrecks') }, legend: () => haLegend('wwshipwrecks'), credit: `${HA_CREDIT} (wrecks: UKHO)`,
     info: { ...HUMAN_ACTIVITIES, src: 'UK Hydrographic Office worldwide wreck locations, via EMODnet Human Activities', res: 'Wrecks as charted by the UKHO, worldwide; positions of varying accuracy. From zoom 9: they crowd the map below' } },
   { id: 'cables', group: 'uses', label: 'Cables (Europe)', opacity: 1, kind: 'classes', legendSub: 'colour: who reported it', variants: { telecom: 'Telecommunication', power: 'Power' },
+    tiles: { telecom: wms(HA_WMS, 'telecablesactual'), power: wms(HA_WMS, 'powercables') },
+    // EMODnet draws each cable in the colour of who reported it (its WMS legend: telecom cables red,
+    // with a centre line of that colour; power cables in greys)
+    legend: (variant) => (variant === 'power'
+      ? [['Norway (NVE)', '#1e1e1e'], ['Netherlands', '#666666'], ['France (SHOM)', '#999999'], ['Germany (BSH)', '#000000']].map(([label, colour]) => ({ label, colour, line: true }))
+      : [['Germany (BSH)', '#00dc00'], ['Spain (CICA)', '#e6e600'], ['Malta', '#ff78ff'], ['Netherlands', '#fafafa'], ['France (SHOM)', '#00e6e6'],
+        ['France (SIGCables)', '#ff8c00'], ['UK (OGA)', '#3737ff']].map(([label, colour]) => ({ label, colour, line: true, casing: '#ff0000' }))),
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities, from national authorities and operators', res: 'Submarine cables in service in European seas, as each country reports them: routes, not surveyed positions. Telecommunication: red, with a centre line in the colour of who reported it (Germany, Spain, Malta, Netherlands, France, UK). Power: only where reported, Norwegian, Dutch, French and German waters; none elsewhere (the Mediterranean\'s, the Baltic\'s) yet' } },
   { id: 'pipelines', group: 'uses', label: 'Pipelines (Europe)', opacity: 1, kind: 'classes', legendSub: 'status',
+    tiles: { all: wms(HA_WMS, 'pipelines') }, legend: () => haLegend('pipelines'),
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities', res: 'Oil, gas and other pipelines, European seas' } },
   { id: 'platforms', group: 'uses', label: 'Offshore installations (Europe)', opacity: 1, kind: 'classes', legendSub: 'status',
+    tiles: { all: wms(HA_WMS, 'platforms') }, legend: () => haLegend('platforms'),
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities, from OSPAR and national authorities', res: 'Oil and gas platforms and other installations, European seas' } },
   { id: 'windfarms', group: 'uses', label: 'Wind farms (Europe)', opacity: 1, kind: 'classes', legendSub: 'status',
+    tiles: { all: wms(HA_WMS, 'windfarmspoly,windfarms') }, legend: () => haLegend('windfarmspoly', 'windfarms'), // a layer drawn from several (areas and points): the classes of each, once
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities', res: 'Offshore wind farms (areas and points), planned to in production, European seas' } },
   { id: 'military', group: 'uses', label: 'Military areas (Europe)', opacity: 1, kind: 'classes',
+    tiles: { all: wms(HA_WMS, 'militaryareaspoly,militaryareas') }, legend: () => haLegend('militaryareaspoly', 'militaryareas'),
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities, from national authorities', res: 'Firing, exercise and other military areas, European seas; consult the official notices before entering' } },
   { id: 'protected', group: 'uses', label: 'Protected areas (Europe)', opacity: 1, kind: 'classes', variants: { natura: 'Natura 2000', mpa: 'Regional sea conventions MPAs' },
+    tiles: { natura: wms(HA_WMS, 'natura2000areas'), mpa: wms(HA_WMS, 'marineprotectedareas') }, legend: (variant) => haLegend({ natura: 'natura2000areas', mpa: 'marineprotectedareas' }[variant]),
     info: { ...HUMAN_ACTIVITIES, src: 'EMODnet Human Activities: Natura 2000 (EEA), MPAs of the regional sea conventions', res: 'Marine protected areas, European seas' } },
   { id: 'maritime', group: 'sea', label: 'Maritime zones', opacity: 0.8, kind: 'classes', variants: { limits: 'Limits between countries', zones: 'Zones (12 and 24 NM)' },
+    // Marine Regions (VLIZ): the limits as lines, or the zones they bound as fills, in its own styles; the
+    // zones at 80% would hide the sea beneath them: drawn lighter
+    tiles: { limits: wms(MR_WMS, 'MarineRegions:eez_boundaries'), zones: wms(MR_WMS, MR_ZONES.map(([l]) => `MarineRegions:${l}`).join(',')) }, faint: { zones: 0.5 },
+    credit: '<a href="https://www.marineregions.org">Marine Regions</a> (VLIZ, CC BY 4.0)',
+    // the limits from its legend (line types, dashed as drawn); the zones as its fills
+    legend: (variant) => (variant === 'zones' ? MR_ZONES.map(([, label, fill]) => ({ label, colour: `${fill}55` })) // as drawn: its 80%, at half
+      : `${MR_WMS}?service=WMS&request=GetLegendGraphic&version=1.0.0&format=application/json&layer=eez_boundaries`),
     info: { src: 'Marine Regions (Flanders Marine Institute, VLIZ): Maritime Boundaries v12 and the zones from it, v4 (2023)', lic: 'CC BY 4.0 · VLIZ; not for legal or navigational use (its terms)', res: 'World. Limits between countries: the lines between neighbours\' waters, as treaties, court rulings and joint regimes set them; where none does, a median line VLIZ computed, or the claims and disputes as they stand; and the baselines the zones are measured from. Zones: internal and archipelagic waters, the territorial sea (to 12 NM) and the contiguous zone (to 24 NM), whose outer edges are those limits. Compiled from public sources: not legal boundaries. Not for navigation', url: 'https://www.marineregions.org' } },
   { id: 'seamarks', group: 'sea', label: 'Seamarks', minzoom: 9, opacity: 1,
     info: { src: 'OpenSeaMap seamark overlay', lic: 'CC BY-SA 2.0 · OpenSeaMap contributors', res: 'Crowd-sourced; completeness varies. Not an official chart', url: 'https://openseamap.org' } },
@@ -344,40 +323,29 @@ export const ITEMS = [
 
   // Copernicus Marine: one hour for all, forecasts about 9 days ahead (cmems.js)
   { id: 'waves', group: 'data', section: 'Sea state', label: 'Waves', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.waves),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_WAV_001_027'), src: 'Copernicus Marine Service: Mediterranean wave forecast (MEDSEA_ANALYSISFORECAST_WAV_006_017) over the global one (GLOBAL_ANALYSISFORECAST_WAV_001_027)', res: 'Mediterranean 4.2 km, hourly; elsewhere 1/12° (~9 km), every 3 hours. Model analysis and forecast, about 9 days ahead. Not for navigation' } },
   { id: 'currents', group: 'data', section: 'Sea state', label: 'Currents', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.currents),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global surface currents (GLOBAL_ANALYSISFORECAST_PHY_001_024, with tides and wave drift)', res: 'Surface, hourly. Mediterranean 4.2 km (with tides); elsewhere 1/12° (~9 km). Arrows show the direction the water flows. Model forecast, about 9 days ahead' } },
   { id: 'wind', group: 'data', section: 'Sea state', label: 'Wind', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.wind),
     info: { ...COPERNICUS, url: product('WIND_GLO_PHY_L4_NRT_012_004'), src: 'Copernicus Marine Service: global ocean wind from satellite scatterometers, blended with a weather model (WIND_GLO_PHY_L4_NRT_012_004)', res: '0.125° (~14 km), hourly, 10 m above the sea. An observation, not a forecast: published about a day late. The time shown goes no later than its latest observation. Arrows show where the wind blows to' } },
 
   { id: 'temperature', group: 'data', section: 'Water column', label: 'Temperature', opacity: 0.85, kind: 'cmems',
-    variants: { depth: 'At the depth chosen', bottom: 'At the seabed' },
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Potential temperature, daily means. Mediterranean 4.2 km, 141 levels; elsewhere 1/12° (~9 km), 50 levels: each at its level nearest the depth chosen. Model analysis and forecast, about 9 days ahead' } },
   { id: 'salinity', group: 'data', section: 'Water column', label: 'Salinity', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.salinity),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Practical salinity (PSU), daily means, at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 1/12° (~9 km). Model analysis and forecast' } },
   { id: 'mld', group: 'data', section: 'Water column', label: 'Mixed layer depth', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.mld),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Depth of the well-mixed surface layer (density criterion), daily means. Shallow in summer, deep in winter. Mediterranean 4.2 km; elsewhere 1/12°. Model analysis and forecast' } },
 
   { id: 'sst', group: 'data', section: 'Satellite', label: 'Sea surface temperature', opacity: 0.85, kind: 'cmems',
-    variants: { measured: 'Measured', anomaly: 'Anomaly (Mediterranean)' },
     info: { ...COPERNICUS, url: product('SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001'), src: 'Copernicus Marine Service: satellite sea surface temperature, Mediterranean (SST_MED_SST_L4_NRT_OBSERVATIONS_010_004) over the global OSTIA analysis (SST_GLO_SST_L4_NRT_OBSERVATIONS_010_001)', res: 'Daily, gap-filled from several satellites. Mediterranean 1/16° (~4 km); elsewhere 0.05° (~5 km). Anomaly: against the 1991–2020 climatology of the day, Mediterranean only (marine heatwaves show in red). The time shown goes no later than its latest day' } },
   { id: 'chl', group: 'data', section: 'Satellite', label: 'Chlorophyll', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.chl),
     info: { ...COPERNICUS, url: product('OCEANCOLOUR_GLO_BGC_L4_NRT_009_102'), src: 'Copernicus Marine Service: ocean colour, gap-free, Mediterranean (OCEANCOLOUR_MED_BGC_L4_NRT_009_142) over the global one (OCEANCOLOUR_GLO_BGC_L4_NRT_009_102)', res: 'Chlorophyll-a, daily, cloud gaps filled. Mediterranean 1 km; elsewhere 4 km. Logarithmic colours. Only the last two weeks or so are kept. The time shown goes no later than its latest day' } },
   { id: 'sla', group: 'data', section: 'Satellite', label: 'Sea level anomaly', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.sla),
     info: { ...COPERNICUS, url: product('SEALEVEL_GLO_PHY_L4_NRT_008_046'), src: 'Copernicus Marine Service: satellite altimetry, all missions merged (SEALEVEL_GLO_PHY_L4_NRT_008_046)', res: 'Sea surface height above its 1993–2012 mean, daily, 0.125° (~14 km). Eddies and large-scale highs and lows; tides and storm surge removed. The time shown goes no later than its latest day' } },
   { id: 'bgc', group: 'data', section: 'Water column', label: 'Water quality', opacity: 0.85, kind: 'cmems',
-    variants: labelsOf(CMEMS.bgc),
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_BGC_001_028'), src: 'Copernicus Marine Service: Mediterranean biogeochemistry forecast (MEDSEA_ANALYSISFORECAST_BGC_006_014) over the global one (GLOBAL_ANALYSISFORECAST_BGC_001_028)', res: 'Daily means at the level nearest the depth chosen. Mediterranean 4.2 km; elsewhere 0.25° (~28 km). Nitrate in logarithmic colours. Model analysis and forecast, about 9 days ahead' } },
 
   { id: 'gibs', group: 'data', section: 'Satellite', label: 'NASA daily', opacity: 0.9, kind: 'gibs',
-    variants: Object.fromEntries(Object.entries(GIBS).map(([k, g]) => [k, g.label])),
     info: { src: 'NASA EOSDIS GIBS (WMTS)', lic: 'NASA open data; attribution requested', res: 'True colour, 250 m, to zoom 9. A picture of the day as the satellite saw it: clouds and swath gaps are real. The time shown goes no later than its newest published day', url: 'https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api' } },
 
   { id: 'legend', group: 'labels', label: 'Legends', on: true,
