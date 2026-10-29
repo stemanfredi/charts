@@ -14,7 +14,6 @@ export function inverse(p, q) {
   const g = G.Inverse(p[1], p[0], q[1], q[0]);
   return { s: g.s12, azi: g.azi1 };
 }
-// a closed ring's perimeter (its positions, the first not repeated at the end): metres, geodesic
 // a polyline's geodesic length, m; perimeterOf: a ring's, closed back to its first point
 export const lengthOf = (pts) => pts.reduce((t, p, i) => (i ? t + inverse(pts[i - 1], p).s : 0), 0);
 export const perimeterOf = (pts) => lengthOf([...pts, pts[0]]);

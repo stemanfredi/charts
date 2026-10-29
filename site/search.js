@@ -1,5 +1,5 @@
 // Search: coordinates are read here; place names go to Photon (OpenStreetMap data). search(map,
-// Marker) wires the page's search box (#q) and its results; it returns the box.
+// Marker, free) wires the page's search box (#q) and its results (free(): the map's part not under a panel).
 import { $, h, animate } from './dom.js';
 import { dm, parseLatLon } from './format.js';
 import { fetchOk } from './net.js';
@@ -118,5 +118,4 @@ export function search(map, Marker, free) {
     pin = null;
   }
   qClear.addEventListener('click', () => { clear(); q.focus(); });
-  return q;
 }

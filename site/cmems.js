@@ -19,16 +19,18 @@ function cmemsTileUrl(part, style, time, z, x, y, level = null) {
 }
 const cmemsLegendUrl = (part, style) => `${CMEMS_WMTS}?SERVICE=WMTS&REQUEST=GetLegend&LAYER=${encodeURIComponent(part)}&STYLE=${encodeURIComponent(style)}&FORMAT=application/json`;
 // a dataset's entry in Copernicus Marine's STAC catalogue: where its values are, as Zarr stores (zarr.js)
-export const cmemsStacUrl = (part) => `${HOSTS.copernicusStac}/metadata/${part.split('/').slice(0, 2).join('/')}/dataset.stac.json`;
+// a part 'product/dataset/variable' (catalog.js) taken apart; id: its dataset's 'product/dataset'
+export const partOf = (part) => { const [product, dataset, variable] = part.split('/'); return { product, dataset, variable, id: `${product}/${dataset}` }; };
+export const cmemsStacUrl = (part) => `${HOSTS.copernicusStac}/metadata/${partOf(part).id}/dataset.stac.json`;
 // the stored variables a part draws: itself, or for arrows their eastward and northward components
 // (the global currents: the total, with tides and wave drift, as the tiles draw it)
 export function storedVariables(part) {
-  const [, dataset, variable] = part.split('/');
+  const { dataset, variable } = partOf(part);
   if (variable === 'sea_water_velocity') return dataset.includes('merged-uv') ? ['utotal', 'vtotal'] : ['uo', 'vo'];
   return variable === 'wind' ? ['eastward_wind', 'northward_wind'] : [variable];
 }
 // one dataset's own capabilities (~100 kB, not the 67 MB of the whole service): its time steps
-const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join('/')}?SERVICE=WMTS&REQUEST=GetCapabilities`;
+const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${partOf(part).id}?SERVICE=WMTS&REQUEST=GetCapabilities`;
 
 // regional datasets (by product name: MEDSEA_…, SST_MED_…, OCEANCOLOUR_MED_…): drawn only within
 // their area, a union of boxes [west, south, east, north], and not asked for a tile outside it. The
@@ -37,7 +39,7 @@ const cmemsCapsUrl = (part) => `${CMEMS_WMTS}/${part.split('/').slice(0, 2).join
 // area is the Mediterranean only, from the Strait of Gibraltar (5.6°W), north of 40.9°N between 1°W
 // and 27°E (Gulf of Lion, Adriatic, northern Aegean); the global products draw the rest.
 const REGIONS = [{ name: 'Mediterranean', test: /^MEDSEA_|_MED_/, area: [[-5.6, 30.1, 36.3, 40.9], [-1, 40.9, 27, 46]] }];
-export const regionOf = (part) => REGIONS.find((r) => r.test.test(part.split('/')[0])) || null;
+export const regionOf = (part) => REGIONS.find((r) => r.test.test(partOf(part).product)) || null;
 
 
 // ---- what a dataset's own capabilities say: its time steps, its depth levels ------------------
@@ -87,7 +89,7 @@ const domains = lru(Infinity);
 export function domainOf(part) {
   return domains(part, () => fetchOk(cmemsCapsUrl(part)).then((r) => r.text())
     .then((xml) => {
-      const variable = part.split('/')[2], time = timeDomain(xml, variable);
+      const { variable } = partOf(part), time = timeDomain(xml, variable);
       if (!time.length) throw new Error(`no time steps for ${part}`);
       return { time, levels: depthLevels(xml, variable) };
     }));

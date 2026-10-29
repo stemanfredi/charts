@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { DrawStore } = await import('../../site/draw/store.js');
-const { addPoint, addLine, addLabel, makeGroup, lookOf } = await import('../../site/draw/document.js');
+const { addPoint, addLine, addLabel, makeGroup, lookOf, dependents } = await import('../../site/draw/document.js');
 
 // a store counting what it was told of
 function store() {
@@ -77,7 +77,7 @@ test('what no longer exists leaves the selection and the hover; deleting a point
   s.change((doc) => { a = addPoint(doc, [14, 44]); b = addPoint(doc, [14.1, 44]); ln = addLine(doc, a.id, [], b.id); });
   s.select([a.id, ln.id]);
   s.setHover(a.id);
-  assert.deepEqual([...s.dependents([a.id])], [a.id], 'the line is not taken with it');
+  assert.deepEqual([...dependents(s.doc, [a.id])], [a.id], 'the line is not taken with it');
   s.remove([a.id]);
   assert.deepEqual([...s.sel], [ln.id]);
   assert.equal(s.hover, null);
@@ -97,8 +97,8 @@ test('deleting a group: its members with it, or kept ungrouped; a label on what 
     g = makeGroup(doc, [p.id, q.id]);
     lab = addLabel(doc, { position: [14, 44], element: p.id });
   });
-  assert.deepEqual([...s.dependents([g.id], true)].sort(), [g.id, p.id, q.id].sort());
-  assert.deepEqual([...s.dependents([g.id], false)], [g.id]);
+  assert.deepEqual([...dependents(s.doc, [g.id], true)].sort(), [g.id, p.id, q.id].sort());
+  assert.deepEqual([...dependents(s.doc, [g.id], false)], [g.id]);
   s.remove([g.id]);
   assert.deepEqual(s.doc.points.map((x) => [x.id, x.groupId]), [[p.id, null], [q.id, null]]);
   s.undo();

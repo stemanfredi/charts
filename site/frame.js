@@ -119,9 +119,8 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
   place();
   return {
     tabBtns, rightBtn,
-    get tab() { return st.tab; },
     get props() { return st.props; },
-    setTab, setProps,
+    setProps,
     toggleTab, // its button or key: open there, or closed when it is
     has: (v) => { if (v !== st.has) { st.has = v; place(); } }, // Properties has something to show, or not
   };

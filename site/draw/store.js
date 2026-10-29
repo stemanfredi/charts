@@ -1,9 +1,9 @@
 // The drawing being edited, without the map: the document (document.js), its selection, the element
-// under the pointer, undo and redo, and the display setting it is drawn with. Pure: no map, no
+// under the pointer, undo and redo. Pure: no map, no
 // DOM (the tests run it in Node). The map's side (drawing.js) extends it and is told of each change:
 // changed() (the document), selectionChanged(), hoverChanged().
 
-import { emptyDoc, touch, find, elements, dependents, remove } from './document.js';
+import { emptyDoc, touch, find, elements, remove } from './document.js';
 import { refreshAttached } from './attach.js';
 import { refreshGenerated, reconnectWithout } from './generator.js';
 
@@ -87,11 +87,9 @@ export class DrawStore {
     if (this.hover && !ids.has(this.hover)) this.hover = null;
     this.changed();
   }
-  // what deleting ids takes with it (to ask first), and the deletion: one undo step
-  dependents(ids, withMembers) { return dependents(this.doc, ids, withMembers); }
   // a delete: one undo step; a connection that lost a root made again with those left
   remove(ids, withMembers = false) { this.change((doc) => reconnectWithout(doc, remove(doc, ids, withMembers))); }
-  // A whole other document (read back, opened, New): its display settings with it, nothing selected,
+  // A whole other document (read back, opened, New): nothing selected,
   // undo starting again.
   adopt(doc) {
     this.doc = doc;

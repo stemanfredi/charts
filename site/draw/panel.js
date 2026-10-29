@@ -22,7 +22,7 @@ import { fields, choice, select, check } from '../fields.js';
 import { mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetTool } from './presets.js';
 import { listGrid, setCurrent, currentOf } from './grid.js';
-import { fmtArea, fmtDist, rowsText, plural, distText, UNIT_M } from '../format.js';
+import { fmtArea, fmtDist, fmtDepth, rowsText, plural, distText, UNIT_TEXT, inUnit } from '../format.js';
 import { fileGroup } from './files.js';
 import { createTools } from './tools.js';
 import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
@@ -255,8 +255,8 @@ export function drawView(root, ctx) {
     // Shown in the bar over the grid, with Delete
     const table = listGrid({ name: `${id}:parts`,
       columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 },
-        { head: `Size ${UNIT_HEAD[sizeU]}`, width: 80, cls: 'n', title: 'Radius, or length' },
-        { head: `Across ${UNIT_HEAD[acrossU]}`, width: 64, cls: 'n', title: 'Aperture (°), or width' },
+        { head: `Size ${UNIT_TEXT[sizeU]}`, width: 80, cls: 'n', title: 'Radius, or length' },
+        { head: `Across ${UNIT_TEXT[acrossU]}`, width: 64, cls: 'n', title: 'Aperture (°), or width' },
         { head: 'Fill', width: 40 }],
       rows: el.parts.map((part, i) => ({ cells: [`${i + 1}`, kind(part, i), size(part, i), across(part, i), box(i, 'fill', 'filled')],
       cls: part.radius && !fits(part.radius) ? 'warn' : null })),
@@ -285,7 +285,7 @@ export function drawView(root, ctx) {
       row('Bearing', angleField(() => now(id).bearing, (v) => set(id, (x) => { x.bearing = v; }), 'Bearing (degrees true): where its outlines face, and its sectors'), funit('°T')),
       mainOutline(el) ? null : row('Symbol', segOf('Symbol (the same size on screen at every zoom)', SYMBOLS.map((sy) => [sy, sy === 'none' ? '∅' : icon(...SYMBOL_ICON[sy]), SYMBOL_TITLE[sy]]), el.symbol, (sy) => set(id, (x) => { x.symbol = sy; }))),
       partsBlock(id),
-      changedByHand(drawing.doc, id) ? row('Parts', h('span', { class: 'fvalue' }, 'changed by hand, not its rule\'s'),
+      changedByHand(drawing.doc, id) ? row('Parts', fvalue('changed by hand, not its rule\'s'),
         h('button', { type: 'button', class: 'x reset', title: 'Back to the rule\'s', 'aria-label': 'Parts back to the rule\'s', onclick: () => drawing.change((d) => giveBack(d, id)) }, '↺')) : null];
     // one Distribute: round the part whose row is current (else the one followed by default); the form can choose another
     parts.push(actionsRow(ruleActs(id),
@@ -316,7 +316,7 @@ export function drawView(root, ctx) {
     // its corners as rows, 1 to n, a page of them shown: Lat, Lon; the edge from the corner before
     // (corner 1's from the last; typed: this corner moves)
     const pg = paged(`${id}:corners`, n), abs = (r) => pg.rows[r];
-    const lu = unitOf(el.points.map((_, i) => legOf(el.points, i).s)), U = UNIT_HEAD[lu];
+    const lu = unitOf(el.points.map((_, i) => legOf(el.points, i).s)), U = UNIT_TEXT[lu];
     const table = listGrid({ name: pg.name,
       columns: [...PLACE_COLUMNS, { head: `Edge ${U}`, width: 56, cls: 'n', title: 'From the corner before' },
         { head: 'Brg °T', width: 52, cls: 'n', title: 'Its bearing' }],
@@ -415,8 +415,6 @@ export function drawView(root, ctx) {
   // a table's distances: one unit for the column (its head says it), by the rule a field's value
   // follows (format.js distText): metres while its largest is under 1 km, else km; NM in NM
   const unitOf = (ms) => (ctx.units() === 'nm' ? 'nm' : Math.max(0, ...ms.filter(Number.isFinite)) < 1000 ? 'm' : 'km');
-  const UNIT_HEAD = { m: 'm', km: 'km', nm: 'NM' };
-  const inUnit = (m, unit) => (m / UNIT_M[unit]).toFixed(unit === 'm' ? 0 : 3);
   // a table of places (a line's points, an area's corners, a point's parts): its row k made current
   // (k: the place's index), the table at its page; from the map (a place pressed: drawing.currentPlace)
   function pickPlace(table, k, paged = true) {
@@ -457,7 +455,6 @@ export function drawView(root, ctx) {
   let profileBuilt = 0;
   const W = 360, H = 110;
   // depths as said: metres below the surface, positive
-  const fmtDepth = (z) => (z >= -1 ? 'under 1 m' : `${Math.floor(-z)} m`);
   function profileBlock(id) {
     const el = now(id), u = ctx.units();
     const open = profileShown.has(id);
@@ -485,7 +482,7 @@ export function drawView(root, ctx) {
     for (const [x, cls] of [[deepest, 'pmax'], [shallowest, 'pmin']]) chart.append(svg('circle', { cx: X(x.d), cy: Y(x.z), r: 2.5, class: cls }));
     const cursor = svg('line', { y1: 0, y2: H, class: 'pcursor', visibility: 'hidden' });
     chart.append(cursor);
-    const at = h('span', { class: 'fvalue' }, '');
+    const at = fvalue('');
     const nearest = (d) => pts.reduce((a, b) => (Math.abs(b.d - d) < Math.abs(a.d - d) ? b : a));
     // the chart's cursor at d (metres along), and the place on the map; null: none
     profileCursor = (d) => {
@@ -498,9 +495,9 @@ export function drawView(root, ctx) {
     chart.addEventListener('pointermove', (e) => { const r = chart.getBoundingClientRect(); profileCursor(((e.clientX - r.left) / r.width) * length); });
     chart.addEventListener('pointerleave', () => profileCursor(null));
     return h('div', { class: 'fblock', 'data-key': `profile ${++profileBuilt}` }, head, // profileCursor is this one's: never kept by morph
-      row('Depth', h('span', { class: 'fvalue' }, `${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}`), at),
+      row('Depth', fvalue(`${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}`), at),
       chart,
-      row('Seabed', h('span', { class: 'fvalue', title: 'A lower bound' },
+      row('Seabed', fvalue(
         `${fmtDist(seabed, u)} along the seabed · ${fmtDist(length, u)} on the surface`),
       h('button', { type: 'button', class: 'small', title: 'The profile as a file', onclick: () => ctx.download(profileCsv(p.prof), `${(el.name || 'line').replace(/[^\p{L}\p{N}-]+/gu, '-')}-profile.csv`, 'text/csv') }, 'CSV')));
   }
@@ -531,7 +528,6 @@ export function drawView(root, ctx) {
     const coord = (k, axis, get, put) => F.coord(axis, get, put, `Point ${k + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
     const vcoord = (k, axis) => coord(k, axis, () => now(id).vertices[k - 1].position[axis === 'lat' ? 1 : 0],
       (v) => set(id, (x) => { const p = x.vertices[k - 1].position; x.vertices[k - 1].position = axis === 'lat' ? [p[0], v] : [v, p[1]]; }));
-    const value = (t) => h('span', { class: 'fvalue' }, t);
     const endKey = (k) => (k === 0 ? 'start' : 'end');
     const endCells = (k) => {
       const key = endKey(k);
@@ -541,7 +537,7 @@ export function drawView(root, ctx) {
       return [at('lat'), at('lon')];
     };
     const lu = unitOf(ps.slice(1).map((_, k) => legOf(ps, k + 1).s));
-    const legCells = (k) => (k === N - 1 && el.end.element ? [value(inUnit(legOf(ps, k).s, lu)), value(legOf(ps, k).azi.toFixed(1))] : legFields(id, positionsOf, k, setLineLeg, 'Point', lu));
+    const legCells = (k) => (k === N - 1 && el.end.element ? [fvalue(inUnit(legOf(ps, k).s, lu)), fvalue(legOf(ps, k).azi.toFixed(1))] : legFields(id, positionsOf, k, setLineLeg, 'Point', lu));
     const name = (k) => field(() => now(id).vertices[k - 1].name, (t) => t, (nv) => set(id, (x) => { x.vertices[k - 1].name = nv; }), { 'aria-label': `Point ${k + 1} name`, placeholder: 'name' });
     // the grid fits the panel's 320 px: #, Lat, Lon, the leg and its bearing; the row current says
     // how far along the line its point is, and holds a vertex's name, in the bar over the grid
@@ -558,7 +554,7 @@ export function drawView(root, ctx) {
       return [attach, el[key].element ? act('Detach', 'Free, where it is', () => set(id, (x) => { x[key] = freeRef(x[key]); })) : null].filter(Boolean);
     };
     const pg = paged(`${id}:points`, N), abs = (r) => pg.rows[r];
-    const U = UNIT_HEAD[lu];
+    const U = UNIT_TEXT[lu];
     const table = listGrid({ name: pg.name,
       columns: [...PLACE_COLUMNS, { head: `Leg ${U}`, width: 56, cls: 'n', title: 'From the point before' },
         { head: 'Brg °T', width: 52, cls: 'n', title: 'Its bearing' }],
@@ -595,7 +591,7 @@ export function drawView(root, ctx) {
     const shared = below.length > 1 ? sharedRows(below) : [];
     const totalsOf = below.length ? totalsBlock(null, (gid) => (gid ? groupPath(doc, doc.groups.find((g) => g.id === gid)) : ''), breakdown(doc, null, new Set(below.map((x) => x.el.id))), '', `${id}:totals`) : null;
     return [...commonTop('group', id),
-      row('Members', h('span', { class: 'fvalue' }, [plural(below.length, 'element'), allSubs ? plural(allSubs, 'subgroup') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
+      row('Members', fvalue([plural(below.length, 'element'), allSubs ? plural(allSubs, 'subgroup') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
       totalsOf,
       actionsRow(ruleActs(id), h('button', { type: 'button', class: 'small', title: 'Everything in it', disabled: !below.length, onclick: () => drawing.select(below.map((x) => x.el.id)) }, 'Select members')),
       ...(shared.length ? [h('div', { class: 'fblock' }, h('h3', {}, 'Each member'), ...shared)] : []),
@@ -636,7 +632,7 @@ export function drawView(root, ctx) {
       };
       if (rows.length) out.push(h('div', { class: 'fblock' }, h('h3', { title: 'Every part two or more points have' }, 'Parts · of each point'),
         listGrid({ name: 'shared:parts', plain: true, head: true,
-          columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 }, { head: `Size ${UNIT_HEAD[sizeU]}`, width: 80, cls: 'n', title: 'Radius, or length' }, { head: `Across ${UNIT_HEAD[acrossU]}`, width: 64, cls: 'n', title: 'Aperture (°), or width' }, { head: 'Fill', width: 40 }],
+          columns: [{ head: '#', width: 28, cls: 'num' }, { head: 'Kind', width: 92 }, { head: `Size ${UNIT_TEXT[sizeU]}`, width: 80, cls: 'n', title: 'Radius, or length' }, { head: `Across ${UNIT_TEXT[acrossU]}`, width: 64, cls: 'n', title: 'Aperture (°), or width' }, { head: 'Fill', width: 40 }],
           rows: rows.map((i) => ({ cells: [`${i + 1}`, kindCell(i), sizeCell(i), acrossCell(i),
             check('', same(partsAt(i), (q) => q.fill), (v) => at(i, (q) => { q.fill = v; }), { 'aria-label': `Part ${i + 1} filled, each` })] })) })));
     }
@@ -681,7 +677,7 @@ export function drawView(root, ctx) {
     const text = a ? `Distribute along ${along ? label(along.kind, along.el) : 'what is gone'} · ${copies(a.points.length)}${c ? `, connected to ${plural(live(rootIds(c)), 'root')}` : ''}`
       : `Connection · ${c.pattern === 'chain' ? 'chains' : 'trees'}, ${plural(live(c.pointIds), 'point')} to ${plural(live(rootIds(c)), 'root')}`;
     const all = () => { const g = a ? a.groupId : c.groupId; drawing.select(membersOf(drawing.doc, g, true).filter((x) => x.kind !== 'group').map((x) => x.el.id)); };
-    return { row: row('Made by', h('span', { class: 'fvalue', title: text }, text)),
+    return { row: row('Made by', fvalue(text, { title: text })),
       acts: [h('button', { type: 'button', class: 'small', title: 'Its settings', disabled: a && !along, onclick: () => (a ? openDistribution(a.along, a) : openConnect(c.pointIds, c)) }, 'Edit…'),
         h('button', { type: 'button', class: 'small', title: 'Everything it made', onclick: all }, 'Select all')] };
   }
@@ -788,7 +784,7 @@ export function drawView(root, ctx) {
     const drop = (k) => () => { if (k < con.roots.length) con.roots = con.roots.filter((_, i) => i !== k); else con.newRoots = con.newRoots.filter((_, i) => i !== k - con.roots.length); redo(); };
     const weight = (k) => (k < con.roots.length
       ? F.number(() => con.roots[k].weight, (v) => { con.roots[k].weight = v; redo(); }, `Weight of ${names[k]}`, { above: true, title: 'Its pull' })
-      : h('span', { class: 'fvalue', title: 'Set it once made' }, '1'));
+      : fvalue('1', { title: 'Set it once made' }));
     return [row('Pattern', segOf('Tree or chain', [['tree', 'Tree', 'root → hub → each point'], ['chain', 'Chain', 'root → point → next point …']], con.pattern, (v) => { con.pattern = v; redo(); })),
       row('Group size', pair(segOf('Group size', [['auto', 'Auto', `any size: the cheapest cut${con.pattern === 'tree' ? ` (trees of up to ${MAX_TREE})` : ''}`], ['set', 'Set', `points at most per ${what}`]], con.groupSize === 'auto' ? 'auto' : 'set', (v) => { con.groupSize = v === 'auto' ? 'auto' : 3; redo(); }), '',
         con.groupSize === 'auto' ? [] : F.number(() => con.groupSize, (v) => { con.groupSize = v; redo(); }, 'Group size', { whole: true, above: true, max: con.pattern === 'tree' ? MAX_TREE : Infinity, title: `Points at most per ${what}` }))),
@@ -895,7 +891,7 @@ export function drawView(root, ctx) {
         offsetElsewhere.length ? h('p', { class: 'note' }, 'Offset also set on ', ...offsetElsewhere.map((x) => link(x.el.id))) : null,
         row('Leg bearings', check('', ctx.display.bearings, (v) => ctx.setDisplay({ bearings: v }), { 'aria-label': 'Leg bearings', title: 'Beside each length on the map' }))]),
       n > 1 ? totalsBlock(keys.length ? by : null, groupName) : null,
-      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Download › Drawing (GeoJSON), in the bar, keeps it as a file.') : null,
+      drawing.saving.failed ? h('p', { class: 'note warn' }, 'This browser does not let the drawing be saved (storage full or turned off): Download › Drawing (GeoJSON) keeps it as a file.') : null,
       drawing.saving.otherTab ? h('p', { class: 'note warn' }, 'The drawing was changed in another tab. Saving here replaces that version. ', h('button', { type: 'button', class: 'small', onclick: () => location.reload() }, 'Reload')) : null];
   }
   // The Totals view (docs/drawing-ui.md §5): a list grid, no head, of the lines by group (or by a

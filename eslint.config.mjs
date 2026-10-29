@@ -9,5 +9,5 @@ export default [
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   { files: ['site/**/*.js'], languageOptions: { globals: { ...globals.browser, ...globals.worker } } },
   { files: ['test/**/*.mjs', 'tools/**/*.mjs', '*.mjs'], languageOptions: { globals: { ...globals.node, ...globals.browser, map: 'readonly', drawing: 'readonly' } } }, // map, drawing: in page.evaluate
-  { rules: { 'no-unused-vars': ['error', { caughtErrors: 'none' }], eqeqeq: ['error', 'always', { null: 'ignore' }], 'no-var': 'error', 'prefer-const': 'error', 'no-unused-expressions': ['error', { allowTernary: true }] } },
+  { rules: { 'no-unused-vars': ['error', { caughtErrors: 'none', ignoreRestSiblings: true }], eqeqeq: ['error', 'always', { null: 'ignore' }], 'no-var': 'error', 'prefer-const': 'error', 'no-unused-expressions': ['error', { allowTernary: true }] } },
 ];

@@ -2,7 +2,7 @@
 // (zarr.js) and written as GeoTIFF (geotiff.js), over the view's bounding box [west, south, east,
 // north]. Each returns [{ key, file, w, h, transform, names, units, title, description, data }].
 import { CMEMS, EMODNET_DTM, GEBCO, GEBCO_TID } from './catalog.js';
-import { partTimes, partLevels, regionOf, cmemsStacUrl, storedVariables } from './cmems.js';
+import { partTimes, partLevels, regionOf, cmemsStacUrl, storedVariables, partOf } from './cmems.js';
 import { openStore, timeScale, nearest, cellsOf, readCells } from './zarr.js';
 import { geotiff } from './geotiff.js';
 import { fetchOk, fetchBytes, lru } from './net.js';
@@ -42,7 +42,7 @@ export async function cmemsValues(id, at, box) {
     const planes = await Promise.all(names.map((n) => readCells(store, n, ti, zi, cells)));
     const region = regionOf(part)?.name || (v.parts.length > 1 ? 'Global' : ''), key = `raster/${id}${region ? `-${region.toLowerCase()}` : ''}`;
     const when = new Date(ts[ti]).toISOString(), level = elevation ? +Math.abs(elevation[zi]).toFixed(2) : null;
-    const description = `${part.split('/').slice(0, 2).join(' / ')}: ${names.join(', ')} (${[...new Set(units)].join(', ')}) at ${when}${level != null ? `, ${level} m deep` : ''}; its own grid, EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN`;
+    const description = `${partOf(part).id.replace('/', ' / ')}: ${names.join(', ')} (${[...new Set(units)].join(', ')}) at ${when}${level != null ? `, ${level} m deep` : ''}; its own grid, EPSG:4326${cells.step > 1 ? `, every ${cells.step}th cell` : ''}, over the view's bounding box. No data: NaN`;
     return rasterOf(cells, key, { title: `${v.label}${region ? `, ${region}` : ''}: values`, description, names, units, planes,
       bands: names.map((n, k) => ({ description: `${n}, ${when}${level != null ? `, ${level} m` : ''}`, unit: units[k] })) });
   }))).filter(Boolean);

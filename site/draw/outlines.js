@@ -32,7 +32,7 @@ export function unitOutline(outline) {
 }
 
 // A shape's outline on the ellipsoid: { ring (closed, its edges geodesics), corners (of its bounding
-// rectangle: front right, back right, back left, front left, as geodesy.rectangle) }. Each point is
+// rectangle: front right, back right, back left, front left, as outlines.js's rectangle) }. Each point is
 // a geodesic destination from the centre, as the rectangle's corners are.
 // Kept by what it depends on, as lines' traces are: an unchanged shape is not computed again (callers
 // read it, never change it). points: its own corners (outlinePoints).
@@ -50,5 +50,5 @@ export function outlineOf(center, bearing, length, width, outline = 'rectangle')
   return o;
 }
 // An outline's own corners on the ellipsoid, in order, not closed: a rectangle's four (as
-// geodesy.rectangle), a silhouette's points. Its edges join each to the next, the last to the first.
+// outlines.js's rectangle), a silhouette's points. Its edges join each to the next, the last to the first.
 export const outlinePoints = (...args) => outlineOf(...args).points;

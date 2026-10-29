@@ -5,7 +5,7 @@ import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS, INK
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
 import { drawRamp, drawColormap, drawClasses, wmsClasses } from './legend.js';
-import { fmtAngle, dm, mercatorVariation, NOTE_AT, exportName } from './format.js';
+import { fmtAngle, dm, fmtDepth, mercatorVariation, NOTE_AT, exportName } from './format.js';
 import { Drawing } from './draw/drawing.js';
 import { isoNow } from './draw/document.js';
 import { DRAW_LAYERS } from './draw/layers.js';
@@ -602,7 +602,7 @@ function setTime(t) {
 // has (min, max: the browser's calendar greys out the rest, the field's tooltip names them); the
 // chip opens the calendar itself. Every layer draws the time shown at its own time resolution:
 // that hour, the 3-hour step holding it, that day.
-const when = $('#when'), whenIn = $('input', when), shown = shownEl;
+const when = $('#when'), whenIn = $('input', when);
 const pad = (n) => String(n).padStart(2, '0');
 const depthWords = (d) => (d ? `${d} m deep` : 'surface'); // each model at its level nearest the depth chosen
 const fmtDate = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
@@ -636,7 +636,7 @@ depthEl.addEventListener('change', (e) => setDepth(+e.target.value));
 function renderWhen() {
   const on = timeOn().length > 0, deep = depthOn().length > 0;
   when.hidden = !on;
-  shown.hidden = !on;
+  shownEl.hidden = !on;
   depthEl.hidden = !(on && deep);
   if (!on) return;
   updateRange();
@@ -652,8 +652,8 @@ function renderWhen() {
   const part = (o) => d.toLocaleDateString([], { ...o, timeZone: tz });
   const day = same(new Date()) ? 'Today' // "Wed 21 Oct", in this order in every locale
     : `${part({ weekday: 'short' })} ${d.toLocaleDateString('en', { day: 'numeric', timeZone: tz })} ${part({ month: 'short' })}`;
-  shown.textContent = [day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' ');
-  shown.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}. A click: the calendar`;
+  shownEl.textContent = [day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' ');
+  shownEl.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}. A click: the calendar`;
 }
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
 const STEPS = [30, 20, 10, 5, 2, 1, 30 / 60, 20 / 60, 10 / 60, 5 / 60, 2 / 60, 1 / 60];
@@ -760,10 +760,11 @@ function infoBlock(it) {
     h('p', {}, h('b', {}, 'Resolution '), it.info.res),
     it.info.url ? h('p', {}, h('a', { href: it.info.url, target: '_blank', rel: 'noopener noreferrer' }, it.info.url.replace(/^https:\/\/(www\.)?/, '').replace(/\/.*$/, ''))) : null);
 }
-function moreButton(label, info) {
-  return h('button', { class: 'more', type: 'button', title: 'Source, licence, resolution', 'aria-label': `About ${label}`, 'aria-expanded': 'false',
-    onclick: (e) => { info.hidden = !info.hidden; e.currentTarget.setAttribute('aria-expanded', String(!info.hidden)); } }, icon(...ICON.info));
+function moreButton(label, onclick) {
+  return h('button', { class: 'more', type: 'button', title: 'Source, licence, resolution', 'aria-label': `About ${label}`, 'aria-expanded': 'false', onclick }, icon(...ICON.info));
 }
+// a ⓘ's click: its block shown or hidden
+const toggles = (info) => (e) => { info.hidden = !info.hidden; e.currentTarget.setAttribute('aria-expanded', String(!info.hidden)); };
 // what the item shows (scheme, source, its kind's controls) sits under its row while it is on
 function controlsOf(it) {
   let variant = null;
@@ -780,7 +781,7 @@ function itemRow(it) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
   const info = infoBlock(it), controls = controlsOf(it);
   const row = h('li', { class: 'item' },
-    h('div', { class: 'line' }, h('label', { class: 'name', for: input.id }, it.label, h('span', { class: 'hint' })), moreButton(it.label, info), input),
+    h('div', { class: 'line' }, h('label', { class: 'name', for: input.id }, it.label, h('span', { class: 'hint' })), moreButton(it.label, toggles(info)), input),
     controls, info);
   rows[it.id] = { row, input, controls };
   return row;
@@ -788,12 +789,11 @@ function itemRow(it) {
 // Base: two cards (a radio group); the satellite source and the provenance below them
 function baseBlock(items) {
   const infos = Object.fromEntries(items.map((it) => [it.id, infoBlock(it)]));
-  const more = moreButton('this base', h('div')); // toggles the info of whichever base is shown
-  more.onclick = (e) => {
+  const more = moreButton('this base', (e) => { // the info of whichever base is shown
     const open = e.currentTarget.getAttribute('aria-expanded') !== 'true';
     e.currentTarget.setAttribute('aria-expanded', String(open));
     for (const [id, el] of Object.entries(infos)) el.hidden = !(open && state.on.has(id));
-  };
+  });
   const cards = items.map((it) => {
     const card = h('button', { type: 'button', class: 'basecard', 'data-base': it.id, id: `i-${it.id}`, 'aria-pressed': 'false', onclick: () => setOn(it.id, true) },
       h('div', { class: 'thumb' }), h('span', {}, it.label));
@@ -811,8 +811,7 @@ const picks = {}; // slot → its menu
 let dataMore = null, dataInfos = {};
 function dataBlock(items, sections) {
   dataInfos = Object.fromEntries(items.map((it) => [it.id, infoBlock(it)]));
-  dataMore = moreButton('the ocean data shown', h('div'));
-  dataMore.onclick = (e) => { e.currentTarget.setAttribute('aria-expanded', String(e.currentTarget.getAttribute('aria-expanded') !== 'true')); renderMenu(); };
+  dataMore = moreButton('the ocean data shown', (e) => { e.currentTarget.setAttribute('aria-expanded', String(e.currentTarget.getAttribute('aria-expanded') !== 'true')); renderMenu(); });
   const pick = (slot, label) => {
     picks[slot] = h('select', { 'aria-label': label, onchange: (e) => { state[slot] = e.target.value; applyData(); labelPaint(); writeHash(); renderMenu(); } },
       h('option', { value: '' }, 'None'),
@@ -1081,8 +1080,8 @@ window.addEventListener('keydown', (e) => {
   if (k.open === 'search') { e.preventDefault(); setFinding(true); }
   else if (k.open === 'elements' || k.open === 'layers') frame.toggleTab(k.open);
   else if (k.open === 'props') frame.setProps(!frame.props);
-  else if (k.tool[1] === 'box') drawing.boxSelect(!drawing.boxNext);
-  else drawPanel.step(k.tool[1]); // on, off, or a tool with kinds its next
+  else if (k.tool === 'box') drawing.boxSelect(!drawing.boxNext);
+  else drawPanel.step(k.tool); // on, off, or a tool with kinds its next
 });
 // the tooltips and About say the keys
 $('#about .keys').replaceChildren(...keyList());
@@ -1116,7 +1115,7 @@ map.on('click', async (e) => {
   if (!Number.isFinite(v)) { depthPopup.remove(); return; } // land, a lake, inland water: no depth here
   const source = DEPTH_SOURCES.find(({ codes: [a, b] }) => code >= a && code <= b);
   // −1: shallower than 1 m, or sea the data calls dry (clip.js)
-  const depth = v >= -1 ? 'Under 1 m' : `${Math.floor(-v)} m`;
+  const depth = fmtDepth(v).replace(/^u/, 'U');
   depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, depth), h('span', { class: 'at' }, `${dm(lat, 'N', 'S')} ${dm(norm180(lng), 'E', 'W')}`),
     h('small', {}, ['GEBCO 2026', source?.label.toLowerCase()].filter(Boolean).join(' · ')))).addTo(map);
 });

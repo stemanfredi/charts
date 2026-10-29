@@ -62,11 +62,11 @@ const indexWith = (html) => {
 // what differs from --write's result: [] when nothing (the unit tests assert this)
 export async function stale() {
   const out = [];
-  for (const [name, bytes] of await wanted()) {
+  const w = await wanted();
+  for (const [name, bytes] of w) {
     const have = await readFile(new URL(name, VENDOR)).catch(() => null);
     if (!have || !have.equals(bytes)) out.push(`site/vendor/${name}`);
   }
-  const w = await wanted();
   for (const e of await readdir(VENDOR, { withFileTypes: true }).catch(() => [])) if (!w.has(e.name) || e.isDirectory()) out.push(`site/vendor/${e.name}: not a library of package.json's`);
   const html = await readFile(INDEX, 'utf8');
   if (indexWith(html) !== html) out.push('index.html: the Content-Security-Policy');

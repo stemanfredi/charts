@@ -125,7 +125,7 @@ export function lineRef(doc, line, d) {
   const at = tr.legs[k] ? (dd - tr.at[k]) / tr.legs[k] : 0;
   return { position: pointsAlong(tr.coords, [dd])[0].position, element: line.id, edge: k, at: +Math.min(1, Math.max(0, at)).toFixed(6) };
 }
-const clean = ({ d, ...ref }) => ref; // eslint-disable-line no-unused-vars
+const clean = ({ d, ...ref }) => ref;
 
 // The references on the vertices and edges of element id placed again where they are now: after its
 // vertices changed in number (one added or removed, another outline), each goes to the nearest vertex,
@@ -176,7 +176,6 @@ export function splitKeeping(doc, lineId, index) {
   return point;
 }
 
-// what a reference is on, in words: "", "vertex 2", "edge 3"
 // where on what it is attached to, as the tables number it: a line's point or leg, an area's or an
 // outline's corner or edge
 export const partName = (r, kind) => (r.vertex != null ? `${kind === 'line' ? 'point' : 'corner'} ${r.vertex + 1}` : r.edge != null ? `${kind === 'line' ? 'leg' : 'edge'} ${r.edge + 1}` : '');

@@ -26,7 +26,7 @@ export function sectorEdgeTo(centre, bearing, aperture, edge, p, snap = 0) {
 
 
 // A rectangle resized by dragging its corner i (0 front right, 1 back right, 2 back left, 3 front
-// left, as geodesy.rectangle) to p: the opposite corner stays put (aboutCentre: the centre does), its
+// left, as outlines.js's rectangle) to p: the opposite corner stays put (aboutCentre: the centre does), its
 // bearing unchanged; keep: proportions kept. Returns { center, length, width }.
 export function resizeRect(shape, corners, i, p, { keep = false, aboutCentre = false } = {}) {
   const fixed = aboutCentre ? shape.center : corners[(i + 2) % 4];
@@ -47,7 +47,7 @@ export function resizeRect(shape, corners, i, p, { keep = false, aboutCentre = f
 }
 
 // A rectangle with one side dragged to the pointer, the opposite side kept (aboutCentre: the centre
-// kept, both sides moving): side i runs from corner i to corner i + 1 (geodesy.rectangle's order:
+// kept, both sides moving): side i runs from corner i to corner i + 1 (outlines.js's rectangle's order:
 // 0 the right side, 1 the back, 2 the left, 3 the front). Returns { center, length, width }.
 export function resizeSide(shape, i, p, { aboutCentre = false } = {}) {
   const f = localFrame(shape.center), v = f.to(p), b = shape.bearing * D2R;

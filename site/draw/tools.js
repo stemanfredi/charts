@@ -156,5 +156,5 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
     renderTouch();
     renderKinds();
   }
-  return { press, step, renderTools, renderTouch };
+  return { step, renderTools, renderTouch };
 }

@@ -69,7 +69,7 @@ export function askText(title, what, value = '') {
   return asked;
 }
 
-// The note: what just happened, for a few seconds, at the map's foot
+// The note: what just happened, for a few seconds, a chip under the bar
 let noteEl = null, noteTimer = 0;
 export function note(text) {
   if (!noteEl) document.body.append(noteEl = h('div', { class: 'dnote', role: 'status', hidden: true })); // a chip under the bar, at the centre

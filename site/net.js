@@ -17,7 +17,7 @@ export async function fetchBytes(url) {
 }
 // A cache of promises (max Infinity: every one kept), the least recently used forgotten past max: get(key, make) gives the
 // one kept or makes it (forgotten if it fails, so the next ask tries again); peek(key) the one kept,
-// if any, without counting as a use; delete(key).
+// if any, without counting as a use.
 export function lru(max) {
   const m = new Map();
   const get = (key, make) => {
@@ -28,6 +28,5 @@ export function lru(max) {
     return v;
   };
   get.peek = (key) => m.get(key);
-  get.delete = (key) => m.delete(key);
   return get;
 }

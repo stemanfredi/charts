@@ -34,10 +34,10 @@ import { fileURLToPath } from 'node:url';
 import { openStore, readCells } from '../site/zarr.js';
 import { lru } from '../site/net.js';
 
-export const RELEASE = 'gebco-2026';
+const RELEASE = 'gebco-2026';
 const CEDA = 'https://dap.ceda.ac.uk/bodc/gebco/global/gebco_2026';
 const LISTING = 'https://data.ceda.ac.uk/bodc/gebco/global/gebco_2026';
-export const CHUNK = 512, LEVELS = 7;
+const CHUNK = 512, LEVELS = 7;
 
 // 2 × 2 means of an h × w array (h, w even) → Float32Array
 export function mean2(a, h, w) {
@@ -66,7 +66,7 @@ export function mode2(a, h, w) {
   return out;
 }
 
-export const GRIDS = {
+const GRIDS = {
   elevation: {
     remote: 'ice_surface_elevation', local: 'elevation', match: /^gebco_2026_n.*_geotiff\.tif$/, T: Int16Array, dtype: '<i2', fill: -32768,
     work: Float32Array, down: mean2, store: (a) => { const o = new Int16Array(a.length); for (let i = 0; i < a.length; i++) o[i] = Math.round(a[i]); return o; }, type: 'mean',
@@ -90,7 +90,7 @@ export const GRIDS = {
 // ---- GeoTIFF: the grid's files are uncompressed and stored row by row, so rows are read directly ----
 
 // file → { width, height, bytes (per cell), offset (of row 0) }; anything else is refused
-export function tiffLayout(fd) {
+function tiffLayout(fd) {
   const read = (pos, n) => { const b = Buffer.alloc(n); readSync(fd, b, 0, n, pos); return b; };
   const h = read(0, 8);
   if (h.toString('latin1', 0, 2) !== 'II' || h.readUInt16LE(2) !== 42) throw new Error('not a little-endian classic TIFF');
@@ -112,7 +112,7 @@ export function tiffLayout(fd) {
 }
 
 // the grid's eight files (90° × 90° each, named by their bounds) → { files, cells, rows, cols }
-export function openGrid(dir, name) {
+function openGrid(dir, name) {
   const g = GRIDS[name], folder = join(dir, g.local), files = new Map();
   for (const f of readdirSync(folder).filter((x) => g.match.test(x))) {
     const [n, , w] = /_n(-?[\d.]+)_s(-?[\d.]+)_w(-?[\d.]+)_e/.exec(f).slice(1).map(Number);
@@ -126,7 +126,7 @@ export function openGrid(dir, name) {
 }
 
 // rows r0..r1−1 of the whole grid, all columns
-export function readRows(grid, r0, r1) {
+function readRows(grid, r0, r1) {
   const { files, cells, cols, T } = grid, out = new T((r1 - r0) * cols), bpe = T.BYTES_PER_ELEMENT;
   for (let rb = Math.floor(r0 / cells); rb <= Math.floor((r1 - 1) / cells); rb++) {
     const a = Math.max(r0, rb * cells), z = Math.min(r1, (rb + 1) * cells);

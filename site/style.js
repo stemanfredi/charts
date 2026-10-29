@@ -56,7 +56,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     ...Object.fromEntries(Object.entries(OVERLAYS).flatMap(([item, vs]) => Object.entries(vs).map(([v, tiles]) => [`ov-${item}-${v}`,
       { type: 'raster', tileSize: 256, maxzoom: OVERLAY_MAXZOOM[item] ?? 18, tiles, attribution: OVERLAY_CREDIT[item] || HA_CREDIT }]))),
     // GEBCO's type identifier grid, coloured by gebco.js (gebco-tid://); level 0 from zoom 8, then magnified
-    'gebco-tid': { type: 'raster', tileSize: 256, maxzoom: 10, tiles: ['gebco-tid://{z}/{x}/{y}'], attribution: '<a href="https://www.gebco.net">GEBCO 2026 Grid</a>' },
+    'gebco-tid': { type: 'raster', tileSize: 256, maxzoom: 10, tiles: ['gebco-tid://{z}/{x}/{y}'], attribution: ATTR_GEBCO },
     graticule: empty(),
     // the drawing (draw/drawing.js): what never depends on the zoom, what may, the marks (selection, the
     // line being drawn)

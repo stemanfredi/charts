@@ -14,16 +14,16 @@ const KEYS = [
   { line: 1, key: 'l', text: 'layers', open: 'layers' },
   { line: 1, key: 'e', text: 'elements', open: 'elements' },
   { line: 1, key: 'i', text: 'properties', open: 'props' },
-  { line: 3, key: 'b', text: 'box select', tool: ['draw', 'box'] },
-  { line: 3, key: 'p', text: 'point', tool: ['draw', 'point'] },
-  { line: 3, key: 'g', text: 'line', tool: ['draw', 'line'] },
-  { line: 3, key: 's', text: 'shape', tool: ['draw', 'shape'] },
-  { line: 3, key: 't', text: 'label', tool: ['draw', 'label'] },
-  { line: 3, key: 'm', text: 'measure', tool: ['draw', 'measure'] },
+  { line: 3, key: 'b', show: '[B] or Shift-drag', text: 'box select', tool: 'box' },
+  { line: 3, key: 'p', text: 'point', tool: 'point' },
+  { line: 3, key: 'g', text: 'line', tool: 'line' },
+  { line: 3, key: 's', text: 'shape', tool: 'shape' },
+  { line: 3, key: 't', text: 'label', tool: 'label' },
+  { line: 3, key: 'm', text: 'measure', tool: 'measure' },
   { line: 4, show: 'A tool\'s key again:', text: 'its next kind (Shape; Point with presets)' },
   { line: 4, show: '[Enter]', text: 'or double-click finishes' },
   { line: 4, show: '[Backspace]', text: 'takes back a point' },
-  { line: 4, show: '[Esc]', text: 'cancels' },
+  { line: 4, show: '[Esc] or right-click', text: 'back one step' },
   { line: 5, show: '[↑][↓]', text: 'select' },
   { line: 5, show: mac ? '[Delete] or [⌘] [Backspace]' : '[Delete]', text: 'deletes' },
   { line: 5, show: '[F2]', text: 'rename' },
@@ -37,7 +37,7 @@ const KEYS = [
 export const keyEntry = (key) => KEYS.find((k) => k.key === key.toLowerCase());
 // a tool's key, for its tooltip ("R"), or ''; openKey: the key opening a panel ("L")
 export function keyOf(tool) {
-  const k = KEYS.find((x) => x.tool?.[1] === tool);
+  const k = KEYS.find((x) => x.tool === tool);
   return k ? k.key.toUpperCase() : '';
 }
 export const openKey = (name) => KEYS.find((x) => x.open === name)?.key.toUpperCase() ?? '';

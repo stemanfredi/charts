@@ -5,11 +5,10 @@
 // elements that differ): the field empty, "mixed" its placeholder.
 
 import { h } from './dom.js';
-import { parseCoord, parseDist, distText, UNIT_M } from './format.js';
+import { parseCoord, parseDist, distText, UNIT_TEXT, inUnit } from './format.js';
 import { MAX_LAT, norm360 } from './geo.js';
 
 const num = (t) => Number(t.replace(',', '.').trim());
-const UNIT_TEXT = { m: 'm', km: 'km', nm: 'NM' };
 // A number in a text stepped by one unit of its last decimal place (a whole: by 1), ten with big, its
 // unit kept ("1.2 km" ↑ "1.3 km"); lo: the least it may be. null: no number there.
 export function stepped(text, up, big, lo = -Infinity) {
@@ -73,7 +72,7 @@ export function fields({ note, units }) {
   // it), or in a table's head
   const dist = (get, put, aria, { zero = false, check = () => null, in: fixed = null, ...attrs } = {}) => {
     let unit;
-    const input = field(() => { const v = get(); if (v == null) { unit = fixed || (units() === 'nm' ? 'nm' : 'km'); return ''; } if (fixed) { unit = fixed; return (v / UNIT_M[fixed]).toFixed(fixed === 'm' ? 0 : 3); } const t = distText(v, units()); unit = t.unit; return zero && !v ? '0' : `${t.value}`; }, (t) => {
+    const input = field(() => { const v = get(); if (v == null) { unit = fixed || (units() === 'nm' ? 'nm' : 'km'); return ''; } if (fixed) { unit = fixed; return inUnit(v, fixed); } const t = distText(v, units()); unit = t.unit; return zero && !v ? '0' : `${t.value}`; }, (t) => {
       const m = zero && t.trim() === '0' ? 0 : parseDist(t, unit);
       return m === null || (zero ? m < 0 : m <= 0) || check(m) ? undefined : m;
     }, put, { 'aria-label': aria, class: 'dist', nudge: (t, up, big) => stepped(t, up, big, 0), bad: zero ? 'a distance, 0 or more, with m, km or NM' : 'a distance above 0, with m, km or NM',
@@ -100,12 +99,12 @@ export function fields({ note, units }) {
   const position = (get, put, aria = '', fixed = null) => [
     h('span', { class: 'funit' }, 'Lat'), coord('lat', () => get()[1], (v) => put([get()[0], v]), `${aria}Latitude`.trim(), fixed),
     h('span', { class: 'funit' }, 'Lon'), coord('lon', () => get()[0], (v) => put([v, get()[1]]), `${aria}Longitude`.trim(), fixed)];
-  // a number in a range (pixels, a count): empty → null when allowed; whole: integers only
-  const number = (get, put, aria, { min = 0, max = Infinity, above = false, empty = false, whole = false, bad, ...attrs } = {}) => field(() => { const v = get(); return v == null ? '' : `${v}`; }, (t) => {
-    if (!t.trim()) return empty ? null : undefined;
+  // a number in a range (pixels, a count); whole: integers only
+  const number = (get, put, aria, { min = 0, max = Infinity, above = false, whole = false, bad, ...attrs } = {}) => field(() => { const v = get(); return v == null ? '' : `${v}`; }, (t) => {
+    if (!t.trim()) return undefined;
     const v = num(t);
     return Number.isFinite(v) && (!whole || Number.isInteger(v)) && (above ? v > min : v >= min) && v <= max ? v : undefined;
-  }, put, { 'aria-label': aria, class: 'angle', inputmode: whole ? 'numeric' : 'decimal', nudge: (t, up, big) => stepped(t, up, big, min), bad: bad || `${whole ? 'a whole number' : 'a number'} ${above ? 'above' : 'from'} ${min}${max < Infinity ? ` to ${max}` : ''}${empty ? ', or empty' : ''}`, ...attrs });
+  }, put, { 'aria-label': aria, class: 'angle', inputmode: whole ? 'numeric' : 'decimal', nudge: (t, up, big) => stepped(t, up, big, min), bad: bad || `${whole ? 'a whole number' : 'a number'} ${above ? 'above' : 'from'} ${min}${max < Infinity ? ` to ${max}` : ''}`, ...attrs });
   return { field, text, dist, angle, coord, position, number };
 }
 

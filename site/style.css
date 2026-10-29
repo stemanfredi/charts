@@ -37,7 +37,7 @@ svg { flex: none; }
 
 /* Layout (drawing-ui.md §1, frame.js): the bar across the top; over the map, the left panel
    (Elements, Layers) and the right one (Properties), each as wide as dragged; between them the map's
-   foot (the note, legends, touch row, the map's controls) and the bottom row (credits, the scale).
+   foot (legends, touch row, the map's controls) and the bottom row (credits, the scale).
    On a phone the panels are one bottom sheet at a time. */
 .mapctl { flex: none; display: flex; flex-direction: column; gap: 2px; padding: 4px;
   }
@@ -48,7 +48,7 @@ svg { flex: none; }
 .mapctl button[aria-pressed="true"] { background: var(--accent); color: #fff; } /* my location shown */
 @media (pointer: coarse) { .mapctl button { width: 44px; height: 44px; } #zoom-in, #zoom-out { display: none; } } /* a finger pinches */
 /* the map's foot (drawing-ui.md §1): one strip above the bottom row, between the panels; at its left,
-   stacked, the note, the legends, the touch row; at its right the map's controls. Nothing else there. */
+   stacked, the legends, the touch row; at its right the map's controls. Nothing else there. */
 .foot { position: absolute; z-index: 6; left: 0; right: 0; bottom: var(--status-h); display: flex; align-items: flex-end; gap: 8px; padding: 0 8px 8px 10px; pointer-events: none; }
 .footl { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .footl > :not(.legends), .mapctl { pointer-events: auto; }
@@ -69,12 +69,11 @@ svg { flex: none; }
   body.has-right .status { right: var(--rw); }
   body.has-right > .search { right: calc(var(--rw) + 8px); } /* behind its lens (COMPACT, a child of body): beside Properties; in the bar it stays where it is */
 }
-/* the time shown and the depth, in a box over its chip: ‹ time › Now, then the depth (on the next line if need be) */
+/* the time shown, its field in a box over the chip (for a browser without a picker) */
 .timepop { position: fixed; z-index: 9; padding: 6px; }
 .when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .when input { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 0 8px; }
 .when input { flex: 1; min-width: 0; }
-/* the depth on a row of its own: the time line keeps its width, however long the depth control is */
 .spin { display: inline-block; flex: none; box-sizing: border-box; width: 12px; height: 12px; vertical-align: -1px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; visibility: hidden; } /* a box: a span left inline has no size, its border a thin stain */
 body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -388,7 +387,7 @@ dialog .action { justify-content: center; border: 1px solid var(--line); margin-
 
 /* ---- phones: no cursor position ---- */
 @media (max-width: 719px) { .pos:not(.shown, .depthchip) { display: none; } } /* the time and depth shown stay */
-/* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, Snap, Undo, Properties, over the map's foot, at its left */
+/* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, over the map's foot, at its left */
 .touchbar { display: none; }
 @media (pointer: coarse) {
   .touchbar:not([hidden]) { align-self: stretch; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -438,7 +437,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .kinds .initials { font-size: 12px; font-weight: 600; }
 @media (pointer: coarse) { :is(.bar, .dock) > button, .kinds button { width: 44px; height: 44px; } :is(.bar, .dock) > button svg, .kinds svg { width: 18px; height: 18px; } }
 /* a phone: the bar ☰, find a place, Layers, Elements; the dock along the bottom, Undo and the tools (while
-   one is on: Back, it, Snap, Done), its kinds in a row above it; the panels a bottom sheet over the dock, as
+   one is on: Back, it, Done), its kinds in a row above it; the panels a bottom sheet over the dock, as
    tall as dragged at its grip, the map's foot above it; Properties, while off, its head alone (a peek) */
 @media (max-width: 719px) {
   :root { --sheet: min(var(--sheet-h), calc(100vh - 2 * var(--bar-h) - 160px)); } /* the sheet as tall as dragged, the map's foot and some map left */
@@ -447,7 +446,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
   .bar > .ptab { order: 2; }
   .dock { position: absolute; z-index: 9; left: 0; right: 0; bottom: 0; height: var(--bar-h); display: flex; align-items: center; justify-content: space-evenly; gap: 2px; padding: 1px 6px 0;
     background: var(--bg2); box-shadow: inset 0 1px var(--line); }
-  .dock > button:not(:has(svg)) { width: auto; padding: 0 12px; font-size: 13px; } /* Back, Snap, Done: words */
+  .dock > button:not(:has(svg)) { width: auto; padding: 0 12px; font-size: 13px; } /* Back, Done: words */
   .dock > button.done { background: var(--accent); color: #fff; }
   .dock > .kinds { left: 6px; right: 6px; bottom: calc(100% + 4px); overflow-x: auto; } /* one row, sideways */
   .dock > .kinds button { flex: none; }

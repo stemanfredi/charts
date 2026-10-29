@@ -112,9 +112,9 @@ export const SEAGRASS_CLASSES = [
 // where GEBCO's depths come from, by its type identifier codes (codes [from, to], inclusive); land
 // (0) and no data (127) are not drawn
 export const DEPTH_SOURCES = [
-  { label: 'Surveyed', codes: [10, 17], colour: '#2f9e44', what: 'multibeam, single-beam, seismic, lidar, soundings' },
-  { label: 'Estimated', codes: [40, 47], colour: '#f08c00', what: 'predicted from satellite gravity, interpolated, from chart contours' },
-  { label: 'Other grids, unknown', codes: [70, 72], colour: '#868e96', what: 'taken from another grid, or of unknown origin' },
+  { label: 'Surveyed', codes: [10, 17], colour: '#2f9e44' },
+  { label: 'Estimated', codes: [40, 47], colour: '#f08c00' },
+  { label: 'Other grids, unknown', codes: [70, 72], colour: '#868e96' },
 ];
 // a classed layer's legend for a variant: the URL of its WMS's JSON legend, or the URLs of several
 // (legend.js wmsClasses), or its classes [{ label, colour, … }] where the service gives them as
@@ -161,8 +161,8 @@ export const CLASS_LEGENDS = {
 export const ESRI_META = `${HOSTS.esri}/ArcGIS/rest/services/World_Imagery/MapServer?f=json`;
 
 export const GIBS = {
-  terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
-  viirs: { label: 'True colour · VIIRS NOAA-20', layer: 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg', res: '250 m' },
+  terra: { label: 'True colour · MODIS Terra', layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg' },
+  viirs: { label: 'True colour · VIIRS NOAA-20', layer: 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', level: 9, ext: 'jpg' },
 };
 export function gibsTiles(key, date) {
   const g = GIBS[key];
@@ -238,21 +238,21 @@ export const CMEMS = {
     no3: { label: 'Nitrate', unit: 'mmol/m³', range: [0.01, 30], log: true, cmap: 'matter', daily: true, depth: true, parts: [`${GLO_NUT}/no3`, `${MED_NUT}/no3`] },
     nppv: { label: 'Primary production', unit: 'mg C/m³/day', range: [0, 10], cmap: 'algae', daily: true, depth: true, parts: [`${GLO_BIO}/nppv`, `${MED_BIO}/nppv`] },
   },
-  // wind as arrows alone, over the chart and the waves: thermal starts dark, so light winds stay visible
   temperature: {
     depth: { label: 'Temperature', unit: '°C', range: [0, 30], cmap: 'thermal', daily: true, depth: true, parts: [`${GLO_TEM}/thetao`, `${MED_TEM}/thetao`] },
     bottom: { label: 'Bottom temperature', unit: '°C', range: [0, 30], cmap: 'thermal', daily: true, parts: [`${GLO_2D}/tob`, `${MED_TEM}/bottomT`] },
   },
   salinity: { depth: { label: 'Salinity', unit: 'PSU', range: [32, 40], cmap: 'haline', daily: true, depth: true, parts: [`${GLO_SAL}/so`, `${MED_SAL}/so`] } },
   mld: { depth: { label: 'Mixed layer depth', unit: 'm', range: [0, 200], cmap: 'plasma', daily: true, parts: [`${GLO_2D}/mlotst`, `${MED_MLD}/mlotst`] } },
+  // wind as arrows alone, over the chart and the waves: thermal starts dark, so light winds stay visible
   wind: { observed: { label: 'Wind (satellite)', unit: 'm/s', range: [0, 25], cmap: 'thermal', vector: 'vector', parts: [`${WIND}/wind`] } },
 };
 // what a variant can draw: ['colour'], ['arrows'] or both (its colours, its arrows coloured by speed)
 export const drawsOf = (v) => ({ solidAndVector: ['colour', 'arrows'], vector: ['arrows'] })[v.vector] || ['colour'];
 
-// depths offered for the 3D variables, metres below the surface (0: the model's top level)
 // an item's variants from its datasets: key → label (the menu's and the link's)
 const labelsOf = (vs) => Object.fromEntries(Object.entries(vs).map(([k, v]) => [k, v.label]));
+// depths offered for the 3D variables, metres below the surface (0: the model's top level)
 export const CMEMS_DEPTHS = [0, 10, 20, 50, 100, 200, 500, 1000];
 // ---- menu -------------------------------------------------------------------
 // exclusive: items in the group behave as radio buttons.
@@ -277,7 +277,9 @@ export const GROUPS = [
 // product's (the regional ones are named in its source)
 const product = (id) => `https://data.marine.copernicus.eu/product/${id}/description`;
 const COPERNICUS = { lic: 'Copernicus Marine Service licence: free, attribution required ("Generated using E.U. Copernicus Marine Service Information"; the products are named above)', url: 'https://marine.copernicus.eu' };
-const HUMAN_ACTIVITIES = { lic: 'EMODnet open data, CC BY 4.0: attribution required', url: 'https://emodnet.ec.europa.eu/en/human-activities' };
+const EMODNET_LIC = 'EMODnet open data, CC BY 4.0: attribution required';
+const GEBCO_LIC = 'GEBCO terms: free to use and redistribute, with attribution';
+const HUMAN_ACTIVITIES = { lic: EMODNET_LIC, url: 'https://emodnet.ec.europa.eu/en/human-activities' };
 const OSM = { lic: 'ODbL · © OpenStreetMap contributors', url: 'https://openfreemap.org' };
 
 export const ITEMS = [
@@ -289,19 +291,19 @@ export const ITEMS = [
 
   { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12, kind: 'gebco',
     variants: { atlas: 'Darker = deeper (atlas)', nautical: 'Darker = shallower (nautical chart)' },
-    info: { src: 'GEBCO 2026 Grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: 'GEBCO terms: free to use and redistribute, with attribution', res: 'GEBCO\'s cells of 15 arc-seconds (about 460 m), worldwide: about a quarter of the seabed from surveys, the rest interpolated or predicted from satellite gravity (in Europe, EMODnet depth is finer: its own layer). Cut to the OSM coastline, so land below sea level is never tinted; sea the grid calls dry is shown as the shallowest class. Inland water is classified once per water body from the grid at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://www.gebco.net' } },
+    info: { src: 'GEBCO 2026 Grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: GEBCO_LIC, res: 'GEBCO\'s cells of 15 arc-seconds (about 460 m), worldwide: about a quarter of the seabed from surveys, the rest interpolated or predicted from satellite gravity (in Europe, EMODnet depth is finer: its own layer). Cut to the OSM coastline, so land below sea level is never tinted; sea the grid calls dry is shown as the shallowest class. Inland water is classified once per water body from the grid at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://www.gebco.net' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 2,
     info: { src: 'Contoured in your browser from GEBCO 2026 (maplibre-contour)', lic: 'As GEBCO', res: 'At the depths nautical charts use, more of them as you zoom in: 3000 and 5000 m from zoom 2 (ridges, trenches, abyssal plains); 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: GEBCO\'s cells are about 460 m, many of them interpolated where there are no surveys. As coarse as the grid beneath: smoothed shapes, not surveyed soundings. Traced on the depths cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'depthsource', group: 'sea', label: 'Depth sources (GEBCO)', opacity: 0.6, kind: 'gebcotid', legendSub: 'where the depths come from',
-    info: { src: 'GEBCO 2026 type identifier grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: 'GEBCO terms: free to use and redistribute, with attribution', res: 'For each of GEBCO\'s 15″ cells (about 460 m), how its depth was obtained: surveyed (multibeam, single-beam, seismic, lidar, soundings), estimated (predicted from satellite gravity, interpolated, from chart contours), or taken from another grid or of unknown origin. Zoomed out, each cell shows the most common source of the cells it covers (the less certain on a tie). The depth shading and isobaths are only as good as their source here. Its codes go in the GIS export', url: 'https://www.gebco.net' } },
+    info: { src: 'GEBCO 2026 type identifier grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: GEBCO_LIC, res: 'For each of GEBCO\'s 15″ cells (about 460 m), how its depth was obtained: surveyed (multibeam, single-beam, seismic, lidar, soundings), estimated (predicted from satellite gravity, interpolated, from chart contours), or taken from another grid or of unknown origin. Zoomed out, each cell shows the most common source of the cells it covers (the less certain on a tie). The depth shading and isobaths are only as good as their source here. Its codes go in the GIS export', url: 'https://www.gebco.net' } },
   { id: 'emodnetdepth', group: 'sea', label: 'EMODnet depth (Europe)', opacity: 1, kind: 'emodnet',
     variants: { multicolour: 'Multicolour', rainbow: 'Rainbow' },
-    info: { src: 'EMODnet Bathymetry digital terrain model, drawn by EMODnet (tiles); its values go in the GIS export', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: 'About 115 m (1/16 arc-minute) in European seas, from surveys where there are, a coarser model elsewhere; no data outside Europe. Mean depth, in EMODnet\'s own colours (its legend: not linear in depth). Referenced to lowest astronomical tide. Not for navigation', url: 'https://emodnet.ec.europa.eu/en/bathymetry' } },
+    info: { src: 'EMODnet Bathymetry digital terrain model, drawn by EMODnet (tiles); its values go in the GIS export', lic: EMODNET_LIC, res: 'About 115 m (1/16 arc-minute) in European seas, from surveys where there are, a coarser model elsewhere; no data outside Europe. Mean depth, in EMODnet\'s own colours (its legend: not linear in depth). Referenced to lowest astronomical tide. Not for navigation', url: 'https://emodnet.ec.europa.eu/en/bathymetry' } },
   { id: 'substrate', group: 'sea', label: 'Seabed substrate (Europe)', opacity: 0.8, kind: 'classes',
     variants: { folk5: 'Folk 5 classes', folk7: 'Folk 7 classes' },
-    info: { src: 'EMODnet Geology seabed substrate (WMS)', lic: 'EMODnet open data, CC BY 4.0: attribution required', res: '1:250 000, European seas; what the seabed is made of (mud, sand, coarse sediment, mixed, rock), in Folk classes. Compiled from national surveys: varies by country', url: 'https://emodnet.ec.europa.eu/en/geology' } },
+    info: { src: 'EMODnet Geology seabed substrate (WMS)', lic: EMODNET_LIC, res: '1:250 000, European seas; what the seabed is made of (mud, sand, coarse sediment, mixed, rock), in Folk classes. Compiled from national surveys: varies by country', url: 'https://emodnet.ec.europa.eu/en/geology' } },
   { id: 'seagrass', group: 'sea', label: 'Seagrass (Europe)', opacity: 0.8, minzoom: SEAGRASS_ZOOMS[0], kind: 'classes', legendSub: 'meadows; dots: where surveys found it',
-    info: { src: 'EMODnet Seabed Habitats, seagrass cover (Essential Ocean Variable), 2025: maps of meadows and survey points from national agencies, OSPAR and research, cut into tiles at geodata.makaw.org (tools/seagrass.mjs)', lic: 'EMODnet open data, CC BY 4.0: attribution required (its Caribbean part, CC BY-NC, is left out)', res: 'European seas, from zoom 7; as mapped by each survey, so complete in some places (French and Italian coasts) and absent in others. The species from each map\'s own habitat names. Anchoring on Posidonia oceanica is banned or restricted in much of the Mediterranean: check the local rules', url: 'https://emodnet.ec.europa.eu/en/seabed-habitats' } },
+    info: { src: 'EMODnet Seabed Habitats, seagrass cover (Essential Ocean Variable), 2025: maps of meadows and survey points from national agencies, OSPAR and research, cut into tiles at geodata.makaw.org (tools/seagrass.mjs)', lic: `${EMODNET_LIC} (its Caribbean part, CC BY-NC, is left out)`, res: 'European seas, from zoom 7; as mapped by each survey, so complete in some places (French and Italian coasts) and absent in others. The species from each map\'s own habitat names. Anchoring on Posidonia oceanica is banned or restricted in much of the Mediterranean: check the local rules', url: 'https://emodnet.ec.europa.eu/en/seabed-habitats' } },
   { id: 'traffic', group: 'shipping', label: 'Vessel density (Europe)', opacity: 0.85, kind: 'density',
     variants: DENSITY.traffic.types,
     info: { src: 'EMODnet Human Activities vessel density (Cogea), from AIS bought from CLS, ORBCOMM and vesseltracker.com', lic: 'EMODnet open data, no access constraints; attribution requested', res: '1 km grid, annual averages of hours per km² per month, 2017–2024. EU and neighbouring seas only. 2024 is incomplete (satellite AIS lost from June). Not real time', url: 'https://emodnet.ec.europa.eu/en/human-activities' } },
@@ -352,7 +354,7 @@ export const ITEMS = [
     info: { ...COPERNICUS, url: product('WIND_GLO_PHY_L4_NRT_012_004'), src: 'Copernicus Marine Service: global ocean wind from satellite scatterometers, blended with a weather model (WIND_GLO_PHY_L4_NRT_012_004)', res: '0.125° (~14 km), hourly, 10 m above the sea. An observation, not a forecast: published about a day late. The time shown goes no later than its latest observation. Arrows show where the wind blows to' } },
 
   { id: 'temperature', group: 'data', section: 'Water column', label: 'Temperature', opacity: 0.85, kind: 'cmems',
-    variants: Object.fromEntries(Object.entries(CMEMS.temperature).map(([k, v]) => [k, v.label === 'Temperature' ? 'At the depth chosen' : 'At the seabed'])),
+    variants: { depth: 'At the depth chosen', bottom: 'At the seabed' },
     info: { ...COPERNICUS, url: product('GLOBAL_ANALYSISFORECAST_PHY_001_024'), src: 'Copernicus Marine Service: Mediterranean physics forecast (MEDSEA_ANALYSISFORECAST_PHY_006_013) over the global one (GLOBAL_ANALYSISFORECAST_PHY_001_024)', res: 'Potential temperature, daily means. Mediterranean 4.2 km, 141 levels; elsewhere 1/12° (~9 km), 50 levels: each at its level nearest the depth chosen. Model analysis and forecast, about 9 days ahead' } },
   { id: 'salinity', group: 'data', section: 'Water column', label: 'Salinity', opacity: 0.85, kind: 'cmems',
     variants: labelsOf(CMEMS.salinity),

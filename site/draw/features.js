@@ -80,7 +80,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   const mpp = display.zoom == null ? 0 : metresPerPixel(display.zoom);
   const midPx = display.midPx ?? 40; // a + halfway only along a leg or edge this long on screen (80 with a finger)
   // Each handle says what dragging it does: role and ref (a part's place in its point's list, an index, a point ID).
-  // items: [{ p, role, ref, kind ('handle', 'mid', 'ctrl') }]; thin: a line's points thinned.
+  // items: [{ p, role, ref, kind ('handle', 'mid') }]; thin: a line's points thinned.
   // positions thinned at the map's zoom: one at least gap px from the last kept, the last always
   const thinned = (ps, gap = HANDLE_GAP) => {
     if (!mpp) return ps;
