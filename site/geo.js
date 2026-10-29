@@ -1,6 +1,6 @@
 // Web Mercator (EPSG:3857), as the map and its tiles use it: the sphere, lon/lat ↔ metres, tile edges.
 
-export const R = 6378137; // the sphere's radius, metres
+const R = 6378137; // the sphere's radius, metres
 export const CIRC = 2 * Math.PI * R; // the world's width, metres
 export const MAX_LAT = 85.05112878; // the latitude the map stops at (a square world)
 export const D2R = Math.PI / 180;

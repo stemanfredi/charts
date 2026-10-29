@@ -17,8 +17,7 @@ export function loadPresets() {
 export function savePresets(list) {
   return store.set(KEY, JSON.stringify(list));
 }
-// a point as a preset named name: its parts, and its fill and stroke as drawn (its group's made its
-// own), its minimum display size when it or its group has one
+// a point as a preset named name: its symbol, its parts, and its fill and stroke as drawn
 export function presetOf(doc, p, name) {
   return { name, point: structuredClone({ symbol: p.symbol, parts: p.parts, look: styleOf(doc, p) }) };
 }

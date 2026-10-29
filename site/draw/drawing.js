@@ -60,8 +60,8 @@ export class Drawing extends DrawStore {
     this.marksOn = true;
     // what each tool with kinds makes (its row of kinds; drawing-ui.md §2): Point a symbol or a preset
     // of the user's with only a symbol; Shape a circle, rings, a sector (three clicks), an outline, a
-    // polygon or a preset with extent (a line is a line: Guide is its switch); Measure a distance (a
-    // line), an area (a polygon) or a ring (a circle), each a guide showing its values
+    // polygon or a preset with extent (a line is a line: Guide is its switch). Measure has none: a
+    // line, or an area when closed, a guide showing its values
     this.variant = { point: 'symbol', shape: 'circle' };
     this.presets = []; // the user's points kept as presets (presets.js), for Point › preset:<name>
     // labels keep their place on screen next to what they point at: drawn again as the map moves

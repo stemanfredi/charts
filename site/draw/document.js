@@ -7,9 +7,9 @@
 //   line: vertices joined by legs, its two ends free positions or attached to a point (following it);
 //   area: a free polygon;
 //   label: text pointing at an element, or free;
-//   group: members sharing a look, field by field; a group can be in a group (its parent).
+//   group: members kept together, with no look of its own; a group can be in a group (its parent).
 // Any element can be a guide (supporting geometry: faint, left out of totals). How each is drawn is
-// its look (docs/drawing-ui.md §5): its own values, else its groups', else the drawing's.
+// its look (docs/drawing-ui.md §5): its own values, else the drawing's, else the defaults.
 
 
 export const FORMAT = 'charts-drawing';
@@ -32,9 +32,9 @@ export const GUIDE_STYLE = Object.freeze({ fill: Object.freeze({ color: '#6b7a86
 const MEASURE_COLOUR = '#b0127a';
 export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASURE_COLOUR, opacity: 0.08 }),
   stroke: Object.freeze({ color: MEASURE_COLOUR, opacity: 1, width: 2, dash: 'dashed' }) });
-// A look: how an element is drawn. Every field optional where it is set (an element's, a group's, the
+// A look: how an element is drawn. Every field optional where it is set (an element's, the
 // drawing's); the defaults fill it in. fill, stroke: as a style; text: its name on the map, its values
-// shown, and a label's size, colour (null: its group's stroke colour, else the default) and
+// shown, and a label's size, colour (null: the drawing's, else the default) and
 // background; offset: a line drawn this many px to the right of where it is (negative: left; 0: on
 // it; display only); minSize: a small outline drawn enlarged below it
 // (px, 0: never; for a vehicle, twice the drawing's).
@@ -167,9 +167,9 @@ function layered(looks) {
   const last = (k) => looks.reduce((v, l) => (l?.[k] != null ? l[k] : v), null);
   return { fill: part('fill'), stroke: part('stroke'), text: part('text'), offset: last('offset'), minSize: last('minSize') };
 }
-// The look an element (or a group; or the drawing, kind 'drawing': its defaults) is drawn with, every field: its own, else its group's, else that
-// group's group's, and so on, else a guide's (faint, dashed) or a measurement's (a guide showing its
-// values: as while it is measured), else the drawing's, else the defaults.
+// The look an element is drawn with, every field: its own, else a guide's (faint, dashed) or a
+// measurement's (a guide showing its values: as while it is measured), else the drawing's, else the
+// defaults.
 export function lookOf(doc, el) {
   const own = [el.look], under = [DEFAULT_LOOK, doc.look];
   const role = !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE; // only points, lines and areas are guides
@@ -177,7 +177,7 @@ export function lookOf(doc, el) {
 }
 // its fill and stroke
 export const styleOf = (doc, el) => { const l = lookOf(doc, el); return { fill: l.fill, stroke: l.stroke }; };
-// a measurement: a guide showing its values (what Measure's tools make)
+// a measurement: a guide showing its values (what Measure makes)
 export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.values;
 // a label's colour: its own, else the drawing's, else the default
 export const labelColour = (doc, a) => lookOf(doc, a).text.color ?? LABEL_COLOUR;
@@ -318,9 +318,8 @@ function commonGroup(doc, xs) {
   const chains = xs.map((x) => groupsOf(doc, x.el));
   return chains[0]?.find((g) => chains.every((c) => c.includes(g))) ?? null;
 }
-// A group of the elements ids, in the nearest group they are all in (a subgroup of it), its fill and
-// stroke those of the first point with radii, else its parent's. A group among them goes in with what
-// is in it.
+// A group of the elements ids, in the nearest group they are all in (a subgroup of it). A group among
+// them goes in with what is in it.
 export function makeGroup(doc, ids) {
   const picked = ids.map((id) => find(doc, id)).filter(Boolean), chosen = new Set(picked.filter((x) => x.kind === 'group').map((x) => x.el));
   const xs = picked.filter((x) => !groupsOf(doc, x.el).some((g) => chosen.has(g))); // inside a group chosen: it goes with it
@@ -369,9 +368,7 @@ export function setGroup(doc, id, gid) {
 // ---- the user's properties as columns -----------------------------------------------------------------
 
 // keys the GIS export uses itself: a property so keyed is written p_<key>
-export const RESERVED = ['kind', 'id', 'name', 'outline', 'group', 'guide', 'text', 'anchor', 'along_m', 'length_m', 'width_m', 'radius_m', 'area_m2', 'perimeter_m', 'bearing_deg', 'aperture_deg', 'part_name', 'filled'];
-// the user's properties as columns, in their order: a key that collides with a field (reserved) gets
-// p_, a repeated key _2, _3…; changed: whether a key had to be changed
+const RESERVED = ['kind', 'id', 'name', 'outline', 'group', 'guide', 'text', 'anchor', 'along_m', 'length_m', 'width_m', 'radius_m', 'area_m2', 'perimeter_m', 'bearing_deg', 'aperture_deg', 'part_name', 'filled'];
 // The user's properties ([{ key, value }]) as columns: one each, in order; a key the export uses (reserved)
 // prefixed p_, a repeated one numbered. { out, changed (a key had to be renamed) }
 export function columnsOf(props, reserved = RESERVED) {

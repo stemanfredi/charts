@@ -28,9 +28,7 @@ import { createTools } from './tools.js';
 import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
 import { UI_ICON } from './icons.js';
 
-// what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
-// an element's icon and what the panel calls its kind: a point by what it looks like (a circle, a
-// rectangle…); an area a polygon
+// what Parts calls each kind of part
 const PART_NAME = { circle: 'Circle', sector: 'Sector', ...OUTLINE_NAME };
 const SYMBOL_ICON = { diamond: ['m12 4 8 8-8 8-8-8z'], square: ['M6 6h12v12H6z'], triangle: ['M12 4l9 15H3z'], dot: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'], none: [] };
 const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle', dot: 'Dot', none: 'None' };
@@ -161,8 +159,7 @@ export function drawView(root, ctx) {
         title: 'Shapes smaller than this are enlarged on screen' }), funit('px'), back('minSize')) : null,
       ...extra);
   }
-  // the group an element (or a group) is in: none, or one of the drawing's that can hold them all;
-  // New group…: a group of them, in the group they are in (a subgroup)
+  // the group an element (or a group) is in: none, or one of the drawing's that can hold them all
   function groupRow(ids) {
     const doc = drawing.doc;
     const gs = ids.map((id) => find(doc, id)?.el.groupId ?? null), same = gs.every((g) => g === gs[0]) ? gs[0] : undefined;
@@ -503,9 +500,9 @@ export function drawView(root, ctx) {
         `${fmtDist(seabed, u)} along the seabed · ${fmtDist(length, u)} on the surface`),
       h('button', { type: 'button', class: 'small', title: 'The profile as a file', onclick: () => ctx.download(profileCsv(p.prof), `${(el.name || 'line').replace(/[^\w-]+/g, '-')}-profile.csv`, 'text/csv') }, 'CSV')));
   }
-  // pointing at a line on the map whose profile is shown: its place on the chart
   // a double-click on an element, with no tool on, turns Properties on (the map does not zoom)
   map.on('dblclick', (e) => { if (!drawing.tool && drawing.hitAt(e.point).length) { e.preventDefault(); ctx.frame.setProps(true); } });
+  // pointing at a line on the map whose profile is shown: its place on the chart
   map.on('mousemove', (e) => {
     if (!profileCursor || drawing.sel.size !== 1) return;
     const id = [...drawing.sel][0], x = find(drawing.doc, id);

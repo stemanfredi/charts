@@ -256,8 +256,8 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   check(cmPicks === 'waves:height currents:surface' && /col=waves:height/.test(cmLink) && /arr=currents:surface/.test(cmLink) && !/on=[^&]*waves/.test(cmLink),
     `the link's entries are in the menus and stay in the link: colours, arrows ${cmPicks}`);
   check(await cm.evaluate(() => document.querySelectorAll('#legends canvas[data-legend=waves], #legends canvas[data-legend=currents]').length === 2), 'Copernicus legends shown', true);
-  // the time line at the panel's foot: a time picked there (local time) is drawn, read above the
-  // legends and kept in the link; › steps an hour; Now goes back to now
+  // the time chip: a time picked there (local time) is drawn, read above the legends and kept in
+  // the link
   const ahead = await cm.evaluate(() => { const d = new Date(Date.now() + 864e5); d.setMinutes(0, 0, 0); return d.getTime(); });
   const aLocal = await cm.evaluate((t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }, ahead);
   const [minMax, shownOn] = await cm.evaluate(() => [[document.querySelector('#when input').min, document.querySelector('#when input').max], !document.querySelector('#shown').hidden]);

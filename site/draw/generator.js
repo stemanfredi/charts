@@ -14,8 +14,8 @@
 //     the sum of the groups' lengths, each divided by its root's weight; a root with a weight of 2
 //     wins groups as if it were half as far). A root that wins no group is reported unused. Tree: a
 //     hub per group (the geometric median of its points and its root, kept at least `minBranch` from
-//     each of them), a line from the root to it (part "trunk"), lines from it to each point ("branch");
-//     chain: a line from the root to the group's nearer end point, then point to point ("chain").
+//     each of them), a line from the root to it, lines from it to each point; chain: a line from the
+//     root to the group's nearer end point, then point to point.
 //     Each line is attached to the points it joins; hubs follow their points; one moved by hand stops
 //     following.
 // The lines are straight: they are the real object (positions, lengths).

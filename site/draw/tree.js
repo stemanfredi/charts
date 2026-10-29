@@ -15,15 +15,15 @@ import { KIND_ICON, UI_ICON, POINT_ICON } from './icons.js';
 
 const FILTER_FROM = 30; // the filter field appears past this many elements
 // what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
-export const countOf = (b, u) => [b.points ? `${plural(b.points, 'point')}${b.ringed && b.ringed < b.points ? `, ${b.ringed} with radii` : ''}` : '',
+const countOf = (b, u) => [b.points ? `${plural(b.points, 'point')}${b.ringed && b.ringed < b.points ? `, ${b.ringed} with radii` : ''}` : '',
   b.lines ? `${plural(b.lines, 'line')}, ${fmtDist(b.length, u)}` : '', b.areas ? plural(b.areas, 'area') : '', b.hidden ? 'incl. hidden' : ''].filter(Boolean).join(' · ');
 // an element's icon and what the panel calls its kind: a point by what it looks like (a circle, a
 // rectangle…); an area a polygon
-export const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[kind === 'area' ? 'polygon' : kind]);
+const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[kind === 'area' ? 'polygon' : kind]);
 export const kindTitle = (kind, el) => (kind === 'point' ? (POINT_KIND_NAME[pointKind(el)] ?? OUTLINE_NAME[pointKind(el)]) : kindName(kind));
-// a group's name with the groups it is in: "A › B"
 // an element's name as shown: its own, else a label's text as it reads on the map (its first line)
 export const shownName = (doc, kind, el, units) => (kind === 'label' && !el.name?.trim() ? labelText(doc, el, units).split('\n')[0].trim() || 'Label' : label(kind, el));
+// a group's name with the groups it is in: "A › B"
 export const groupPath = (doc, g) => [...groupsOf(doc, g).reverse(), g].map((x) => label('group', x)).join(' › ');
 
 // An eye for all of xs() (what: what they are, for its label): every one shown, a click hides them

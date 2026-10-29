@@ -1,4 +1,4 @@
-// The panels' fields (Tools, Layers). A field applies on Enter or when it loses focus, never
+// The panels' fields (Properties, Layers). A field applies on Enter or when it loses focus, never
 // on each key; a value it cannot read stays marked, is not applied, and note() says why; Esc puts
 // back what it showed and leaves it. A read gives the value to apply, or undefined: not valid (null
 // is a value: "none", "the default"). A distance's, an angle's or a coordinate's get() null (several

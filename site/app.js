@@ -608,7 +608,7 @@ function setTime(t) {
   renderWhen(); // nothing else says the time
 }
 // ---- the map's settings: the time and the depth, for every layer that uses them -------------
-// Set on one line at the head of the Layers panel, read beside the coordinates. The time is a
+// Set in the time chip at the map's foot, read beside the coordinates. The time is a
 // datetime-local field in local time, on the hour (step 3600 s), within the times every layer on
 // has (min, max: the browser's calendar greys out the rest, the field's tooltip names them); the
 // chip opens the calendar itself. Every layer draws the time shown at its own time resolution:
