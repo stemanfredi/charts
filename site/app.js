@@ -178,10 +178,11 @@ const map = new maplibregl.Map({
 map.touchZoomRotate.disableRotation();
 $('#nostart').remove(); // started (index.html)
 
-// ---- bottom row: credits; scale note, time shown, cursor position, the scale
+// ---- bottom row: credits; time shown, cursor position, the scale
 // One scale bar, in the display's units (the switch beside it); the PNG export draws a double
 // one, km and NM (png.js). Credits are always on screen (Esri: data attribution "always visible";
-// OSM likewise), on one line: what does not fit ends in "…", and a tap on the line shows it all.
+// OSM likewise), on one line: what does not fit ends in "…", and a tap on the line shows it all; on a
+// phone an ⓘ, a tap on it the line (MapLibre's compact attribution).
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
 const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time the layers show
@@ -190,13 +191,10 @@ const depthEl = h('select', { class: 'pos depthchip', id: 'depth', 'aria-label':
 const scale = new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' });
 const scaleEl = scale.onAdd(map);
 scaleEl.id = 'scale';
-// MapLibre writes nautical miles "nm" (the nanometre's symbol): NM, as on charts and in Measure
-const scaleUnits = () => { scaleEl.textContent = scaleEl.textContent.replace(/\snm$/, '\u00a0NM'); };
-const scaleNoteEl = h('div', { class: 'scalenote', id: 'scalenote' });
 const creditsText = h('span', { class: 'credits-text' });
 const credits = h('div', { class: 'credits' }, creditsText);
-// a tap unfolds them only when they are cut ("…"), and folds them again; the hint says which
-const cut = () => creditsText.scrollWidth > creditsText.clientWidth;
+// a tap unfolds them only when they are cut ("…", a phone's ⓘ), and folds them again; the hint says which
+const cut = () => NARROW.matches || creditsText.scrollWidth > creditsText.clientWidth;
 function creditsHint() {
   const open = credits.classList.contains('open');
   credits.classList.toggle('foldable', open || cut());
@@ -207,9 +205,9 @@ credits.addEventListener('click', (e) => {
   if (!e.target.closest('a') && (credits.classList.contains('open') || cut())) credits.classList.toggle('open');
   creditsHint();
 });
-// credits on the left; the scale note, time shown, cursor position and scale on the right (not for
-// navigation: About and the exports say it)
-statusEl.append(credits, h('div', { class: 'readout' }, scaleNoteEl, shownEl, depthEl, posEl, scaleEl));
+// credits on the left; the time shown, cursor position and scale on the right (not for navigation:
+// About and the exports say it)
+statusEl.append(credits, h('div', { class: 'readout' }, shownEl, depthEl, posEl, scaleEl));
 // the legends sit above the bottom row, whose height follows its credits
 new ResizeObserver(() => { document.documentElement.style.setProperty('--status-h', `${statusEl.offsetHeight}px`); snapLegends(); }).observe(statusEl);
 
@@ -951,7 +949,6 @@ function renderStatus() {
 // ---- the distance units for the whole app ----------------------------------------------------
 // the units the drawing's lengths and values, its labels and the exports use: a click on the scale
 // switches them
-scaleEl.title = 'Distance units: a click switches km and NM';
 scaleEl.addEventListener('click', () => setDisplay({ units: display.units === 'km' ? 'nm' : 'km' }));
 // the time shown, a chip on the bottom row: a click opens the field's calendar (the field itself in a
 // box over the chip, for a browser without a picker)
@@ -968,7 +965,7 @@ shownEl.addEventListener('click', (e) => { timeBox.toggle(shownEl, e); if (!time
 shownEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shownEl.click(); } });
 function renderUnits() {
   scale.setUnit(display.units === 'nm' ? 'nautical' : 'metric');
-  scaleUnits();
+  scaleText();
 }
 
 // ---- the view's outputs, in the bar's Download menu: each says how it went on itself ("Saving…",
@@ -1123,16 +1120,20 @@ map.on('click', async (e) => {
 // cursor position readout
 map.on('mousemove', (e) => { posEl.textContent = `${dm(e.lngLat.lat, 'N', 'S')}  ${dm(norm180(e.lngLat.lng), 'E', 'W')}`; });
 
-// ---- scale note: the Mercator scale bar is exact only at the centre latitude ------------
+// ---- the scale bar: exact only at the centre latitude (Mercator) ---------------------------------
 // relative change of the Mercator scale (∝ 1/cos lat) across the view: from the lowest to the
 // highest |lat| in view, the lowest being 0 when the view crosses the equator
 function scaleVariation() {
   const b = map.getBounds();
   return mercatorVariation(b.getSouth(), b.getNorth());
 }
-function scaleNote() {
-  const v = scaleVariation();
-  scaleNoteEl.textContent = v > NOTE_AT ? `scale varies ${(v * 100).toFixed(0)}%${NARROW.matches ? '' : ' across the view'}` : ''; // short on a phone: one line
+// its length as MapLibre writes it, with NM for its "nm" (the nanometre's symbol), as on charts and in
+// Measure; where the scale varies across the view, "≈" before it, by how much in its tooltip
+function scaleText() {
+  const v = scaleVariation(), varies = v > NOTE_AT;
+  scaleEl.textContent = `${varies ? '≈\u00a0' : ''}${scaleEl.textContent.replace(/^≈\s/, '').replace(/\snm$/, '\u00a0NM')}`;
+  scaleEl.classList.toggle('varies', varies);
+  scaleEl.title = `${varies ? `The scale varies ${(v * 100).toFixed(0)}% across the view: this length is the centre's. ` : ''}Distance units: a click switches km and NM`;
 }
 
 // ---- credits, and the exports (PNG: png.js; GIS: below) ----------------------------------------
@@ -1279,13 +1280,12 @@ map.on('load', () => {
   renderUnits();
   ready = true;
   writeHash(); // the URL, now with everything applied
-  scaleNote();
-  scaleUnits();
+  scaleText();
   renderCompass();
 });
 map.on('moveend', writeHash);
-let moveRaf = 0; // once per frame while moving: the graticule's edge labels follow the frame, the scale note and units the view
-map.on('move', () => { cancelAnimationFrame(moveRaf); moveRaf = requestAnimationFrame(() => { updateGraticule(); scaleNote(); scaleUnits(); }); });
+let moveRaf = 0; // once per frame while moving: the graticule's edge labels follow the frame, the scale bar the view
+map.on('move', () => { cancelAnimationFrame(moveRaf); moveRaf = requestAnimationFrame(() => { updateGraticule(); scaleText(); }); });
 map.on('zoomend', renderZoom);
 // the Layers tab's spinner: the map's layers loading for longer than a moment (the sources set here,
 // the drawing's, the graticule, my location, as the pointer or the map moves, load nothing: they

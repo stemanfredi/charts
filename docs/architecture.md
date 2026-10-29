@@ -47,7 +47,8 @@ on the sea say its depth and how it was obtained.
 WGS 84 ellipsoid (`site/geodesy.js`, GeographicLib). Lines are drawn as
 densified geodesics, so the line on screen is the path the numbers describe.
 The map is Web Mercator, so the scale bar is exact only at the centre
-latitude, and the page says so when the scale varies across the view.
+latitude, and the scale bar says so ("≈", in orange) when the scale varies
+across the view.
 
 **The drawing is a document.** `site/draw/document.js` holds points, lines,
 areas, labels and groups as plain data, with a *look cascade*: an element

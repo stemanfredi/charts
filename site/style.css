@@ -350,7 +350,7 @@ body.finding .search { display: flex; }
 .legends:empty { display: none; }
 .legends canvas { display: block; outline: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* an outline, not a border: it moves no pixel of the canvas */
 
-/* ---- bottom row: credits left; scale note, position and scale right. No bar: the row is
+/* ---- bottom row: credits left; the time and depth shown, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */
 .status {
   position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; pointer-events: none;
@@ -358,11 +358,9 @@ body.finding .search { display: flex; }
   font-size: 11px; color: var(--soft);
 }
 .status > *, .readout > *, .credits > * { pointer-events: auto; }
-.pos, .scalenote { background: rgba(255,255,255,.85); border-radius: 4px; padding: 1px 6px; }
+.pos { background: rgba(255,255,255,.85); border-radius: 4px; padding: 1px 6px; }
 .pos { font: 11px var(--mono); color: var(--ink); white-space: nowrap; }
 .pos:empty { display: none; }
-.scalenote { color: var(--warn); }
-.scalenote:empty { display: none; }
 .readout { display: flex; align-items: flex-end; gap: 8px; margin-left: auto; flex: none; }
 /* credits: always on screen, on one line ending in "…" where they do not fit; a tap shows them all */
 .credits { display: flex; flex: 0 1 auto; min-width: 0; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.85); }
@@ -373,6 +371,7 @@ body.finding .search { display: flex; }
 .credits a:hover { text-decoration: underline; }
 .maplibregl-ctrl-scale { border-color: var(--ink); color: var(--ink); background: rgba(255, 255, 255, .85); font: 11px var(--font); }
 #scale { margin: 0 !important; }
+#scale.varies { color: var(--warn); border-color: var(--warn); } /* "≈": the scale varies across the view */
 
 /* ---- about ---- */
 dialog { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 30px rgba(20,30,40,.25); max-width: min(460px, calc(100vw - 32px)); padding: 16px 20px; color: var(--ink); }
@@ -383,17 +382,13 @@ dialog .keys { margin: 0; padding-left: 18px; }
 kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg2); }
 dialog .action { justify-content: center; border: 1px solid var(--line); margin-top: 12px; }
 
-/* ---- phones: no cursor position; the bottom row on two lines ---- */
+/* ---- phones: no cursor position; the credits an ⓘ, a tap on it all of them over the row ---- */
 @media (max-width: 719px) {
   .pos:not(.shown, .depthchip) { display: none; } /* no cursor on a phone; the time and depth shown stay */
-  /* two lines: the credits and the scale; the scale note and the time */
-  .status { flex-wrap: wrap; }
-  .readout { display: contents; }
-  .credits { order: 1; flex: 1 1 0; }
-  #scale { order: 2; }
-  .status::after { content: ""; order: 3; flex-basis: 100%; }
-  .scalenote, .shown, .depthchip { order: 4; }
-  .scalenote:not(:empty), .shown { margin-left: auto; }
+  .credits:not(.open) { flex: none; width: 24px; height: 24px; padding: 0; border-radius: 50%; justify-content: center; align-items: center; font-size: 14px; color: var(--ink); }
+  .credits:not(.open) .credits-text { display: none; }
+  .credits:not(.open)::before { content: "\24D8"; } /* ⓘ */
+  .credits.open { position: absolute; left: 10px; right: 10px; bottom: 6px; padding: 4px 8px; }
 }
 /* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, Snap, Undo, Properties, over the map's foot, at its left */
 .touchbar { display: none; }

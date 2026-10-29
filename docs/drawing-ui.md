@@ -41,9 +41,10 @@ One layout at every width (`site/frame.js`).
 - **The map's foot**: one strip above the bottom row, between the panels (a phone: above its sheet).
   At its left, stacked: the legends, the touch row; at its right **the map's controls**: my
   position, zoom in and out, north (only when turned). Nothing else sits there, so nothing overlaps.
-  The bottom row between the panels: credits, the time shown (a chip: a click opens its calendar),
-  the depth shown when a layer has one (a chip: a click opens its list), the cursor's position, the
-  scale (a click switches km and NM).
+  The bottom row between the panels, one line: credits (a phone: an ⓘ, a tap shows them), the time
+  shown (a chip: a click opens its calendar), the depth shown when a layer has one (a chip: a click
+  opens its list), the cursor's position, the scale (a click switches km and NM; "≈" before its
+  length, in orange, where the scale varies across the view, its tooltip by how much).
 - **Copy link** carries the view, the layers and the display settings (`u=nm`, `brg=1`), never the
   drawing. The drawing goes out as a file (**Download** › **Drawing (GeoJSON)**, with the view) and
   comes in by **Open a file…** or a file dropped on the map, after a report (what it holds, what was skipped and
