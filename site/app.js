@@ -979,7 +979,7 @@ drawPanel = drawView($('#dview'), {
   outputs, copyLink: () => copyLink(), about: () => openAbout(), linkIcon: ICON.link, aboutIcon: ICON.info,
   // a drawing imported, or one of the list, opened with its view: where it was, its layers, time,
   // depth and units
-  onImport: (doc) => { const v = doc.view; drawing.saving.add(doc); if (v) applyView(v); },
+  onImport: (doc, view) => { drawing.saving.add(doc); if (view) applyView(view); },
   openDrawing: (id) => { const v = drawing.saving.open(id); if (v) applyView(v); },
   download: (text, name, type = 'application/geo+json') => download(new Blob([text], { type }), name),
   profile: (trace) => profileFor(trace),

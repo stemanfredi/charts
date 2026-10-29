@@ -16,7 +16,8 @@ const skippedIds = (r) => r.skipped.map((s) => s.id);
 const F = (id, type, coordinates, charts, props = {}) => ({ type: 'Feature', id, geometry: { type, coordinates }, properties: charts ? { ...props, charts } : props });
 const collection = (features, charts = { format: FORMAT, version: VERSION }) => ({ type: 'FeatureCollection', ...(charts ? { charts } : {}), features });
 const read = (o, known = null) => parse(typeof o === 'string' ? o : JSON.stringify(o), known, NOW);
-const again = (doc, known = null) => parse(serialise(doc), known, NOW);
+const VIEW = { center: [12.5, 41.9], zoom: 7.25, bearing: 10, layers: [{ id: 'chart' }], data: null, units: 'nm', bearings: true }; // a view the scene's file carries
+const again = (doc, known = null) => parse(serialise(doc, VIEW), known, NOW);
 
 // a document as the file holds it: values rounded as the writer rounds them (positions 7 decimals,
 // metres and pixels 3, angles 4)
@@ -59,7 +60,6 @@ function sample() {
   addPoint(doc, [12, 41], { name: 'Ring 1', symbol: 'none', parts: [makePart('circle', { radius: 500 })], ...m() });
   addLine(doc, [12, 41], [[12.5, 41]], [13, 41], { name: 'Distance 1', ...m() });
   addArea(doc, [[12, 41], [12.5, 41], [13, 42]], m());
-  doc.view = { center: [12.5, 41.9], zoom: 7.25, bearing: 10, layers: [{ id: 'chart' }], data: null, units: 'nm', bearings: true };
   doc.look = { minSize: 20 }; // the drawing's
   refreshAttached(doc); // each reference where it points
   return doc;
@@ -83,7 +83,6 @@ test('a minimal file: defaults everywhere', () => {
   assert.deepEqual([report.warnings, report.skipped], [[], []]);
   assert.equal(doc.created, '2026-10-22T10:00:00Z');
   assert.deepEqual(doc.meta, { title: '', description: '', author: '' });
-  assert.equal(doc.view, null);
   assert.deepEqual(doc.look, {});
   assert.deepEqual(doc.points[0], { id: 'n1', name: '', properties: [], groupId: null, visible: true, guide: false,
     position: [12, 41], bearing: 0, symbol: 'none', parts: [], look: {} });
@@ -295,7 +294,6 @@ test('any GeoJSON: Multi geometries split, holes dropped, foreign points diamond
   ] });
   assert.deepEqual(report.skipped, []);
   warned(report, /holes are not read/);
-  assert.equal(doc.view, null);
   const [a, b] = doc.points;
   assert.equal(a.id, 'mp'); // the first part keeps the feature's ID, the others get new ones
   assert.match(b.id, /^[a-z0-9]{8}$/);
@@ -407,15 +405,14 @@ test('groups in the file: a member\'s parts are its own (none when missing); a g
 test('view: layers, variants and data checked against what the app offers', () => {
   const known = { layers: { chart: { variants: null, periods: null }, depth: { variants: ['atlas', 'nautical'], periods: null }, traffic: { variants: ['all', 't09'], periods: ['2024'] } },
     data: { waves: ['height', 'period'] }, depths: [0, 10] };
-  const { doc, report } = read(collection([], { view: { center: [12.5, 41.9], zoom: 7.25, bearing: -10, units: 'nm', bearings: true,
+  const { view: v, report } = read(collection([], { view: { center: [12.5, 41.9], zoom: 7.25, bearing: -10, units: 'nm', bearings: true,
     layers: [{ id: 'chart' }, { id: 'depth', variant: 'nautical', opacity: 0.8 }, { id: 'gone' }, { id: 'traffic', variant: 't99', period: '2024' }],
     data: { colour: { id: 'waves', variant: 'height' }, arrows: { id: 'wind', variant: null }, time: '2026-10-22T09:00:00Z', depth: 15 } } }), known);
-  const v = doc.view;
   assert.deepEqual(v.layers, [{ id: 'chart' }, { id: 'depth', variant: 'nautical', opacity: 0.8 }, { id: 'traffic', period: '2024' }]);
   assert.deepEqual([v.bearing, v.units, v.bearings, 'minDisplaySize' in v], [350, 'nm', true, false]); // the drawing's look holds it
   assert.deepEqual(v.data, { colour: { id: 'waves', variant: 'height' }, arrows: null, time: '2026-10-22T09:00:00Z', depth: null });
   for (const re of [/layer "gone" not known/, /variant "t99" not known/, /arrows: "wind" not known/, /depth 15 not offered/]) warned(report, re);
-  assert.equal(serialise(again(doc, known).doc), serialise(doc));
+  assert.deepEqual(read(serialise(emptyDoc(NOW), v), known).view, v, 'written and read again as it is');
 });
 
 test('minimum display size: the drawing\'s, read, checked and written; a point has none of its own', () => {
@@ -794,7 +791,7 @@ test('the file\'s text: number pairs on one line, the user\'s text never touched
 });
 
 test('hardening: a property key named like Object.prototype\'s is a column like any other; a layer so named is not "known"; caps on parts, properties, text, positions', () => {
-  const { doc, report } = read(collection([
+  const { doc, view, report } = read(collection([
     F('p', 'Point', [12, 41], { kind: 'point', properties: [{ key: 'toString', value: 'a' }, { key: '__proto__', value: 'b' }, { key: 'constructor', value: 'c' }],
       parts: Array.from({ length: 150 }, () => ({ kind: 'circle', radius: 100 })) }, { name: 'x'.repeat(20000) }),
     F('s', 'LineString', Array.from({ length: 100001 }, (_, i) => [12 + i * 1e-6, 41]), { kind: 'line' }),
@@ -808,8 +805,8 @@ test('hardening: a property key named like Object.prototype\'s is a column like 
   assert.equal(doc.points.find((n) => n.id === 't').properties.length, 200);
   assert.deepEqual([doc.lines.length, doc.areas.length], [0, 0], 'too many positions: skipped');
   assert.deepEqual(report.skipped.map((x) => x.id).sort(), ['q', 's']);
-  assert.deepEqual(doc.view.layers, [], 'neither "__proto__" nor "constructor" is a layer the app offers');
-  assert.equal(doc.view.data.colour, null);
+  assert.deepEqual(view.layers, [], 'neither "__proto__" nor "constructor" is a layer the app offers');
+  assert.equal(view.data.colour, null);
   for (const re of [/more than 100 parts/, /cut to 10000 characters/, /more than 200 properties/, /layer "__proto__" not known/, /layer "constructor" not known/, /colour: "toString" not known/]) warned(report, re);
   // the columns of the export keep every key as it is: toString, not toString_2
   const cols = Object.entries(toFile(doc).features.find((f) => f.id === 'p').properties).filter(([k]) => k !== 'charts' && k !== 'name');

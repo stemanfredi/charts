@@ -106,7 +106,7 @@ export class Drawing extends DrawStore {
   }
   // the document as a file (GeoJSON), with the map's view as it is now
   text() {
-    return serialise({ ...this.doc, view: this.getView() });
+    return serialise(this.doc, this.getView());
   }
 
   // ---- the map ---------------------------------------------------------------------------

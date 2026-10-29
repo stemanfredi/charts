@@ -12,7 +12,7 @@ import { plural } from '../format.js';
 
 const FILE_ICON = ['M6 3h8l4 4v14H6z', 'M14 3v4h4'], OPEN_ICON = ['M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z'];
 
-// drawing (drawing.js); ctx: { icon, download(text, name), openDrawing(id), onImport(doc, report),
+// drawing (drawing.js); ctx: { icon, download(text, name), openDrawing(id), onImport(doc, view),
 // known, outputs (the view's, menu items), copyLink(), about(), linkIcon, aboutIcon }; deleteIcon: the
 // bin's svg, made anew for each row; presetsChanged(): the tools' kinds shown again. Returns { buttons (the bar's),
 // importFile(file) }.
@@ -86,19 +86,19 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
       savePresets(drawing.presets);
       return presetsChanged();
     }
-    const { doc, report } = parse(text, ctx.known);
+    const { doc, view, report } = parse(text, ctx.known);
     const list = (items) => h('ul', {}, items.map((t) => h('li', {}, t)));
     const counts = doc ? [['point', doc.points.filter((x) => !mainOutline(x))], ['shape', doc.points.filter((x) => mainOutline(x))], ['line', doc.lines], ['area', doc.areas], ['label', doc.labels], ['group', doc.groups]]
       .map(([k, xs]) => [k, xs.filter((x) => !isMeasurement(doc, x)).length]).filter(([, n]) => n).map(([k, n]) => plural(n, k)) : [];
     const measured = doc ? elements(doc).filter((x) => isMeasurement(doc, x.el)).length : 0;
     if (measured) counts.push(plural(measured, 'measurement'));
     const body = () => h('div', {},
-      doc ? h('p', {}, counts.length ? `It holds ${counts.join(', ')}.` : 'It holds no elements.', doc.view ? ' Its view and layers will replace the current ones.' : '') : h('p', {}, report.refused),
+      doc ? h('p', {}, counts.length ? `It holds ${counts.join(', ')}.` : 'It holds no elements.', view ? ' Its view and layers will replace the current ones.' : '') : h('p', {}, report.refused),
       report.skipped.length ? [h('h3', {}, `Skipped (${report.skipped.length})`), list(report.skipped.map((s) => `${s.kind}${s.id ? ` ${s.id}` : ''}: ${s.reason}`))] : null,
       report.warnings.length ? [h('h3', {}, `Warnings (${report.warnings.length})`), list(report.warnings)] : null);
     const go = await dialog(doc ? `Import ${f.name}` : 'Not imported', body, doc ? [[true, 'Import']] : [], doc ? 'Cancel' : 'Close',
       doc ? h('p', { class: 'note' }, 'It is added to the drawings in this browser and opened; this one stays in the list.') : null);
-    if (go) ctx.onImport(doc, report);
+    if (go) ctx.onImport(doc, view);
   }
   return { buttons: [openBtn, downloadBtn, linkBtn], importFile };
 }

@@ -104,7 +104,7 @@ export function newId(doc, taken = idsOf(doc)) {
 export const META_D = { title: '', description: '', author: '' };
 export function emptyDoc(now = Date.now()) {
   const t = isoNow(now);
-  return { created: t, modified: t, meta: { ...META_D }, view: null, look: {},
+  return { created: t, modified: t, meta: { ...META_D }, look: {},
     groups: [], points: [], lines: [], areas: [], labels: [], rules: [] };
 }
 

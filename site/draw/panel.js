@@ -36,7 +36,7 @@ const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'under
 
 // root: the left panel's Elements tab. ctx: { drawing, map, icon, units() ('km' | 'nm'), known, bar
 // (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), outputs, copyLink(), about(), linkIcon (files.js),
-// onImport(doc, report) (applies an imported document), openDrawing(id), download(text, name), profile(trace) }
+// onImport(doc, view) (an imported document, the view it was made in), openDrawing(id), download(text, name), profile(trace) }
 export function drawView(root, ctx) {
   const { drawing, map, icon } = ctx;
   const F = fields({ note, units: ctx.units }), { field } = F; // fields.js: each applies on Enter or when left

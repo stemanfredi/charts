@@ -26,7 +26,7 @@ function readKept(text, known) {
 // the view of the drawing open (format terms), or null: read before the map is made
 export function savedView(known) {
   const id = store.get(CURRENT), text = id && store.get(KEY(id));
-  return text ? readKept(text, known).doc?.view ?? null : null;
+  return text ? readKept(text, known).view : null;
 }
 
 // drawing: the Drawing (drawing.js) whose document is saved: its doc, known, text(), isEmpty(),
@@ -95,16 +95,16 @@ export class Saving {
     this.now();
     return this.load(id)?.view ?? null;
   }
-  // the drawing id read and opened: its document, or null (not there, not readable)
+  // the drawing id read and opened: { doc, view }, or null (not there, not readable)
   load(id) {
     const text = store.get(KEY(id));
-    const { doc, report } = text ? parse(text, this.d.known) : { doc: null, report: { refused: 'This drawing is no longer in this browser' } };
+    const { doc, view, report } = text ? parse(text, this.d.known) : { doc: null, report: { refused: 'This drawing is no longer in this browser' } };
     if (!doc) { note(report.refused); return null; }
     this.id = id;
     store.set(CURRENT, id);
     this.otherTab = false;
     this.d.adopt(doc);
-    return doc;
+    return { doc, view };
   }
   // a drawing added to the list and opened: an empty one (New), or one imported
   add(doc = emptyDoc()) {
