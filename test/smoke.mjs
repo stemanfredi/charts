@@ -33,7 +33,7 @@ const visible = (page, id) => page.evaluate((id) => map.getLayoutProperty(id, 'v
 // one of the view's outputs: the link (the bar's own button), png, zip (in the bar's Download menu, which
 // stays open while an export runs; each item says how it went)
 const exportItem = async (page, id) => {
-  if (id === 'link') return page.click('#bar .linkbtn');
+  if (id === 'link') return page.click('#bar .cplbtn');
   if (!(await page.isVisible(`.dmenu #${id}`))) await page.click('#bar .dlbtn');
   await page.click(`#${id}`);
 };

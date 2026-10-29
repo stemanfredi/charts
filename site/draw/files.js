@@ -70,7 +70,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
     : openItems())), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   openBtn.append(icon('M4 6h16', 'M4 12h16', 'M4 18h16')); // COMPACT's: ☰ (style.css shows one of the two)
   const downloadBtn = barBtn('dlbtn', 'Download', ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], () => toggle(downloadBtn, downloadItems), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
-  const linkBtn = barBtn('linkbtn', 'Copy link', ctx.linkIcon, () => ctx.copyLink());
+  const linkBtn = barBtn('cplbtn', 'Copy link', ctx.linkIcon, () => ctx.copyLink());
   function newDrawing() {
     drawing.saving.add();
   }
