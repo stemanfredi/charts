@@ -262,7 +262,8 @@ export function offlineDialog({ map, fit, icon, download }) {
   const status = h('p', { class: 'ostatus', role: 'status' });
   const slug = (t) => t.normalize('NFKD').replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'area';
   const supported = 'serviceWorker' in navigator && 'caches' in self;
-  const when = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  // the year only when it is not this one (as a mail or file list says it)
+  const when = (t) => { const d = new Date(t); return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }); };
   const centre = ([w, s, e, n]) => { const la = (s + n) / 2, lo = (w + e) / 2; return `${Math.abs(la).toFixed(2)}°${la < 0 ? 'S' : 'N'} ${Math.abs(lo).toFixed(2)}°${lo < 0 ? 'W' : 'E'}`; };
 
   // This view: its detail, and Save (named after its centre, renamed in the list); none without a connection
