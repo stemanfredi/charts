@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { inflateRawSync } from 'node:zlib';
 import { start } from './browser.mjs';
 import { setSwVersion } from './serve.mjs';
+import { tileBounds } from '../site/geo.js';
 
 const { browser, base, check, section, finish } = await start();
 // the service worker blocked, but in its own section at the end: here the network as it is, routes included
@@ -1266,7 +1267,7 @@ await section('a saved area: served from it, online and without a connection; Es
   const isSaved = (u) => savedHosts.some((h) => u.startsWith(h));
   const asked = new Set(), failed = [];
   actx.on('request', (r) => { if (isSaved(r.url())) asked.add(r.url()); });
-  actx.on('requestfailed', (r) => { if (isSaved(r.url())) failed.push(r.url()); });
+  actx.on('requestfailed', (r) => { if (!r.serviceWorker() && isSaved(r.url())) failed.push(r.url()); }); // the page's, not the worker's own tries of the network
   const view = '#v=10/44.08/9.85/0&on=chart,coastline,depth,isobaths,relief,contours,seamarks';
   const ap = await open(view, actx);
   await ap.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated', null, { timeout: 30000 });
@@ -1274,6 +1275,7 @@ await section('a saved area: served from it, online and without a connection; Es
     const cache = await caches.open('pack-test');
     let n = 0;
     for (const u of urls) { const r = await fetch(u, { credentials: 'omit', referrerPolicy: 'no-referrer' }).catch(() => null); if (r?.ok) { await cache.put(u, r); n++; } }
+    await cache.put(new URL('pack.json', document.baseURI).href, new Response('{"name":"test"}')); // complete: used
     navigator.serviceWorker.controller.postMessage('packs');
     return n;
   }, [...asked]);
@@ -1288,6 +1290,7 @@ await section('a saved area: served from it, online and without a connection; Es
   await ap.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
   await ap.waitForTimeout(1000);
   failed.length = 0;
+  await (await actx.newCDPSession(ap)).send('Network.clearBrowserCache'); // only the saved area can answer
   await actx.setOffline(true);
   await ap.reload();
   await ap.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 60000 }).catch(() => {});
@@ -1301,6 +1304,70 @@ await section('a saved area: served from it, online and without a connection; Es
   await actx.setOffline(false);
   setSwVersion(null);
   await actx.close();
+});
+
+await section('Offline areas: the view saved from the dialog, drawn without a connection, deleted', async () => {
+  setSwVersion('d');
+  const octx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const savedHosts = (await readFile(new URL('../site/sw.js', import.meta.url), 'utf8')).match(/hosts:start[^\n]*\n([\s\S]*?)\s*\/\/ hosts:end/)[1].match(/'[^']+'/g).map((x) => x.slice(1, -1));
+  // the page's requests that failed (not the service worker's own tries of the network) for a saved
+  // host, in the saved area: a tile beyond it, which a wide window shows, is not in it
+  const failed = [];
+  let area = null;
+  let wide = false; // the window wider than the area: a depth chunk (degrees wide) may be wanted only by tiles beyond it
+  const inArea = (u) => {
+    if (!area) return true;
+    // a GEBCO chunk (gebco.js): level k of 15″ × 2^k cells, 512 × 512 cells a chunk, from 90° N, 180° W
+    const c = /\.zarr\/(\d+)\/\w+\/(\d+)\.(\d+)$/.exec(u), m = /\/(\d+)\/(\d+)\/(\d+)\.(?:pbf|png)$/.exec(u);
+    const deg = c && (512 * 15 * 2 ** c[1]) / 3600;
+    if (!c && !m) return true;
+    if (c && wide) return false;
+    const [w, s, e, n] = c ? [-180 + c[3] * deg, 90 - (+c[2] + 1) * deg, -180 + (+c[3] + 1) * deg, 90 - c[2] * deg] : tileBounds(+m[1], +m[2], +m[3]);
+    return e > area[0] && w < area[2] && n > area[1] && s < area[3];
+  };
+  octx.on('requestfailed', (r) => { if (!r.serviceWorker() && savedHosts.some((x) => r.url().startsWith(x)) && inArea(r.url())) failed.push(r.url()); });
+  const op = await open('#v=11/44.08/9.85/0&on=chart,coastline,depth,isobaths,relief,contours,seamarks,places,roads', octx);
+  await op.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated', null, { timeout: 30000 });
+  await exportItem(op, 'offline');
+  await op.waitForSelector('dialog.offline[open]');
+  await op.selectOption('dialog.offline select', '12');
+  const count = await op.textContent('dialog.offline .orow .val');
+  const t0 = Date.now();
+  await op.click('dialog.offline button.done');
+  await op.waitForSelector('dialog.offline .drawings li', { timeout: 600000 });
+  const took = Math.round((Date.now() - t0) / 1000);
+  const row = await op.textContent('dialog.offline .drawings li .val');
+  check(/zoom 12 · [\d.]+ MB/.test(row) && !(await op.textContent('dialog.offline .ostatus')), `offline areas: saved (${count}; ${row}; ${took} s)`);
+  await op.click('dialog.offline .fbuttons button:not(.done)'); // Close
+  area = await op.evaluate(async () => {
+    const id = (await caches.keys()).find((k) => k.startsWith('pack-'));
+    return (await (await (await caches.open(id)).match(new URL('pack.json', document.baseURI).href)).json()).bounds;
+  });
+  // without a connection: the area at zooms 9 to 12, across it, with no request to a saved host failing
+  failed.length = 0;
+  await (await octx.newCDPSession(op)).send('Network.clearBrowserCache'); // only the saved area can answer
+  await octx.setOffline(true);
+  await op.reload();
+  const seen = [];
+  for (const [z, lng, lat] of [[8, 9.85, 44.08], [10, 9.6, 44.0], [11, 10.1, 44.2], [12, 9.85, 44.08], [12, 9.55, 43.95]]) {
+    wide = z < 11;
+    await op.evaluate(([z, lng, lat]) => map.jumpTo({ zoom: z, center: [lng, lat] }), [z, lng, lat]);
+    await op.waitForFunction(() => map.loaded() && map.areTilesLoaded(), null, { timeout: 60000 }).catch(() => {});
+    await op.waitForTimeout(500);
+    seen.push(await op.evaluate(() => map.queryRenderedFeatures().length));
+  }
+  check(seen.every((n) => n > 5) && !failed.length, `offline areas, offline: drawn at zooms 8–12 across the area (${seen.join(', ')} features); ${failed.length} saved-host requests failed${failed.length ? `: ${failed.slice(0, 3).join(' ')}` : ''}`);
+  await octx.setOffline(false);
+  // deleted: asked first, then gone from the list and from the browser
+  await exportItem(op, 'offline');
+  await op.waitForSelector('dialog.offline[open] .drawings li');
+  await op.click('dialog.offline .drawings .hact');
+  await op.click('dialog.dreport .fbuttons button.done');
+  await op.waitForFunction(() => !document.querySelector('dialog.offline .drawings li'), null, { timeout: 10000 });
+  const left = await op.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('pack-')).length);
+  check(left === 0, `offline areas: deleted (${left} left)`);
+  setSwVersion(null);
+  await octx.close();
 });
 
 await finish();

@@ -24,6 +24,8 @@ import { gisExport } from './gis.js';
 import { chartCanvas, chartPng } from './png.js';
 import { cmemsValues, emodnetValues, gebcoValues } from './values.js';
 import { tidTile, tidAt } from './gebco.js';
+import { offlineDialog } from './offline.js';
+import { UI_ICON } from './draw/icons.js';
 
 const byId = Object.assign(Object.create(null), Object.fromEntries(ITEMS.map((it) => [it.id, it]))); // no inherited names: the link names items
 // Ocean data: the layers that change with time, chosen in two menus, colours and arrows. An entry
@@ -726,6 +728,7 @@ const ICON = {
   link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
   png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
   zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
+  offline: ['M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20z', 'M12 9v6', 'm9.5 12.5 2.5 2.5 2.5-2.5'], // a map, an arrow into it
   compass: [['m12 3 4 9h-8z', 'var(--err)'], 'm12 21-4-9h8z'],
   locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
   info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v5', 'M12 8h.01'],
@@ -959,9 +962,12 @@ function renderUnits() {
 
 // ---- the view's outputs, in the bar's Download menu: each says how it went on itself ("Saving…",
 // "Failed"), the menu open meanwhile
-const output = (id, iconName, text, title, run) => h('button', { type: 'button', role: 'menuitem', id, title, onclick: (e) => run(e.currentTarget) }, icon(...ICON[iconName]), h('span', {}, text));
+const output = (id, iconName, text, title, run, more = {}) => h('button', { type: 'button', role: 'menuitem', id, title, onclick: (e) => run(e.currentTarget), ...more }, icon(...ICON[iconName]), h('span', {}, text));
 const outputs = [output('png', 'png', 'Picture (PNG)', 'Download the view as a picture', (b) => exportPng(b)),
-  output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b))];
+  output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b)),
+  output('offline', 'offline', 'Offline areas…', 'Save this view in this browser, to open it without a connection; the areas saved', () => offline.open(), { 'data-closes': '' })]; // its dialog: the menu closed
+// Offline areas (offline.js): the dialog that saves the view and lists the areas saved
+const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), deleteIcon: () => icon(...UI_ICON.delete) });
 
 // ---- the drawing (draw/panel.js): its tools in the bar, the tree, its properties -------------------
 drawPanel = drawView($('#dview'), {

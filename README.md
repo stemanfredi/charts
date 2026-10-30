@@ -17,7 +17,9 @@ Choose layers by task; each says where its data comes from, under what
 licence, and how fine it is. Click the sea for its depth. Search a place or
 type coordinates. Set one time for every layer that changes with time, and
 one depth for the ocean variables. Measure distances, bearings and areas along
-the real curve of the Earth, in kilometres or nautical miles. Draw points,
+the real curve of the Earth, in kilometres or nautical miles. Save the view
+in the browser to open it without a connection: the base map, relief and
+contours, depths and isobaths, and seamarks. Draw points,
 shapes of real size, lines, areas and labels; keep them in groups; attach
 lines to what they touch; place copies along a line and connect them to
 roots. Read a line's depth profile. Export the view as a picture, as GIS data
@@ -30,7 +32,8 @@ of its own: the page fetches each layer from its provider as you look at it.
 ## Privacy
 
 Drawings stay in your browser and are never sent anywhere. The page keeps
-its own files in your browser too, so that it opens without a connection. Tile requests
+its own files in your browser too, so that it opens without a connection, and
+so are the areas you save for use without one. Tile requests
 necessarily tell each provider which area you are looking at; a hidden layer
 makes no request. Place names you type go to the search provider as you type,
 with the map's centre to a tenth of a degree; coordinates are read in the

@@ -33,6 +33,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
     place: (b) => { const r = b.getBoundingClientRect(); Object.assign(menuEl.style, { top: `${r.bottom + 4}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - 360))}px` }); },
   });
   const close = () => menu.close();
+  menuEl.addEventListener('click', (e) => { if (e.target.closest('[data-closes]')) close(); }); // an output that opens a dialog of its own
   const item = (text, title, run, paths = null) => h('button', { type: 'button', role: 'menuitem', title, onclick: () => { close(); run(); } }, paths && icon(...paths), h('span', {}, text));
   const sep = () => h('div', { class: 'dsep' });
   // Open: the drawings in this browser, + New, a file from the computer

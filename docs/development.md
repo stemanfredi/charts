@@ -77,7 +77,11 @@ tab of the page is closed. On a development copy its version stays `dev`: the
 network first, the kept files only without a connection, so an edit shows at
 a reload. The smoke test blocks it but in its own section, which publishes a
 version, opens the page offline, then publishes a newer one and applies it;
-another saves an area by hand and draws it offline.
+another saves an area by hand and draws it offline; another saves the view
+from the Offline areas dialog (`site/offline.js`: the page's own tile makers
+asked for every tile, a fresh clipping worker for the cut elevation, the
+service worker keeping what they fetch, a few at a time per host), draws it
+offline at several zooms and deletes it.
 
 ## Continuous integration and deploy
 

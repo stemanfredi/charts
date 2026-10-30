@@ -64,6 +64,7 @@ const SHELL = [
   'manifest.webmanifest',
   'menu.js',
   'net.js',
+  'offline.js',
   'png.js',
   'search.js',
   'style.css',
@@ -114,23 +115,32 @@ self.addEventListener('activate', (e) => {
     .then(() => self.clients.claim()));
 });
 
-// the page asks for the waiting version to be applied (its Reload), or says the saved areas changed
+// the page asks for the waiting version to be applied (its Reload), says the saved areas changed, or
+// names the area it is saving ({ record: name, fresh }, null when done; fresh: an area saved again,
+// from the network, not from the saved areas) and asks how far it has got
+// ({ stats }, answered on the message's port)
 self.addEventListener('message', (e) => {
   if (e.data === 'apply') self.skipWaiting();
   if (e.data === 'packs') { packs = null; anyPack = undefined; }
+  if (e.data?.record !== undefined) recording = !e.data.record ? null : recording?.name === e.data.record ? recording : { name: e.data.record, fresh: !!e.data.fresh, files: 0, bytes: {} };
+  if (e.data?.stats) e.ports[0]?.postMessage(recording && { files: recording.files, bytes: recording.bytes });
 });
 
-// The saved areas: their caches, and the base map's versions they hold. OpenFreeMap names its tiles by
+// The saved areas: their caches (pack-…, complete once their manifest is in: one being saved is not
+// used yet), and the base map's versions they hold. OpenFreeMap names its tiles by
 // its weekly build (…/planet/20261025_080012_pt/{z}/{x}/{y}.pbf): a tile of this week's build, asked
 // for while online, is also looked for under the builds the areas were saved from.
 let packs = null; // promise of { names, builds }; null: to read again
 let anyPack; // whether an area is saved: undefined until read (the worker just started, or the areas changed)
 const OFM_TILE = /^(https:\/\/tiles\.openfreemap\.org\/planet\/)([^/]+)(\/\d+\/\d+\/\d+\.pbf)$/;
-const OFM_TILEJSON = 'https://tiles.openfreemap.org/planet';
+const OFM_TILEJSON = 'https://tiles.openfreemap.org/planet', MANIFEST = new URL('pack.json', self.registration.scope).href;
 const readPacks = () => (packs ??= caches.keys().then(async (keys) => {
-  const names = keys.filter((k) => k.startsWith(PACK)), builds = new Set();
-  for (const name of names) {
-    const tj = await (await caches.open(name)).match(OFM_TILEJSON);
+  const names = [], builds = new Set();
+  for (const name of keys.filter((k) => k.startsWith(PACK))) {
+    const cache = await caches.open(name);
+    if (!(await cache.match(MANIFEST))) continue;
+    names.push(name);
+    const tj = await cache.match(OFM_TILEJSON);
     const build = tj && OFM_TILE.exec((await tj.json()).tiles?.[0]?.replace('{z}/{x}/{y}', '0/0/0') || '')?.[2];
     if (build) builds.add(build);
   }
@@ -161,6 +171,35 @@ async function fromPacks(req) {
   return (await saved(req.url)) || fetch(req);
 }
 
+// Saving an area: every request to a saved host is kept in it as well, taken from a saved area that
+// has it, or from the network a few at a time per host (the providers' terms: OpenFreeMap 4,
+// OpenSeaMap 2; one place for every request, the page's and its workers')
+let recording = null; // { name, fresh, files, bytes: host → bytes }
+const OPENSEAMAP = SAVED_HOSTS.find((h) => h.includes('openseamap')), active = new Map(), queued = new Map();
+function limited(host, run) {
+  const max = host === OPENSEAMAP ? 2 : 4;
+  return new Promise((resolve, reject) => {
+    const go = () => {
+      active.set(host, (active.get(host) || 0) + 1);
+      run().then(resolve, reject).finally(() => { active.set(host, active.get(host) - 1); queued.get(host)?.shift()?.(); });
+    };
+    if ((active.get(host) || 0) < max) go();
+    else { if (!queued.has(host)) queued.set(host, []); queued.get(host).push(go); }
+  });
+}
+async function record(req, host) {
+  const rec = recording, cache = await caches.open(rec.name);
+  const r = (await cache.match(req.url)) || (!rec.fresh && (await saved(req.url))) || (await limited(host, () => fetch(req)));
+  if (!r.ok) return r;
+  const body = await r.clone().blob();
+  if (!(await cache.match(req.url))) {
+    await cache.put(req.url, new Response(body, { status: r.status, statusText: r.statusText, headers: r.headers }));
+    rec.files++;
+    rec.bytes[host] = (rec.bytes[host] || 0) + body.size;
+  }
+  return r;
+}
+
 // cache first: the file kept, else the network
 const kept = (key) => caches.open(CACHE).then((c) => c.match(key));
 const cacheFirst = async (req, key) => (await kept(key)) || fetch(req);
@@ -184,7 +223,9 @@ self.addEventListener('fetch', (e) => {
   url.search = ''; // a file is the same file whatever its query; the view is in the hash, never sent
   const key = req.mode === 'navigate' && url.href.startsWith(self.registration.scope) ? INDEX : url.href; // the page's address: index.html
   if (key === VERSION_FILE) { e.respondWith(networkFirst(req, key)); return; } // the version shown in About: the latest when online
-  if (anyPack !== false && SAVED_HOSTS.some((h) => req.url.startsWith(h))) { // none saved: untouched
+  const host = SAVED_HOSTS.find((h) => req.url.startsWith(h));
+  if (host && recording) { e.respondWith(record(req, host)); return; }
+  if (host && anyPack !== false) { // none saved: untouched
     e.respondWith(readPacks().then(({ names }) => (names.length ? fromPacks(req) : fetch(req))));
     return;
   }
