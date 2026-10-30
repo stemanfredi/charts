@@ -15,7 +15,7 @@
 
 import { NO_DEPTH_M } from './catalog.js';
 import { HOSTS } from './hosts.js';
-import { gebcoTile } from './gebco.js';
+import { gebcoTile, gebcoSeaTile } from './gebco.js';
 import { latOf, tileBounds, TILE } from './geo.js';
 import { FETCH, fetchOk, lru } from './net.js';
 
@@ -297,6 +297,9 @@ export function clipper({ template, mode, omtTileJson, remember = true }) {
   // a tile's elevation in metres as the data has it (no mask): also what inland water is classified
   // from, at lower zooms too
   const raw = (z, x, y) => rawCache(`${z}/${x}/${y}`, () => (mode === 'sea' ? gebcoTile(z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y))));
+  // the sea's depths as drawn: blended from water cells alone (gebco.js), so the shore's land cells do
+  // not pull them shallower; the land's are its DEM as it is
+  const drawn = (z, x, y) => (mode === 'sea' ? rawCache(`${z}/${x}/${y}/sea`, () => gebcoSeaTile(z, x, y)) : raw(z, x, y));
   // Shared by several requesters (the shading and the contours ask for the same tile): the work goes on
   // while any of them still waits, and stops between its steps once every one has given up (MapLibre
   // aborts the tiles a quick zoom leaves behind), so the tiles now wanted are not queued behind them
@@ -312,7 +315,7 @@ export function clipper({ template, mode, omtTileJson, remember = true }) {
   const cut = async (z, x, y, omtOffset, signal) => {
     const [tw, ts, te, tn] = tileBounds(z, x, y);
     const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
-    const src = await raw(z, x, y);
+    const src = await raw(z, x, y), val = await drawn(z, x, y);
     if (signal.aborted) throw new Error('aborted'); // nobody waits: not cut (the lru forgets a make that fails: asked again, it is)
     // surface per tile pixel: 0, or a DATUMS surface for pixels inside its box
     const lonAt = (i) => tw + ((i + 0.5) / SIZE) * (te - tw);
@@ -329,7 +332,7 @@ export function clipper({ template, mode, omtTileJson, remember = true }) {
     for (let j = 0; j < SIZE; j++) {
       for (let i = 0; i < SIZE; i++) {
         const k = j * SIZE + i, m = mask[k];
-        let h = src[k];
+        let h = val[k];
         if (mode === 'sea') h = m === 0 ? 1 : m === DEPTH ? Math.min(h - surface(i, j), -1) : m === FLAT ? -1 : NO_DEPTH_M;
         else if (m === DEPTH) h = 0;
         out[k] = h;

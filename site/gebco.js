@@ -8,6 +8,9 @@
 //               isobaths curve through GEBCO's whole metres instead of breaking at its cells (a
 //               straight-line interpolation left a wave one cell long on flat shelves); the
 //               spline barely moves anything smaller than a cell, below what the data resolves
+//   gebcoSeaTile the same, blending water cells only: a land cell beside the shore (tens of metres
+//               up) no longer pulls the water next to it shallower over a cell's width (the sea's
+//               drawn depths; the plain blend stays what inland water is classified from)
 //   tidTile     where the depths come from (the type identifier grid): each cell's own code,
 //               coloured by its group (catalog.js DEPTH_SOURCES), a MapLibre tile handler
 //   tidAt       the code of the cell at a point (the depth on a click)
@@ -29,8 +32,9 @@ const store = (url) => stores(url, () => openStore(url, async (u) => { const b =
 const chunks = lru(KEEP); // `store level/row.col` → promise of the chunk's cells
 
 // a grid's values at the pixel centres of 256 px Web Mercator tile z/x/y, row-major, north up:
-// smoothly interpolated (a cubic B-spline), or each pixel its cell's own value (nearest: codes)
-async function gridTile(url, variable, z, x, y, nearest) {
+// smoothly interpolated (a cubic B-spline; seaOnly: over the cells below sea level alone, where any
+// is), or each pixel its cell's own value (nearest: codes)
+async function gridTile(url, variable, z, x, y, nearest, seaOnly = false) {
   const s = await store(url), k = levelFor(z), name = `${k}/${variable}`, meta = s.meta(name);
   const [H, W] = meta.shape, [CH, CW] = meta.chunks, cs = CELL * 2 ** k, n = 2 ** z;
   // each pixel centre's place in the grid, in cells (0.5 off a cell's corner is its centre)
@@ -77,12 +81,16 @@ async function gridTile(url, variable, z, x, y, nearest) {
     const rows4 = [y0 * ww, y1 * ww, y2 * ww, y3 * ww];
     for (let i = 0; i < SIZE; i++) {
       const x = cx[i], o = i * 4;
-      let sum = 0;
+      let sum = 0, sea = 0, ws = 0;
       for (let a = 0; a < 4; a++) {
         const b = rows4[a] + x;
-        sum += wr[a] * (wc[o] * win[b] + wc[o + 1] * win[b + 1] + wc[o + 2] * win[b + 2] + wc[o + 3] * win[b + 3]);
+        for (let k = 0; k < 4; k++) {
+          const v = win[b + k], w = wr[a] * wc[o + k];
+          sum += w * v;
+          if (v < 0) { sea += w * v; ws += w; }
+        }
       }
-      out[j * SIZE + i] = sum;
+      out[j * SIZE + i] = seaOnly && ws > 0 ? sea / ws : sum;
     }
   }
   return out;
@@ -91,11 +99,12 @@ async function gridTile(url, variable, z, x, y, nearest) {
 // metres at the pixel centres of tile z/x/y; rejects if the store cannot be read (the tile fails,
 // as any tile does: the map reports it)
 export const gebcoTile = (z, x, y) => gridTile(GEBCO, 'elevation', z, x, y, false);
+export const gebcoSeaTile = (z, x, y) => gridTile(GEBCO, 'elevation', z, x, y, false, true);
 
 // MapLibre tile handler for gebco-tid://z/x/y: each cell coloured by the group of its code; land and
 // no data transparent
 const RGBA = new Uint8ClampedArray(128 * 4); // code × 4 → r, g, b, 255 of its group (alpha 0: not drawn)
-for (const { codes: [lo, hi], colour } of DEPTH_SOURCES) for (let c = lo; c <= hi; c++) RGBA.set([...[1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16)), 255], c * 4);
+for (const { ranges, colour } of DEPTH_SOURCES) for (const [lo, hi] of ranges) for (let c = lo; c <= hi; c++) RGBA.set([...[1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16)), 255], c * 4);
 export async function tidTile({ url }) {
   const [z, x, y] = /^gebco-tid:\/\/(\d+)\/(\d+)\/(\d+)$/.exec(url).slice(1).map(Number);
   const codes = await gridTile(GEBCO_TID, 'tid', z, x, y, true), img = new ImageData(SIZE, SIZE);

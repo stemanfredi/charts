@@ -1133,7 +1133,7 @@ map.on('click', async (e) => {
   const [v, code] = await Promise.all([depthAt([lng, lat], z).catch(() => null), tidAt(lng, lat).catch(() => null)]);
   if (v === null) { depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, 'Depth not available'), h('small', {}, 'GEBCO 2026 could not be read'))).addTo(map); return; }
   if (!Number.isFinite(v)) { depthPopup.remove(); return; } // land, a lake, inland water: no depth here
-  const source = DEPTH_SOURCES.find(({ codes: [a, b] }) => code >= a && code <= b);
+  const source = DEPTH_SOURCES.find(({ ranges }) => ranges.some(([a, b]) => code >= a && code <= b));
   // −1: shallower than 1 m, or sea the data calls dry (clip.js)
   const depth = fmtDepth(v).replace(/^u/, 'U');
   depthPopup.setLngLat(e.lngLat).setDOMContent(h('div', {}, h('b', {}, depth), h('span', { class: 'at' }, `${dm(lat, 'N', 'S')} ${dm(norm180(lng), 'E', 'W')}`),

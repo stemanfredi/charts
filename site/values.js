@@ -76,7 +76,7 @@ const GEBCO_GRIDS = {
   elevation: { url: GEBCO, key: 'raster/gebco-depth', title: 'GEBCO depth: values', unit: 'm', band: 'elevation, GEBCO 2026',
     what: (grid) => `elevation (m, negative below mean sea level), ${grid}` },
   tid: { url: GEBCO_TID, key: 'raster/gebco-source', title: 'GEBCO depth sources: type identifier codes', unit: '', band: 'type identifier, GEBCO 2026',
-    what: (grid) => `type identifier: how each cell's depth was obtained (0 land, 10–17 surveyed, 40–47 estimated, 70–72 other grids or unknown; the codes in GEBCO's documentation), ${grid}` },
+    what: (grid) => `type identifier: how each cell's depth was obtained (0 land, 10–17 surveyed, 16 of them read from satellite images, 40–47 estimated, 70–72 other grids or unknown; the codes in GEBCO's documentation), ${grid}` },
 };
 export async function gebcoValues(box, variable = 'elevation') {
   const g = GEBCO_GRIDS[variable], store = await stores(g.url, () => openStore(g.url, fetchBytes));

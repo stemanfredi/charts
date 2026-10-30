@@ -86,12 +86,15 @@ export const SEAGRASS_CLASSES = [
   { c: 'zostera', label: 'Zostera (eelgrass)', colour: '#1f9e8f' },
   { c: 'other', label: 'Other or not named', colour: '#9aa36a' },
 ];
-// where GEBCO's depths come from, by its type identifier codes (codes [from, to], inclusive); land
-// (0) and no data (127) are not drawn
+// where GEBCO's depths come from, by its type identifier codes (ranges [from, to], inclusive); land
+// (0) and no data (127) are not drawn. Code 16, a depth read from the water's colour in a satellite
+// image, is a direct measurement to GEBCO but sees a few metres at most: its own class, so that a
+// harbour drawn 3 m deep says why
 export const DEPTH_SOURCES = [
-  { label: 'Surveyed', codes: [10, 17], colour: '#2f9e44' },
-  { label: 'Estimated', codes: [40, 47], colour: '#f08c00' },
-  { label: 'Other grids, unknown', codes: [70, 72], colour: '#868e96' },
+  { label: 'Surveyed', ranges: [[10, 15], [17, 17]], colour: '#2f9e44' },
+  { label: 'Optical (satellite image)', ranges: [[16, 16]], colour: '#1971c2' },
+  { label: 'Estimated', ranges: [[40, 47]], colour: '#f08c00' },
+  { label: 'Other grids, unknown', ranges: [[70, 72]], colour: '#868e96' },
 ];
 // a classed layer's legend for a variant: the URL of its WMS's JSON legend, or the URLs of several
 // (legend.js wmsClasses), or its classes [{ label, colour, … }] where the service gives them as
@@ -246,7 +249,7 @@ export const ITEMS = [
     info: { src: 'Contoured in your browser from GEBCO 2026 (maplibre-contour)', lic: 'As GEBCO', res: 'At the depths nautical charts use, more of them as you zoom in: 3000 and 5000 m from zoom 2 (ridges, trenches, abyssal plains); 200 m (the shelf edge) and every 1000 m from zoom 4; 20, 50, 100 and 500 m from zoom 6; 10, 30, 300, 1500 and 2500 m from zoom 8; 5 m from zoom 10. Indicative only: GEBCO\'s cells are about 460 m, many of them interpolated where there are no surveys. As coarse as the grid beneath: smoothed shapes, not surveyed soundings. Traced on the depths cut to the OSM coastline (to zoom 12, about 38 m per pixel). Above zoom 12 the same lines are magnified: they can stop short of the coast or cross it by a few pixels', url: 'https://github.com/onthegomap/maplibre-contour' } },
   { id: 'depthsource', group: 'sea', label: 'Depth sources (GEBCO)', opacity: 0.6, kind: 'gebcotid', legendSub: 'where the depths come from',
     legend: () => DEPTH_SOURCES.map(({ label, colour }) => ({ label, colour })), // GEBCO's type identifier grid, by group (gebco.js draws it)
-    info: { src: 'GEBCO 2026 type identifier grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: GEBCO_LIC, res: 'For each of GEBCO\'s 15″ cells (about 460 m), how its depth was obtained: surveyed (multibeam, single-beam, seismic, lidar, soundings), estimated (predicted from satellite gravity, interpolated, from chart contours), or taken from another grid or of unknown origin. Zoomed out, each cell shows the most common source of the cells it covers (the less certain on a tie). The depth shading and isobaths are only as good as their source here. Its codes go in the GIS export', url: 'https://www.gebco.net' } },
+    info: { src: 'GEBCO 2026 type identifier grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: GEBCO_LIC, res: 'For each of GEBCO\'s 15″ cells (about 460 m), how its depth was obtained: surveyed (multibeam, single-beam, seismic, lidar, soundings), optical (read from the water\'s colour in a satellite image: a few metres at most, and less in turbid water, where a 10 m harbour can read 3 m), estimated (predicted from satellite gravity, interpolated, from chart contours), or taken from another grid or of unknown origin. Zoomed out, each cell shows the most common source of the cells it covers (the less certain on a tie). The depth shading and isobaths are only as good as their source here. Its codes go in the GIS export', url: 'https://www.gebco.net' } },
   { id: 'emodnetdepth', group: 'sea', label: 'EMODnet depth (Europe)', opacity: 1, kind: 'emodnet',
     variants: { multicolour: 'Multicolour', rainbow: 'Rainbow' },
     tiles: { multicolour: bathy('mean_multicolour'), rainbow: bathy('mean_rainbowcolour') }, tileMaxzoom: 12, credit: '<a href="https://emodnet.ec.europa.eu/en/bathymetry">EMODnet Bathymetry</a>',
