@@ -17,7 +17,7 @@ import { norm360, norm180, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
 import { $, h, svg, typing, NARROW, COMPACT, store, animate } from './dom.js';
 import { keyEntry, openKey, keyList } from './keys.js';
-import { popup, note } from './menu.js';
+import { note } from './menu.js';
 import { createFrame } from './frame.js';
 import { search } from './search.js';
 import { gisExport } from './gis.js';
@@ -184,7 +184,11 @@ $('#nostart').remove(); // started (index.html)
 // OSM likewise), on one line: what does not fit fades at its end and is scrolled sideways.
 const statusEl = $('#status');
 const posEl = h('div', { class: 'pos', id: 'pos', 'aria-live': 'off' });
-const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }); // the time the layers show
+// the time the layers show: a chip that is the date field, the field covering it unseen (so every
+// browser hangs its calendar from the chip itself)
+const whenIn = h('input', { type: 'datetime-local', step: '3600', required: true, 'aria-label': 'Time shown' });
+const shownText = h('span');
+const shownEl = h('div', { class: 'pos shown', id: 'shown', hidden: true }, shownText, whenIn);
 // the depth they show, a chip of its own beside it: a click opens its list (ocean data at a depth only)
 const depthEl = h('select', { class: 'pos depthchip', id: 'depth', 'aria-label': 'Depth below the surface', title: 'Depth shown: each model at its level nearest it', hidden: true });
 const scale = new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' });
@@ -603,7 +607,6 @@ function setTime(t) {
 // has (min, max: the browser's calendar greys out the rest, the field's tooltip names them); the
 // chip opens the calendar itself. Every layer draws the time shown at its own time resolution:
 // that hour, the 3-hour step holding it, that day.
-const when = $('#when'), whenIn = $('input', when);
 const pad = (n) => String(n).padStart(2, '0');
 const depthWords = (d) => (d ? `${d} m deep` : 'surface'); // each model at its level nearest the depth chosen
 const fmtDate = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
@@ -636,7 +639,6 @@ depthEl.append(...CMEMS_DEPTHS.map((d) => h('option', { value: d }, d ? `${d} m 
 depthEl.addEventListener('change', (e) => setDepth(+e.target.value));
 function renderWhen() {
   const on = timeOn().length > 0, deep = depthOn().length > 0;
-  when.hidden = !on;
   shownEl.hidden = !on;
   depthEl.hidden = !(on && deep);
   if (!on) return;
@@ -653,7 +655,7 @@ function renderWhen() {
   const part = (o) => d.toLocaleDateString([], { ...o, timeZone: tz });
   const day = same(new Date()) ? 'Today' // "Wed 21 Oct", in this order in every locale
     : `${part({ weekday: 'short' })} ${d.toLocaleDateString('en', { day: 'numeric', timeZone: tz })} ${part({ month: 'short' })}`;
-  shownEl.textContent = [day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' ');
+  shownText.textContent = [day, hr ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''].filter(Boolean).join(' ');
   shownEl.title = `Time shown: ${d.toLocaleString([], hr ? { dateStyle: 'full', timeStyle: 'short' } : { dateStyle: 'full', timeZone: 'UTC' })}. A click: the calendar`;
 }
 // ---- graticule (WGS 84 lat/lon grid; spacing adapts to the view) -------------
@@ -946,26 +948,10 @@ scaleEl.addEventListener('click', () => setDisplay({ units: display.units === 'k
 Object.assign(scaleEl, { tabIndex: 0 }); // a button, as the time chip: reached by keyboard too
 scaleEl.setAttribute('role', 'button');
 scaleEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scaleEl.click(); } });
-// the time shown, a chip on the bottom row: a click opens the browser's calendar. The browser hangs the
-// calendar from the field, so the field is placed over the chip first, unseen (its box in the layout,
-// not painted: hidden, the calendar would fall to the window's corner); a browser without a picker
-// shows the field itself, in its box
-const timePop = $('#timepop');
-const placeTime = () => {
-  const r = shownEl.getBoundingClientRect();
-  Object.assign(timePop.style, { right: `${Math.max(8, innerWidth - r.right)}px`, bottom: `${innerHeight - r.top + 6}px` });
-};
-const timeBox = popup(timePop, { place: placeTime, closed: () => { timePop.style.visibility = ''; } });
-Object.assign(shownEl, { tabIndex: 0 });
-shownEl.setAttribute('role', 'button');
-shownEl.addEventListener('click', (e) => {
-  if (!timePop.hidden) return timeBox.close();
-  timePop.hidden = false;
-  timePop.style.visibility = 'hidden';
-  placeTime();
-  try { whenIn.showPicker(); } catch { timeBox.open(shownEl, e.detail === 0); } // open() closes first: seen again
-});
-shownEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shownEl.click(); } });
+// the time chip: a click (Enter, Space) opens the browser's calendar from the field in it; a browser
+// without a picker shows the field itself, in the chip's place
+shownEl.addEventListener('click', () => { try { whenIn.showPicker(); } catch { whenIn.classList.add('raw'); whenIn.focus(); } });
+whenIn.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && !whenIn.classList.contains('raw')) { e.preventDefault(); shownEl.click(); } });
 function renderUnits() {
   scale.setUnit(display.units === 'nm' ? 'nautical' : 'metric');
   scaleText();
@@ -1014,7 +1000,7 @@ $('#mapctl').prepend(findBtn);
 const openAbout = () => { about.showModal(); showVersion(); };
 const aboutBtn = h('button', { type: 'button', class: 'aboutbtn', 'aria-label': 'About', title: 'About', onclick: openAbout }, icon(...ICON.info));
 frame.rightBtn.before(aboutBtn);
-const placeFind = () => (COMPACT.matches && !NARROW.matches ? document.body.insertBefore(searchBox, $('#timepop')) : aboutBtn.before(searchBox));
+const placeFind = () => (COMPACT.matches && !NARROW.matches ? document.body.insertBefore(searchBox, $('#bar')) : aboutBtn.before(searchBox));
 COMPACT.addEventListener?.('change', placeFind);
 NARROW.addEventListener?.('change', placeFind);
 placeFind();

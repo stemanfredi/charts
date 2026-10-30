@@ -38,7 +38,6 @@ const exportItem = async (page, id) => {
   await page.click(`#${id}`);
 };
 // the time line: behind the time chip on the bottom row
-const timeOpen = async (page) => page.evaluate(() => { document.querySelector('#timepop').hidden = false; }); // the field's box (a click on the chip opens the browser's own picker)
 // the search: a field in the bar (a phone: behind its lens)
 const findOpen = async (page) => page.click((await page.isVisible('#b-find')) ? '#b-find' : '#q');
 
@@ -174,7 +173,7 @@ await section('NASA true colour', async () => {
   const tc = await open('#v=5/40/10/0&col=gibs:terra&on=chart,coastline', ctx, 'layers', ['data']);
   await tc.waitForFunction(() => map.getLayoutProperty('gibs-terra', 'visibility') === 'visible' && /t=/.test(location.hash), null, { timeout: 20000 }).catch(() => {});
   await tc.waitForTimeout(500);
-  const [tcTiles, tcHash, rowsOn, tcNotes] = await tc.evaluate(() => [map.getSource('gibs-terra').tiles[0], location.hash, document.querySelector('#when').hidden ? 'hidden' : 'shown',
+  const [tcTiles, tcHash, rowsOn, tcNotes] = await tc.evaluate(() => [map.getSource('gibs-terra').tiles[0], location.hash, document.querySelector('#shown').hidden ? 'hidden' : 'shown',
     document.querySelectorAll('.item .note:not([hidden])').length]);
   const tcDay = /\/(\d{4}-\d{2}-\d{2})\//.exec(tcTiles)?.[1] || '', tcT = /t=([\d-]+T\d\d)/.exec(tcHash)?.[1] || '';
   check(rowsOn === 'shown' && tcDay && tcT.startsWith(tcDay) && tcDay <= new Date().toISOString().slice(0, 10) && !tcNotes, `NASA true colour: the tiles are of the day shown, no later than today, no note (${tcDay}, t=${tcT})`, true);
@@ -265,21 +264,20 @@ await section('Copernicus layers, the time line, About, the manifest, my locatio
   // the link
   const ahead = await cm.evaluate(() => { const d = new Date(Date.now() + 864e5); d.setMinutes(0, 0, 0); return d.getTime(); });
   const aLocal = await cm.evaluate((t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }, ahead);
-  const [minMax, shownOn] = await cm.evaluate(() => [[document.querySelector('#when input').min, document.querySelector('#when input').max], !document.querySelector('#shown').hidden]);
+  const [minMax, shownOn] = await cm.evaluate(() => [[document.querySelector('#shown input').min, document.querySelector('#shown input').max], !document.querySelector('#shown').hidden]);
   check(shownOn && minMax[0] > '2020' && minMax[1] > minMax[0] && !minMax[1].startsWith('2099'), `the field holds the dates the layers have (${minMax.join(' to ')})`, true);
-  await timeOpen(cm);
-  await cm.fill('#when input', aLocal);
+  await cm.fill('#shown input', aLocal);
   await cm.waitForFunction((t) => location.hash.includes(`t=${t}`), new Date(ahead).toISOString().slice(0, 13), { timeout: 5000 }).catch(() => {});
   const [shownText, cmHash] = await cm.evaluate(() => [document.querySelector('#shown').textContent, location.hash]);
   check(!shownText.startsWith('Today') && cmHash.includes(`t=${new Date(ahead).toISOString().slice(0, 13)}`), `a time picked on the time line is drawn, shown beside the coordinates and kept in the link (${shownText})`);
   const cmAgain = await open(cmHash);
-  check((await cmAgain.evaluate(() => document.querySelector('#when input').value)) === aLocal, 'the link reopens at that time');
+  check((await cmAgain.evaluate(() => document.querySelector('#shown input').value)) === aLocal, 'the link reopens at that time');
   // a day typed key by key passes through years 0002, 0020, 0202: none of them is taken
-  await cm.focus('#when input');
+  await cm.focus('#shown input');
   await cm.keyboard.type(`${aLocal.slice(5, 7)}${aLocal.slice(8, 10)}${aLocal.slice(0, 4)}`); // en-US field: mm dd yyyy first
   await cm.waitForTimeout(500);
   check(/t=20\d\d-/.test(await cm.evaluate(() => location.hash)), 'a day typed key by key never jumps to a year before 2000');
-  await cm.fill('#when input', await cm.evaluate(() => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }));
+  await cm.fill('#shown input', await cm.evaluate(() => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:00`; }));
   await cm.waitForTimeout(500);
   check((await cm.evaluate(() => document.querySelector('#shown').textContent)).startsWith('Today'), 'now typed in the field goes back to today');
   // About, the bar's ⓘ
@@ -332,7 +330,7 @@ await section('the Ocean data menus', async () => {
   await sl.selectOption('select[aria-label=Colours]', '');
   await sl.selectOption('select[aria-label=Arrows]', '');
   await sl.waitForTimeout(500);
-  const [l4, whenHidden] = [await looks(), await sl.evaluate(() => document.querySelector('#when').hidden)];
+  const [l4, whenHidden] = [await looks(), await sl.evaluate(() => document.querySelector('#shown').hidden)];
   check(l1 === 'waves:colour currents:arrows' && l2 === 'waves:colour wind:arrows' && l3 === 'currents:both' && /col=currents:surface&arr=currents:surface/.test(l3hash) && !l4 && whenHidden,
     `Ocean data menus: ${l1} → arrows wind: ${l2} → currents in both: ${l3} → none: ${l4 || 'nothing drawn, no time line'}`);
   await sl.close();
@@ -360,7 +358,7 @@ await section('a satellite observation', async () => {
   await ob.waitForTimeout(1500);
   const [obT, obWithin, obShown, obDay, obBroken] = await ob.evaluate(() => {
     const t = /t=([\d-]+T\d\d)/.exec(location.hash)?.[1] || '', ms = Date.parse(`${t}:00:00Z`);
-    return [t, ms <= new Date(document.querySelector('#when input').max).getTime(), document.querySelector('#shown').textContent,
+    return [t, ms <= new Date(document.querySelector('#shown input').max).getTime(), document.querySelector('#shown').textContent,
       `${new Date(ms).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })} ${new Date(ms).getUTCDate()} ${new Date(ms).toLocaleDateString([], { month: 'short', timeZone: 'UTC' })}`, [...document.querySelectorAll('.item.error, .item.partial')].map((r) => r.title)];
   });
   check(obT && obWithin && (obShown === 'Today' || obShown === obDay) && !obBroken.length && !ob.errors.length && !ob.providerErrors.length,

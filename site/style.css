@@ -11,7 +11,7 @@
   --lw: 260px; --rw: 320px; --sheet-h: 52vh; /* the panels' widths, a phone's sheet's height: frame.js */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
   --shadow: 0 1px 4px rgba(20, 30, 40, .14);
-  /* z-index, lowest first: dbox 2, edge 3, status 5, foot 6, search 7, panels 8, bar, dock, timepop 9, nostart 10, dnote 12, dmenu 20 */
+  /* z-index, lowest first: dbox 2, edge 3, status 5, foot 6, search 7, panels 8, bar, dock 9, nostart 10, dnote 12, dmenu 20 */
   accent-color: var(--accent); /* a box ticked, a slider: in the colour of what is pressed */
 }
 @media (pointer: fine) { :root { --row: 36px; } }
@@ -32,7 +32,7 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 svg { flex: none; }
 /* what floats over the map (a box, a menu, the map's controls): a white card */
-:is(.mapctl, .timepop, .search, .results, .kinds, .dmenu) { background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+:is(.mapctl, .search, .results, .kinds, .dmenu) { background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 /* a name or a value on one line, cut with "…" */
 :is(.drow .dname, .vrow .flabel, .vcell .fvalue, .vcell .funit, button.small.link, .drawings .dname, .dinsphead .ititle) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -67,11 +67,8 @@ svg { flex: none; }
   body.has-right > .search { right: calc(var(--rw) + 8px); } /* behind its lens (COMPACT, a child of body): beside Properties; in the bar it stays where it is */
 }
 /* the time shown, its field in a box over the chip (for a browser without a picker) */
-.timepop { position: fixed; z-index: 9; padding: 6px; }
-.when { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-/* a boxed field outside the inspector's grids: the time, the data menus, a variant, the tree's filter */
-:is(.when, .pick, .controls, .dfilter) :is(input, select) { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; }
-.when input { flex: 1; min-width: 0; padding: 0 8px; }
+/* a boxed field outside the inspector's grids: the data menus, a variant, the tree's filter */
+:is(.pick, .controls, .dfilter) :is(input, select) { min-height: var(--row); border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 .spin { position: absolute; right: 2px; top: 2px; box-sizing: border-box; width: 9px; height: 9px; border: 1.5px solid var(--line); border-top-color: var(--accent); border-radius: 50%; visibility: hidden; } /* the Layers tab's corner while sources load */
 body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -460,4 +457,8 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .depthchip { border: 0; height: auto; } /* a chip as the time's, its list the browser's (its arrow says it opens, as the time's ▾) */
 @media (pointer: coarse) { .pos.shown, .depthchip { min-height: 44px; display: inline-flex; align-items: center; } } /* a finger's targets: the one way to the calendar and the depth */
 .pos.shown::after { content: " ▾"; color: var(--soft); }
+/* the time chip is its date field: the field covers the chip unseen, so the browser's calendar hangs from the chip (a browser without a picker: the field itself, .raw) */
+.pos.shown { position: relative; }
+.pos.shown input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.pos.shown input.raw { position: static; width: auto; height: auto; opacity: 1; pointer-events: auto; font: inherit; background: none; }
 :is(.pos.shown, .depthchip):hover { background: #fff; }
