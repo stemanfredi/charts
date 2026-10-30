@@ -57,12 +57,25 @@ To upgrade one: change its version in `package.json`, run `npm install` and
 `node tools/deps.mjs --write` (until then a unit test says `site/vendor/` is
 out of date), and test the page.
 
+## The service worker
+
+`site/sw.js` keeps the page's own files in the browser, so that the page opens
+without a connection; it answers for nothing else. Its list of files is
+written by `node tools/deps.mjs --write` (a unit test says when a file was
+added or removed without it). The deploy writes the commit into it as its
+version: each deploy is a new worker, which fetches the files of its version
+and waits until the page applies it (the chip's Reload, or About's) or every
+tab of the page is closed. On a development copy its version stays `dev`: the
+network first, the kept files only without a connection, so an edit shows at
+a reload. The smoke test blocks it but in its own section, which publishes a
+version, opens the page offline, then publishes a newer one and applies it.
+
 ## Continuous integration and deploy
 
 `.github/workflows/ci.yml` runs the unit, lint, smoke and layout tests on
 pushes to `main` and on pull requests, and deploys `main` to GitHub Pages when
 they pass; only `site/` is published, with the commit written into the page
-as its version. A provider's outage shows as warnings on a push and does not
+as its version and into `site/sw.js`. A provider's outage shows as warnings on a push and does not
 hold up a deploy; the weekly run is strict, so an outage that lasts a week is
 a failed run, mailed. The weekly run also lists newer library versions and
 reports newer density data. Pages must be enabled once in the repository

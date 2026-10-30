@@ -36,6 +36,8 @@ in the history, not here.
   was built from; reading a version file at load logs a 404 on every local
   copy and cannot tell the page's own version from the latest. The notice was
   cut later (2026-10-28): with no service worker, a reload gets the latest.
+  It came back with the service worker (2026-10-30), from the worker itself:
+  a new version waits until the page applies it.
 
 - **A double scale bar costs a row** (2026-10). Two stacked bars made the
   bottom of the screen a row taller, and everything above it sat high,

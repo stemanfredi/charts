@@ -29,7 +29,8 @@ of its own: the page fetches each layer from its provider as you look at it.
 
 ## Privacy
 
-Drawings stay in your browser and are never sent anywhere. Tile requests
+Drawings stay in your browser and are never sent anywhere. The page keeps
+its own files in your browser too, so that it opens without a connection. Tile requests
 necessarily tell each provider which area you are looking at; a hidden layer
 makes no request. Place names you type go to the search provider as you type,
 with the map's centre to a tenth of a degree; coordinates are read in the

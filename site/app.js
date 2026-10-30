@@ -1041,7 +1041,28 @@ async function published() {
     return /^[0-9a-f]{40}$/.test(v?.commit) ? v : null;
   } catch { return null; }
 }
-for (const b of document.querySelectorAll('[data-reload]')) b.addEventListener('click', () => location.reload());
+// The service worker (sw.js) keeps the page's own files in this browser, so that the page opens
+// without a connection. A new version, once fetched, waits for the page: the chip says it is ready,
+// and a Reload (the chip's, or About's) applies it; closing every tab of the page does too.
+let waiting = null; // the new version's worker, ready
+function offerUpdate(w) { waiting = w; $('#update').hidden = false; }
+function watchUpdates() {
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing; // a first install (no controller yet) is no update
+      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w); });
+    });
+  }).catch((e) => console.warn('the page\'s files are not kept for use without a connection:', e.message));
+}
+// after the page has loaded: its own requests first, the worker's copies of the same files after
+if ('serviceWorker' in navigator) { if (document.readyState === 'complete') watchUpdates(); else window.addEventListener('load', watchUpdates, { once: true }); }
+function reload() {
+  if (!waiting) { location.reload(); return; }
+  navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+  waiting.postMessage('apply');
+}
+for (const b of document.querySelectorAll('[data-reload]')) b.addEventListener('click', reload);
 let versionShown = false;
 async function showVersion() {
   if (versionShown) return;

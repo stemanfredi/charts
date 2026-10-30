@@ -13,11 +13,16 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 // The browser tests' port: fixed, because the data host (hosts.js geodata) answers only the origins
 // it allows, and http://127.0.0.1:8099 is one of them; npm run serve keeps 8000.
 export const TEST_PORT = 8099;
+// the service worker's version as served (sw.js's 'dev' replaced, as the deploy does): the browser
+// tests publish a version, then a newer one; null serves the file as it is
+let swVersion = null;
+export const setSwVersion = (v) => { swVersion = v; };
 export async function serve({ port = TEST_PORT, host = '127.0.0.1' } = {}) {
   const server = createServer(async (req, res) => {
     try {
       const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, ''); // a bad %-escape is a 404, not a crash
-      const body = await readFile(join(ROOT, path === '/' ? 'index.html' : path));
+      let body = await readFile(join(ROOT, path === '/' ? 'index.html' : path));
+      if (swVersion && path === '/sw.js') body = String(body).replace(/^const VERSION = 'dev';/m, `const VERSION = '${swVersion}';`);
       res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'text/html', 'cache-control': 'no-store' }).end(body);
     } catch { res.writeHead(404).end(); }
   }).listen(port, host);

@@ -6,9 +6,11 @@
 import { readFile } from 'node:fs/promises';
 import { inflateRawSync } from 'node:zlib';
 import { start } from './browser.mjs';
+import { setSwVersion } from './serve.mjs';
 
 const { browser, base, check, section, finish } = await start();
-const ctx = await browser.newContext({ locale: 'en-US', viewport: { width: 1280, height: 800 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
+// the service worker blocked, but in its own section at the end: here the network as it is, routes included
+const ctx = await browser.newContext({ locale: 'en-US', viewport: { width: 1280, height: 800 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'], serviceWorkers: 'block' });
 // cross-origin requests that carried a Referer (the page and the clip worker both promise none)
 const referred = new Set();
 ctx.on('request', (r) => { const u = new URL(r.url()); if (u.origin !== new URL(base).origin && r.headers().referer) referred.add(u.host); });
@@ -160,7 +162,7 @@ await section('the frame', async () => {
     return fits;
   };
   const mouse = await fitsAt(pv, [390, 720, 1024, 1440]);
-  const tctx = await browser.newContext({ viewport: { width: 820, height: 800 }, hasTouch: true, isMobile: true });
+  const tctx = await browser.newContext({ viewport: { width: 820, height: 800 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' });
   const finger = await fitsAt(await open('#v=6/41/12/0', tctx), [390, 820, 1180, 1280]);
   await tctx.close();
   check([...mouse, ...finger].every(Boolean), `the bar within the window, each button with its icon, with a mouse at 390, 720, 1024, 1440 px (${mouse}) and a finger at 390, 820, 1180, 1280 (${finger})`);
@@ -1160,7 +1162,7 @@ await section('with a finger, on a phone', async () => {
   // with a finger, on a phone (drawing-ui.md §1): the sheet closed to start with, Elements and
   // Properties in it one at a time; the tools in the dock, Back there while one is on, Undo and Redo; what is
   // selected peeks (Properties' head), a tap on it Properties; a finger held then dragged: a box; handles larger
-  const fctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const fctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' });
   const fp = await open('#v=11/40.2/12.1/0&on=chart,coastline', fctx);
   const shown = () => fp.evaluate(() => [!document.querySelector('#side').hidden, !document.querySelector('#props').hidden]);
   const atStart = await shown();
@@ -1220,6 +1222,39 @@ await section('with a finger, on a phone', async () => {
   check(handles === 1.75 && after[0] === rBefore && !after[1], `finger: handles drawn larger (${handles}); a second finger during a drag puts it back (${rBefore} → ${after[0]})`);
   check(!fp.errors.length, `finger: no errors ${fp.errors.join(' | ')}`);
   await fctx.close();
+});
+
+await section('the page without a connection, and a new version', async () => {
+  // a version published: the worker keeps the page's files and takes the page over; without a
+  // connection the page still opens, with its drawings
+  setSwVersion('a');
+  const sctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const sp = await open('#v=8/43.5/9.5/0&on=chart,coastline', sctx);
+  await sp.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated', null, { timeout: 30000 });
+  const kept = await sp.evaluate(async () => [(await caches.keys()).join(), (await (await caches.open('shell-a')).keys()).map((r) => new URL(r.url).pathname)]);
+  const shell = (await readFile(new URL('../site/sw.js', import.meta.url), 'utf8')).match(/shell:start[^\n]*\n([\s\S]*?)\s*\/\/ shell:end/)[1].split('\n').length;
+  check(kept[0] === 'shell-a' && kept[1].length === shell && kept[1].includes('/vendor/maplibre-gl.mjs'), `offline: the worker keeps the page's ${kept[1].length} of ${shell} files (${kept[0]})`);
+  await sp.evaluate(async () => { const { addPoint } = await import('./draw/document.js'); drawing.change((d) => addPoint(d, [9.5, 43.5])); });
+  await sp.waitForTimeout(1500); // saved as it goes
+  const drawn = await sp.evaluate(() => drawing.doc.points.length);
+  await sctx.setOffline(true);
+  await sp.reload();
+  await sp.waitForFunction((n) => window.drawing?.doc.points.length === n, drawn, { timeout: 15000 }).catch(() => {}); // restored once the map has loaded
+  const offline = await sp.evaluate(() => [!document.querySelector('#nostart'), !!document.querySelector('#bar'), drawing.doc.points.length, document.querySelector('#update').hidden]);
+  check(drawn === 1 && offline[0] && offline[1] && offline[2] === drawn && offline[3], `offline: the page opens without a connection, the map started, the bar there, its ${offline[2]} points kept (${offline})`);
+  await sctx.setOffline(false);
+  // a newer version: fetched by the worker, it waits; the chip says so, and its Reload applies it
+  setSwVersion('b');
+  await sp.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
+  await sp.waitForSelector('#update:not([hidden])', { timeout: 30000 });
+  const before = await sp.evaluate(async () => (await caches.keys()).sort().join());
+  await Promise.all([sp.waitForEvent('load', { timeout: 30000 }), sp.click('#update .linkbtn')]);
+  await sp.waitForFunction(() => window.map, null, { timeout: 30000 });
+  const after = await sp.evaluate(async () => [(await caches.keys()).join(), document.querySelector('#update').hidden]);
+  check(before === 'shell-a,shell-b' && after[0] === 'shell-b' && after[1], `a new version waits beside the old (${before}), the chip's Reload applies it (${after[0]}), the chip gone (${after[1]})`);
+  check(!sp.errors.filter((e) => !/Failed to fetch|AJAXError|NetworkError|ERR_INTERNET_DISCONNECTED/.test(e)).length, `offline: no errors of the page's own ${sp.errors.join(' | ')}`);
+  setSwVersion(null);
+  await sctx.close();
 });
 
 await finish();

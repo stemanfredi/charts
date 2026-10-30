@@ -99,5 +99,6 @@ necessarily says, the area looked at, and the place name typed into search.
 | The drawing's model, file and rules | `site/draw/document.js`, `file.js`, `generator.js` |
 | The drawing on the map and in the panel | `site/draw/drawing.js`, `layers.js`, `features.js`, `panel.js` |
 | Geodesy and map maths | `site/geodesy.js`, `site/geo.js` |
+| The page's files kept for use without a connection | `site/sw.js` |
 | The data builds | `tools/gebco.mjs`, `tools/seagrass.mjs` |
 | The tests | `test/`, described in [development.md](development.md) |
