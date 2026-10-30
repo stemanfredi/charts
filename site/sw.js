@@ -124,7 +124,16 @@ self.addEventListener('message', (e) => {
   if (e.data === 'packs') { packs = null; anyPack = undefined; }
   if (e.data?.record !== undefined) recording = !e.data.record ? null : recording?.name === e.data.record ? recording : { name: e.data.record, fresh: !!e.data.fresh, files: 0, bytes: {} };
   if (e.data?.stats) e.ports[0]?.postMessage(recording && { files: recording.files, bytes: recording.bytes });
+  if (e.data === 'connection') e.source?.postMessage({ connection });
 });
+
+// Whether the network answers: what the last try of a provider said (a phone with a signal but no
+// data calls itself online), told to the pages when it changes, and to a page that asks
+let connection = null; // true, false, or null: not tried yet
+function net(req) {
+  const said = (ok) => { if (ok !== connection) { connection = ok; self.clients.matchAll().then((cs) => cs.forEach((c) => c.postMessage({ connection: ok }))); } };
+  return fetch(req).then((r) => { said(true); return r; }, (err) => { said(false); throw err; });
+}
 
 // The saved areas: their caches (pack-…, complete once their manifest is in: one being saved is not
 // used yet), and the base map's versions they hold. OpenFreeMap names its tiles by
@@ -163,12 +172,12 @@ async function saved(url) {
 // first, so a saved area asks nothing of the provider
 async function fromPacks(req) {
   if (req.url === OFM_TILEJSON) {
-    const net = fetch(req), copy = saved(req.url);
-    net.catch(() => {}); // a late failure, after the copy was used: nothing to say
-    const late = new Promise((r) => setTimeout(r, 4000)).then(() => copy.then((c) => c || net));
-    try { return await Promise.race([net, late]); } catch (err) { const c = await copy; if (c) return c; throw err; }
+    const asked = net(req), copy = saved(req.url);
+    asked.catch(() => {}); // a late failure, after the copy was used: nothing to say
+    const late = new Promise((r) => setTimeout(r, 4000)).then(() => copy.then((c) => c || asked));
+    try { return await Promise.race([asked, late]); } catch (err) { const c = await copy; if (c) return c; throw err; }
   }
-  return (await saved(req.url)) || fetch(req);
+  return (await saved(req.url)) || net(req);
 }
 
 // Saving an area: every request to a saved host is kept in it as well, taken from a saved area that
@@ -189,7 +198,7 @@ function limited(host, run) {
 }
 async function record(req, host) {
   const rec = recording, cache = await caches.open(rec.name);
-  const r = (await cache.match(req.url)) || (!rec.fresh && (await saved(req.url))) || (await limited(host, () => fetch(req)));
+  const r = (await cache.match(req.url)) || (!rec.fresh && (await saved(req.url))) || (await limited(host, () => net(req)));
   if (!r.ok) return r;
   const body = await r.clone().blob();
   if (!(await cache.match(req.url))) {

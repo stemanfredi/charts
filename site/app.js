@@ -24,7 +24,7 @@ import { gisExport } from './gis.js';
 import { chartCanvas, chartPng } from './png.js';
 import { cmemsValues, emodnetValues, gebcoValues } from './values.js';
 import { tidTile, tidAt } from './gebco.js';
-import { offlineDialog } from './offline.js';
+import { offlineDialog, KEPT_SOURCES, noConnection, onConnection } from './offline.js';
 import { UI_ICON } from './draw/icons.js';
 
 const byId = Object.assign(Object.create(null), Object.fromEntries(ITEMS.map((it) => [it.id, it]))); // no inherited names: the link names items
@@ -709,10 +709,13 @@ map.on('data', (e) => {
   if (e.dataType === 'source' && e.tile && health[e.sourceId]) { health[e.sourceId].ok++; renderStatus(); }
 });
 map.on('movestart', () => { for (const k in health) delete health[k]; renderStatus(); });
+onConnection(() => renderStatus());
 function itemStatus(id) {
   for (const l of layersOf[id] || []) {
     if (l.metadata.variant && l.metadata.variant !== state.variant[id]) continue;
     const s = health[l.source];
+    // without a connection: the layers saved areas keep fail only beyond them; the others say why
+    if (s?.err && noConnection()) { if (KEPT_SOURCES.has(l.source)) continue; return { cls: 'error', msg: 'No connection: not kept in offline areas' }; }
     if (s?.err) return { cls: s.ok ? 'partial' : 'error', msg: s.ok ? `some tiles failed: ${s.msg}` : `not loading: ${s.msg}` };
   }
   return null;

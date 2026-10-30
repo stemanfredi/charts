@@ -68,7 +68,11 @@ before the network, so a saved area asks nothing of its provider; the base
 map's description is asked of the network first, the saved copy used without a
 connection or after 4 s of a weak one; a tile of the base map's newer weekly
 build is looked for under the build the area was saved from. With no area
-saved, it leaves those requests alone. Its lists of files and
+saved, it leaves those requests alone. It tells the pages whether its last try
+of a provider's network answered: with that, or the browser's own word, a
+page without a connection marks only the layers no area keeps (beyond a saved
+area the kept ones fail by design) and its place search says so (a phone with
+a signal but no data calls itself online). Its lists of files and
 hosts are written by `node tools/deps.mjs --write` (a unit test says when a file was
 added or removed without it). The deploy writes the commit into it as its
 version: each deploy is a new worker, which fetches the files of its version

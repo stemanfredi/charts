@@ -4,6 +4,7 @@ import { $, h, animate } from './dom.js';
 import { dm, parseLatLon } from './format.js';
 import { fetchOk } from './net.js';
 import { HOSTS } from './hosts.js';
+import { noConnection } from './offline.js';
 
 // Text that can only be coordinates, complete or not: digits with signs, separators, degree, minute
 // and second marks, hemisphere letters
@@ -63,6 +64,7 @@ export function search(map, Marker, free) {
   }
   async function searchPlaces(text) {
     searchCtl?.abort();
+    if (noConnection()) { showResults([{ name: 'No connection', where: 'place search needs one; coordinates work' }]); return; }
     searchCtl = new AbortController();
     const c = map.getCenter(); // results near the view come first; rounded, the view is not sent exactly
     const url = `${PHOTON}?${new URLSearchParams({ q: text, limit: 12, lang: 'en', lat: c.lat.toFixed(1), lon: c.lng.toFixed(1) })}`;

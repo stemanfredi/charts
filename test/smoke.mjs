@@ -1357,6 +1357,18 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
     seen.push(await op.evaluate(() => map.queryRenderedFeatures().length));
   }
   check(seen.every((n) => n > 5) && !failed.length, `offline areas, offline: drawn at zooms 8–12 across the area (${seen.join(', ')} features); ${failed.length} saved-host requests failed${failed.length ? `: ${failed.slice(0, 3).join(' ')}` : ''}`);
+  // still without a connection: the layers kept are not marked as failing (beyond the area is no
+  // fault); one not kept says why; place search says there is no connection, asking nobody
+  await op.evaluate(() => document.querySelector('#i-maritime').click());
+  await op.waitForTimeout(3000);
+  const marks = await op.evaluate(() => [...document.querySelectorAll('.error, .partial')].filter((r) => r.title).map((r) => `${r.querySelector('input')?.id || r.textContent.trim().slice(0, 12)}: ${r.title}`));
+  check(marks.length === 1 && /^i-maritime: No connection/.test(marks[0]), `offline: only a layer not kept is marked (${marks.join(' | ') || 'none'})`);
+  await findOpen(op);
+  await op.fill('#q', 'Genova');
+  await op.waitForSelector('#results li', { timeout: 5000 }).catch(() => {});
+  const said = await op.evaluate(() => document.querySelector('#results')?.textContent || '');
+  check(/No connection/.test(said), `offline: place search says there is no connection (${said.slice(0, 60)})`);
+  await op.keyboard.press('Escape');
   await octx.setOffline(false);
   // deleted: asked first, then gone from the list and from the browser
   await exportItem(op, 'offline');

@@ -12,6 +12,9 @@ import { fetchOk } from './net.js';
 import { tileXY, MAX_LAT } from './geo.js';
 import { ask } from './menu.js';
 
+// the map's sources an area keeps (style.js): without a connection, theirs fail only beyond the
+// saved areas, which is no fault to mark
+export const KEPT_SOURCES = new Set(['omt', 'dem', 'dem-sea', 'contours', 'isobaths', 'seamarks']);
 // OpenFreeMap's terms for an offline download: at most 3,000 tiles or 50 MB
 export const BASE_TILES = 3000, BASE_BYTES = 50e6;
 export const TOP_MAX = 14; // the base map's tiles stop there; the map magnifies them above
@@ -43,6 +46,20 @@ export function areaOf(map) {
   const w = Math.max(-180, b.getWest()), e = Math.min(180, b.getEast());
   return [w, Math.max(-MAX_LAT, b.getSouth()), e > w ? e : 180, Math.min(MAX_LAT, b.getNorth())];
 }
+
+// Whether there is a connection: none when the browser says so, or when the service worker's last
+// try of a provider's network failed (a phone with a signal but no data calls itself online).
+// onConnection(fn): fn() when that may have changed
+let swSays = null;
+const listeners = new Set();
+export const noConnection = () => navigator.onLine === false || swSays === false;
+export const onConnection = (fn) => listeners.add(fn);
+const changed = () => listeners.forEach((fn) => fn());
+if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && 'connection' in e.data) { swSays = e.data.connection; changed(); } });
+  navigator.serviceWorker.ready.then(() => navigator.serviceWorker.controller?.postMessage('connection'));
+}
+for (const e of ['online', 'offline']) window.addEventListener(e, changed);
 
 // the service worker: a message, or a question answered on a port
 const sw = () => navigator.serviceWorker?.controller;
