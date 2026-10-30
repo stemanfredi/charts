@@ -60,15 +60,24 @@ out of date), and test the page.
 ## The service worker
 
 `site/sw.js` keeps the page's own files in the browser, so that the page opens
-without a connection; it answers for nothing else. Its list of files is
-written by `node tools/deps.mjs --write` (a unit test says when a file was
+without a connection. It also answers from the areas saved for use without
+one: caches named `pack-…` holding the providers' files under their own
+addresses, for the hosts listed in `OFFLINE` in `site/hosts.js` only (never
+Esri's, whose terms forbid it; a unit test holds that). A saved file is served
+before the network, so a saved area asks nothing of its provider; the base
+map's description is asked of the network first, the saved copy used without a
+connection or after 4 s of a weak one; a tile of the base map's newer weekly
+build is looked for under the build the area was saved from. With no area
+saved, it leaves those requests alone. Its lists of files and
+hosts are written by `node tools/deps.mjs --write` (a unit test says when a file was
 added or removed without it). The deploy writes the commit into it as its
 version: each deploy is a new worker, which fetches the files of its version
 and waits until the page applies it (the chip's Reload, or About's) or every
 tab of the page is closed. On a development copy its version stays `dev`: the
 network first, the kept files only without a connection, so an edit shows at
 a reload. The smoke test blocks it but in its own section, which publishes a
-version, opens the page offline, then publishes a newer one and applies it.
+version, opens the page offline, then publishes a newer one and applies it;
+another saves an area by hand and draws it offline.
 
 ## Continuous integration and deploy
 

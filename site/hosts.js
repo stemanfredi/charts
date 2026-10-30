@@ -24,5 +24,9 @@ export const HOSTS = {
   cloudferro: 'https://s3.waw3-1.cloudferro.com',
   geodata: 'https://geodata.makaw.org', // GEBCO's depths and the seagrass tiles (tools/gebco.mjs, tools/seagrass.mjs)
 };
+// The hosts whose files an area saved for use without a connection keeps (ROADMAP, Offline areas): the
+// base map and its fonts, the elevation, the depths, the seamarks. Never Esri's: its terms forbid it.
+// tools/deps.mjs writes their addresses into site/sw.js, which answers from a saved area for these only.
+export const OFFLINE = ['openfreemap', 'terrain', 'geodata', 'openseamap'];
 // a host as a Content-Security-Policy source: its origin, or its path ending in /
 export const cspSource = (base) => (new URL(base).pathname === '/' ? new URL(base).origin : `${base}/`);

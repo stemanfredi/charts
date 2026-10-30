@@ -1257,4 +1257,50 @@ await section('the page without a connection, and a new version', async () => {
   await sctx.close();
 });
 
+await section('a saved area: served from it, online and without a connection; Esri never', async () => {
+  // an area saved by hand (the downloader comes later): every file of the saved hosts the view asked
+  // for, put in a pack-… cache under its own address, as a saved area keeps them
+  setSwVersion('c');
+  const actx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const savedHosts = (await readFile(new URL('../site/sw.js', import.meta.url), 'utf8')).match(/hosts:start[^\n]*\n([\s\S]*?)\s*\/\/ hosts:end/)[1].match(/'[^']+'/g).map((h) => h.slice(1, -1));
+  const isSaved = (u) => savedHosts.some((h) => u.startsWith(h));
+  const asked = new Set(), failed = [];
+  actx.on('request', (r) => { if (isSaved(r.url())) asked.add(r.url()); });
+  actx.on('requestfailed', (r) => { if (isSaved(r.url())) failed.push(r.url()); });
+  const view = '#v=10/44.08/9.85/0&on=chart,coastline,depth,isobaths,relief,contours,seamarks';
+  const ap = await open(view, actx);
+  await ap.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated', null, { timeout: 30000 });
+  const put = await ap.evaluate(async (urls) => {
+    const cache = await caches.open('pack-test');
+    let n = 0;
+    for (const u of urls) { const r = await fetch(u, { credentials: 'omit', referrerPolicy: 'no-referrer' }).catch(() => null); if (r?.ok) { await cache.put(u, r); n++; } }
+    navigator.serviceWorker.controller.postMessage('packs');
+    return n;
+  }, [...asked]);
+  // online: the area's files come from it; Esri's never pass through the worker
+  const fromWorker = [], esri = [];
+  actx.on('response', (r) => { if (isSaved(r.url()) && r.fromServiceWorker()) fromWorker.push(r.url()); if (/arcgisonline/.test(r.url())) esri.push(r.fromServiceWorker()); });
+  await ap.goto(base + view.replace('chart,', 'sat,'));
+  await ap.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
+  check(put > 20 && fromWorker.length > 10 && esri.length > 0 && esri.every((w) => !w), `saved area: ${put} files saved; online, ${fromWorker.length} served from it; Esri's ${esri.length} tiles never through the worker`);
+  // without a connection: the same view drawn from the area, no request to a saved host failing
+  await ap.goto(base + view);
+  await ap.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
+  await ap.waitForTimeout(1000);
+  failed.length = 0;
+  await actx.setOffline(true);
+  await ap.reload();
+  await ap.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 60000 }).catch(() => {});
+  await ap.waitForTimeout(2000);
+  const drawn = await ap.evaluate(() => {
+    const at = (layer) => map.queryRenderedFeatures({ layers: map.getStyle().layers.filter((l) => l.source === layer).map((l) => l.id) }).length;
+    return { base: at('omt'), isobaths: at('isobaths'), contours: at('contours'), loaded: map.loaded() && map.areTilesLoaded() };
+  });
+  check(drawn.base > 50 && drawn.isobaths > 0 && drawn.contours > 0 && !failed.length,
+    `saved area, offline: the base map (${drawn.base} features), isobaths (${drawn.isobaths}) and contours (${drawn.contours}) drawn; ${failed.length} saved-host requests failed${failed.length ? `: ${failed.slice(0, 3).join(' ')}` : ''}`);
+  await actx.setOffline(false);
+  setSwVersion(null);
+  await actx.close();
+});
+
 await finish();

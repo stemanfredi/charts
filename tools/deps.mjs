@@ -15,7 +15,7 @@
 import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HOSTS, cspSource } from '../site/hosts.js';
+import { HOSTS, OFFLINE, cspSource } from '../site/hosts.js';
 
 // [package, file in it, name in site/vendor/]
 export const LIBRARIES = [
@@ -45,6 +45,7 @@ const MODULES = new URL('../node_modules/', import.meta.url);
 const BLOCK = /(<!-- csp:start[^>]*-->)[\s\S]*?(<!-- csp:end -->)/;
 const SITE = new URL('../site/', import.meta.url), PRELOAD = /(<!-- preload:start[^>]*-->)[\s\S]*?(<!-- preload:end -->)/;
 const SW = new URL('../site/sw.js', import.meta.url), SHELL = /( *)(\/\/ shell:start[^\n]*\n)[\s\S]*?( *\/\/ shell:end)/;
+const SAVED = /( *)(\/\/ hosts:start[^\n]*\n)[\s\S]*?( *\/\/ hosts:end)/;
 // not kept by the service worker: itself, the picture for link previews, and version.json (written
 // by the deploy, asked for apart)
 const NOT_SHELL = new Set(['sw.js', 'preview.jpg', 'version.json']);
@@ -72,9 +73,11 @@ async function shellFiles() {
     .filter((f) => !NOT_SHELL.has(f) && !f.split('/').some((part) => part.startsWith('.')));
   return files.sort();
 }
+// sw.js with the page's files and the hosts a saved area may keep (as addresses: a request starts with one)
 const swWith = (src, files) => {
-  if (!SHELL.test(src)) throw new Error('shell markers not found in sw.js');
-  return src.replace(SHELL, (_, pad, a, b) => `${pad}${a}${files.map((f) => `${pad}'${f}',\n`).join('')}${b}`);
+  if (!SHELL.test(src) || !SAVED.test(src)) throw new Error('shell or hosts markers not found in sw.js');
+  const list = (re, items) => (s) => s.replace(re, (_, pad, a, b) => `${pad}${a}${items.map((f) => `${pad}'${f}',\n`).join('')}${b}`);
+  return list(SAVED, OFFLINE.map((k) => `${HOSTS[k].replace(/\/?$/, '/')}`))(list(SHELL, files)(src));
 };
 
 // what site/vendor/ should hold: name → the bytes in node_modules (the libraries and their licences)
@@ -107,7 +110,7 @@ export async function stale() {
   const html = await readFile(INDEX, 'utf8');
   if (indexWith(html, await moduleGraph()) !== html) out.push('index.html: the Content-Security-Policy or the preloads');
   const sw = await readFile(SW, 'utf8');
-  if (swWith(sw, await shellFiles()) !== sw) out.push('sw.js: the list of the page\'s files');
+  if (swWith(sw, await shellFiles()) !== sw) out.push('sw.js: the list of the page\'s files or of the hosts a saved area keeps');
   return out;
 }
 
