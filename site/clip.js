@@ -288,6 +288,9 @@ const omtTemplateOf = (omtTileJson) => tileJsons(omtTileJson, () => fetchOk(omtT
   if (typeof t !== 'string' || new URL(t).origin !== new URL(HOSTS.openfreemap).origin) throw new Error('the base map\'s TileJSON names tiles elsewhere');
   return t;
 }));
+// what a water mask throws when it would need heights (cut: the land's tile all open sea)
+const HEIGHTS = new Error('heights needed');
+const NEEDS_HEIGHTS = () => { throw HEIGHTS; };
 // remember false: each tile classifies its water bodies itself, none remembered (offline.js: an area
 // saved must hold what any tile asked first would read)
 export function clipper({ template, mode, omtTileJson, remember = true }) {
@@ -313,6 +316,16 @@ export function clipper({ template, mode, omtTileJson, remember = true }) {
     return cache(key, () => cut(z, x, y, omtOffset, w.ac.signal).finally(() => waiting.delete(key)));
   };
   const cut = async (z, x, y, omtOffset, signal) => {
+    // The land's tile all open sea needs no heights: its water mask from the base map alone says so,
+    // and the tile is what the cut would make of it (0 m, all sea), its elevation never read (at sea
+    // the land's tiles were half of what a view or a saved area fetched). A mask that would need
+    // heights (inland water to classify, a shore read at a lower zoom) stops it: the cut as ever
+    if (mode === 'land') {
+      const sea = await seaMask({ omtTemplate, raw: NEEDS_HEIGHTS, waterLevel }, z, x, y, NEEDS_HEIGHTS, () => false, omtOffset)
+        .catch((e) => { if (e === HEIGHTS) return null; throw e; });
+      if (sea?.every((m) => m === DEPTH)) return { h: new Float32Array(SIZE * SIZE), mask: sea };
+      if (signal.aborted) throw new Error('aborted');
+    }
     const [tw, ts, te, tn] = tileBounds(z, x, y);
     const datums = mode === 'sea' ? DATUMS.filter(([, b]) => b[0] < te && b[2] > tw && b[1] < tn && b[3] > ts) : [];
     const src = await raw(z, x, y), val = await drawn(z, x, y);

@@ -1285,10 +1285,16 @@ await section('a saved area: served from it, online and without a connection; Es
   await ap.goto(base + view.replace('chart,', 'sat,'));
   await ap.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
   check(put > 20 && fromWorker.length > 10 && esri.length > 0 && esri.every((w) => !w), `saved area: ${put} files saved; online, ${fromWorker.length} served from it; Esri's ${esri.length} tiles never through the worker`);
-  // without a connection: the same view drawn from the area, no request to a saved host failing
+  // without a connection: the same view drawn from the area, no request to a saved host failing; the
+  // area first given what the online loads asked for since (work that ends after the map says its
+  // tiles are loaded: a lake's shore read at lower zooms)
   await ap.goto(base + view);
   await ap.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
   await ap.waitForTimeout(1000);
+  await ap.evaluate(async (urls) => {
+    const cache = await caches.open('pack-test');
+    for (const u of urls) if (!(await cache.match(u))) { const r = await fetch(u, { credentials: 'omit', referrerPolicy: 'no-referrer' }).catch(() => null); if (r?.ok) await cache.put(u, r); }
+  }, [...asked]);
   failed.length = 0;
   await (await actx.newCDPSession(ap)).send('Network.clearBrowserCache'); // only the saved area can answer
   await actx.setOffline(true);
