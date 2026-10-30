@@ -12,7 +12,7 @@ One layout at every width (`site/frame.js`).
 
 - **The bar**, across the top: the file group, **Open** (the drawings in this browser, + New, **Open
   a file…**), **Download** (the drawing's GeoJSON, a
-  picture, GIS data, the presets), **Copy link**; **Layers** and **Elements** (the left panel's
+  picture, GIS data, the presets; apart, **Offline areas…**), **Copy link**; **Layers** and **Elements** (the left panel's
   tabs); **Undo**, **Redo** (history, not tools); **Select** and **Box select**; **Point**, **Line**,
   **Shape**, **Label**; **Measure**; at its end **find a place** (a field; / goes to it), **About**
   and the **Properties** toggle. The drawing is named in Elements' first row and its Properties.

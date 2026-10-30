@@ -35,7 +35,7 @@ const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle
 const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'underwater-vehicle': 'Diameter' }; // a shape's width, as said of each outline
 
 // root: the left panel's Elements tab. ctx: { drawing, map, icon, units() ('km' | 'nm'), known, bar
-// (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), outputs, copyLink(), about(), linkIcon (files.js),
+// (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), outputs, offlineItem, copyLink(), about(), linkIcon (files.js),
 // onImport(doc, view) (an imported document, the view it was made in), openDrawing(id), openArea(file), download(text, name), profile(trace) }
 export function drawView(root, ctx) {
   const { drawing, map, icon } = ctx;

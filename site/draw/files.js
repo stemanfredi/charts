@@ -13,7 +13,7 @@ import { plural } from '../format.js';
 const FILE_ICON = ['M6 3h8l4 4v14H6z', 'M14 3v4h4'], OPEN_ICON = ['M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z'];
 
 // drawing (drawing.js); ctx: { icon, download(text, name), openDrawing(id), onImport(doc, view), openArea(file) (an offline area's zip),
-// known, outputs (the view's, menu items), copyLink(), about(), linkIcon, aboutIcon }; deleteIcon: the
+// known, outputs (the view's, menu items), offlineItem (Offline areas…, a menu item), copyLink(), about(), linkIcon, aboutIcon }; deleteIcon: the
 // bin's svg, made anew for each row; presetsChanged(): the tools' kinds shown again. Returns { buttons (the bar's),
 // importFile(file) }.
 export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
@@ -55,9 +55,9 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
       // a file dropped on the map is opened too
       item('Open a file…', 'A drawing\'s file, any GeoJSON, a presets file or an offline area: a drawing is added to these and opened; presets join the Point and Shape tools; an area to the offline areas', () => fileInput.click(), OPEN_ICON)];
   }
-  // Download: the drawing, the view's outputs, the presets
+  // Download: the drawing, the view's outputs, the presets; apart, the offline areas
   const downloadItems = () => [item('Drawing (GeoJSON)', 'This drawing, with the view and layers, as a GeoJSON file to share or keep', exportFile, FILE_ICON), sep(), ...ctx.outputs,
-    item('Presets (JSON)', 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', () => ctx.download(presetsFile(drawing.presets), 'presets.json'), FILE_ICON)];
+    item('Presets (JSON)', 'Your presets (the Point and Shape tools\' own) as a small file, to import them in another browser', () => ctx.download(presetsFile(drawing.presets), 'presets.json'), FILE_ICON), sep(), ctx.offlineItem];
   function toggle(b, items) {
     if (!menuEl.hidden && b.getAttribute('aria-expanded') === 'true') return close();
     menuEl.setAttribute('aria-label', b.getAttribute('aria-label'));

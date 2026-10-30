@@ -465,15 +465,16 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 :is(.pos.shown, .depthchip):hover { background: #fff; }
 
 /* ---- offline areas (offline.js): the view saved, the areas saved ---- */
-dialog.offline { width: min(520px, calc(100vw - 32px)); max-width: none; }
+dialog.offline { width: min(560px, calc(100vw - 32px)); max-width: none; } /* the import report's width */
 dialog.offline .orow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0; }
 dialog.offline .orow label { display: flex; align-items: center; gap: 6px; }
-dialog.offline .orow .grow { flex: 1; }
-dialog.offline .orow input { flex: 1; min-width: 8em; }
-dialog.offline .val { font-family: var(--mono); font-size: 11px; color: var(--soft); }
-dialog.offline .over { color: var(--err); }
-dialog.offline .ostatus { min-height: 1.4em; margin: 6px 0; }
+dialog.offline .ostatus { margin: 6px 0; }
+dialog.offline .ostatus:empty { margin: 0; } /* nothing to say: no gap (kept, a live region) */
+dialog.offline .ostatus.warn { color: var(--warn); } /* a failure */
 dialog.offline .drawings { max-height: 40vh; overflow-y: auto; }
-dialog.offline .drawings li { flex-wrap: wrap; padding: 2px 0; } /* narrow: the name on a line of its own, then the rest */
-dialog.offline .drawings .dname { flex: 1 1 14em; }
-dialog.offline .drawings .val { flex: 1 0 auto; }
+/* an area's row: its name over its value, the buttons beside both, at every width */
+dialog.offline .drawings li { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 4px; padding: 2px 0; }
+dialog.offline .drawings li > button:not(.dname) { grid-row: 1 / 3; }
+dialog.offline .drawings .dname { grid-area: 1 / 1; }
+dialog.offline .drawings .val { grid-area: 2 / 1; padding: 0 8px; white-space: normal; } /* narrow: on two lines, the size kept */
+dialog.offline .drawings + .note { margin-top: 8px; }

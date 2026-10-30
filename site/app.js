@@ -974,8 +974,9 @@ function renderUnits() {
 // "Failed"), the menu open meanwhile
 const output = (id, iconName, text, title, run, more = {}) => h('button', { type: 'button', role: 'menuitem', id, title, onclick: (e) => run(e.currentTarget), ...more }, icon(...ICON[iconName]), h('span', {}, text));
 const outputs = [output('png', 'png', 'Picture (PNG)', 'Download the view as a picture', (b) => exportPng(b)),
-  output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b)),
-  output('offline', 'offline', 'Offline areas…', 'Save this view in this browser, to open it without a connection; the areas saved', () => offline.open(), { 'data-closes': '' })]; // its dialog: the menu closed
+  output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b))];
+// last in Download, apart: not a file, the areas kept in this browser
+const offlineItem = output('offline', 'offline', 'Offline areas…', 'Save this view in this browser, to open it without a connection; the areas saved', () => offline.open(), { 'data-closes': '' }); // its dialog: the menu closed
 // Offline areas (offline.js): the dialog that saves the view and lists the areas saved
 const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), deleteIcon: () => icon(...UI_ICON.delete), download });
 
@@ -984,7 +985,7 @@ drawPanel = drawView($('#dview'), {
   drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units,
   measureIcon: ICON.ruler, free: () => free(), bar: $('#bar'), props: $('#props'), frame,
   // the bar's file group (draw/files.js): the view's outputs in Download, Copy link, About (a phone's ☰)
-  outputs, copyLink: () => copyLink(), about: () => openAbout(), linkIcon: ICON.link, aboutIcon: ICON.info,
+  outputs, offlineItem, copyLink: () => copyLink(), about: () => openAbout(), linkIcon: ICON.link, aboutIcon: ICON.info,
   // a drawing imported, or one of the list, opened with its view: where it was, its layers, time,
   // depth and units
   onImport: (doc, view) => { drawing.saving.add(doc); if (view) applyView(view); },

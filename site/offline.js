@@ -269,9 +269,9 @@ export function offlineDialog({ map, fit, deleteIcon, download }) {
   function thisView() {
     if (noConnection()) return [h('p', { class: 'note' }, 'No connection: saving an area needs one.')];
     const bounds = areaOf(map), view = Math.min(TOP_MAX, Math.max(0, Math.floor(map.getZoom()))), from = fromZoom(map.getZoom());
-    const zoom = h('select', { 'aria-label': 'Detail' }, Array.from({ length: TOP_MAX - view + 1 }, (_, i) => h('option', { value: view + i }, `zoom ${view + i}`)));
+    const zoom = h('select', { 'aria-label': 'Detail' }, Array.from({ length: TOP_MAX - view + 1 }, (_, i) => h('option', { value: view + i }, `zoom ${view + i}${i ? '' : ', this view'}`)));
     zoom.value = Math.min(TOP_MAX, view + 2);
-    const over = h('span', { class: 'note over' }); // OpenFreeMap's terms: said only when this is beyond them
+    const over = h('span', { class: 'note warn' }); // OpenFreeMap's terms: said only when this is beyond them
     const save = h('button', { type: 'button', class: 'done', onclick: () => saveIt({ bounds, from, top: +zoom.value, name: centre(bounds) }) }, 'Save');
     const recount = () => {
       const beyond = baseTiles(bounds, from, +zoom.value) > BASE_TILES;
@@ -307,8 +307,8 @@ export function offlineDialog({ map, fit, deleteIcon, download }) {
     }
     return h('li', {}, name,
       h('span', { class: 'val' }, `${when(a.saved)} · zooms ${a.from}–${a.top} · ${MB(a.bytes)}`),
-      h('button', { type: 'button', class: 'small', 'aria-label': `File of ${a.name}`, title: 'Download it as a file: a copy that outlives this browser\'s storage, to open here or on another device (without the seamarks)', disabled: !!saving,
-        onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { download(await areaFile(a.id), `offline-area-${slug(a.name)}.zip`); } catch (err) { status.textContent = `Not written: ${err.message}.`; } b.disabled = false; } }, 'File'),
+      h('button', { type: 'button', class: 'small', 'aria-label': `Download ${a.name}`, title: 'Download it as a file: a copy that outlives this browser\'s storage, to open here or on another device (without the seamarks)', disabled: !!saving,
+        onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { download(await areaFile(a.id), `offline-area-${slug(a.name)}.zip`); } catch (err) { say(`Not written: ${err.message}.`, true); } b.disabled = false; } }, 'Download'),
       noConnection() ? '' : h('button', { type: 'button', class: 'small', 'aria-label': `Update ${a.name}`, title: 'Save it again, from the providers', disabled: !!saving || !sw(),
         onclick: () => saveIt({ bounds: a.bounds, from: a.from, top: a.top, name: a.name }, a.id) }, 'Update'),
       h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${a.name}`, title: 'Delete for good', disabled: !!saving, onclick: async () => {
@@ -320,18 +320,21 @@ export function offlineDialog({ map, fit, deleteIcon, download }) {
     const est = await navigator.storage?.estimate?.().catch(() => null);
     el.replaceChildren(
       h('h2', { id: 'offline-title' }, 'Offline areas'),
-      h('p', {}, 'Saved in this browser, to open without a connection: the base map, relief and contours, depths and isobaths, seamarks. An area shows them as they were saved: Update brings it up to date.'),
+      h('p', {}, 'Saved in this browser for use without a connection, as they were when saved: the base map, relief and contours, depths and isobaths, seamarks.'),
       // the reason Save is off: no service worker here, or none answering for this page now (a forced reload)
-      !sw() ? h('p', {}, supported ? 'Reload the page to save areas.' : 'This browser keeps no files for this page (a private window, perhaps).') : '',
+      !sw() ? h('p', { class: 'note' }, supported ? 'Reload the page to save areas.' : 'This browser keeps no files for this page (a private window, perhaps).') : '',
       ...thisView(),
       status,
       h('h3', {}, 'Saved'),
       areas.length ? h('ul', { class: 'drawings' }, areas.map(row)) : h('p', { class: 'note' }, 'None yet. An area\'s file opens with Open › Open a file….'),
-      est?.quota ? h('p', { class: 'note' }, `${MB(est.usage || 0)} used of ${MB(est.quota)} this browser allows`) : '',
+      areas.length && est?.quota ? h('p', { class: 'note' }, `${MB(est.usage || 0)} used of ${MB(est.quota)} this browser allows`) : '',
       h('div', { class: 'fbuttons' }, h('button', { type: 'button', 'data-keep': '', onclick: () => el.close() }, 'Close')));
   }
-  // the dialog drawn again, the focus where it was lost to it: Save, or Close when Save is off
-  const refresh = async () => { await render(); (el.querySelector('button.done:not(:disabled)') || el.querySelector('[data-keep]'))?.focus(); };
+  // the focus on Save, or Close when Save is off (opened, or drawn again after the focus was lost to it)
+  const focusMain = () => (el.querySelector('button.done:not(:disabled)') || el.querySelector('[data-keep]'))?.focus();
+  const refresh = async () => { await render(); focusMain(); };
+  // what happened; failed: in the warning's colour
+  const say = (text, failed = false) => { status.textContent = text; status.classList.toggle('warn', failed); };
 
   // work(signal, say) run with everything but Close off, its progress said, its failure said as
   // "fail: reason."; cancellable: with a Cancel button
@@ -341,12 +344,13 @@ export function offlineDialog({ map, fit, deleteIcon, download }) {
     for (const b of el.querySelectorAll('button:not([data-keep])')) b.disabled = true;
     const progress = h('span', {}, text);
     status.setAttribute('aria-busy', 'true'); // read out once it is over, not at each step
+    say('');
     status.replaceChildren(progress, ...(cancellable ? [' ', h('button', { type: 'button', class: 'small', 'data-keep': '', onclick: () => ac.abort() }, 'Cancel')] : []));
     let said = '';
-    try { await work(ac.signal, (t) => { progress.textContent = t; }); } catch (err) { said = `${fail}: ${ac.signal.aborted ? 'cancelled' : err.message}.`; }
+    try { await work(ac.signal, (t) => { progress.textContent = t; }); } catch (err) { said = ac.signal.aborted ? 'Cancelled.' : `${fail}: ${err.message}.`; }
     saving = null;
     status.removeAttribute('aria-busy');
-    status.textContent = said;
+    say(said, !!said && !ac.signal.aborted);
     if (el.open) await refresh();
   }
   // replaces: the id of the area saved again, deleted once the new one is saved
@@ -360,7 +364,7 @@ export function offlineDialog({ map, fit, deleteIcon, download }) {
   el.addEventListener('cancel', (e) => { if (saving) e.preventDefault(); });
   el.addEventListener('close', () => saving?.abort());
   onConnection(() => { if (el.open && !saving) render(); }); // Save and Update come and go with the connection
-  const open = () => { status.textContent = ''; return render().catch((err) => console.error('offline areas:', err)).then(() => { if (!el.open) el.showModal(); }); };
+  const open = () => { say(''); return render().catch((err) => console.error('offline areas:', err)).then(() => { if (!el.open) { el.showModal(); focusMain(); } }); };
   return {
     open,
     openFile: async (file) => { if (saving) return; await open(); busy('Opening…', false, () => openAreaFile(file), 'Not opened'); },

@@ -1387,7 +1387,7 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   // its file written (File), then deleted: asked first, then gone from the list and from the browser
   await exportItem(op, 'offline');
   await op.waitForSelector('dialog.offline[open] .drawings li');
-  const [fdl] = await Promise.all([op.waitForEvent('download', { timeout: 60000 }), op.click('dialog.offline .drawings button.small >> text=File')]);
+  const [fdl] = await Promise.all([op.waitForEvent('download', { timeout: 60000 }), op.click('dialog.offline .drawings button.small >> text=Download')]);
   const fileBytes = await readFile(await fdl.path());
   await op.click('dialog.offline .drawings .hact');
   await op.click('dialog.dreport .fbuttons button.done');
