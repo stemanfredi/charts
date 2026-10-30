@@ -39,3 +39,16 @@ test('zip: text deflated, incompressible data stored, UTF-8 names round-trip', a
   assert.equal(files['raster/città.bin'].method, 0);
   assert.equal(files['empty.txt'].data.length, 0);
 });
+
+test('unzip: what zip() writes read back, stored and deflated; a damaged file refused', async () => {
+  const { unzip } = await import('../../site/zip.js');
+  const big = new Uint8Array(5000).fill(7), files = [{ name: 'a/b.txt', data: 'hello, zip' }, { name: 'big.bin', data: big }, { name: 'ü.json', data: '{}' }];
+  const z = await zip(files), read = await unzip(z);
+  assert.deepEqual([...read.keys()], ['a/b.txt', 'big.bin', 'ü.json']);
+  assert.equal(new TextDecoder().decode(read.get('a/b.txt')), 'hello, zip');
+  assert.deepEqual(read.get('big.bin'), big);
+  const bytes = new Uint8Array(await z.arrayBuffer());
+  bytes[40] ^= 0xff; // inside the first file's data
+  await assert.rejects(unzip(new Blob([bytes])), /damaged/);
+  await assert.rejects(unzip(new Blob([new Uint8Array(100)])), /not a zip/);
+});

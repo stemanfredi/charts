@@ -288,10 +288,12 @@ const omtTemplateOf = (omtTileJson) => tileJsons(omtTileJson, () => fetchOk(omtT
   if (typeof t !== 'string' || new URL(t).origin !== new URL(HOSTS.openfreemap).origin) throw new Error('the base map\'s TileJSON names tiles elsewhere');
   return t;
 }));
-export function clipper({ template, mode, omtTileJson }) {
+// remember false: each tile classifies its water bodies itself, none remembered (offline.js: an area
+// saved must hold what any tile asked first would read)
+export function clipper({ template, mode, omtTileJson, remember = true }) {
   const omtTemplate = () => omtTemplateOf(omtTileJson);
   // 64 tiles each: a view and its surroundings (raw 256 kB, cut 320 kB: two clippers, two cuts of a sea tile)
-  const rawCache = lru(64), cache = lru(64), waterLevel = new Map(); // waterLevel: OSM id → DEPTH, FLAT or LAKE
+  const rawCache = lru(64), cache = lru(64), waterLevel = remember ? new Map() : { has: () => false, set() {} }; // waterLevel: OSM id → DEPTH, FLAT or LAKE
   // a tile's elevation in metres as the data has it (no mask): also what inland water is classified
   // from, at lower zooms too
   const raw = (z, x, y) => rawCache(`${z}/${x}/${y}`, () => (mode === 'sea' ? gebcoTile(z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y))));

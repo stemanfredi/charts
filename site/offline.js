@@ -6,11 +6,12 @@
 // host. Only the hosts in hosts.js OFFLINE are kept: never Esri's.
 
 import { h } from './dom.js';
-import { HOSTS } from './hosts.js';
+import { HOSTS, OFFLINE } from './hosts.js';
 import { OMT_TILEJSON, DEM_TILES, DEM_LAND_MAX, DEM_SEA_MAX } from './catalog.js';
 import { fetchOk } from './net.js';
 import { tileXY, MAX_LAT } from './geo.js';
 import { ask } from './menu.js';
+import { zip, unzip } from './zip.js';
 
 // the map's sources an area keeps (style.js): without a connection, theirs fail only beyond the
 // saved areas, which is no fault to mark
@@ -72,8 +73,10 @@ function freshClipper() {
   const w = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
   const replies = new Map();
   let seq = 0;
-  w.postMessage({ init: { mode: 'sea', omtTileJson: OMT_TILEJSON } });
-  w.postMessage({ init: { template: DEM_TILES, mode: 'land', omtTileJson: OMT_TILEJSON } });
+  // remember false: each tile does its own reading of a lake's shore at lower zooms, so the area holds
+  // what any tile the page asks first would read (the page's worker remembers what its first one found)
+  w.postMessage({ init: { mode: 'sea', omtTileJson: OMT_TILEJSON, remember: false } });
+  w.postMessage({ init: { template: DEM_TILES, mode: 'land', omtTileJson: OMT_TILEJSON, remember: false } });
   w.onmessage = ({ data }) => {
     const r = replies.get(data.seq);
     replies.delete(data.seq);
@@ -165,12 +168,73 @@ export async function savedAreas() {
 }
 export async function deleteArea(id) { await caches.delete(id); tell('packs'); }
 
+// ---- an area as a file: the copy that outlives the browser's storage, and moves to another device ----
+// A zip: area.json (what the manifest says, and each file's address and type), the files under
+// files/, and README.txt with the credits. The seamarks stay out of files until OpenSeaMap has said
+// they may be shared (ROADMAP, Offline areas); opened again, an area has none.
+const FORMAT = 'charts-offline-area', KEPT_HOSTS = OFFLINE.map((k) => `${HOSTS[k].replace(/\/?$/, '/')}`);
+const NOT_IN_FILES = [`${HOSTS.openseamap}/`];
+const README = `An area saved by Charts (https://charts.makaw.org) for use without a connection.
+Open it there: Download › Offline areas › Open a file.
+
+Map data © OpenStreetMap contributors (ODbL), © OpenMapTiles (CC BY 4.0), served by OpenFreeMap.
+Land elevation: Mapzen Terrain Tiles (AWS Open Data; sources and their credits:
+https://github.com/tilezen/joerd/blob/main/docs/attribution.md).
+Depths: GEBCO Compilation Group (2026) GEBCO 2026 Grid (doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa).
+Fonts: Noto Sans, SIL Open Font License 1.1.
+Not for navigation.
+`;
+export async function areaFile(id) {
+  const cache = await caches.open(id), manifest = await (await cache.match(MANIFEST())).json(), list = [], files = [];
+  for (const req of await cache.keys()) {
+    if (req.url === MANIFEST() || NOT_IN_FILES.some((h) => req.url.startsWith(h))) continue;
+    const r = await cache.match(req), name = `files/${list.length}`;
+    list.push({ name, url: req.url, type: r.headers.get('content-type') || '' });
+    files.push({ name, data: await r.blob() });
+  }
+  return zip([{ name: 'area.json', data: JSON.stringify({ format: FORMAT, version: 1, ...manifest, files: list }) }, { name: 'README.txt', data: README }, ...files]);
+}
+// a file of areaFile's opened: a new area of what it holds, for the saved hosts only. Resolves to its
+// manifest; throws on a file that is not one
+export async function openAreaFile(file) {
+  if (!sw()) throw new Error('this browser keeps no files for this page');
+  const files = await unzip(file), head = files.get('area.json');
+  const area = head && JSON.parse(new TextDecoder().decode(head));
+  if (area?.format !== FORMAT || area.version !== 1 || !Array.isArray(area.files) || !Array.isArray(area.bounds)) throw new Error('not an offline area of this page');
+  const id = `${PACK}${Date.now().toString(36)}`, cache = await caches.open(id);
+  try {
+    let bytes = 0;
+    for (const f of area.files) {
+      const data = files.get(f.name);
+      if (!data || typeof f.url !== 'string' || !KEPT_HOSTS.some((h) => f.url.startsWith(h))) continue; // only what an area may keep
+      await cache.put(f.url, new Response(data, { headers: f.type ? { 'content-type': f.type } : {} }));
+      bytes += data.length;
+    }
+    const { name, saved, bounds, from, top } = area, manifest = { name: String(name || 'Area'), saved, bounds, from, top, files: area.files.length, bytes };
+    await cache.put(MANIFEST(), new Response(JSON.stringify(manifest), { headers: { 'content-type': 'application/json' } }));
+    tell('packs');
+    return { id, ...manifest };
+  } catch (err) {
+    await caches.delete(id);
+    throw err;
+  }
+}
+
 // ---- the dialog: Download › Offline areas… ---------------------------------------------------------
-// map; fit(bounds): the map fitted to an area (Show); deleteIcon(): the bin's svg
-export function offlineDialog({ map, fit, deleteIcon }) {
+// map; fit(bounds): the map fitted to an area (Show); deleteIcon(): the bin's svg; download(blob, name)
+export function offlineDialog({ map, fit, deleteIcon, download }) {
   const el = h('dialog', { class: 'offline', 'aria-labelledby': 'offline-title' });
   document.body.append(el);
   let saving = null; // the AbortController of the area being saved
+  const slug = (t) => t.normalize('NFKD').replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'area';
+  // an area's file opened: added to the list
+  const fileIn = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try { await openAreaFile(f); await render(); } catch (err) { await render(); el.querySelector('.ostatus').textContent = `Not opened: ${err.message}.`; }
+  } });
+  document.body.append(fileIn);
   const supported = 'serviceWorker' in navigator && 'caches' in self;
   const when = (t) => new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
   const centre = ([w, s, e, n]) => { const la = (s + n) / 2, lo = (w + e) / 2; return `${Math.abs(la).toFixed(2)}°${la < 0 ? 'S' : 'N'} ${Math.abs(lo).toFixed(2)}°${lo < 0 ? 'W' : 'E'}`; };
@@ -206,10 +270,13 @@ export function offlineDialog({ map, fit, deleteIcon }) {
       areas.length ? h('ul', { class: 'drawings' }, areas.map((a) => h('li', {},
         h('button', { type: 'button', class: 'dname', title: 'Show it on the map', onclick: () => { el.close(); fit(a.bounds); } }, a.name),
         h('span', { class: 'val' }, `${when(a.saved)} · zoom ${a.top} · ${MB(a.bytes)}`),
+        h('button', { type: 'button', class: 'small', title: 'Download it as a file: a copy that outlives this browser\'s storage, to open here or on another device (without the seamarks)', disabled: !!saving,
+          onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { download(await areaFile(a.id), `offline-area-${slug(a.name)}.zip`); } catch (err) { status.textContent = `Not written: ${err.message}.`; } b.disabled = false; } }, 'File'),
         h('button', { type: 'button', class: 'small', title: 'Save it again, from the providers', disabled: !!saving || !sw(), onclick: () => run({ bounds: a.bounds, from: a.from ?? fromZoom(a.top - 2), top: a.top, name: a.name, replaces: a.id }, status) }, 'Update'),
         h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${a.name}`, title: 'Delete', onclick: async () => {
           if (await ask('Delete the area', `Delete “${a.name}” from this browser?`, [['yes', 'Delete']])) { await deleteArea(a.id); render(); }
         } }, deleteIcon())))) : h('p', { class: 'val' }, 'None yet.'),
+      h('div', { class: 'orow' }, h('button', { type: 'button', class: 'small', disabled: !!saving || !sw(), onclick: () => fileIn.click() }, 'Open a file…')),
       est?.quota ? h('p', { class: 'val' }, `${MB(est.usage || 0)} used of ${MB(est.quota)} this browser allows`) : '',
       h('div', { class: 'fbuttons' }, h('button', { type: 'button', onclick: () => el.close() }, 'Close')));
   }

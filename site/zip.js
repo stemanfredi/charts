@@ -64,3 +64,26 @@ export async function zip(files, date = new Date()) {
   ev.setUint32(16, offset, true);
   return new Blob([...out, ...central, end], { type: 'application/zip' });
 }
+
+// A zip archive read: Blob → Map of name → bytes, each checked against its CRC. Stored and deflated
+// entries (what zip() writes, and most unzip tools); no zip64, no encryption. Throws on anything else.
+export async function unzip(blob) {
+  const b = new Uint8Array(await blob.arrayBuffer()), v = new DataView(b.buffer);
+  let end = b.length - 22; // the end record: last, unless a comment follows it (at most 64 KB)
+  while (end >= 0 && end >= b.length - 22 - 65535 && v.getUint32(end, true) !== 0x06054b50) end--;
+  if (end < 0 || v.getUint32(end, true) !== 0x06054b50) throw new Error('not a zip file');
+  const files = new Map(), dec = new TextDecoder();
+  for (let i = 0, p = v.getUint32(end + 16, true); i < v.getUint16(end + 10, true); i++) {
+    if (v.getUint32(p, true) !== 0x02014b50) throw new Error('a damaged zip file');
+    const method = v.getUint16(p + 10, true), crc = v.getUint32(p + 16, true), csize = v.getUint32(p + 20, true), usize = v.getUint32(p + 24, true);
+    const nlen = v.getUint16(p + 28, true), at = v.getUint32(p + 42, true), name = dec.decode(b.subarray(p + 46, p + 46 + nlen));
+    if (v.getUint32(at, true) !== 0x04034b50) throw new Error('a damaged zip file');
+    if (method !== 0 && method !== 8) throw new Error(`${name}: compressed in a way this page does not read`);
+    const from = at + 30 + v.getUint16(at + 26, true) + v.getUint16(at + 28, true), body = b.subarray(from, from + csize);
+    const data = method === 0 ? body.slice() : new Uint8Array(await new Response(new Blob([body]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    if (data.length !== usize || crc32(data) !== crc) throw new Error(`${name}: damaged`);
+    files.set(name, data);
+    p += 46 + nlen + v.getUint16(p + 30, true) + v.getUint16(p + 32, true); // name, extra field, comment
+  }
+  return files;
+}

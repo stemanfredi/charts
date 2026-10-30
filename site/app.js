@@ -970,7 +970,7 @@ const outputs = [output('png', 'png', 'Picture (PNG)', 'Download the view as a p
   output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b)),
   output('offline', 'offline', 'Offline areas…', 'Save this view in this browser, to open it without a connection; the areas saved', () => offline.open(), { 'data-closes': '' })]; // its dialog: the menu closed
 // Offline areas (offline.js): the dialog that saves the view and lists the areas saved
-const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), deleteIcon: () => icon(...UI_ICON.delete) });
+const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), deleteIcon: () => icon(...UI_ICON.delete), download: (blob, name) => download(blob, name) });
 
 // ---- the drawing (draw/panel.js): its tools in the bar, the tree, its properties -------------------
 drawPanel = drawView($('#dview'), {

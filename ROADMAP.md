@@ -17,35 +17,22 @@ reference for what it does; what was learned on the way is in
 
 ## Offline areas
 
-Decided 2026-10-30, not built. An area saved for use without a connection,
-on land or at sea, to see where you are and what is around you; not every
-layer of the online map.
+Built 2026-10-30 (Download › Offline areas); what is still open:
 
-- **What is saved**: the base map (OpenFreeMap, to a top zoom the user
-  picks), relief and land contours (Terrarium), depth shading and isobaths
-  (GEBCO, this project's own), seamarks (OpenSeaMap), the fonts and the page.
-  Position, coordinates, measuring, profiles and drawings already work
-  offline.
-- **The rule**: what a provider's terms forbid is never stored; what they
-  allow is stored within their limits; where they are silent, the layer is
-  stored in the browser only and the provider is asked. Esri's imagery is
-  never stored ("not intended to be used to export tiles for offline").
-  OpenFreeMap allows offline downloads of at most 3,000 tiles or 50 MB, with
-  4 parallel requests and an identifying User-Agent, which a browser cannot
-  set; every tile request already carries the page's Origin, whatever the
-  referrer policy: asked whether that identifies it (if they read the
-  Referer instead, it can be sent as the origin alone). OpenSeaMap publishes
-  no tile policy, but its own offline page lists apps that cache its tiles:
-  asked; saved two requests at a time.
-- **How**: a service worker serves saved tiles from the Cache API; the
-  drawings stay in local storage, which has a quota of its own; a pack can be
-  saved as a zip file and opened again, the only copy that survives the
-  browser clearing its storage; persistent storage is requested with the
-  first pack.
-- **If OpenFreeMap says no**: its weekly planet file (same schema) hosted
-  beside GEBCO's depths, and packs cut from it in the page.
-- **Left out**: imagery, forecasts and observations, the thematic layers,
-  place search (its index cannot run in a page).
+- **OpenFreeMap's answer.** Its terms allow offline downloads of at most
+  3,000 tiles or 50 MB, with 4 parallel requests and an identifying
+  User-Agent, which a browser cannot set; every tile request already carries
+  the page's Origin. Asked whether that identifies it (if they read the
+  Referer instead, it can be sent as the origin alone, with the privacy text
+  changed). If they say no: their weekly planet file (same schema) hosted
+  beside GEBCO's depths, and areas cut from it in the page.
+- **OpenSeaMap's answer.** No tile policy published; its own offline page
+  lists apps that cache its tiles. Asked; meanwhile the seamarks are saved
+  two requests at a time, in the browser only: an area's file leaves them
+  out.
+- **Left out on purpose**: imagery (Esri's terms forbid it; EOX's are
+  silent), forecasts and observations, the thematic layers, place search
+  (its index cannot run in a page).
 
 ## Land and mountains
 

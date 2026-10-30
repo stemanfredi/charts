@@ -476,5 +476,7 @@ dialog.offline .val { font-family: var(--mono); font-size: 11px; color: var(--so
 dialog.offline .val.over { color: var(--err); }
 dialog.offline .ostatus { min-height: 1.4em; margin: 6px 0; }
 dialog.offline .drawings { max-height: 40vh; overflow-y: auto; }
-dialog.offline .drawings .val { flex: 0 1 auto; }
+dialog.offline .drawings li { flex-wrap: wrap; padding: 2px 0; } /* narrow: the name on a line of its own, then the rest */
+dialog.offline .drawings .dname { flex: 1 1 14em; }
+dialog.offline .drawings .val { flex: 1 0 auto; }
 dialog.offline .fbuttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }

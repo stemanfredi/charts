@@ -1308,7 +1308,7 @@ await section('a saved area: served from it, online and without a connection; Es
 
 await section('Offline areas: the view saved from the dialog, drawn without a connection, deleted', async () => {
   setSwVersion('d');
-  const octx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const octx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
   const savedHosts = (await readFile(new URL('../site/sw.js', import.meta.url), 'utf8')).match(/hosts:start[^\n]*\n([\s\S]*?)\s*\/\/ hosts:end/)[1].match(/'[^']+'/g).map((x) => x.slice(1, -1));
   // the page's requests that failed (not the service worker's own tries of the network) for a saved
   // host, in the saved area: a tile beyond it, which a wide window shows, is not in it
@@ -1370,14 +1370,40 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   check(/No connection/.test(said), `offline: place search says there is no connection (${said.slice(0, 60)})`);
   await op.keyboard.press('Escape');
   await octx.setOffline(false);
-  // deleted: asked first, then gone from the list and from the browser
+  // its file written (File), then deleted: asked first, then gone from the list and from the browser
   await exportItem(op, 'offline');
   await op.waitForSelector('dialog.offline[open] .drawings li');
+  const [fdl] = await Promise.all([op.waitForEvent('download', { timeout: 60000 }), op.click('dialog.offline .drawings button.small >> text=File')]);
+  const fileBytes = await readFile(await fdl.path());
   await op.click('dialog.offline .drawings .hact');
   await op.click('dialog.dreport .fbuttons button.done');
   await op.waitForFunction(() => !document.querySelector('dialog.offline .drawings li'), null, { timeout: 10000 });
   const left = await op.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('pack-')).length);
   check(left === 0, `offline areas: deleted (${left} left)`);
+  // as a file: written before the delete above (its File button), opened again, drawn offline from it
+  const az = files(fileBytes);
+  const head = JSON.parse(az['area.json']);
+  check(head.format === 'charts-offline-area' && head.files.length > 100 && head.files.every((f) => az[f.name]) && !head.files.some((f) => f.url.includes('openseamap')) && /OpenStreetMap/.test(String(az['README.txt'])),
+    `offline areas, file: ${head.files.length} files with their addresses, the credits, no seamarks (${Math.round(fileBytes.length / 1e6)} MB)`);
+  await op.setInputFiles('input[type=file][accept^=".zip"]', { name: 'area.zip', mimeType: 'application/zip', buffer: fileBytes });
+  await op.waitForSelector('dialog.offline .drawings li', { timeout: 60000 });
+  await op.click('dialog.offline .fbuttons button:not(.done)'); // Close
+  failed.length = 0;
+  await (await octx.newCDPSession(op)).send('Network.clearBrowserCache');
+  await octx.setOffline(true);
+  await op.reload();
+  await op.evaluate(() => map.jumpTo({ zoom: 12, center: [9.85, 44.08] }));
+  await op.waitForFunction(() => map.loaded() && map.areTilesLoaded(), null, { timeout: 60000 }).catch(() => {});
+  await op.waitForTimeout(1000);
+  const fromFile = await op.evaluate(() => map.queryRenderedFeatures().length), missed = failed.filter((u) => !u.includes('openseamap'));
+  check(fromFile > 100 && !missed.length, `offline areas, file opened again: drawn offline (${fromFile} features), ${missed.length} requests failed but the seamarks'${missed.length ? `: ${missed.slice(0, 3).join(' ')}` : ''}`);
+  await octx.setOffline(false);
+  await op.reload();
+  await exportItem(op, 'offline');
+  await op.waitForSelector('dialog.offline[open] .drawings li');
+  await op.click('dialog.offline .drawings .hact');
+  await op.click('dialog.dreport .fbuttons button.done');
+  await op.waitForFunction(() => !document.querySelector('dialog.offline .drawings li'), null, { timeout: 10000 });
   setSwVersion(null);
   await octx.close();
 });

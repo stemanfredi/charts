@@ -85,7 +85,9 @@ another saves an area by hand and draws it offline; another saves the view
 from the Offline areas dialog (`site/offline.js`: the page's own tile makers
 asked for every tile, a fresh clipping worker for the cut elevation, the
 service worker keeping what they fetch, a few at a time per host), draws it
-offline at several zooms and deletes it.
+offline at several zooms and deletes it, after writing it as a file (a zip:
+`area.json` with each file's address, the files, the credits; the seamarks
+left out) that it opens again and draws offline.
 
 ## Continuous integration and deploy
 
