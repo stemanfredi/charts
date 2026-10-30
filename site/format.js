@@ -129,7 +129,7 @@ export function parseCoord(text, axis) {
 
 // A distance typed into a field → metres, or null: a number with m, km or NM (any case), or a bare
 // number, read in the unit the field showed (bare: 'm', 'km' or 'nm'). A decimal comma is read as such.
-export const UNIT_M = { m: 1, km: 1000, nm: NM };
+const UNIT_M = { m: 1, km: 1000, nm: NM };
 export const UNIT_TEXT = { m: 'm', km: 'km', nm: 'NM' };
 // a length in metres as a number in the unit, as a table's column reads (m whole; km, NM 3 decimals)
 export const inUnit = (m, unit) => (m / UNIT_M[unit]).toFixed(unit === 'm' ? 0 : 3);

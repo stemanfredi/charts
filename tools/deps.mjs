@@ -15,7 +15,7 @@
 import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HOSTS, OFFLINE, cspSource } from '../site/hosts.js';
+import { HOSTS, OFFLINE_PREFIXES, cspSource } from '../site/hosts.js';
 
 // [package, file in it, name in site/vendor/]
 export const LIBRARIES = [
@@ -76,8 +76,8 @@ async function shellFiles() {
 // sw.js with the page's files and the hosts a saved area may keep (as addresses: a request starts with one)
 const swWith = (src, files) => {
   if (!SHELL.test(src) || !SAVED.test(src)) throw new Error('shell or hosts markers not found in sw.js');
-  const list = (re, items) => (s) => s.replace(re, (_, pad, a, b) => `${pad}${a}${items.map((f) => `${pad}'${f}',\n`).join('')}${b}`);
-  return list(SAVED, OFFLINE.map((k) => `${HOSTS[k].replace(/\/?$/, '/')}`))(list(SHELL, files)(src));
+  const list = (re, items) => (s) => s.replace(re, (_, pad, a, b) => `${pad}${a}${items.map((f) => `${pad}${f},\n`).join('')}${b}`);
+  return list(SAVED, Object.entries(OFFLINE_PREFIXES).map(([k, u]) => `${k}: '${u}'`))(list(SHELL, files.map((f) => `'${f}'`))(src));
 };
 
 // what site/vendor/ should hold: name → the bytes in node_modules (the libraries and their licences)

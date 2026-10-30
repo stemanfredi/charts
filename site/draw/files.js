@@ -12,13 +12,13 @@ import { plural } from '../format.js';
 
 const FILE_ICON = ['M6 3h8l4 4v14H6z', 'M14 3v4h4'], OPEN_ICON = ['M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z'];
 
-// drawing (drawing.js); ctx: { icon, download(text, name), openDrawing(id), onImport(doc, view),
+// drawing (drawing.js); ctx: { icon, download(text, name), openDrawing(id), onImport(doc, view), openArea(file) (an offline area's zip),
 // known, outputs (the view's, menu items), copyLink(), about(), linkIcon, aboutIcon }; deleteIcon: the
 // bin's svg, made anew for each row; presetsChanged(): the tools' kinds shown again. Returns { buttons (the bar's),
 // importFile(file) }.
 export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
   const { icon } = ctx;
-  const fileInput = h('input', { type: 'file', accept: '.geojson,.json,application/geo+json,application/json', hidden: true, onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
+  const fileInput = h('input', { type: 'file', accept: '.geojson,.json,.zip,application/geo+json,application/json,application/zip', hidden: true, onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
   // the file: the drawing (its measurements too) and the view, as GeoJSON
   function exportFile() {
     const text = drawing.text();
@@ -53,7 +53,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
         h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, deleteIcon())))),
       sep(),
       // a file dropped on the map is opened too
-      item('Open a file…', 'A drawing\'s file, any GeoJSON, or a presets file: a drawing is added to these and opened; presets join the Point and Shape tools', () => fileInput.click(), OPEN_ICON)];
+      item('Open a file…', 'A drawing\'s file, any GeoJSON, a presets file or an offline area: a drawing is added to these and opened; presets join the Point and Shape tools; an area to the offline areas', () => fileInput.click(), OPEN_ICON)];
   }
   // Download: the drawing, the view's outputs, the presets
   const downloadItems = () => [item('Drawing (GeoJSON)', 'This drawing, with the view and layers, as a GeoJSON file to share or keep', exportFile, FILE_ICON), sep(), ...ctx.outputs,
@@ -76,6 +76,9 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
     drawing.saving.add();
   }
   async function importFile(f) {
+    // a zip (its first bytes PK\x03\x04): an offline area's, to the offline areas, whatever its size
+    const head = await f.slice(0, 4).arrayBuffer().then((b) => new Uint8Array(b), () => []);
+    if (String.fromCharCode(...head) === 'PK\x03\x04') return ctx.openArea(f);
     if (f.size > 64e6) return note('The file is larger than 64 MB: not read'); // read whole before anything is checked: a mistaken drop would stall the page
     let text;
     try { text = await f.text(); } catch (e) { return note(`The file could not be read: ${e.message}`); }

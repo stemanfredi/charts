@@ -18,6 +18,10 @@ const C = {
   isobath: DEPTH_SCHEMES.atlas.at(-1)[1], contour: '#a88a62', // isobaths on white: the deepest blue of the depth shading
 };
 const FONT = ['Noto Sans Regular'], FONT_I = ['Noto Sans Italic'], FONT_B = ['Noto Sans Bold'];
+// what an offline area keeps of the style (offline.js): the fonts, the seamarks and where the isobaths
+// and the seamarks stop and start
+export const FONTS = [...FONT, ...FONT_I, ...FONT_B], GLYPHS = `${HOSTS.openfreemap}/fonts/{fontstack}/{range}.pbf`;
+export const SEAMARK_TILES = `${HOSTS.openseamap}/seamark/{z}/{x}/{y}.png`, SEAMARKS_MIN = 9, ISOBATH_MAX = 12;
 const NAME = ['coalesce', ['get', 'name:en'], ['get', 'name']];
 const HALO = { 'text-halo-color': 'rgba(255,255,255,0.9)', 'text-halo-width': 1.2 };
 
@@ -36,7 +40,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     dem: { type: 'raster-dem', tiles: [landDemUrl], encoding: 'terrarium', tileSize: 256, maxzoom: DEM_LAND_MAX, attribution: ATTR_DEM },
     seagrass: { type: 'vector', tiles: ['seagrass://{z}/{x}/{y}'], minzoom: SEAGRASS_ZOOMS[0], maxzoom: SEAGRASS_ZOOMS[1], bounds: [-50, 25, 45, 72],
       attribution: '<a href="https://emodnet.ec.europa.eu/en/seabed-habitats">EMODnet Seabed Habitats</a>' },
-    isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: 12, attribution: ATTR_GEBCO }, // 512 px tiles: z12 is cut with the z12 coastline
+    isobaths: { type: 'vector', tiles: [isobathUrl], maxzoom: ISOBATH_MAX, attribution: ATTR_GEBCO }, // 512 px tiles: z12 is cut with the z12 coastline
     contours: { type: 'vector', tiles: [contourUrl], maxzoom: DEM_LAND_MAX, attribution: ATTR_DEM },
     eox16: { type: 'raster', tileSize: 256, maxzoom: 14, attribution: 'Sentinel-2 cloudless 2016 by <a href="https://s2maps.eu">EOX IT Services GmbH</a> (contains modified Copernicus Sentinel data 2016), CC BY 4.0',
       tiles: [`${HOSTS.eox}/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg`] },
@@ -52,7 +56,7 @@ function sources({ seaDemUrl, landDemUrl, isobathUrl, contourUrl, date, density 
     routes: { type: 'raster', tileSize: 256, maxzoom: 10, tiles: densityTiles('routes', ...(density.routes || ['all', DENSITY.routes.defaultPeriod])),
       attribution: '<a href="https://www.emsa.europa.eu/">EMSA</a> (CC BY 4.0) via ' + HA_CREDIT },
     seamarks: { type: 'raster', tileSize: 256, minzoom: 6, maxzoom: 18, attribution: '© <a href="https://openseamap.org">OpenSeaMap</a> contributors (CC BY-SA)',
-      tiles: [`${HOSTS.openseamap}/seamark/{z}/{x}/{y}.png`] },
+      tiles: [SEAMARK_TILES] },
     ...Object.fromEntries(ITEMS.filter((it) => it.tiles).flatMap((it) => Object.entries(it.tiles).map(([v, tiles]) => [`ov-${it.id}-${v}`,
       { type: 'raster', tileSize: 256, maxzoom: it.tileMaxzoom ?? 18, tiles, attribution: it.credit || HA_CREDIT }]))),
     // GEBCO's type identifier grid, coloured by gebco.js (gebco-tid://); level 0 from zoom 8, then magnified
@@ -208,7 +212,7 @@ function layers() {
         'line-width': ['match', ['get', 'admin_level'], 2, 1.1, 0.5], 'line-opacity': ['match', ['get', 'admin_level'], 2, 0.8, 0.45] } },
 
     ...overlayLayers(['maritime', 'protected', 'military', 'windfarms', 'platforms', 'pipelines', 'cables', 'wrecks']),
-    { ...raster('seamarks', 'seamarks'), minzoom: 9 },
+    { ...raster('seamarks', 'seamarks'), minzoom: SEAMARKS_MIN },
 
     { id: 'graticule', type: 'line', source: 'graticule', ...m('graticule'), filter: ['==', ['geometry-type'], 'LineString'],
       paint: { 'line-color': C.grid, 'line-width': 0.5, 'line-opacity': 0.55 } },
@@ -284,7 +288,7 @@ const empty = () => ({ type: 'geojson', data: { type: 'FeatureCollection', featu
 export function buildStyle(opts) {
   return {
     version: 8,
-    glyphs: `${HOSTS.openfreemap}/fonts/{fontstack}/{range}.pbf`,
+    glyphs: GLYPHS,
     sources: sources(opts),
     layers: layers(),
   };

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tilesIn, baseTiles, fromZoom, BASE_TILES, TOP_MAX } from '../../site/offline.js';
+import { tilesIn, baseTiles, fromZoom, isAreaHead, BASE_TILES, TOP_MAX } from '../../site/offline.js';
 
 test('tilesIn: the tiles an area covers at a zoom, a margin of tiles more, clamped to the world', () => {
   assert.deepEqual(tilesIn([-180, -85, 180, 85], 0), [[0, 0, 0]]);
@@ -26,4 +26,11 @@ test('baseTiles: what OpenFreeMap\'s terms count, from a zoom to the top (at mos
   // 320 km at sea to zoom 12 is about the limit; to zoom 14 far over it
   const sea = [8, 42.5, 12, 45.4];
   assert.ok(baseTiles(sea, 5, 12) < 4000 && baseTiles(sea, 5, 14) > 3 * BASE_TILES);
+});
+
+test('isAreaHead: an area file opened only with its format, a date, an area of the world and zooms an area has', () => {
+  const head = { format: 'charts-offline-area', version: 1, name: 'A', saved: '2026-10-30T10:00:00.000Z', bounds: [9, 44, 10, 45], from: 8, top: 12, files: [] };
+  assert.ok(isAreaHead(head));
+  for (const bad of [{ saved: undefined }, { saved: 'soon' }, { bounds: [9, 44, 10] }, { bounds: [10, 44, 9, 45] }, { bounds: [9, 44, 10, '45'] },
+    { from: undefined }, { top: 15 }, { from: 13 }, { files: {} }, { version: 2 }]) assert.ok(!isAreaHead({ ...head, ...bad }), JSON.stringify(bad));
 });

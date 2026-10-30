@@ -68,8 +68,11 @@ before the network, so a saved area asks nothing of its provider; the base
 map's description is asked of the network first, the saved copy used without a
 connection or after 4 s of a weak one; a tile of the base map's newer weekly
 build is looked for under the build the area was saved from. With no area
-saved, it leaves those requests alone. It tells the pages whether its last try
-of a provider's network answered: with that, or the browser's own word, a
+saved, it leaves those requests alone. An area is complete once its manifest
+(`pack.json`) is in its cache; one whose saving never ended (its page closed) is
+never listed, and its cache is deleted an hour later. The page saving an area
+tells the worker so every second: one not told for 10 s stops keeping files. It tells the pages whether its last try
+of the base map's provider answered (another provider down is not the connection): with that, or the browser's own word, a
 page without a connection marks only the layers no area keeps (beyond a saved
 area the kept ones fail by design) and its place search says so (a phone with
 a signal but no data calls itself online). Its lists of files and

@@ -1340,13 +1340,18 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   await exportItem(op, 'offline');
   await op.waitForSelector('dialog.offline[open]');
   await op.selectOption('dialog.offline select', '12');
-  const count = await op.textContent('dialog.offline .orow .val');
   const t0 = Date.now();
   await op.click('dialog.offline button.done');
   await op.waitForSelector('dialog.offline .drawings li', { timeout: 600000 });
   const took = Math.round((Date.now() - t0) / 1000);
   const row = await op.textContent('dialog.offline .drawings li .val');
-  check(/zoom 12 · [\d.]+ MB/.test(row) && !(await op.textContent('dialog.offline .ostatus')), `offline areas: saved (${count}; ${row}; ${took} s)`);
+  check(/zooms 8–12 · [\d.]+ MB/.test(row) && !(await op.textContent('dialog.offline .ostatus')), `offline areas: saved (${row}; ${took} s)`);
+  // renamed in its row: double-clicked, typed, Enter (a single click would show it on the map)
+  await op.dblclick('dialog.offline .drawings .dname');
+  await op.fill('dialog.offline .drawings input.dname', 'Gulf');
+  await op.press('dialog.offline .drawings input.dname', 'Enter');
+  const renamed = await op.waitForFunction(() => document.querySelector('dialog.offline[open] .drawings .dname')?.textContent === 'Gulf', null, { timeout: 5000 }).then(() => true, () => false);
+  check(renamed, `offline areas: renamed in its row (${await op.textContent('dialog.offline .drawings .dname').catch(() => 'no row')})`);
   await op.click('dialog.offline .fbuttons button:not(.done)'); // Close
   ({ bounds: area, from: areaFrom } = await op.evaluate(async () => {
     const id = (await caches.keys()).find((k) => k.startsWith('pack-'));
@@ -1394,7 +1399,7 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   const head = JSON.parse(az['area.json']);
   check(head.format === 'charts-offline-area' && head.files.length > 100 && head.files.every((f) => az[f.name]) && !head.files.some((f) => f.url.includes('openseamap')) && /OpenStreetMap/.test(String(az['README.txt'])),
     `offline areas, file: ${head.files.length} files with their addresses, the credits, no seamarks (${Math.round(fileBytes.length / 1e6)} MB)`);
-  await op.setInputFiles('input[type=file][accept^=".zip"]', { name: 'area.zip', mimeType: 'application/zip', buffer: fileBytes });
+  await op.setInputFiles('input[type=file][accept*=".zip"]', { name: 'area.zip', mimeType: 'application/zip', buffer: fileBytes }); // the bar's Open › Open a file…
   await op.waitForSelector('dialog.offline .drawings li', { timeout: 60000 });
   await op.click('dialog.offline .fbuttons button:not(.done)'); // Close
   failed.length = 0;

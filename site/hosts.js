@@ -28,5 +28,7 @@ export const HOSTS = {
 // base map and its fonts, the elevation, the depths, the seamarks. Never Esri's: its terms forbid it.
 // tools/deps.mjs writes their addresses into site/sw.js, which answers from a saved area for these only.
 export const OFFLINE = ['openfreemap', 'terrain', 'geodata', 'openseamap'];
+// the same as addresses a request starts with, by name
+export const OFFLINE_PREFIXES = Object.fromEntries(OFFLINE.map((k) => [k, HOSTS[k].replace(/\/?$/, '/')]));
 // a host as a Content-Security-Policy source: its origin, or its path ending in /
 export const cspSource = (base) => (new URL(base).pathname === '/' ? new URL(base).origin : `${base}/`);

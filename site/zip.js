@@ -1,5 +1,5 @@
-// Zip archives written in the browser with no library: deflate from the platform's
-// CompressionStream, CRC-32 here. The plain PKZIP format (APPNOTE 6.3) that every unzip,
+// Zip archives written and read in the browser with no library: deflate and inflate from the
+// platform's CompressionStream and DecompressionStream, CRC-32 here. The plain PKZIP format (APPNOTE 6.3) that every unzip,
 // GDAL's /vsizip/ and QGIS read: names in UTF-8, no zip64 (each file and the whole archive
 // under 4 GB, far beyond one map view).
 
@@ -51,7 +51,7 @@ export async function zip(files, date = new Date()) {
     common(cv, 6);
     cv.setUint32(42, offset, true); // where its local header starts
     entry.set(name, 46);
-    out.push(local, body);
+    out.push(new Blob([local, stored && f.data instanceof Blob ? f.data : body])); // a blob each: the browser may keep it on disk, not the page
     central.push(entry);
     offset += local.length + body.length;
   }
@@ -65,24 +65,44 @@ export async function zip(files, date = new Date()) {
   return new Blob([...out, ...central, end], { type: 'application/zip' });
 }
 
-// A zip archive read: Blob → Map of name → bytes, each checked against its CRC. Stored and deflated
-// entries (what zip() writes, and most unzip tools); no zip64, no encryption. Throws on anything else.
+// at most `size` bytes inflated (a file's own count): an archive that says less cannot fill memory
+async function inflate(b, size) {
+  const reader = new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(), out = new Uint8Array(size);
+  let n = 0;
+  for (let r; !(r = await reader.read()).done;) {
+    if (n + r.value.length > size) { reader.cancel(); throw new Error('damaged'); }
+    out.set(r.value, n);
+    n += r.value.length;
+  }
+  if (n !== size) throw new Error('damaged');
+  return out;
+}
+
+// A zip archive read: Blob → Map of name → () => Promise of its bytes, each checked against its CRC
+// when read. Only the directory is read at first, each file when asked: an archive of an area is
+// never all in memory. Stored and deflated entries (what zip() writes, and most unzip tools); no
+// zip64, no encryption. Throws on anything else.
 export async function unzip(blob) {
-  const b = new Uint8Array(await blob.arrayBuffer()), v = new DataView(b.buffer);
-  let end = b.length - 22; // the end record: last, unless a comment follows it (at most 64 KB)
-  while (end >= 0 && end >= b.length - 22 - 65535 && v.getUint32(end, true) !== 0x06054b50) end--;
-  if (end < 0 || v.getUint32(end, true) !== 0x06054b50) throw new Error('not a zip file');
+  const bytesAt = async (at, n) => new Uint8Array(await blob.slice(at, at + n).arrayBuffer());
+  const tailAt = Math.max(0, blob.size - 22 - 65535), tail = await bytesAt(tailAt, blob.size - tailAt), tv = new DataView(tail.buffer);
+  let end = tail.length - 22; // the end record: last, unless a comment follows it (at most 64 KB)
+  while (end >= 0 && tv.getUint32(end, true) !== 0x06054b50) end--;
+  if (end < 0) throw new Error('not a zip file');
+  const dir = await bytesAt(tv.getUint32(end + 16, true), tv.getUint32(end + 12, true)), v = new DataView(dir.buffer);
   const files = new Map(), dec = new TextDecoder();
-  for (let i = 0, p = v.getUint32(end + 16, true); i < v.getUint16(end + 10, true); i++) {
-    if (v.getUint32(p, true) !== 0x02014b50) throw new Error('a damaged zip file');
+  for (let i = 0, p = 0; i < tv.getUint16(end + 10, true); i++) {
+    if (p + 46 > dir.length || v.getUint32(p, true) !== 0x02014b50) throw new Error('a damaged zip file');
     const method = v.getUint16(p + 10, true), crc = v.getUint32(p + 16, true), csize = v.getUint32(p + 20, true), usize = v.getUint32(p + 24, true);
-    const nlen = v.getUint16(p + 28, true), at = v.getUint32(p + 42, true), name = dec.decode(b.subarray(p + 46, p + 46 + nlen));
-    if (v.getUint32(at, true) !== 0x04034b50) throw new Error('a damaged zip file');
+    const nlen = v.getUint16(p + 28, true), at = v.getUint32(p + 42, true), name = dec.decode(dir.subarray(p + 46, p + 46 + nlen));
     if (method !== 0 && method !== 8) throw new Error(`${name}: compressed in a way this page does not read`);
-    const from = at + 30 + v.getUint16(at + 26, true) + v.getUint16(at + 28, true), body = b.subarray(from, from + csize);
-    const data = method === 0 ? body.slice() : new Uint8Array(await new Response(new Blob([body]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
-    if (data.length !== usize || crc32(data) !== crc) throw new Error(`${name}: damaged`);
-    files.set(name, data);
+    files.set(name, async () => {
+      const local = await bytesAt(at, 30), lv = new DataView(local.buffer);
+      if (local.length < 30 || lv.getUint32(0, true) !== 0x04034b50) throw new Error(`${name}: damaged`);
+      const body = await bytesAt(at + 30 + lv.getUint16(26, true) + lv.getUint16(28, true), csize);
+      const data = method === 0 ? body : await inflate(body, usize).catch(() => null);
+      if (data?.length !== usize || crc32(data) !== crc) throw new Error(`${name}: damaged`);
+      return data;
+    });
     p += 46 + nlen + v.getUint16(p + 30, true) + v.getUint16(p + 32, true); // name, extra field, comment
   }
   return files;

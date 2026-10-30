@@ -709,7 +709,14 @@ map.on('data', (e) => {
   if (e.dataType === 'source' && e.tile && health[e.sourceId]) { health[e.sourceId].ok++; renderStatus(); }
 });
 map.on('movestart', () => { for (const k in health) delete health[k]; renderStatus(); });
-onConnection(() => renderStatus());
+// the connection gone (or never there): said once, beyond a saved area the map is blank
+let wasOff = false;
+const connection = () => {
+  if (noConnection() && !wasOff) note('No connection: the map shows only what offline areas keep (Download › Offline areas)');
+  wasOff = noConnection();
+};
+onConnection(() => { connection(); renderStatus(); });
+connection();
 function itemStatus(id) {
   for (const l of layersOf[id] || []) {
     if (l.metadata.variant && l.metadata.variant !== state.variant[id]) continue;
@@ -970,7 +977,7 @@ const outputs = [output('png', 'png', 'Picture (PNG)', 'Download the view as a p
   output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b)),
   output('offline', 'offline', 'Offline areas…', 'Save this view in this browser, to open it without a connection; the areas saved', () => offline.open(), { 'data-closes': '' })]; // its dialog: the menu closed
 // Offline areas (offline.js): the dialog that saves the view and lists the areas saved
-const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), deleteIcon: () => icon(...UI_ICON.delete), download: (blob, name) => download(blob, name) });
+const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), deleteIcon: () => icon(...UI_ICON.delete), download });
 
 // ---- the drawing (draw/panel.js): its tools in the bar, the tree, its properties -------------------
 drawPanel = drawView($('#dview'), {
@@ -982,6 +989,7 @@ drawPanel = drawView($('#dview'), {
   // depth and units
   onImport: (doc, view) => { drawing.saving.add(doc); if (view) applyView(view); },
   openDrawing: (id) => { const v = drawing.saving.open(id); if (v) applyView(v); },
+  openArea: (f) => offline.openFile(f),
   download: (text, name, type = 'application/geo+json') => download(new Blob([text], { type }), name),
   profile: (trace) => profileFor(trace),
 });
