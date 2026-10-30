@@ -210,11 +210,12 @@ export const CMEMS_DEPTHS = [0, 10, 20, 50, 100, 200, 500, 1000];
 // variants: alternatives inside one item; only the chosen variant's layers draw.
 // section: in the Ocean data group, the heading its entries go under in the menus.
 export const GROUPS = [
+  // the foundation first (the base, the sea's depths and marks), then what lies on it, then what is written over it
   { id: 'base', label: 'Base', exclusive: true },
+  { id: 'sea', label: 'Sea' },
   // the layers that change with time, chosen in two menus: one for colours, one for arrows
   // (app.js); their sections head the menus' entries
   { id: 'data', label: 'Ocean data', sections: ['Sea state', 'Water column', 'Satellite'] },
-  { id: 'sea', label: 'Sea' },
   { id: 'shipping', label: 'Shipping' },
   { id: 'uses', label: 'Uses & areas' }, // EMODnet Human Activities
   { id: 'land', label: 'Land' },
