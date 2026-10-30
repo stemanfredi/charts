@@ -443,7 +443,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .dinsphead .iacts { display: inline-flex; align-items: center; gap: 0; }
 /* the bar's Open and Download menus (a phone's ☰ both): + New, the drawings in this browser, a file; what is downloaded */
 .dmenu { position: fixed; z-index: 20; width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; }
-.drawings .hact:hover { color: var(--err); } /* Delete */
+.drawings .del:hover { color: var(--err); } /* Delete */
 .dmenu .dnew { color: var(--accent); }
 .dmenu .dnew:hover, .drawings .dname:not(:disabled):hover { background: var(--hover); }
 .dmenu .dsep { height: 1px; background: var(--line2); margin: 4px 0; }
@@ -476,5 +476,5 @@ dialog.offline .drawings { max-height: 40vh; overflow-y: auto; }
 dialog.offline .drawings li { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 4px; padding: 2px 0; }
 dialog.offline .drawings li > button:not(.dname) { grid-row: 1 / 3; }
 dialog.offline .drawings .dname { grid-area: 1 / 1; }
-dialog.offline .drawings .val { grid-area: 2 / 1; padding: 0 8px; white-space: normal; } /* narrow: on two lines, the size kept */
+dialog.offline .drawings .val { grid-area: 2 / 1; padding: 0 8px; white-space: normal; } /* very narrow: wrapped rather than lose the size */
 dialog.offline .drawings + .note { margin-top: 8px; }

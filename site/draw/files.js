@@ -9,6 +9,7 @@ import { parse } from './file.js';
 import { elements, isMeasurement, mainOutline } from './document.js';
 import { presetsFile, readPresets, savePresets } from './presets.js';
 import { plural } from '../format.js';
+import { UI_ICON } from './icons.js';
 
 const FILE_ICON = ['M6 3h8l4 4v14H6z', 'M14 3v4h4'], OPEN_ICON = ['M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z'];
 
@@ -50,7 +51,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
         h('button', { type: 'button', role: 'menuitem', class: 'dname', 'aria-current': x.open ? 'true' : null, title: x.open ? 'The drawing open' : 'Open it, where it was drawn',
           onclick: () => { close(); if (!x.open) ctx.openDrawing(x.id); } }, x.title || 'Untitled'),
         h('span', { class: 'val' }, [when(x.modified), x.size ? kb(x.size) : ''].filter(Boolean).join(' · ')),
-        h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, deleteIcon())))),
+        h('button', { type: 'button', class: 'hact del', 'aria-label': `Delete ${x.title || 'Untitled'}`, title: 'Delete for good', onclick: () => del(x) }, deleteIcon())))),
       sep(),
       // a file dropped on the map is opened too
       item('Open a file…', 'A drawing\'s file, any GeoJSON, a presets file or an offline area: a drawing is added to these and opened; presets join the Point and Shape tools; an area to the offline areas', () => fileInput.click(), OPEN_ICON)];
@@ -70,7 +71,7 @@ export function fileGroup(drawing, ctx, deleteIcon, presetsChanged) {
     ? [...openItems(), sep(), ...downloadItems(), sep(), item('Copy link', 'Copy a link to this exact view', ctx.copyLink, ctx.linkIcon), item('About', 'About this chart', ctx.about, ctx.aboutIcon)]
     : openItems())), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   openBtn.append(icon('M4 6h16', 'M4 12h16', 'M4 18h16')); // COMPACT's: ☰ (style.css shows one of the two)
-  const downloadBtn = barBtn('dlbtn', 'Download', ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'], () => toggle(downloadBtn, downloadItems), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+  const downloadBtn = barBtn('dlbtn', 'Download', UI_ICON.download, () => toggle(downloadBtn, downloadItems), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
   const linkBtn = barBtn('cplbtn', 'Copy link', ctx.linkIcon, () => ctx.copyLink());
   function newDrawing() {
     drawing.saving.add();

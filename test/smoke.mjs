@@ -674,7 +674,7 @@ await section('the drawing\'s files: imported again, dropped on the map, the lis
   check(drawings.length === 3, `drawing: every drawing kept in the list, the imported ones added (${drawings.join(', ')})`); // the first and two imported (an empty New left nothing)
   // a drawing's Delete asks first, a question and its buttons only (an absent foot once printed "null")
   await dw.click('#bar .filebtn');
-  await dw.locator('.dmenu .drawings .hact').last().click();
+  await dw.locator('.dmenu .drawings .del').last().click();
   const asked = await dw.evaluate(() => document.querySelector('dialog[open]').textContent);
   await dw.click('dialog[open] button:not(.done)');
   await dw.keyboard.press('Escape');
@@ -1387,9 +1387,9 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   // its file written (File), then deleted: asked first, then gone from the list and from the browser
   await exportItem(op, 'offline');
   await op.waitForSelector('dialog.offline[open] .drawings li');
-  const [fdl] = await Promise.all([op.waitForEvent('download', { timeout: 60000 }), op.click('dialog.offline .drawings button.small >> text=Download')]);
+  const [fdl] = await Promise.all([op.waitForEvent('download', { timeout: 60000 }), op.click('dialog.offline .drawings button[aria-label^="Download"]')]);
   const fileBytes = await readFile(await fdl.path());
-  await op.click('dialog.offline .drawings .hact');
+  await op.click('dialog.offline .drawings .del');
   await op.click('dialog.dreport .fbuttons button.done');
   await op.waitForFunction(() => !document.querySelector('dialog.offline .drawings li'), null, { timeout: 10000 });
   const left = await op.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('pack-')).length);
@@ -1415,7 +1415,7 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   await op.reload();
   await exportItem(op, 'offline');
   await op.waitForSelector('dialog.offline[open] .drawings li');
-  await op.click('dialog.offline .drawings .hact');
+  await op.click('dialog.offline .drawings .del');
   await op.click('dialog.dreport .fbuttons button.done');
   await op.waitForFunction(() => !document.querySelector('dialog.offline .drawings li'), null, { timeout: 10000 });
   setSwVersion(null);

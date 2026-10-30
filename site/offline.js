@@ -252,9 +252,9 @@ async function openAreaFile(file) {
 }
 
 // ---- the dialog: Download › Offline areas… ---------------------------------------------------------
-// map; fit(bounds): the map fitted to an area (Show); deleteIcon(): the bin's svg; download(blob, name).
+// map; fit(bounds): the map fitted to an area (Show); icon(name): UI_ICON's svg (draw/icons.js); download(blob, name).
 // Returns { open(), openFile(file) (an area's file, from the bar's Open or a drop) }
-export function offlineDialog({ map, fit, deleteIcon, download }) {
+export function offlineDialog({ map, fit, icon, download }) {
   const el = h('dialog', { class: 'offline', 'aria-labelledby': 'offline-title' });
   document.body.append(el);
   let saving = null; // the AbortController of the area being saved or opened
@@ -271,16 +271,17 @@ export function offlineDialog({ map, fit, deleteIcon, download }) {
     const bounds = areaOf(map), view = Math.min(TOP_MAX, Math.max(0, Math.floor(map.getZoom()))), from = fromZoom(map.getZoom());
     const zoom = h('select', { 'aria-label': 'Detail' }, Array.from({ length: TOP_MAX - view + 1 }, (_, i) => h('option', { value: view + i }, `zoom ${view + i}${i ? '' : ', this view'}`)));
     zoom.value = Math.min(TOP_MAX, view + 2);
-    const over = h('span', { class: 'note warn' }); // OpenFreeMap's terms: said only when this is beyond them
-    const save = h('button', { type: 'button', class: 'done', onclick: () => saveIt({ bounds, from, top: +zoom.value, name: centre(bounds) }) }, 'Save');
+    const over = h('p', { class: 'note warn' }); // OpenFreeMap's terms: said only when this is beyond them
+    const save = h('button', { type: 'button', class: 'small done', onclick: () => saveIt({ bounds, from, top: +zoom.value, name: centre(bounds) }) }, 'Save');
     const recount = () => {
       const beyond = baseTiles(bounds, from, +zoom.value) > BASE_TILES;
       over.textContent = beyond ? 'Too large: choose less detail or a smaller view' : '';
+      over.hidden = !beyond;
       save.disabled = beyond || !sw() || !!saving;
     };
     zoom.addEventListener('change', recount);
     recount();
-    return [h('h3', {}, 'This view'), h('div', { class: 'orow' }, h('label', {}, 'Detail up to ', zoom), over), h('div', { class: 'fbuttons' }, save)];
+    return [h('h3', {}, 'This view'), h('div', { class: 'orow' }, h('label', {}, 'Detail up to ', zoom), save), over];
   }
   // an area's row: its name shows it on the map, double-clicked (or F2) renames it
   function row(a) {
@@ -307,13 +308,13 @@ export function offlineDialog({ map, fit, deleteIcon, download }) {
     }
     return h('li', {}, name,
       h('span', { class: 'val' }, `${when(a.saved)} · zooms ${a.from}–${a.top} · ${MB(a.bytes)}`),
-      h('button', { type: 'button', class: 'small', 'aria-label': `Download ${a.name}`, title: 'Download it as a file: a copy that outlives this browser\'s storage, to open here or on another device (without the seamarks)', disabled: !!saving,
-        onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { download(await areaFile(a.id), `offline-area-${slug(a.name)}.zip`); } catch (err) { say(`Not written: ${err.message}.`, true); } b.disabled = false; } }, 'Download'),
-      noConnection() ? '' : h('button', { type: 'button', class: 'small', 'aria-label': `Update ${a.name}`, title: 'Save it again, from the providers', disabled: !!saving || !sw(),
-        onclick: () => saveIt({ bounds: a.bounds, from: a.from, top: a.top, name: a.name }, a.id) }, 'Update'),
-      h('button', { type: 'button', class: 'hact', 'aria-label': `Delete ${a.name}`, title: 'Delete for good', disabled: !!saving, onclick: async () => {
+      h('button', { type: 'button', class: 'hact', 'aria-label': `Download ${a.name}`, title: 'Download it as a file: a copy that outlives this browser\'s storage, to open here or on another device (without the seamarks)', disabled: !!saving,
+        onclick: async (e) => { const b = e.currentTarget; b.disabled = true; try { download(await areaFile(a.id), `offline-area-${slug(a.name)}.zip`); } catch (err) { say(`Not written: ${err.message}.`, true); } b.disabled = false; } }, icon('download')),
+      noConnection() ? '' : h('button', { type: 'button', class: 'hact', 'aria-label': `Update ${a.name}`, title: 'Update: save it again, from the providers', disabled: !!saving || !sw(),
+        onclick: () => saveIt({ bounds: a.bounds, from: a.from, top: a.top, name: a.name }, a.id) }, icon('update')),
+      h('button', { type: 'button', class: 'hact del', 'aria-label': `Delete ${a.name}`, title: 'Delete for good', disabled: !!saving, onclick: async () => {
         if (await ask('Delete the area', `Delete “${a.name}” for good? It cannot be brought back.`, [['yes', 'Delete']])) { await deleteArea(a.id); await refresh(); }
-      } }, deleteIcon()));
+      } }, icon('delete')));
   }
   async function render() {
     const areas = await savedAreas();

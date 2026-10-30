@@ -6,7 +6,7 @@ export const KIND_ICON = {
   label: ['M10 4h10v7H10z', 'M10 11 4 19'], // a text box and its leader
 };
 // the panels' and the actions' icons (as Lucide's): the drawing, Attach, Zoom to, Duplicate, Group,
-// Delete, Detach, shown and hidden
+// Delete, Detach, shown and hidden, Download, Update (saved again)
 export const UI_ICON = {
   drawing: ['M6 3h9l4 4v14H6z', 'M14 3v5h5'], // a page: the drawing itself
   attach: ['M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7', 'M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'], // a link
@@ -16,6 +16,8 @@ export const UI_ICON = {
   delete: ['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6', 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2', 'M10 11v6', 'M14 11v6'],
   detach: ['m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'm5.17 11.75-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71', 'M8 2v3', 'M2 8h3', 'M16 19v3', 'M19 16h3'],
   eye: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
+  download: ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'],
+  update: ['M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8', 'M21 3v5h-5', 'M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16', 'M8 16H3v5'], // two arrows round: refresh
   hidden: ['M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7', 'M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6', 'M14.1 14.1a3 3 0 1 1-4.2-4.2', 'M2 2l20 20'],
 };
 // what each kind of point and shape looks like (the tools' kinds, the tree): those round a centre have it
