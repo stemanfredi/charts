@@ -15,6 +15,38 @@ reference for what it does; what was learned on the way is in
   grid; smoothing only there would remove it without touching real detail.
   None seen so far: only if one appears.
 
+## Offline areas
+
+Decided 2026-10-30, not built. An area saved for use without a connection,
+on land or at sea, to see where you are and what is around you; not every
+layer of the online map.
+
+- **What is saved**: the base map (OpenFreeMap, to a top zoom the user
+  picks), relief and land contours (Terrarium), depth shading and isobaths
+  (GEBCO, this project's own), seamarks (OpenSeaMap), the fonts and the page.
+  Position, coordinates, measuring, profiles and drawings already work
+  offline.
+- **The rule**: what a provider's terms forbid is never stored; what they
+  allow is stored within their limits; where they are silent, the layer is
+  stored in the browser only and the provider is asked. Esri's imagery is
+  never stored ("not intended to be used to export tiles for offline").
+  OpenFreeMap allows offline downloads of at most 3,000 tiles or 50 MB, with
+  4 parallel requests and an identifying User-Agent, which a browser cannot
+  set; every tile request already carries the page's Origin, whatever the
+  referrer policy: asked whether that identifies it (if they read the
+  Referer instead, it can be sent as the origin alone). OpenSeaMap publishes
+  no tile policy, but its own offline page lists apps that cache its tiles:
+  asked; saved two requests at a time.
+- **How**: a service worker serves saved tiles from the Cache API; the
+  drawings stay in local storage, which has a quota of its own; a pack can be
+  saved as a zip file and opened again, the only copy that survives the
+  browser clearing its storage; persistent storage is requested with the
+  first pack.
+- **If OpenFreeMap says no**: its weekly planet file (same schema) hosted
+  beside GEBCO's depths, and packs cut from it in the page.
+- **Left out**: imagery, forecasts and observations, the thematic layers,
+  place search (its index cannot run in a page).
+
 ## Land and mountains
 
 What walkers and climbers need from a map, against the open data a keyless
@@ -40,9 +72,6 @@ would say which.
     huts, drinking water and springs, which the base map's tiles leave out. A
     build like the seagrass one, much larger; Overpass cannot serve a public
     map.
-  - Offline areas: only from files published for download (this project's
-    own builds, providers' extracts or sheets), never by caching third-party
-    tiles past their terms; browser storage is best-effort and can be evicted.
   - Print with a grid: a paper map at a set scale, with a coordinate grid.
   - Detailed elevation in Switzerland (swissALTI3D, 0.5 and 2 m,
     cloud-optimised GeoTIFF): its catalogue says "proprietary" where the
