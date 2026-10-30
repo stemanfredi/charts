@@ -36,8 +36,9 @@ export function tilesIn([w, s, e, n], z, margin = 0) {
   for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) out.push([z, x, y]);
   return out;
 }
-// the base map's tiles an area from zoom from to top takes (the number OpenFreeMap's terms count)
-export const baseTiles = (bounds, from, top) => Array.from({ length: Math.max(0, Math.min(top, TOP_MAX) - from + 1) }, (_, i) => tilesIn(bounds, from + i).length).reduce((a, b) => a + b, 0);
+// the base map's tiles an area from zoom from to top takes (the number OpenFreeMap's terms count): to
+// the contours' last zoom with the ring around the area that their cut reads too
+export const baseTiles = (bounds, from, top) => Array.from({ length: Math.max(0, Math.min(top, TOP_MAX) - from + 1) }, (_, i) => tilesIn(bounds, from + i, from + i <= CONTOUR_MAX ? 1 : 0).length).reduce((a, b) => a + b, 0);
 // the lowest zoom an area keeps: a few below the view's (lower, the area is a speck, and the
 // world's tiles are the largest)
 export const fromZoom = (viewZoom) => Math.max(0, Math.min(TOP_MAX, Math.floor(viewZoom)) - 3);
@@ -142,6 +143,7 @@ export async function saveArea({ bounds, from, top, name, fresh = false, signal,
       size += n; files++;
       if (req.url.startsWith(`${HOSTS.openfreemap}/`)) { base += n; baseFiles++; }
     }
+    if (!baseFiles) throw new Error('nothing of the base map was kept'); // never an empty area listed (a service worker of an older version, a newer one waiting, keeps nothing)
     if (base > BASE_BYTES || baseFiles > BASE_TILES) throw new Error(`the base map is over its ${BASE_TILES.toLocaleString()} tiles or ${MB(BASE_BYTES)} here: choose less detail or a smaller view`);
     const manifest = { name, saved: new Date().toISOString(), bounds, from, top, files, bytes: size };
     await cache.put(MANIFEST(), new Response(JSON.stringify(manifest), { headers: { 'content-type': 'application/json' } }));
