@@ -1311,9 +1311,11 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   const octx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
   const savedHosts = (await readFile(new URL('../site/sw.js', import.meta.url), 'utf8')).match(/hosts:start[^\n]*\n([\s\S]*?)\s*\/\/ hosts:end/)[1].match(/'[^']+'/g).map((x) => x.slice(1, -1));
   // the page's requests that failed (not the service worker's own tries of the network) for a saved
-  // host, in the saved area: a tile beyond it, which a wide window shows, is not in it
+  // host, in the saved area: a tile beyond it, which a wide window shows, is not in it, nor a tile
+  // below the area's lowest zoom (MapLibre asks for a failed tile's parents, coarser and coarser,
+  // to show something in its place: a tile beyond the area has parents that contain it)
   const failed = [];
-  let area = null;
+  let area = null, areaFrom = 0;
   let wide = false; // the window wider than the area: a depth chunk (degrees wide) may be wanted only by tiles beyond it
   const inArea = (u) => {
     if (!area) return true;
@@ -1322,6 +1324,7 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
     const deg = c && (512 * 15 * 2 ** c[1]) / 3600;
     if (!c && !m) return true;
     if (c && wide) return false;
+    if (m && +m[1] < areaFrom) return false;
     const [w, s, e, n] = c ? [-180 + c[3] * deg, 90 - (+c[2] + 1) * deg, -180 + (+c[3] + 1) * deg, 90 - c[2] * deg] : tileBounds(+m[1], +m[2], +m[3]);
     return e > area[0] && w < area[2] && n > area[1] && s < area[3];
   };
@@ -1339,10 +1342,10 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   const row = await op.textContent('dialog.offline .drawings li .val');
   check(/zoom 12 · [\d.]+ MB/.test(row) && !(await op.textContent('dialog.offline .ostatus')), `offline areas: saved (${count}; ${row}; ${took} s)`);
   await op.click('dialog.offline .fbuttons button:not(.done)'); // Close
-  area = await op.evaluate(async () => {
+  ({ bounds: area, from: areaFrom } = await op.evaluate(async () => {
     const id = (await caches.keys()).find((k) => k.startsWith('pack-'));
-    return (await (await (await caches.open(id)).match(new URL('pack.json', document.baseURI).href)).json()).bounds;
-  });
+    return (await (await caches.open(id)).match(new URL('pack.json', document.baseURI).href)).json();
+  }));
   // without a connection: the area at zooms 9 to 12, across it, with no request to a saved host failing
   failed.length = 0;
   await (await octx.newCDPSession(op)).send('Network.clearBrowserCache'); // only the saved area can answer
