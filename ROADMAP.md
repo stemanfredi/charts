@@ -14,6 +14,27 @@ reference for what it does; what was learned on the way is in
   Interpolated areas of sparse data can show the pattern of the data's own
   grid; smoothing only there would remove it without touching real detail.
   None seen so far: only if one appears.
+- **EMODnet's depths where it has them** (decided 2026-10-30, postponed). GEBCO
+  holds a flat 3 m across the Gulf of La Spezia: its cells there are read
+  from the water's colour in satellite images (code 16, now its own class
+  in *Depth sources*), where the chart has 10–15 m from soundings; its
+  460 m cells cannot hold a harbour anyway. The EMODnet DTM 2024 the GIS
+  export already reads (one Zarr grid of 115 m cells, 36°W–43°E, 15°N–90°N,
+  chunks of 1,000 × 1,000 cells, with a source index and an interpolation
+  flag) holds the ports' soundings. The way to do it: in the sea clipper,
+  a tile inside EMODnet's box from zoom 10 up (a pixel no bigger than its
+  cell) sampled from EMODnet with the same water-only spline, a cell it has
+  no value for from GEBCO, everything else GEBCO; the isobaths at those
+  zooms then follow EMODnet; the depth on a click and the legend say which
+  grid ("GEBCO 2026" or "EMODnet 2024"), the layer's ⓘ says the rule. No
+  switch: the finer survey is right wherever it exists, and the choice
+  would cost a control, a value in the link and the file, and graying by
+  view and zoom for nothing; the *EMODnet depth (Europe)* picture layer
+  already serves to compare. Open: the jump at zoom 9/10 where the grids
+  disagree (its cure a multiscale copy on the project's host, an 11 GB
+  build in the GEBCO tool's class, read at every zoom); EMODnet's datum
+  (lowest astronomical tide) against GEBCO's (mean sea level), up to a
+  metre in tidal seas; the load of its chunks, to measure first.
 
 ## Offline areas
 
