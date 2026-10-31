@@ -1,6 +1,6 @@
 import * as maplibregl from './vendor/maplibre-gl.mjs';
 import mlcontour from './vendor/maplibre-contour.mjs';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_ZMAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS, INK, esriAttribution } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
@@ -352,8 +352,7 @@ function setOn(id, on) {
 // Under depth shading the water fill takes the shallowest band's colour: the tint stops a
 // fraction of a pixel short of the shore (clip.js), and that sliver must not read as white.
 function shoreFill() {
-  const zmax = style.layers.find((l) => l.id === 'depth').maxzoom; // shading hides itself above this
-  map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], depthStops()[0][1], zmax, '#ffffff'] : '#ffffff');
+  map.setPaintProperty('water', 'fill-color', state.on.has('depth') ? ['step', ['zoom'], depthStops()[0][1], DEPTH_ZMAX, '#ffffff'] : '#ffffff'); // the shading hidden: white
 }
 // the depth colour scheme is the Depth shading item's variant
 const depthStops = () => DEPTH_SCHEMES[state.variant.depth];
@@ -385,8 +384,8 @@ function isobathInk() {
   if (state.on.has('sat')) return ISOBATH_INK.sat;
   const plain = { line: chartLineColour[LINE_IDS[0]], text: chartLabelPaint[LABEL_IDS[0]]['text-color'], halo: LIGHT_HALO };
   if (!state.on.has('depth')) return plain;
-  const shaded = ISOBATH_INK[state.variant.depth], zmax = style.layers.find((l) => l.id === 'depth').maxzoom;
-  return Object.fromEntries(Object.entries(plain).map(([k, v]) => [k, ['step', ['zoom'], shaded[k], zmax, v]]));
+  const shaded = ISOBATH_INK[state.variant.depth];
+  return Object.fromEntries(Object.entries(plain).map(([k, v]) => [k, ['step', ['zoom'], shaded[k], DEPTH_ZMAX, v]]));
 }
 function depthColours() {
   map.setPaintProperty('depth', 'color-relief-color', depthRamp(depthStops()));
@@ -483,8 +482,8 @@ const KINDS = {
   // EMODnet's depth, drawn by EMODnet (tiles); its values from its Zarr store
   // GEBCO's depths, drawn by the depth shading (clip.js); its values from its Zarr store
   gebco: {
-    // the depth shading's legend: while the chart is under it, zoomed out (the shading ends at 13)
-    legend: () => (state.on.has('chart') && map.getZoom() < 13 ? { key: state.variant.depth, paint: (el) => {
+    // the depth shading's legend: while the chart is under it, zoomed out (where the shading is)
+    legend: () => (state.on.has('chart') && map.getZoom() < DEPTH_ZMAX ? { key: state.variant.depth, paint: (el) => {
       drawRamp(el, 'Depth shading', 'm · GEBCO 2026', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
       return `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`;
     } } : null),

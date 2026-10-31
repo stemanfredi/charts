@@ -1,7 +1,7 @@
 // The map's style, from the catalogue: every source, and every layer in draw order. A layer belongs
 // to a menu item through metadata.item; layers of a hidden item are set to visibility:none, and
 // MapLibre requests no tiles for a source whose layers are all hidden.
-import { DEM_SEA_MAX, DEM_LAND_MAX, OMT_TILEJSON, DENSITY, densityTiles, HA_CREDIT, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
+import { DEM_SEA_MAX, DEM_LAND_MAX, DEPTH_ZMAX, OMT_TILEJSON, DENSITY, densityTiles, HA_CREDIT, GIBS, gibsTiles, CMEMS, ITEMS, DEPTH_SCHEMES, ISOBATH_ZOOMS, DEPTH_LEVELS, isMajorIsobath, NO_DEPTH, NO_DEPTH_M, SEAGRASS_ZOOMS, SEAGRASS_CLASSES } from './catalog.js';
 import { HOSTS } from './hosts.js';
 import { escapeHtml } from './format.js';
 
@@ -152,7 +152,7 @@ function layers() {
       paint: { 'line-color': C.water, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 14, 2] } },
 
     // colour fills are chart-only: over satellite the image shows the water; isobaths still draw
-    { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: 13, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
+    { id: 'depth', type: 'color-relief', source: 'dem-sea', maxzoom: DEPTH_ZMAX, metadata: { item: 'depth', base: 'chart' }, paint: { 'color-relief-color': depthRamp(DEPTH_SCHEMES.atlas) } },
     raster('gebco-tid', 'depthsource'),
     ...overlayLayers(['emodnetdepth', 'substrate']),
     ...Object.keys(GIBS).map((k) => raster(`gibs-${k}`, 'gibs', k)),

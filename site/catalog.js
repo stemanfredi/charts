@@ -10,6 +10,9 @@ import { HOSTS } from './hosts.js';
 // yet, and they vanished under the tint. Land 12: the DEM's own last zoom
 export const DEM_TILES = `${HOSTS.terrain}/terrarium/{z}/{x}/{y}.png`;
 export const DEM_SEA_MAX = 13, DEM_LAND_MAX = 12;
+// the depth shading hides itself from this map zoom (the style's maxzoom; its item's, the last whole
+// zoom it shows, one less): GEBCO's 460 m cells have no more detail to give
+export const DEPTH_ZMAX = 13;
 export const OMT_TILEJSON = `${HOSTS.openfreemap}/planet`;
 
 // Shipping density from EMODnet Human Activities (WMS, keyless, CORS), on a 1 km grid over
@@ -242,7 +245,7 @@ export const ITEMS = [
     variants: { esri: 'Esri World Imagery (Esri terms)', eox16: 'Sentinel-2 2016 · EOX (CC BY)', eox24: 'Sentinel-2 2024 · EOX (non-commercial)' }, // first = default
     info: { src: 'Esri World Imagery (default), or EOX Sentinel-2 cloudless', lic: 'EOX 2016: CC BY 4.0 · EOX 2024: CC BY-NC-SA 4.0 · Esri: Esri terms of use', res: 'Sentinel-2: 10 m · Esri: up to ~0.5 m, varies', url: 'https://s2maps.eu' } },
 
-  { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: 12, kind: 'gebco',
+  { id: 'depth', group: 'sea', label: 'Depth shading', on: true, opacity: 1, maxzoom: DEPTH_ZMAX - 1, kind: 'gebco',
     variants: { atlas: 'Darker = deeper (atlas)', nautical: 'Darker = shallower (nautical chart)' },
     info: { src: 'GEBCO 2026 Grid (GEBCO Compilation Group), read as a Zarr store from geodata.makaw.org (tools/gebco.mjs)', lic: GEBCO_LIC, res: 'GEBCO\'s cells of 15 arc-seconds (about 460 m), worldwide: about a quarter of the seabed from surveys, the rest interpolated or predicted from satellite gravity (in Europe, EMODnet depth is finer: its own layer). Cut to the OSM coastline, so land below sea level is never tinted; sea the grid calls dry is shown as the shallowest class. Inland water is classified once per water body from the grid at its shore: at sea level (limans, lagoons, harbour basins) it is shown flat in the shallowest class, depth unknown; lakes above it are grey, no depth data. Caspian depths are measured from its surface (−28 m), not from sea level. Off above zoom 12: the data has no more detail', url: 'https://www.gebco.net' } },
   { id: 'isobaths', group: 'sea', label: 'Isobaths', on: true, opacity: 1, minzoom: 2,
