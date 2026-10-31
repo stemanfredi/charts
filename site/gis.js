@@ -69,7 +69,7 @@ export function gisExport({ map, layersOf, kindOf, drawing, display, profiled, c
       const transform = affine(corners, src.width, src.height);
       // vector/<item>.geojson for each item drawn with features in view, and the measurements
       const vectors = [];
-      const left = []; // what could not be read: the rest is saved, the button says what is missing
+      const left = []; // what could not be read: the rest is saved, the note says what is missing
       for (const it of layers) {
         const failed = [], fs = viewFeatures(vectorPieces(it.id), corners, clipping, failed);
         if (failed.length) left.push(`${failed.length} of ${it.label}'s features (${failed[0]})`);

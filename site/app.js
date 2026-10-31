@@ -956,8 +956,8 @@ function renderUnits() {
   scaleText();
 }
 
-// ---- the view's outputs, in the bar's Download menu: each says how it went on itself ("Saving…",
-// "Failed"), the menu open meanwhile
+// ---- the view's outputs, in the bar's Download menu: each says "Preparing…" on itself meanwhile, and
+// how it went in the note (onFrame)
 const output = (id, iconName, text, title, run, more = {}) => h('button', { type: 'button', role: 'menuitem', id, title, onclick: (e) => run(e.currentTarget), ...more }, icon(...ICON[iconName]), h('span', {}, text));
 const outputs = [output('png', 'png', 'Picture (PNG)', 'Download the view as a picture', (b) => exportPng(b)),
   output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b))];
@@ -1022,16 +1022,6 @@ mapBox.addEventListener('drop', (e) => {
 async function copyLink() {
   writeHashNow(); // the link must be the view as it is now
   try { await navigator.clipboard.writeText(location.href); note(drawing.isEmpty() ? 'Link copied' : 'Link copied: the view and its layers, not the drawing (Download › Drawing for that)'); } catch { prompt('Copy this link', location.href); }
-}
-// a button's own label and tooltip, kept while it says something else for a moment (flash: the text,
-// and why in its tooltip)
-const labelOf = (b) => { b.dataset.label ||= b.querySelector('span').textContent; b.dataset.title ||= b.title; return b.dataset; };
-function flash(b, text, title = '', ms = 1200) {
-  const own = labelOf(b);
-  clearTimeout(b.flashTimer);
-  b.querySelector('span').textContent = text;
-  b.title = title || own.title;
-  b.flashTimer = setTimeout(() => { b.querySelector('span').textContent = own.label; b.title = own.title; }, ms);
 }
 const about = $('#about');
 // The service worker (sw.js) keeps the page's own files in this browser, so that the page opens
@@ -1198,26 +1188,24 @@ map.on('sourcedata', (e) => { if (!e.tile) renderCredits(); });
 // An export from button b: after before() (a library to load), the map's next frame, after pending
 // tiles (so a layer switched on a moment ago is in the picture). fn(canvas) runs while the canvas
 // still holds it, and must read it before awaiting; it returns what it left out, if anything. The
-// button says "Saving…" meanwhile, then "Failed" or "Partial" for a few seconds, its tooltip why.
+// button says "Preparing…" meanwhile; a failure, or what was left out, is said in the note (read out).
 let exporting = false; // one export at a time, however often the buttons are clicked
 async function onFrame(b, fn, before = async () => {}) {
-  if (exporting) { if (!b.hasAttribute('aria-busy')) flash(b, 'Wait…', 'Another export is being saved'); return; } // the other button: told; the one saving: left saying so
+  if (exporting) { if (!b.hasAttribute('aria-busy')) note('Another export is being prepared: wait for it to finish'); return; } // the other button: told; the one preparing: left saying so
   exporting = true;
-  const label = b.querySelector('span'), own = labelOf(b);
-  clearTimeout(b.flashTimer); // a "Failed" still shown: this try replaces it
+  const label = b.querySelector('span'), own = label.textContent;
   b.setAttribute('aria-busy', 'true');
   label.textContent = 'Preparing…';
-  b.title = own.title;
-  const done = (text, title) => {
+  const done = (text) => {
     b.removeAttribute('aria-busy');
-    label.textContent = own.label;
+    label.textContent = own;
     exporting = false;
-    if (text) flash(b, text, title, 5000);
+    if (text) note(`${own}: ${text}`);
   };
-  const failed = (e) => { console.error('export failed:', e.message); done('Failed', `Export failed: ${e.message}`); };
+  const failed = (e) => { console.error('export failed:', e.message); done(`export failed: ${e.message}`); };
   try { await before(); } catch (e) { failed(e); return; }
   // a provider that never answers: the map never idles; after a while the export fails instead of
-  // saying "Saving…" for ever (and dropping every later click)
+  // saying "Preparing…" for ever (and dropping every later click)
   const deadline = setTimeout(() => { map.off('idle', go); failed(new Error('the map did not finish loading')); }, 30000);
   const go = () => {
     clearTimeout(deadline);
@@ -1226,7 +1214,7 @@ async function onFrame(b, fn, before = async () => {}) {
     map.once('render', async () => {
       try {
         const left = await fn(map.getCanvas());
-        done(left?.length ? 'Partial' : '', left?.length ? `Saved without ${left.join('; ')}` : '');
+        done(left?.length ? `saved without ${left.join('; ')}` : '');
       } catch (e) { failed(e); } finally {
         drawing.showMarks(true);
         for (const id of LOCATION_LAYERS.map((l) => l.id)) map.setLayoutProperty(id, 'visibility', 'visible');

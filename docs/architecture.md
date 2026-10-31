@@ -76,7 +76,7 @@ files learn the same facts as a viewer of the screen.
 
 **Visible failures.** A source that fails is marked in the Layers tab
 instead of leaving blank tiles that could be read as data. An export that
-fails, or leaves out values it could not read, says so on its button. A
+fails, or leaves out values it could not read, says so in the note. A
 drawing file that cannot be read says why.
 
 **Privacy by construction.** No request carries a referrer; the security

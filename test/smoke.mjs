@@ -385,13 +385,12 @@ await section('the PNG and GIS exports', async () => {
   // GIS export: a zip whose STAC item lists the georeferenced map and the files beside it;
   // polygon-clipping loads on this first export, not with the page
   check(await again.evaluate(() => !('polygonClipping' in window) && !document.querySelector('script[src*=polygon-clipping]')), 'polygon-clipping not loaded with the page');
-  // an export that fails says so on its button, and the next click tries again
+  // an export that fails says so in the note, its button as it was, and the next click tries again
   await again.route('**/polygon-clipping*', (r) => r.abort());
   await exportItem(again, 'zip');
-  const zipSays = '#zip';
-  await again.waitForFunction((sel) => document.querySelector(`${sel} span`).textContent === 'Failed', zipSays, { timeout: 15000 }).catch(() => {});
-  const [zipLabel, zipTitle] = await again.evaluate((sel) => [document.querySelector(`${sel} span`).textContent, document.querySelector(sel).title], zipSays);
-  check(zipLabel === 'Failed' && /polygon-clipping/.test(zipTitle), `a failed GIS export says so on its button (${zipLabel}: ${zipTitle})`);
+  await again.waitForFunction(() => /export failed/.test(document.querySelector('.dnote')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
+  const [zipNote, zipLabel] = await again.evaluate(() => [document.querySelector('.dnote')?.textContent || '', document.querySelector('#zip span').textContent]);
+  check(/^GIS data \(ZIP\): export failed: .*polygon-clipping/.test(zipNote) && zipLabel === 'GIS data (ZIP)', `a failed GIS export says so in the note (${zipNote}; the button: ${zipLabel})`);
   await again.unroute('**/polygon-clipping*');
   await again.keyboard.press('Escape'); // the menu closed (from 1024 px wide it stays open while an export runs)
   const [dz] = await Promise.all([again.waitForEvent('download', { timeout: 60000 }), exportItem(again, 'zip')]);
