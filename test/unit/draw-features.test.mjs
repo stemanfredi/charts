@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near, addShape, drawFeatures, lineFrom } from './helpers.mjs';
+import { near, addShape, drawFeatures, lineFrom, addRing } from './helpers.mjs';
 
 const drawgeo = await import('../../site/draw/features.js');
 const { drawParts, exportFeatures, valueFeatures, flatten, boundsOf, enlargement, shapeOf, zoomDependent, GEOMETRY } = drawgeo;
-const { emptyDoc, addPoint, addDot, addArea, addLabel, makeGroup, makePart, styleOf, leavesOf, positionsIn } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, addLabel, makeGroup, makePart, styleOf, leavesOf, positionsIn } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');
 const { inverse, destination, areaOf, pathOf, perimeterOf } = await import('../../site/geodesy.js');
 const { fmtArea, fmtDist } = await import('../../site/format.js');
@@ -61,7 +61,7 @@ test('hidden elements and parts are not drawn, nor a hidden group\'s members; a 
   addPoint(doc, [12, 41], { id: 'n', parts: PARTS(), visible: false });
   addPoint(doc, [0, 84], { id: 'polar', parts: [C(1e6)] });
   addShape(doc, [12, 40]).visible = false;
-  addArea(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { visible: false });
+  addRing(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { visible: false });
   lineFrom(doc, [12, 40], [], [12.1, 40], { visible: false });
   const m = addPoint(doc, [13, 41], { id: 'm' }), l = lineFrom(doc, [13, 40], [], [13.1, 40], { id: 'l' });
   makeGroup(doc, [m.id, l.id]).visible = false;
@@ -256,17 +256,17 @@ test('export: a point, its round parts and its outline, values in metres, counte
   for (const x of f.filter((y) => y.geometry.type === 'Polygon')) assert.ok(turn(x.geometry.coordinates[0]) > 0, 'counter-clockwise');
 });
 
-test('export: lines with their length, areas with area and perimeter, guides marked, groups by name', () => {
+test('export: lines with their length, closed ones as polygons with area and perimeter, guides marked, groups by name', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 41], { id: 'a' });
   lineFrom(doc, 'a', [[12.1, 41.05]], [12.2, 41], { id: 's', properties: [{ key: 'length_m', value: 'x' }] });
   lineFrom(doc, [12, 40.9], [], [12.4, 40.9], { id: 'g', guide: true });
-  const q = addArea(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { id: 'q' });
+  const q = addRing(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { id: 'q' });
   makeGroup(doc, [a.id, q.id]).name = 'G';
   const f = exportFeatures(doc);
   assert.deepEqual(f.map((x) => [x.properties.id, x.properties.kind, x.geometry.type, x.properties.guide]), [
     ['a', 'point', 'Point', undefined], ['a', 'circle', 'Polygon', undefined],
-    ['s', 'line', 'LineString', undefined], ['g', 'line', 'LineString', true], ['q', 'area', 'Polygon', undefined]]);
+    ['s', 'line', 'LineString', undefined], ['g', 'line', 'LineString', true], ['q', 'line', 'Polygon', undefined]]);
   const s = f[2];
   near(s.properties.length_m, inverse([12, 41], [12.1, 41.05]).s + inverse([12.1, 41.05], [12.2, 41]).s, 0.001, 'the legs');
   assert.equal(s.properties.p_length_m, 'x');
@@ -275,6 +275,7 @@ test('export: lines with their length, areas with area and perimeter, guides mar
   assert.equal(e.group, 'G');
   near(e.area_m2, areaOf(pathOf(q.points, true)), 1, 'area');
   near(e.perimeter_m, perimeterOf(q.points), 0.001, 'perimeter');
+  assert.ok(!('length_m' in e));
   near(perimeterOf(q.points), inverse([12, 40], [12.1, 40]).s + inverse([12.1, 40], [12.1, 40.1]).s + inverse([12.1, 40.1], [12, 40]).s, 1e-6, 'its edges, closed');
   assert.ok(turn(f[4].geometry.coordinates[0]) > 0, 'counter-clockwise');
 });
@@ -299,14 +300,14 @@ test('geometry by kind: a group is bounded by its members; inside a box; what a 
   addPoint(doc, [12.2, 41.1], { id: 'b', parts: [] });
   lineFrom(doc, 'a', [[12.1, 41.2]], 'b', { id: 's' });
   addShape(doc, [13, 42]).id = 'h';
-  addArea(doc, [[11, 40], [11.1, 40], [11.1, 40.1]], { id: 'q' });
+  addRing(doc, [[11, 40], [11.1, 40], [11.1, 40.1]], { id: 'q' });
   addLabel(doc, [12, 41], { element: 'a' }).id = 'l';
   const g = makeGroup(doc, ['a', 'b', 's', 'h', 'q', 'l']);
   const b = boundsOf(doc, new Set([g.id]));
   assert.ok(b[0] <= 11 && b[2] >= 13 && b[1] <= 40 && b[3] >= 42, JSON.stringify(b));
-  const box = (p) => p[0] >= 11.9 && p[0] <= 12.3 && p[1] >= 40.9 && p[1] <= 41.3; // the points, the line and the label; not the shape nor the area
-  const kindOf = { a: 'point', b: 'point', s: 'line', h: 'point', q: 'area', l: 'label' };
-  const el = (id) => [...doc.points, ...doc.lines, ...doc.areas, ...doc.labels].find((e) => e.id === id);
+  const box = (p) => p[0] >= 11.9 && p[0] <= 12.3 && p[1] >= 40.9 && p[1] <= 41.3; // the points, the line and the label; not the shape nor the closed line
+  const kindOf = { a: 'point', b: 'point', s: 'line', h: 'point', q: 'line', l: 'label' };
+  const el = (id) => [...doc.points, ...doc.lines, ...doc.labels].find((e) => e.id === id);
   assert.deepEqual(Object.keys(kindOf).map((id) => GEOMETRY[kindOf[id]].inside(doc, el(id), box, () => 1)), [true, true, true, false, false, true]);
   assert.equal(GEOMETRY.group.inside(doc, g, () => true, () => 1), false); // its members are, or are not
   // a small outline is inside by its corners as drawn (enlarged)
@@ -315,7 +316,7 @@ test('geometry by kind: a group is bounded by its members; inside a box; what a 
   // what moves: everything in the group, each once though selected as well; each position of each
   assert.deepEqual(leavesOf(doc, [g.id, 'q']).map((x) => x.el.id), ['a', 'b', 'h', 's', 'q', 'l']);
   assert.deepEqual(positionsIn('line', el('s')).map(([o, k]) => o[k]), [[12, 41], [12.1, 41.2], [12.2, 41.1]]); // in the order of its places
-  assert.deepEqual(positionsIn('area', el('q')).map(([o, k]) => o[k]), el('q').points);
+  assert.deepEqual(positionsIn('line', el('q')).map(([o, k]) => o[k]), el('q').points);
 });
 
 test('minimum display size: an outline too small on screen is drawn enlarged, dotted; real size once big enough', () => {
@@ -409,15 +410,19 @@ test('lines with an Offset: drawn on their real geometry, the offset carried for
   assert.ok(exportFeatures(doc).filter((x) => x.properties.kind === 'line').every((x) => !('off' in x.properties)));
 });
 
-test('areas: drawn at real size, corners and edge midpoints as handles, bounded and moved by their corners', () => {
+test('closed lines: filled at real size, their stroke a line\'s; places and each leg\'s middle (the closing one too) as handles; bounded', () => {
   const doc = emptyDoc(0);
-  addArea(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { id: 'q', look: { fill: { color: '#00ff00' } } });
+  const q = addRing(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { id: 'q', look: { fill: { color: '#00ff00' } } });
   const f = drawFeatures(doc, new Set(['q']), null, { zoom: 10 }).features;
   const poly = f.find((x) => x.properties.kind === 'polygon');
-  assert.deepEqual([poly.properties.fc, poly.properties.fill, poly.geometry.type], ['#00ff00', 1, 'Polygon']);
-  assert.deepEqual(f.filter((x) => x.properties.role === 'ppoint').map((x) => x.properties.ref), [0, 1, 2]);
-  assert.deepEqual(f.filter((x) => x.properties.role === 'pmid').map((x) => x.properties.ref), [1, 2, 3]);
+  assert.deepEqual([poly.properties.fc, poly.properties.fill, poly.geometry.coordinates[0]], ['#00ff00', 1, lineTrace(doc, q).coords]); // its ring as drawn, closed
+  assert.deepEqual(f.filter((x) => x.properties.kind === 'path').map((x) => x.geometry.coordinates), [lineTrace(doc, q).coords]);
+  assert.deepEqual(f.filter((x) => x.properties.role === 'vertex').map((x) => x.properties.ref), [0, 1, 2]);
+  assert.deepEqual(f.filter((x) => x.properties.role === 'mid').map((x) => x.properties.ref), [0, 1, 2]);
   assert.deepEqual(boundsOf(doc, new Set(['q'])).map((v) => +v.toFixed(3)), [12, 40, 12.1, 40.1]);
+  q.closed = false; // opened: no fill, no closing leg
+  const g = drawFeatures(doc, new Set(['q']), null, { zoom: 10 }).features;
+  assert.deepEqual([g.some((x) => x.properties.kind === 'polygon'), g.filter((x) => x.properties.role === 'mid').length], [false, 2]);
 });
 
 test('the parts: what never depends on the zoom, what may, the marks; only those wanted are made', () => {
@@ -425,10 +430,10 @@ test('the parts: what never depends on the zoom, what may, the marks; only those
   addPoint(doc, [12, 41], { id: 'n' });
   addShape(doc, [12, 40]).id = 'h';
   lineFrom(doc, [12, 39], [], [12.1, 39], { id: 's' });
-  addArea(doc, [[12, 38], [12.1, 38], [12.1, 38.1]], { id: 'q' });
+  addRing(doc, [[12, 38], [12.1, 38], [12.1, 38.1]], { id: 'q' });
   const p = drawParts(doc, new Set(['n']), null, { zoom: 10 });
   assert.deepEqual(kindsOf(p.base), [['n', 'ring'], ['q', 'polygon'], ['n', 'symbol']]);
-  assert.deepEqual(kindsOf(p.zoom), [['h', 'shape'], ['s', 'linehit'], ['s', 'path']]);
+  assert.deepEqual(kindsOf(p.zoom), [['h', 'shape'], ['s', 'linehit'], ['s', 'path'], ['q', 'linehit'], ['q', 'path']]);
   assert.deepEqual(p.marks.map((x) => x.properties.kind), ['handle', 'handle', 'handle', 'handle', 'sel']); // one selected: its handles, its ring; no band
   const only = drawParts(doc, new Set(['n']), null, { zoom: 10 }, { zoom: true });
   assert.deepEqual([only.base, only.marks], [[], []]);
@@ -450,13 +455,13 @@ test('zoomDependent: an outline that may be drawn enlarged', () => {
   assert.equal(zoomDependent(doc), false);
 });
 
-test('values shown: each leg\'s length and bearing, the total; an area\'s area and perimeter; a point\'s round parts\' radii', () => {
+test('values shown: each leg\'s length and bearing, the total; a closed line\'s area and perimeter; a point\'s round parts\' radii', () => {
   const doc = emptyDoc(0);
   const B = destination([12, 40], 90, 10000), E = destination(B, 90, 10000);
   // what Measure keeps: guides showing their values
   const m = () => ({ guide: true, look: { text: { values: true } } });
   const ruler = lineFrom(doc, [12, 40], [B], E, m());
-  const area = addArea(doc, [[12, 41], [12.1, 41], [12.1, 41.1]], m());
+  const area = addRing(doc, [[12, 41], [12.1, 41], [12.1, 41.1]], m());
   const ring = addPoint(doc, [13, 40], { ...m(), symbol: 'none', parts: [C(2000)] });
   assert.deepEqual([ruler.guide, ruler.look.text.values, ruler.points.length, area.guide, ring.symbol, ring.parts.map((r) => r.radius)], [true, true, 3, true, 'none', [2000]]);
   lineFrom(doc, [12, 39], [], [12.1, 39]); // not showing its values
@@ -488,9 +493,9 @@ test('values shown: each leg\'s length and bearing, the total; an area\'s area a
 test('measured elements are drawn as guides, in the style they are measured with; their values are not drawn with the drawing', () => {
   const doc = emptyDoc(0);
   lineFrom(doc, [12, 40], [], [12.1, 40], { guide: true, look: { text: { values: true } } });
-  addArea(doc, [[12, 41], [12.1, 41], [12.1, 41.1]], { guide: true, look: { text: { values: true } } });
+  addRing(doc, [[12, 41], [12.1, 41], [12.1, 41.1]], { guide: true, look: { text: { values: true } } });
   const f = drawFeatures(doc).features;
-  assert.deepEqual(f.map((x) => x.properties.kind).sort(), ['guide', 'linehit', 'polygon']);
-  const area = f.find((x) => x.properties.kind === 'polygon').properties, line = f.find((x) => x.properties.kind === 'guide').properties;
+  assert.deepEqual(f.map((x) => x.properties.kind).sort(), ['guide', 'guide', 'linehit', 'linehit', 'polygon']);
+  const area = f.find((x) => x.properties.kind === 'polygon').properties, line = f.find((x) => x.properties.kind === 'guide' && x.properties.id === area.id).properties;
   assert.deepEqual([area.fc, area.fo, line.sc, line.sw, line.dash], ['#b0127a', 0.08, '#b0127a', 2, 'dashed']); // as while measured
 });

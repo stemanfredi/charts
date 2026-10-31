@@ -22,6 +22,8 @@ export function lineFrom(doc, a, mids, b, opts = {}) {
   [a, b].forEach((x, k) => { if (!Array.isArray(x)) setLink(doc, s.id, k ? s.points.length - 1 : 0, typeof x === 'string' ? { element: x } : x); });
   return s;
 }
+// a closed line through the positions (an area)
+export const addRing = (doc, pts, opts = {}) => addLine(doc, pts, { closed: true, ...opts });
 const { linkFrom } = await import('../../site/draw/document.js');
 // place i of element el (negative: from its end, -1 its last) as { position, to (its link's target, or null) }
 export function placeIn(doc, el, i = 0) {

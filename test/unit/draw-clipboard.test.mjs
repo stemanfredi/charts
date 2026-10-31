@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lineFrom, placeIn } from './helpers.mjs';
+import { lineFrom, placeIn, addRing } from './helpers.mjs';
 
 const { emptyDoc, addPoint, addLabel, makeGroup, makePart } = await import('../../site/draw/document.js');
 const { clipOf, paste, centreOf } = await import('../../site/draw/clipboard.js');
@@ -69,10 +69,9 @@ test('presets: a point\'s own look kept under a name; stored; a file of them rea
 
 test('a large import: Zoom to, Duplicate and Paste take hundreds of thousands of positions', async () => {
   const { boundsOf } = await import('../../site/draw/features.js');
-  const { addArea } = await import('../../site/draw/document.js');
   const doc = emptyDoc(0);
   const pts = Array.from({ length: 300000 }, (_, i) => [10 + (i % 1000) / 1000, 40 + i / 1e6]);
-  const g = addArea(doc, pts);
-  assert.deepEqual(boundsOf(doc, new Set([g.id])), [10, 40, 10.999, 40.299999]);
+  const g = addRing(doc, pts);
+  assert.deepEqual(boundsOf(doc, new Set([g.id])).map((v) => +v.toFixed(4)), [10, 40, 10.999, 40.3]); // its closing leg's geodesic a little north of its ends
   assert.deepEqual(centreOf(clipOf(doc, [g.id])).map((v) => +v.toFixed(7)), [10.4995, 40.1499995]);
 });

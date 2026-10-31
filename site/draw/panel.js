@@ -6,7 +6,7 @@
 import { h, svg, typing, morph, animate, NARROW } from '../dom.js';
 import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, leavesOf, canHold, label, KIND, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, addPart, makePart, followedPart, mainOutline, roundParts, PART_KINDS, ROUND, SYMBOLS, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, linkFrom, setLink } from './document.js';
+import { find, elements, groupsOf, membersOf, leavesOf, canHold, label, KIND, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, addPart, makePart, followedPart, mainOutline, roundParts, PART_KINDS, ROUND, SYMBOLS, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, linkFrom, setLink, fewestPlaces } from './document.js';
 import { insertPlace, deletePlace, reattach, partName, splitLine, lineRef, resolve, along } from './attach.js';
 import { labelValues, labelText, TOKENS } from './labels.js';
 import { OUTLINE_NAME } from './outlines.js';
@@ -16,7 +16,7 @@ import { DISTRIBUTE_D, distribute, lines, planConnection, makeDistribution, edit
   distributions, connections, ruleOf, changedByHand, giveBack, removePartOf, MAX_COPIES, MAX_TREE } from './generator.js';
 import { BUILT_IN, builtInName } from './place.js';
 import { boundsOf, drawable } from './features.js';
-import { inverse, areaOf, pathOf, destination, perimeterOf } from '../geodesy.js';
+import { inverse, destination } from '../geodesy.js';
 import { norm180, norm360 } from '../geo.js';
 import { fields, choice, select, check } from '../fields.js';
 import { mac, MOD } from '../keys.js';
@@ -123,7 +123,8 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     xs = flat(xs);
     if (!xs.length && !extra.length) return null; // an empty group
-    const has = (x, f) => LOOK_FIELDS[x.kind].includes(f) && !(f === 'text.values' && x.kind === 'point' && !roundParts(x.el).length); // a point's values: its radii
+    const has = (x, f) => LOOK_FIELDS[x.kind].includes(f) && !(f === 'text.values' && x.kind === 'point' && !roundParts(x.el).length) // a point's values: its radii
+      && !(f.startsWith('fill.') && x.kind === 'line' && !x.el.closed); // a line's fill: drawn while it is closed
     const shown = (f) => (!fields || fields.includes(f)) && xs.some((x) => has(x, f));
     const looks = xs.map((x) => lookOf(doc, x.el));
     const same = (f) => { const vs = xs.map((x, i) => (has(x, f) ? lookField(looks[i], f) : undefined)).filter((v) => v !== undefined); return vs.every((v) => v === vs[0]) ? vs[0] : null; };
@@ -154,7 +155,7 @@ export function drawView(root, ctx) {
       shown('text.color') ? row('Text colour', colour('text.color', 'Text colour'), back('text.color')) : null,
       shown('text.background') ? row('Background', segOf('Background', [['halo', 'Halo', 'A white halo'], ['box', 'Box', 'A white box']], same('text.background'), (v) => put('text.background', v)), back('text.background')) : null,
       shown('text.name') ? tick('text.name', xs.length > 1 || xs[0].kind === 'drawing' ? 'Names on map' : 'Name on map', 'Names are left out where they would collide; zooming in shows them') : null,
-      shown('text.values') ? tick('text.values', 'Show values', 'Values on the map: each leg\'s length, an area\'s area and perimeter, each radius') : null,
+      shown('text.values') ? tick('text.values', 'Show values', 'Values on the map: each leg\'s length, a closed line\'s area and perimeter, each radius') : null,
       shown('offset') ? row('Offset', F.number(() => same('offset'), (v) => put('offset', v), 'Offset (px)', { min: -MAX_OFFSET, max: MAX_OFFSET, placeholder: 'mixed', bad: `pixels from −${MAX_OFFSET} to ${MAX_OFFSET}`,
         title: 'Pixels beside its line, on screen only' }), funit('px'), back('offset')) : null,
       shown('minSize') ? row('Min. size', F.number(() => same('minSize'), (v) => put('minSize', v), 'Minimum size (px)', { max: MAX_MIN_SIZE, placeholder: 'mixed', bad: `pixels from 0 to ${MAX_MIN_SIZE}`,
@@ -219,7 +220,7 @@ export function drawView(root, ctx) {
     const el = now(id);
     // Guide (supporting geometry: faint, out of the totals): a measurement is a guide showing its
     // values; unticking Guide makes it part of the drawing
-    const guide = ['point', 'line', 'area'].includes(kind) ? row('Guide', check('', el.guide, (v) => set(id, (x) => { x.guide = v; }), { 'aria-label': 'Guide', title: 'Faint and dashed, out of the totals' })) : null;
+    const guide = ['point', 'line'].includes(kind) ? row('Guide', check('', el.guide, (v) => set(id, (x) => { x.guide = v; }), { 'aria-label': 'Guide', title: 'Faint and dashed, out of the totals' })) : null;
     return [groupRow([id]), guide, dataBlock(id)];
   };
 
@@ -303,27 +304,6 @@ export function drawView(root, ctx) {
     return [...parts, ...commonBottom('point', id)];
   }
 
-  // an area: its area and perimeter, its corners (typed, one inserted halfway to the next, one
-  // removed while more than three)
-  function areaInspector(id) {
-    const el = now(id), u = drawing.units(), n = el.points.length;
-    const corner = (i, axis) => F.coord(axis, () => now(id).points[i][axis === 'lat' ? 1 : 0],
-      (v) => set(id, (x) => { const q = x.points[i]; x.points[i] = axis === 'lat' ? [q[0], v] : [v, q[1]]; }), `Corner ${i + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
-
-    // its corners as rows, 1 to n: Lat, Lon; the edge from the corner before (corner 1's from the
-    // last; typed: this corner moves)
-    const lu = unitOf(el.points.map((_, i) => legOf(el.points, i).s));
-    const cornerRows = () => { const ps = now(id).points; return [['#', 'Lat', 'Lon', 'Edge m', 'Brg °'], ps.map((q, i) => { const g = legOf(ps, i); return [i + 1, q[1], q[0], +g.s.toFixed(3), +g.azi.toFixed(1)]; })]; };
-    return [...commonTop('area', id),
-      row('Area', valued(fmtArea(areaOf(pathOf(el.points, true)), u))),
-      row('Perimeter', distValue(perimeterOf(el.points))),
-      placesTable(id, 'corners', n, { name: 'Corners', leg: ['Edge', 'From the corner before'], unit: lu, copy: cornerRows,
-        rowAt: (i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...legFields(id, i, 'Corner', lu)] }),
-        actions: (i) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAfter(id, i)), act('Delete', `${MOD} Delete; three are kept`, () => removeAt(id, i), n <= 3)] }),
-        insert: (i) => insertAfter(id, i), remove: (i) => removeAt(id, i) }),
-      actionsRow(ruleActs(id)), lookBlock([item(id)]), ...commonBottom('area', id)];
-  }
-
   // a place's Attach to… (the next click on the map chooses what to link it to), pressed while it
   // waits for a click
   const waiting = (id, k) => drawing.repointing?.id === id && drawing.repointing.index === k;
@@ -343,7 +323,7 @@ export function drawView(root, ctx) {
   // a label: its text (with live values), what it points at, its leader and its look
   const TOKEN_TEXT = { name: ['name', 'The name of what it points at'], length: ['length', 'The length of the line it points at, or of the side'],
     along: ['distance along', 'The distance along the line to where it points'], bearing: ['bearing', 'The bearing of the side or leg it points at'],
-    radius: ['radius', 'The point\'s filled radius'], area: ['area', 'The area of the area or shape'], perimeter: ['perimeter', 'The perimeter of the area or shape'] };
+    radius: ['radius', 'The point\'s filled radius'], area: ['area', 'The area of the closed line or shape'], perimeter: ['perimeter', 'The perimeter of the closed line or shape'] };
   function labelInspector(id) {
     const doc = drawing.doc, el = now(id), u = drawing.units(), to = linkFrom(doc, id)?.to;
     const at = to && resolve(doc, to), values = labelValues(doc, to, u);
@@ -382,11 +362,12 @@ export function drawView(root, ctx) {
       { 'aria-label': 'Leader', title: 'A line from the text to its point' }));
   }
 
-  // Legs typed (the line's table of points, the area's of corners): the straight leg arriving at a
-  // place from the one before, its length and its bearing. A value typed moves that place alone (the
-  // leg after it changes with it); a line's place linked is where it is linked, its leg not typed.
+  // Legs typed (the line's table of points): the straight leg arriving at a place from the one before
+  // (a closed line's first: from its last), its length and its bearing. A value typed moves that
+  // place alone (the leg after it changes with it); a place linked is where it is linked, its leg not
+  // typed.
   const legOf = (ps, k) => { const g = inverse(ps.at(k - 1), ps[k]); return { s: g.s, azi: norm360(g.azi) }; };
-  const legTo = (ps, k, { s: len, azi }) => { const g = legOf(ps, k); return destination(ps.at(k - 1), azi ?? g.azi, len ?? g.s); }; // an area's corner 1: from its last
+  const legTo = (ps, k, { s: len, azi }) => { const g = legOf(ps, k); return destination(ps.at(k - 1), azi ?? g.azi, len ?? g.s); };
   const setLeg = (id, k, v) => set(id, (x) => { x.points[k] = legTo(x.points, k, v); });
   // an element's places, read once per rendering of the inspector (each row's leg reads them)
   const placesRead = new Map();
@@ -395,16 +376,16 @@ export function drawView(root, ctx) {
   const legFields = (id, k, what, unit) => [
     F.dist(() => legOf(placesNow(id), k).s, (m) => setLeg(id, k, { s: m }), `${what} ${k + 1} leg length`, { in: unit }),
     F.angle(() => legOf(placesNow(id), k).azi, (a) => setLeg(id, k, { azi: a }), `${what} ${k + 1} leg bearing (degrees true)`, { fixed: 1 })];
-  // a place of a line or an area added halfway to the next (an area's last: to its first), one taken
-  // away (attach.js: while it keeps enough)
+  // a place of a line added halfway to the next (a closed line's last: to its first), one taken away
+  // (attach.js: while it keeps enough)
   const insertAfter = (id, k) => drawing.change((doc) => { const ps = find(doc, id).el.points; insertPlace(doc, id, k + 1, along(ps[k], ps[(k + 1) % ps.length], 0.5)); });
   const removeAt = (id, k) => drawing.change((doc) => deletePlace(doc, id, k));
   // a table of places' first columns; with its leg and bearing 304 px, inside Properties' 320
   // with a scroll bar: degrees in 6 decimals, distances to the metre (up to 999 km), bearings to a tenth
   const PLACE_COLUMNS = [{ head: '#', width: 28, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
-  // A table of places, a page of them shown (list: 'points', a line's; 'corners', an area's): #, Lat,
-  // Lon, the leg (or edge) from the place before and its bearing, in unit; rowAt(k): place k's cells;
-  // actions(k), insert(k), remove(k); copy: every row (copyBtn). Its row current is ringed on the map.
+  // A table of places, a page of them shown (list: 'points', a line's): #, Lat, Lon, the leg from the
+  // place before and its bearing, in unit; rowAt(k): place k's cells; actions(k), insert(k),
+  // remove(k); copy: every row (copyBtn). Its row current is ringed on the map.
   function placesTable(id, list, total, { name, leg, unit, copy, rowAt, actions, insert, remove }) {
     const pg = paged(`${id}:${list}`, total), abs = (r) => pg.rows[r];
     const table = listGrid({ name: pg.name,
@@ -416,7 +397,7 @@ export function drawView(root, ctx) {
   // a table's distances: one unit for the column (its head says it), by the rule a field's value
   // follows (format.js distText): metres while its largest is under 1 km, else km; NM in NM
   const unitOf = (ms) => (drawing.units() === 'nm' ? 'nm' : ms.every((m) => !(Number.isFinite(m) && m >= 1000)) ? 'm' : 'km'); // every: a long line's legs are more than Math.max(...) takes
-  // a table of places (a line's points, an area's corners, a point's parts): its row k made current
+  // a table of places (a line's points, a point's parts): its row k made current
   // (k: the place's index), the table at its page; from the map (a place pressed: drawing.currentPlace)
   function pickPlace(table, k, paged = true) {
     const from = paged ? k - (k % PAGE) : 0, name = paged ? `${table}@${from}` : table;
@@ -519,37 +500,42 @@ export function drawView(root, ctx) {
     profileCursor(drawing.hitAt(e.point, 6).includes(id) ? nearestAlong(lineTrace(drawing.doc, x.el).coords, [e.lngLat.lng, e.lngLat.lat]) : null); // off the line: no mark
   });
 
+  // a line: its length (closed: its area and perimeter), its path, its places, its profile
   function lineInspector(id) {
-    const doc = drawing.doc, el = now(id);
+    const doc = drawing.doc, el = now(id), closed = !!el.closed, u = drawing.units();
     const line = lineTrace(doc, el);
     const at = line.at;
     const splitAt = (k) => drawing.change((d) => splitLine(d, id, k));
     // Its places as rows, numbered 1 (its start) to N (its end): a page of them shown. Lat, Lon (one
-    // linked: what to); the leg from the place before (typed: this place moves; a linked one's as it
-    // is); along, from the start; its name.
+    // linked: what to); the leg from the place before (a closed line's first: from its last; typed:
+    // this place moves; a linked one's as it is); along, from the start; its name.
     const ps = el.points, N = ps.length, tied = (k) => linkFrom(doc, id, k)?.to;
+    const end = (k) => !closed && (k === 0 || k === N - 1), legged = (k) => k > 0 || closed; // an open line's ends; a place with a leg to it
     const coord = (k, axis) => F.coord(axis, () => now(id).points[k][axis === 'lat' ? 1 : 0],
       (v) => set(id, (x) => { const p = x.points[k]; x.points[k] = axis === 'lat' ? [p[0], v] : [v, p[1]]; }), `Point ${k + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
-    const lu = unitOf(ps.slice(1).map((_, k) => legOf(ps, k + 1).s));
+    const lu = unitOf(ps.map((_, k) => (legged(k) ? legOf(ps, k).s : 0)));
     const legCells = (k) => (tied(k) ? [fvalue(inUnit(legOf(ps, k).s, lu)), fvalue(legOf(ps, k).azi.toFixed(1))] : legFields(id, k, 'Point', lu));
     const name = (k) => field(() => now(id).names[k], (t) => t, (nv) => set(id, (x) => { x.names[k] = nv; }), { 'aria-label': `Point ${k + 1} name`, placeholder: 'name' });
     // the grid fits the panel's 320 px: #, Lat, Lon, the leg and its bearing; the row current says
     // how far along the line its point is, and holds its name, in the bar over the grid
     const alongText = (k) => funit(`${distText(at[k] || 0, drawing.units()).text} along`);
-    const rowAt = (k) => ({ cells: [k === 0 || k === N - 1 ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
+    const rowAt = (k) => ({ cells: [end(k) ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
         ...(tied(k) ? [link(tied(k).element), null] : [coord(k, 'lat'), coord(k, 'lon')]),
-        ...(k ? legCells(k) : [null, null])] });
+        ...(legged(k) ? legCells(k) : [null, null])] });
     const pointRows = () => { const x = now(id), qs = x.points, t = lineTrace(drawing.doc, x).at;
-      return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Along m', 'Name'], qs.map((q, k) => { const g = k ? legOf(qs, k) : null; return [k + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', +(t[k] || 0).toFixed(3), x.names[k]]; })]; };
+      return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Along m', 'Name'], qs.map((q, k) => { const g = legged(k) ? legOf(qs, k) : null; return [k + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', +(t[k] || 0).toFixed(3), x.names[k]]; })]; };
     return [...commonTop('line', id),
-      row('Length', distValue(line.length)),
+      ...(closed ? [row('Area', valued(fmtArea(line.area, u))), row('Perimeter', distValue(line.length))] : [row('Length', distValue(line.length))]),
       row('Path', segOf('Path', [[false, 'Straight', 'Geodesics'], [true, 'Smooth', 'A curve through its bends']], !!el.smooth, (v) => set(id, (x) => { x.smooth = v; }))),
+      // closed (three points or more) and opened again; what is linked to its legs stays where it is
+      row('Closed', check('', closed, (v) => set(id, (x, d) => { x.closed = v; reattach(d, id); }), { 'aria-label': 'Closed', title: 'Its last point joined to its first: an area', disabled: !closed && N < 3 })),
       placesTable(id, 'points', N, { name: 'Points', leg: ['Leg', 'From the point before'], unit: lu, copy: pointRows, rowAt,
-        actions: (k) => ({ label: k === 0 ? 'Point 1, its start' : k === N - 1 ? `Point ${N}, its end` : `Point ${k + 1}`,
-          buttons: [k ? alongText(k) : null, name(k), k < N - 1 ? act('Insert after', 'Insert', () => insertAfter(id, k)) : null,
-            act('Delete', `${MOD} Delete; two are kept`, () => removeAt(id, k), N <= 2), k && k < N - 1 ? act('Split', 'Two lines, attached here', () => splitAt(k)) : null,
+        actions: (k) => ({ label: end(k) ? (k ? `Point ${N}, its end` : 'Point 1, its start') : `Point ${k + 1}`,
+          buttons: [k ? alongText(k) : null, name(k), k < N - 1 || closed ? act('Insert after', 'Insert', () => insertAfter(id, k)) : null,
+            act('Delete', `${MOD} Delete; ${closed ? 'three' : 'two'} are kept`, () => removeAt(id, k), N <= fewestPlaces(el)),
+            end(k) ? null : act('Split', closed ? 'Opened here: its start and its end' : 'Two lines, attached here', () => splitAt(k)),
             attachBtn(id, k, { class: 'small', 'aria-label': `Attach point ${k + 1} to…` }, 'Attach to…'), tied(k) ? act('Detach', 'Free, where it is', () => detach(id, k)) : null].filter(Boolean) }),
-        insert: (k) => { if (k < N - 1) insertAfter(id, k); }, remove: (k) => removeAt(id, k) }),
+        insert: (k) => { if (k < N - 1 || closed) insertAfter(id, k); }, remove: (k) => removeAt(id, k) }),
       profileBlock(id),
       actionsRow(ruleActs(id), h('button', { type: 'button', class: 'small', title: 'Copies along this line', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…')),
       lookBlock([item(id)]), ...commonBottom('line', id)];
@@ -577,9 +563,9 @@ export function drawView(root, ctx) {
   // What several elements share (drawing-ui.md §5): every row two or more of them have, "mixed"
   // where they differ (as Look), a value set on each that has it. Two or more points: Position,
   // Bearing, Symbol and Parts (part by part: its kind, size, across, fill); two or more lines, their
-  // Path; points, lines or areas, Guide. xs: the elements (several selected, or a group's members)
+  // Path; points or lines, Guide. xs: the elements (several selected, or a group's members)
   function sharedRows(xs) {
-    const pts = xs.filter((x) => x.kind === 'point'), lines = xs.filter((x) => x.kind === 'line'), geo = xs.filter((x) => ['point', 'line', 'area'].includes(x.kind));
+    const pts = xs.filter((x) => x.kind === 'point'), lines = xs.filter((x) => x.kind === 'line'), geo = [...pts, ...lines];
     const same = (ys, f) => { const vs = ys.map(f); return vs.every((v) => v === vs[0]) ? vs[0] : null; };
     const each = (ys, fn) => drawing.change((d) => { for (const y of ys) fn(find(d, y.el.id).el, d); });
     const out = [];
@@ -868,7 +854,7 @@ export function drawView(root, ctx) {
     }
     if (b.areas.count) {
       tr('sec', 'Areas', 'Area', 'Perimeter');
-      for (const a of b.areas.rows) { tr('item top', sel(nameOf('area', a.id), a.id), fmtArea(a.area, u), fmtDist(a.perimeter, u)); copy.push(['Areas', '', nameOf('area', a.id), 1, '', a.area, a.perimeter]); }
+      for (const a of b.areas.rows) { tr('item top', sel(nameOf('line', a.id), a.id), fmtArea(a.area, u), fmtDist(a.perimeter, u)); copy.push(['Areas', '', nameOf('line', a.id), 1, '', a.area, a.perimeter]); }
       tr('all', 'All areas', fmtArea(b.areas.area, u), fmtDist(b.areas.perimeter, u));
       copy.push(['Areas', '', 'All areas', b.areas.count, '', b.areas.area, b.areas.perimeter]);
     }
@@ -904,7 +890,7 @@ export function drawView(root, ctx) {
     if (what !== shows && inspector.contains(document.activeElement)) document.activeElement.blur();
     const kids = form ? (form.kind === 'distribute' ? distributionForm() : connectForm()) : !xs.length ? drawingInspector()
       : xs.length > 1 ? severalInspector(xs)
-        : { point: pointInspector, area: areaInspector, line: lineInspector, group: groupInspector, label: labelInspector }[xs[0].kind](xs[0].el.id);
+        : { point: pointInspector, line: lineInspector, group: groupInspector, label: labelInspector }[xs[0].kind](xs[0].el.id);
     const top = inspector.scrollTop;
     if (what === shows) morph(inspector, h('div', {}, kids.flat().filter(Boolean)));
     else inspector.replaceChildren(...kids.flat().filter(Boolean));
@@ -987,9 +973,9 @@ export function drawView(root, ctx) {
       if (what === 'draft') return tools.renderTouch();
       if (what === 'cancel') { closeForm(); return renderInspector(); } // Esc or a right-click on the map with a form open
       if (what === 'drag') { if (!drawing.drag) renderInspector(); return; } // when it is let go (the map shows its values while it moves); the tree then too
-      // a line's point or an area's corner pressed on the map: its row in the table made current
-      if (what === 'place') { const { id, index } = drawing.currentPlace; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${{ line: 'points', area: 'corners', point: 'parts' }[kindOf(id)]}`, index, kindOf(id) !== 'point'); return; }
-      if (what === 'area' && !drawing.sel.size) note('Nothing lies entirely inside the box'); // a box drawn: why nothing is selected
+      // a line's point or a point's part pressed on the map: its row in the table made current
+      if (what === 'place') { const { id, index } = drawing.currentPlace; if (drawing.sel.size === 1 && drawing.sel.has(id)) pickPlace(`${id}:${kindOf(id) === 'point' ? 'parts' : 'points'}`, index, kindOf(id) !== 'point'); return; }
+      if (what === 'box' && !drawing.sel.size) note('Nothing lies entirely inside the box'); // a box drawn: why nothing is selected
       // a label just placed (and selected, so shown): its text ready to be typed
       if (what === 'placed') {
         if (ctx.props.hidden) ctx.frame.showProps(true); // typing it is the point of placing it: Properties shown (the user's switch as it was)

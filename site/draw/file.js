@@ -1,8 +1,9 @@
 // The drawing's file: a GeoJSON FeatureCollection (RFC 7946; docs/drawing-format.md). Any GIS
-// reads it as it is, and this app reads any GeoJSON (what is not its own becomes plain points, lines
-// and areas). Each element is a Feature with its real geometry; the user's properties and the common
-// style names (stroke, fill…) are its properties; what is the app's own is under one key, "charts";
-// the drawing's view, look, groups, rules and links are a member "charts" of the collection.
+// reads it as it is, and this app reads any GeoJSON (what is not its own becomes plain points and
+// lines, a polygon a closed line). Each element is a Feature with its real geometry; the user's
+// properties and the common style names (stroke, fill…) are its properties; what is the app's own is
+// under one key, "charts"; the drawing's view, look, groups, rules and links are a member "charts"
+// of the collection.
 // Legs are geodesics, or a smooth curve through the places (other tools draw them straight in
 // longitude and latitude: the geometry holds the places, "smooth" is the app's). Drawings of another format version are not read. Pure: no map, no DOM.
 
@@ -14,9 +15,9 @@ import { groupSizeOf, patternOf, settings, DISTRIBUTE_D, CONNECT_D } from './gen
 import { norm180, samePosition, signedArea2 } from '../geo.js';
 
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
-const MAX_POSITIONS = 100000; // positions in one line or area: more would stall the page at every change
+const MAX_POSITIONS = 100000; // positions in one line: more would stall the page at every change
 const MAX_FEATURES = 20000; // elements in one file: the rest are skipped (as many points stall the list)
-const MAX_TOTAL_POSITIONS = 1000000; // positions in a file's lines and areas together: more is refused, as soon as read
+const MAX_TOTAL_POSITIONS = 1000000; // positions in a file's lines together: more is refused, as soon as read
 class Refused extends Error {}
 // the properties a feature's own are written beside: a user's key that is one of these gets a p_
 const FILE_PROPERTIES = ['name', 'stroke', 'stroke-width', 'stroke-opacity', 'fill', 'fill-opacity', 'charts'];
@@ -127,22 +128,22 @@ function read(raw, app, known, now, report) {
       : [g];
     if (!parts) { skip('a geometry collection: not read'); return; }
     parts.forEach((part, k) => {
-      if (doc.points.length + doc.lines.length + doc.areas.length + doc.labels.length >= MAX_FEATURES) { over++; return; } // a Multi geometry: each part an element
-      const kind = mine?.kind === 'label' && part.type === 'Point' ? 'label' : { Point: 'point', LineString: 'line', Polygon: 'area' }[part.type];
+      if (doc.points.length + doc.lines.length + doc.labels.length >= MAX_FEATURES) { over++; return; } // a Multi geometry: each part an element
+      const kind = mine?.kind === 'label' && part.type === 'Point' ? 'label' : { Point: 'point', LineString: 'line', Polygon: 'line' }[part.type];
       if (!kind) { skip(`geometry ${String(part.type).slice(0, 20)}: not read`); return; }
       const el = attempt(kind, fid, (c) => {
         const id = idOf(k ? null : f.id, c);
         const x = { ...commonOf({ ...propertiesFrom(props, mine, c), visible: mine?.visible }, c), id, groupId: groupOf(mine?.group, c) };
         x.look = look(mine?.look, c, kind);
         if (kind !== 'label') { // its colours, opacities and width: the common style names
-          const st = styleFrom(props, c, kind !== 'line');
+          const st = styleFrom(props, c);
           for (const part of ['fill', 'stroke']) if (st[part]) x.look[part] = { ...x.look[part], ...st[part] };
           x.guide = flag(mine?.guide, c, 'guide');
         }
-        return READ[kind](part.coordinates, props, mine || {}, x, c, { foreign: !mine });
+        return READ[kind](part.coordinates, props, mine || {}, x, c, { foreign: !mine, closed: part.type === 'Polygon' });
       });
-      positions += el?.points?.length ?? 0; // a line's, an area's
-      if (positions > MAX_TOTAL_POSITIONS) throw new Refused(`This file holds more than ${MAX_TOTAL_POSITIONS.toLocaleString('en')} positions in its lines and areas: it would stall the page at every change.`);
+      positions += el?.points?.length ?? 0; // a line's
+      if (positions > MAX_TOTAL_POSITIONS) throw new Refused(`This file holds more than ${MAX_TOTAL_POSITIONS.toLocaleString('en')} positions in its lines: it would stall the page at every change.`);
       if (el) doc[KIND[kind].list].push(el);
     });
   }); } catch (e) { if (!(e instanceof Refused)) throw e; report.refused = e.message; return { doc: null, view: null }; }
@@ -216,12 +217,12 @@ function commonOf(x, c) {
   return { name: text(x.name, c, 'name'), properties: properties(x.properties, c), visible: x.visible !== false };
 }
 // an element's own colours, opacities and stroke width, from the common style names
-function styleFrom(props, c, fill) {
+function styleFrom(props, c) {
   const s = {};
   const put = (part, field, v) => { if (v !== undefined) (s[part] ??= {})[field] = v; };
   put('stroke', 'color', props.stroke); put('stroke', 'width', props['stroke-width']); put('stroke', 'opacity', props['stroke-opacity']);
-  if (fill) { put('fill', 'color', props.fill); put('fill', 'opacity', props['fill-opacity']); }
-  return ownStyle(s, c, fill);
+  put('fill', 'color', props.fill); put('fill', 'opacity', props['fill-opacity']);
+  return ownStyle(s, c);
 }
 const coord = (p, c, what) => position(Array.isArray(p) ? p.slice(0, 2) : p, c, what);
 
@@ -243,21 +244,22 @@ const READ = {
     p.symbol = SYMBOLS.includes(mine.symbol) ? mine.symbol : (mine.symbol !== undefined && c.warn(`unknown symbol "${String(mine.symbol).slice(0, 20)}", default used`), dflt);
     return p;
   },
-  line(coords, props, mine, x, c) {
-    if (!Array.isArray(coords) || coords.length < 2) c.skip('a line needs two positions');
+  // a LineString, or a Polygon's outer ring (closed): its first place not repeated at its end
+  line(coords, props, mine, x, c, { closed }) {
+    if (closed) {
+      if (!Array.isArray(coords) || !Array.isArray(coords[0])) c.skip('no ring');
+      if (coords.length > 1) c.warn('holes are not read; the outer ring only');
+      coords = coords[0];
+    }
+    const few = closed ? 'a ring needs three positions' : 'a line needs two positions';
+    if (!Array.isArray(coords)) c.skip(few);
     if (coords.length > MAX_POSITIONS) c.skip(`more than ${MAX_POSITIONS} positions`);
-    const points = coords.map((q, k) => coord(q, c, `position ${k + 1}`)), names = Array.isArray(mine.names) ? mine.names : [];
-    return { ...x, points, names: points.map((_, k) => text(names[k], c, `place ${k + 1} name`)), smooth: flag(mine.smooth, c, 'smooth') };
-  },
-  area(coords, props, mine, x, c) {
-    if (!Array.isArray(coords) || !Array.isArray(coords[0])) c.skip('no ring');
-    if (coords.length > 1) c.warn('holes are not read; the outer ring only');
-    if (coords[0].length > MAX_POSITIONS) c.skip(`more than ${MAX_POSITIONS} corners`);
-    let pts = coords[0].map((q, k) => coord(q, c, `corner ${k + 1}`));
-    if (pts.length > 1 && pts[0][0] === pts.at(-1)[0] && pts[0][1] === pts.at(-1)[1]) pts = pts.slice(0, -1);
-    if (pts.length < 3) c.skip('an area needs 3 corners');
-    if (mine.reversed === true) pts.reverse();
-    return { ...x, points: pts };
+    let points = coords.map((q, k) => coord(q, c, `position ${k + 1}`));
+    if (closed && points.length > 1 && samePosition(points[0], points.at(-1))) points = points.slice(0, -1);
+    if (points.length < (closed ? 3 : 2)) c.skip(few);
+    if (closed && mine.reversed === true) points.reverse();
+    const names = Array.isArray(mine.names) ? mine.names : [];
+    return { ...x, points, names: points.map((_, k) => text(names[k], c, `place ${k + 1} name`)), smooth: flag(mine.smooth, c, 'smooth'), closed };
   },
   label(coords, props, mine, x, c) {
     const o = mine.offset;
@@ -326,14 +328,12 @@ function feature(kind, el) {
     Object.assign(mine, lean({ symbol: el.symbol, bearing: r4(el.bearing) }, { symbol: 'none', bearing: 0 }));
     if (el.parts.length) mine.parts = el.parts.map(partOut);
   } else if (kind === 'line') {
-    geometry = { type: 'LineString', coordinates: el.points.map(pos) };
-    Object.assign(mine, lean({ smooth: el.smooth }, { smooth: false }));
+    // closed: a Polygon, counter-clockwise as RFC 7946 asks; a ring stored clockwise is written
+    // reversed, and says so (its names stay in its own order)
+    const cw = el.closed && signedArea2(el.points) < 0, pts = cw ? el.points.slice().reverse() : el.points;
+    geometry = el.closed ? { type: 'Polygon', coordinates: [[...pts, pts[0]].map(pos)] } : { type: 'LineString', coordinates: pts.map(pos) };
+    Object.assign(mine, lean({ smooth: el.smooth, reversed: cw }, { smooth: false, reversed: false }));
     if (el.names.some(Boolean)) mine.names = [...el.names];
-  } else if (kind === 'area') {
-    // counter-clockwise, as RFC 7946 asks; a ring stored clockwise is written reversed, and says so
-    const cw = signedArea2(el.points) < 0, pts = cw ? el.points.slice().reverse() : el.points;
-    geometry = { type: 'Polygon', coordinates: [[...pts, pts[0]].map(pos)] };
-    if (cw) mine.reversed = true;
   } else {
     geometry = { type: 'Point', coordinates: pos(el.position) };
     Object.assign(mine, lean({ text: el.text, offset: [r3(el.offset[0]), r3(el.offset[1])], leader: el.leader }, { text: '', offset: LABEL_OFFSET, leader: 'arrow' }));

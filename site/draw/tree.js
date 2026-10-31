@@ -8,18 +8,17 @@ import { find, elements, groupsOf, membersOf, label, KIND, pointKind, mainOutlin
 import { labelText } from './labels.js';
 import { builtInName } from './place.js';
 import { lineTrace } from './lines.js';
-import { areaOf, pathOf } from '../geodesy.js';
 import { MOD } from '../keys.js';
 import { fmtArea, fmtDist, plural } from '../format.js';
 import { icon, KIND_ICON, UI_ICON, POINT_ICON } from '../icons.js';
 
 const FILTER_FROM = 30; // the filter field appears past this many elements
-// what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas"
+// what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas" (closed lines)
 const countOf = (b, u) => [b.points ? `${plural(b.points, 'point')}${b.ringed && b.ringed < b.points ? `, ${b.ringed} with radii` : ''}` : '',
   b.lines ? `${plural(b.lines, 'line')}, ${fmtDist(b.length, u)}` : '', b.areas ? plural(b.areas, 'area') : '', b.hidden ? 'incl. hidden' : ''].filter(Boolean).join(' · ');
 // an element's icon and what the panel calls its kind: a point by what it looks like (a circle, a
-// rectangle…); an area a polygon
-const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[kind === 'area' ? 'polygon' : kind]);
+// rectangle…); a closed line a polygon
+const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[el.closed ? 'polygon' : kind]);
 export const kindTitle = (kind, el) => (kind === 'point' ? builtInName(pointKind(el)) : KIND[kind].name);
 // an element's name as shown: its own, else a label's text as it reads on the map (its first line)
 export const shownName = (doc, kind, el, units) => (kind === 'label' && !el.name?.trim() ? labelText(doc, el, units).split('\n')[0].trim() || 'Label' : label(kind, el));
@@ -96,9 +95,8 @@ export function createTree(drawing, { facts }) {
       const shape = o ? [`${fmtDist(o.length, u)} × ${fmtDist(o.width, u)}`] : [];
       return [...shape, r ? `${r.kind === 'sector' ? `${+r.aperture.toFixed(1)}° ` : ''}r ${fmtDist(r.radius, u)}` : ''].filter(Boolean).join(' · ');
     }
-    if (kind === 'area') return [el.guide ? 'guide' : '', fmtArea(areaOf(pathOf(el.points, true)), u)].filter(Boolean).join(' · ');
     const offset = el.look?.offset ? '⇉' : ''; // Offset set here: found again in the list
-    if (kind === 'line') return [el.guide ? 'guide' : '', fmtDist(lineTrace(drawing.doc, el).length, u), offset].filter(Boolean).join(' · ');
+    if (kind === 'line') { const tr = lineTrace(drawing.doc, el); return [el.guide ? 'guide' : '', el.closed ? fmtArea(tr.area, u) : fmtDist(tr.length, u), offset].filter(Boolean).join(' · '); }
     if (kind === 'label') return el.name?.trim() ? labelText(drawing.doc, el, u).split('\n')[0] : ''; // unnamed: its text is its name already
     const n = membersOf(drawing.doc, el.id, true).filter((x) => x.kind !== 'group').length; // labels and guides too: the totals leave them out
     return [n ? plural(n, 'element') : 'empty', offset].filter(Boolean).join(' · ');

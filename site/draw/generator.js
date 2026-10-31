@@ -33,12 +33,12 @@ export const connections = (doc) => doc.rules.filter((r) => r.kind === 'connect'
 
 // ---- placing points along a line ---------------------------------------------------------------------
 
-// What points go along: a line as drawn; a point's part (part: its place; null: the round part it
+// What points go along: a line as drawn (a closed one round its ring, from its first place); a point's part (part: its place; null: the round part it
 // follows by default), clockwise: a circle's whole round from its bearing, closed; a sector's arc, from
 // one end to the other, sampled every half degree; an outline's ring, closed. { coords, length,
 // closed }, or null (a point with no such part).
 export function alongTrace(doc, el, part = null) {
-  if (!el.position) { const tr = lineTrace(doc, el); return { coords: tr.coords, length: tr.length, closed: false }; }
+  if (!el.position) { const tr = lineTrace(doc, el); return { coords: tr.coords, length: tr.length, closed: el.closed }; }
   const o = el.parts[part ?? followedPart(el)];
   if (!o) return null;
   let coords;
@@ -56,8 +56,9 @@ export const MAX_COPIES = 2000;
 // The points' places along el (a line, or a point's arc): { points: [{ position, facing, t, left }],
 // length, capped (more than MAX_COPIES asked for: the first of them) }. facing: the azimuth away from
 // the line on the side the point is offset to (a sector's bearing); t: where along it (0 to 1). count
-// (instead of spacing): that many points, evenly from one margin to the other. A whole circle has no
-// ends: no margins, the points evenly round it (count), or every spacing from its bearing.
+// (instead of spacing): that many points, evenly from one margin to the other. A ring (a whole
+// circle, a closed line) has no ends: no margins, the points evenly round it (count), or every
+// spacing from its start (a circle's bearing).
 export function distribute(doc, el, { spacing, count = null, startMargin = 0, endMargin = 0, offset = 0, side = 'left', part = null }) {
   const tr = alongTrace(doc, el, part);
   if (!tr) return { points: [], length: 0, capped: false };

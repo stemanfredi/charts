@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addShape, lineFrom, placeIn } from './helpers.mjs';
+import { addShape, lineFrom, placeIn, addRing } from './helpers.mjs';
 
-const { emptyDoc, addPoint, addDot, addArea, centroid, remove, makePart, removePart, setLink } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, centroid, remove, makePart, removePart, setLink } = await import('../../site/draw/document.js');
 const { targetPosition, resolve, refreshAttached, reattach, insertPlace, deletePlace, splitLine, attachTo, verticesOf, partName, refNear } = await import('../../site/draw/attach.js');
 const { snapAt, stepped, neighbours } = await import('../../site/draw/snap.js');
 const { parse, serialise } = await import('../../site/draw/file.js');
@@ -22,7 +22,7 @@ function drawing() {
   const p = addPoint(doc, [10, 40], { id: 'p' });
   const sh = addShape(doc, [10.02, 40]);
   sh.id = 'sh';
-  const a = addArea(doc, [[10, 40.02], [10.02, 40.02], [10.02, 40.04]], { id: 'a' });
+  const a = addRing(doc, [[10, 40.02], [10.02, 40.02], [10.02, 40.04]], { id: 'a' });
   const l = lineFrom(doc, [10.05, 40], [[10.06, 40.01]], [10.07, 40], { id: 'l' });
   return { doc, p, sh, a, l };
 }
@@ -30,7 +30,7 @@ function drawing() {
 test('where a reference is: a centre, a vertex, a place along an edge or a leg; nothing for what is not there', () => {
   const { doc, sh, a, l } = drawing();
   assert.deepEqual(targetPosition(doc, { element: 'p' }), [10, 40]);
-  assert.deepEqual(targetPosition(doc, { element: 'a' }), centroid(a.points)); // an area's centre: its centroid
+  assert.deepEqual(targetPosition(doc, { element: 'a' }), centroid(a.points)); // a closed line's centre: its centroid
   assert.deepEqual(targetPosition(doc, { element: 'a', vertex: 1 }), [10.02, 40.02]);
   near(targetPosition(doc, { element: 'a', edge: 0, at: 0.5 }), [10.01, 40.02], 1);
   // a line's places: 0 its start, then its vertices, the last its end
@@ -42,13 +42,13 @@ test('where a reference is: a centre, a vertex, a place along an edge or a leg; 
   assert.ok(Math.abs(leg.edge.length - tr.legs[1]) < 1e-6);
   near(leg.position, [10.065, 40.005], 2);
   assert.deepEqual(targetPosition(doc, { element: 'sh', vertex: 0 }), verticesOf({ kind: 'point', el: sh })[0]);
-  assert.equal(verticesOf({ kind: 'area', el: a }).length, 3);
+  assert.equal(verticesOf({ kind: 'line', el: a }).length, 3);
   assert.equal(verticesOf({ kind: 'line', el: l }).length, 3);
   assert.equal(verticesOf({ kind: 'point', el: doc.points[0] }), null);
   for (const bad of [{ element: 'x' }, { element: 'a', vertex: 3 }, { element: 'a', edge: 3, at: 0 }, { element: 'l', vertex: 3 }, { element: 'l', edge: 2, at: 0 }, { element: 'p', vertex: 0 }]) {
     assert.equal(targetPosition(doc, bad), null, JSON.stringify(bad));
   }
-  assert.deepEqual([partName({ vertex: 0 }, 'line'), partName({ edge: 0 }, 'line'), partName({ vertex: 2 }, 'area'), partName({ edge: 0 }, 'point'), partName({})], ['point 1', 'leg 1', 'corner 3', 'edge 1', '']); // as the tables number them
+  assert.deepEqual([partName({ vertex: 0 }, 'line'), partName({ edge: 0 }, 'line'), partName({ vertex: 2 }, 'point'), partName({ edge: 0 }, 'point'), partName({})], ['point 1', 'leg 1', 'corner 3', 'edge 1', '']); // as the tables number them
 });
 
 test('ends follow what they are attached to: an outline turned, an area\'s corner moved, a vertex moved; gone, free where they were', () => {
@@ -100,7 +100,7 @@ test('vertices added, taken away, a line split: ends on its vertices stay on the
 
 test('an area\'s corners added and taken away, an outline changed: ends on corners and edges stay where they were', () => {
   const doc = emptyDoc(0);
-  const a = addArea(doc, [[10, 40], [10.02, 40], [10.02, 40.02], [10, 40.02]], { id: 'a' });
+  const a = addRing(doc, [[10, 40], [10.02, 40], [10.02, 40.02], [10, 40.02]], { id: 'a' });
   const c2 = lineFrom(doc, [9.9, 39.9], [], { element: 'a', vertex: 2, position: [10.02, 40.02] });
   const e3 = lineFrom(doc, [9.9, 39.9], [], { element: 'a', edge: 3, at: 0.5, position: [0, 0] });
   refreshAttached(doc);
@@ -125,6 +125,31 @@ test('an area\'s corners added and taken away, an outline changed: ends on corne
   refreshAttached(doc);
   assert.ok(ref(doc, s).element === sh.id && ref(doc, s).part === 0 && ref(doc, s).vertex != null);
   assert.ok(inverse(ref(doc, s).position, before).s < 30, 'the nearest corner of the new outline');
+});
+
+test('a closed line: any place attached, following; its closing leg a target; split, opened at that place', () => {
+  const doc = emptyDoc(0);
+  const p = addPoint(doc, [10, 40], { id: 'p' });
+  const g = addRing(doc, [[10.01, 40], [10.02, 40], [10.02, 40.01], [10.01, 40.01]], { id: 'g', names: ['a', 'b', 'c', 'd'] });
+  setLink(doc, 'g', 2, { element: 'p' }); // a place of a ring linked, as a line's
+  const t = lineFrom(doc, [9.9, 39.9], [], { element: 'g', edge: 3, at: 0.5, position: [0, 0] }); // on its closing leg
+  refreshAttached(doc);
+  assert.deepEqual(g.points[2], [10, 40]);
+  near(ref(doc, t).position, [10.01, 40.005], 1);
+  p.position = [10.03, 40.02]; // the point moves: the ring's place follows
+  refreshAttached(doc);
+  assert.deepEqual(g.points[2], [10.03, 40.02]);
+  assert.equal(snapAt(doc, px([10.02, 40]), view).to.end, undefined); // a ring has no free ends: its places are vertices
+  assert.deepEqual(snapAt(doc, px([10.02, 40]), view).to, { element: 'g', vertex: 1 });
+  const at = [...ref(doc, t).position];
+  assert.equal(splitLine(doc, 'g', 2), null); // nothing made: the ring opened at place 2
+  assert.deepEqual([g.closed, g.points.length, g.names], [false, 5, ['c', 'd', 'a', 'b', '']]);
+  assert.deepEqual([g.points[0], g.points[4]], [[10.03, 40.02], [10.03, 40.02]]); // its start and its end there
+  assert.deepEqual(placeIn(doc, g, 0).to, { element: 'p' }); // the link from place 2, now its start
+  assert.deepEqual([ref(doc, t).element, ref(doc, t).edge], ['g', 1]); // the old closing leg, now leg 1
+  refreshAttached(doc);
+  near(ref(doc, t).position, at, 1);
+  assert.equal(doc.lines.length, 2);
 });
 
 test('what a snap target links to: a centre, a vertex, a place along a leg (no vertex added), a free end joined by a point', () => {
@@ -201,7 +226,7 @@ test('snapping to corners and edges of outlines and areas, and to a line\'s vert
   assert.ok(Math.abs(e.to.at - 0.5) < 0.01);
   const v = snapAt(doc, px([10.0601, 40.0101]), view);
   assert.deepEqual(v.to, { element: 'l', vertex: 1 }); // its place 1 (0 its start)
-  doc.lines[0].visible = false;
+  doc.lines.find((x) => x.id === 'l').visible = false;
   assert.equal(snapAt(doc, px([10.0601, 40.0101]), view), null, 'a hidden line is not snapped to');
 });
 

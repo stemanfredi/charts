@@ -89,8 +89,8 @@ function clamp(v, lo, hi, dflt, c, what) {
   return r;
 }
 // An element's own style: the values it sets, each checked; those it does not set come from the
-// drawing, else the defaults (document.js styleOf). fill: whether it has one (lines have none).
-export function ownStyle(s, c, fill) {
+// drawing, else the defaults (document.js styleOf).
+export function ownStyle(s, c) {
   if (s === undefined || s === null) return {};
   if (!isObj(s)) { c.warn('style: not an object, ignored'); return {}; }
   const out = {};
@@ -102,18 +102,17 @@ export function ownStyle(s, c, fill) {
   };
   const check = (key) => (f, v) => (f === 'color' ? colour(v, undefined, c, `${key} colour`) : f === 'dash' ? (DASHES.includes(v) ? v : (c.warn(`unknown dash "${String(v).slice(0, 20)}", ignored`), undefined))
     : clamp(v, f === 'width' ? STROKE_WIDTH[0] : 0, f === 'width' ? STROKE_WIDTH[1] : 1, undefined, c, `${key} ${f}`));
-  if (fill) part('fill', DEFAULT_STYLE.fill, check('fill'));
-  else if (s.fill !== undefined) c.warn('fill: a line has none; ignored');
+  part('fill', DEFAULT_STYLE.fill, check('fill'));
   part('stroke', DEFAULT_STYLE.stroke, check('stroke'));
   return out;
 }
 // An element's own look as the file has it (the drawing's too, kind 'drawing'): what it sets, each
 // value checked, what its kind draws with (LOOK_FIELDS); what is not valid is left out, a field another
-// kind's warned and not kept (a line's fill, a point's text size)
+// kind's warned and not kept (a point's offset, a line's text size)
 export function look(l, c, kind) {
   if (l === undefined || l === null) return {};
   if (!isObj(l)) { c.warn('look: not an object, ignored'); return {}; }
-  const out = ownStyle({ fill: l.fill, stroke: l.stroke }, c, kind !== 'line');
+  const out = ownStyle({ fill: l.fill, stroke: l.stroke }, c);
   if (l.text !== undefined) {
     const t = isObj(l.text) ? l.text : (c.warn('look text: not an object, ignored'), {}), o = {};
     for (const k of ['name', 'values']) {

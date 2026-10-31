@@ -1,11 +1,10 @@
 // The drawing document (docs/drawing-format.md): its elements, and the operations on them. Pure:
 // no map, no DOM, so the tests run it in Node. The file is file.js's (GeoJSON).
 //
-// Four primitives and the group:
+// Three primitives and the group:
 //   point: one position; a symbol (screen size) and its parts about it, to scale (circles, sectors,
 //     outlines), one bearing for the outlines' front and the sectors' centre;
-//   line: places joined by legs;
-//   area: a free polygon;
+//   line: places joined by legs; closed, a ring (its last place joined to its first): an area;
 //   label: text pointing at a place;
 //   group: members kept together, with no look of its own; a group can be in a group (its parent).
 // Any element can be a guide (supporting geometry: faint, left out of totals). How each is drawn is
@@ -69,7 +68,7 @@ export const followedPart = (p) => { const r = roundParts(p); return (r.find((x)
 // (the file's, and the list's). How each is drawn, exported and moved: features.js; edited: panel.js.
 export const KIND = {
   group: { list: 'groups', name: 'Group' }, point: { list: 'points', name: 'Point' }, line: { list: 'lines', name: 'Line' },
-  area: { list: 'areas', name: 'Area' }, label: { list: 'labels', name: 'Label' },
+  label: { list: 'labels', name: 'Label' },
 };
 export const KINDS = Object.keys(KIND);
 // labels (docs/drawing-format.md §7.7): their leader's end, text size, background
@@ -105,7 +104,7 @@ export const META_D = { title: '', description: '', author: '' };
 export function emptyDoc(now = Date.now()) {
   const t = isoNow(now);
   return { created: t, modified: t, meta: { ...META_D }, look: {},
-    groups: [], points: [], lines: [], areas: [], labels: [], rules: [], links: [] };
+    groups: [], points: [], lines: [], labels: [], rules: [], links: [] };
 }
 
 // ---- reading the document --------------------------------------------------------------------
@@ -118,10 +117,10 @@ export function find(doc, id) {
   for (const kind of KINDS) { const el = doc[KIND[kind].list].find((x) => x.id === id); if (el) return { kind, el }; }
   return null;
 }
-// the mean of a list of positions (an area's place, for its name and labels)
+// the mean of a list of positions (a closed line's centre, for its name and labels)
 export const centroid = (pts) => [pts.reduce((a, q) => a + q[0], 0) / pts.length, pts.reduce((a, q) => a + q[1], 0) / pts.length];
-// where an element is: a point's position, an area's centroid, a line's start
-export const placeOf = (kind, el) => (kind === 'point' ? el.position : kind === 'area' ? centroid(el.points) : kind === 'line' ? el.points[0] : null);
+// where an element is: a point's position, a line's start
+export const placeOf = (kind, el) => (kind === 'point' ? el.position : kind === 'line' ? el.points[0] : null);
 // what the panel calls an element: its name, or for an unnamed one its kind and where it is
 export function label(kind, el) {
   if (el.name?.trim()) return el.name;
@@ -165,10 +164,10 @@ export function leavesOf(doc, ids) {
   return elements(doc).filter((x) => x.kind !== 'group' && (want.has(x.el.id) || groupsOf(doc, x.el).some((g) => want.has(g.id))));
 }
 // every position an element has, as [object, key] pairs, in the order of its places (a link's from
-// index): a line's places, an area's corners, a label's where it points
+// index): a line's places, a label's where it points
 export function positionsIn(kind, el) {
   if (kind === 'point' || kind === 'label') return [[el, 'position']];
-  if (kind === 'area' || kind === 'line') return el.points.map((_, i) => [el.points, i]);
+  if (kind === 'line') return el.points.map((_, i) => [el.points, i]);
   return [];
 }
 // a measurement: its name not on the map, whatever the drawing's names
@@ -184,7 +183,7 @@ function layered(looks) {
 // defaults.
 export function lookOf(doc, el) {
   const own = [el.look], under = [DEFAULT_LOOK, doc.look];
-  const role = !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE; // only points, lines and areas are guides
+  const role = !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE; // only points and lines are guides
   return layered([...under, role, ...own]);
 }
 // its fill and stroke
@@ -224,19 +223,14 @@ export function addPoint(doc, position, opts = {}, taken = idsOf(doc)) {
 }
 // a small dot: where lines meet (a split), a hub
 export const addDot = (doc, position, taken = idsOf(doc)) => addPoint(doc, position, { symbol: 'dot', parts: [] }, taken);
-// an area through the positions (three or more), its edges geodesics
-export function addArea(doc, points, opts = {}) {
-  const g = { ...base(doc, 'area'), points: points.map((q) => [...q]), guide: false, ...opts };
-  doc.areas.push(g);
-  return g;
-}
-// A line through positions (two or more), its legs straight (geodesics), each place unnamed. Returns it.
+// A line through positions (two or more; closed, three or more), its legs straight (geodesics), each
+// place unnamed. Returns it.
 export function addLine(doc, positions, opts = {}) {
-  const s = { ...base(doc, 'line'), points: positions.map((p) => [...p]), names: positions.map(() => ''), smooth: false, guide: false, ...opts };
+  const s = { ...base(doc, 'line'), points: positions.map((p) => [...p]), names: positions.map(() => ''), smooth: false, closed: false, guide: false, ...opts };
   doc.lines.push(s);
   return s;
 }
-export const MIN_PLACES = { line: 2, area: 3 }; // the fewest places each keeps
+export const fewestPlaces = (line) => (line.closed ? 3 : 2); // what a line keeps
 // a part added to a point: a round one twice the reach of the last round one (filled when it is the
 // first), an outline of the default size; one taken away (by its place)
 export function addPart(p, kind = 'circle') {
@@ -346,8 +340,7 @@ export const canHold = (doc, gid, id) => !gid || (gid !== id && !groupsOf(doc, f
 const STYLE_FIELDS = ['fill.color', 'fill.opacity', 'stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash'];
 export const LOOK_FIELDS = {
   point: [...STYLE_FIELDS, 'text.name', 'text.values'],
-  area: [...STYLE_FIELDS, 'text.name', 'text.values'],
-  line: [...STYLE_FIELDS.slice(2), 'text.name', 'text.values', 'offset'],
+  line: [...STYLE_FIELDS, 'text.name', 'text.values', 'offset'], // a fill drawn only while closed
   label: ['text.size', 'text.color', 'text.background'],
   drawing: ['text.name', 'offset', 'minSize'], // the drawing's own look: what its Display sets, nothing else
 };

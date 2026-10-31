@@ -4,7 +4,7 @@ import { near, lineFrom, placeIn } from './helpers.mjs';
 
 const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistribution, editDistribution, connect, unconnect, reconnect, refreshGenerated, DISTRIBUTE_D,
   distributions, connections, copyOf, giveBack, changedByHand, ruleOf, removePartOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
-const { emptyDoc, addPoint, makePart, find, remove } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addLine, makePart, find, remove } = await import('../../site/draw/document.js');
 const { BUILT_IN, scaled } = await import('../../site/draw/place.js');
 const { lineTrace, nearestAlong, pointsAlong, totals, madeLines } = await import('../../site/draw/lines.js');
 const { settleGeometry, DrawStore } = await import('../../site/draw/store.js');
@@ -57,6 +57,17 @@ test('count instead of spacing: that many points, evenly between the margins; on
   near(points[4].t * L, L - 1000, 1e-6, 'the last at the end margin');
   near(distribute(doc, g, { count: 1 }).points[0].t, 0.5, 1e-9, 'one: the middle');
   assert.equal(distribute(doc, g, { count: 3, startMargin: L, endMargin: L }).points.length, 0, 'no room');
+});
+
+test('along a closed line: round its ring from its first place, evenly, no margins', () => {
+  const doc = emptyDoc(0);
+  const g = addLine(doc, [[12, 40], [12.1, 40], [12.1, 40.1], [12, 40.1]], { closed: true });
+  const L = lineTrace(doc, g).length;
+  assert.equal(alongTrace(doc, g).closed, true);
+  const { points } = distribute(doc, g, { count: 4, startMargin: 5000, endMargin: 5000 }); // margins: none round a ring
+  assert.deepEqual(points.map((p) => +p.t.toFixed(9)), [0, 0.25, 0.5, 0.75]);
+  assert.deepEqual(points[0].position, [12, 40]);
+  assert.equal(distribute(doc, g, { spacing: L / 8 }).points.length, 8); // the last spacing ends at its start: no copy twice there
 });
 
 test('plan: each group to the root it is cheapest from; a root that wins no group is reported unused', () => {

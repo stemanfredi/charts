@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near, addShape, lineFrom } from './helpers.mjs';
+import { near, addShape, lineFrom, addRing } from './helpers.mjs';
 
 const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals } = await import('../../site/draw/lines.js');
-const { emptyDoc, addPoint, addDot, addArea, makeGroup, remove, makePart, linkFrom } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, makeGroup, remove, makePart, linkFrom } = await import('../../site/draw/document.js');
 const { splitLine } = await import('../../site/draw/attach.js');
 const { settleGeometry } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
@@ -119,8 +119,8 @@ test('totals: per group and in all; guides left out; hidden elements flagged', (
   const inGroup = lineFrom(doc, ringedPoint.id, [], dot.id, { properties: [{ key: 'kind', value: 'x' }] });
   lineFrom(doc, [12, 40], [], [12.3, 40], { guide: true });
   const hidden = lineFrom(doc, [12, 41], [[12.1, 41.1]], [12.2, 41], { properties: [{ key: 'kind', value: 'x' }], visible: false });
-  addArea(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
-  addArea(doc, [[13, 42], [13.1, 42], [13.1, 42.1]], { guide: true });
+  addRing(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
+  addRing(doc, [[13, 42], [13.1, 42], [13.1, 42.1]], { guide: true });
   const g = makeGroup(doc, [ringedPoint.id, dot.id, inGroup.id]);
   const t = totals(doc);
   const a = lineTrace(doc, inGroup).length, b = lineTrace(doc, hidden).length;
@@ -220,7 +220,7 @@ test('breakdown: lines by group with each listed, a connection\'s summed by what
   lineFrom(doc, [12, 40.2], [], [12.1, 40.2], { visible: false });
   lineFrom(doc, [12, 40.4], [], [12.1, 40.4], { guide: true });
   const g = makeGroup(doc, [a.id]);
-  addArea(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
+  addRing(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
   addPoint(doc, [13, 40]); addPoint(doc, [13, 40], { parts: [makePart('circle', { radius: 100 })] }); addPoint(doc, [13, 40], { parts: [makePart('rectangle', { length: 10, width: 5 })] });
   // a tree of three points from one root, and a chain of two from another
   const pts = [[14, 40], [14.01, 40], [14.02, 40]].map((q) => addPoint(doc, q)), root = addPoint(doc, [14.01, 39.9]);

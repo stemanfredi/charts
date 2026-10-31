@@ -6,6 +6,7 @@
 
 import { isShown, label, lookOf, followedPart, linkFrom } from './document.js';
 import { resolve, verticesOf } from './attach.js';
+import { lineTrace } from './lines.js';
 import { areaOf, pathOf, perimeterOf } from '../geodesy.js';
 import { fmtArea, fmtBrg, fmtDist } from '../format.js';
 
@@ -14,13 +15,14 @@ const PAD = { halo: 3, box: 6 }; // px around the text a leader stops short of (
 
 // The live values a label can show of what it points at (to: its link's target, or none), each as
 // text, or undefined where it does not apply: name; length (its line's, or the side it is on); along (from its line's start); bearing (of
-// the side or leg it is on); radius (a point's filled one); area and perimeter (an area's, a shape's
-// outline's).
+// the side or leg it is on); radius (a point's filled one); area and perimeter (a closed line's, a
+// shape's outline's).
 export const TOKENS = ['name', 'length', 'along', 'bearing', 'radius', 'area', 'perimeter'];
 export function labelValues(doc, to, units = 'km') {
   const at = to && resolve(doc, to), x = at?.element;
   if (!x) return {};
-  const ring = x.kind === 'area' || x.kind === 'point' ? verticesOf(x, to.part) : null; // a point's: its outline part (pointed at, else its largest)
+  const ring = x.kind === 'point' ? verticesOf(x, to.part) : null; // its outline part (pointed at, else its largest)
+  const tr = x.el.closed ? lineTrace(doc, x.el) : null;
   const round = x.kind === 'point' ? x.el.parts[followedPart(x.el)] : null; // its filled circle, else its first
   const len = at.edge && x.kind !== 'line' ? at.edge.length : at.length;
   return {
@@ -29,8 +31,8 @@ export function labelValues(doc, to, units = 'km') {
     along: at.along === undefined ? undefined : fmtDist(at.along, units),
     bearing: at.edge ? fmtBrg(at.edge.bearing) : undefined,
     radius: round ? fmtDist(round.radius, units) : undefined,
-    area: ring ? fmtArea(areaOf(pathOf(ring, true)), units) : undefined,
-    perimeter: ring ? fmtDist(perimeterOf(ring), units) : undefined,
+    area: ring ? fmtArea(areaOf(pathOf(ring, true)), units) : tr ? fmtArea(tr.area, units) : undefined,
+    perimeter: ring ? fmtDist(perimeterOf(ring), units) : tr ? fmtDist(tr.length, units) : undefined,
   };
 }
 // A label's text, its {name}, {length}, {along}, {bearing}, {radius}, {area}, {perimeter} filled in (in

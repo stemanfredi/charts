@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addShape, lineFrom, placeIn } from './helpers.mjs';
+import { addShape, lineFrom, placeIn, addRing } from './helpers.mjs';
 
 const d = await import('../../site/draw/document.js');
 const { parse, serialise, toFile } = await import('../../site/draw/file.js');
 const { refreshAttached, lineRef, resolve, splitLine, insertPlace, deletePlace } = await import('../../site/draw/attach.js');
 const { distributions, connections } = await import('../../site/draw/generator.js');
-const { emptyDoc, addPoint, addDot, addArea, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
+const { emptyDoc, addPoint, addDot, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
   label, styleOf, offsetOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, linkFrom,
   DEFAULT_STYLE, GUIDE_STYLE, FORMAT, VERSION } = d;
 
@@ -50,12 +50,16 @@ function sample() {
   const free = lineFrom(doc, [13, 40], [], [13.5, 40.5]);
   free.smooth = true;
   free.look.offset = 4;
-  addArea(doc, [[12, 40], [12, 40.5], [12.5, 40.5]]).look = { fill: { color: '#123456', opacity: 0.5 }, stroke: { dash: 'dotted' } };
-  addArea(doc, [[12, 40], [12.5, 40], [12.5, 40.5]]);
+  // closed lines: one clockwise (written reversed), smooth, a place named and one linked; one plain
+  const ring = addRing(doc, [[12, 40], [12, 40.5], [12.5, 40.5]], { smooth: true, names: ['', 'top', ''] });
+  ring.look = { fill: { color: '#123456', opacity: 0.5 }, stroke: { dash: 'dotted' } };
+  d.setLink(doc, ring.id, 2, { element: doc.points[3].id });
+  addRing(doc, [[12, 40], [12.5, 40], [12.5, 40.5]]);
   labelAt(doc, lineRef(doc, l, 10));
   labelAt(doc, { position: [12, 40] });
   labelAt(doc, { position: [12, 41], element: a.id });
-  labelAt(doc, { position: [12, 40], element: doc.areas[0].id, vertex: 1 });
+  labelAt(doc, { position: [12, 40], element: ring.id, vertex: 1 });
+  labelAt(doc, { position: [12, 40], element: ring.id, edge: 2, at: 0.5 }); // on its closing leg
   labelAt(doc, { position: [12, 40], element: doc.points[2].id, edge: 2, at: 0.25 });
   labelAt(doc, { position: [12, 40], element: b.id, part: 2, vertex: 1 }); // on an outline part's corner
   makeGroup(doc, [b.id]);
@@ -63,7 +67,7 @@ function sample() {
   const m = () => ({ guide: true, look: { text: { values: true } } });
   addPoint(doc, [12, 41], { name: 'Ring 1', symbol: 'none', parts: [makePart('circle', { radius: 500 })], ...m() });
   lineFrom(doc, [12, 41], [[12.5, 41]], [13, 41], { name: 'Distance 1', ...m() });
-  addArea(doc, [[12, 41], [12.5, 41], [13, 42]], m());
+  addRing(doc, [[12, 41], [12.5, 41], [13, 42]], m());
   doc.look = { minSize: 20 }; // the drawing's
   refreshAttached(doc); // each reference where it points
   return doc;
@@ -109,7 +113,7 @@ test('round trip: values come back rounded as the file writes them', () => {
   p.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 } };
   const s = lineFrom(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { look: { offset: 3.33333 } });
   labelAt(doc, lineRef(doc, s, 1500.12345)).offset = [10.12345, -20.98765];
-  addArea(doc, [[0, 0], [1.123456789, 0], [1, 1]]);
+  addRing(doc, [[0, 0], [1.123456789, 0], [1, 1]]);
   Object.assign(addShape(doc, [3, 3]).parts[0], { length: 120.12345, width: 40.98765 });
   const f = toFile(doc);
   assert.deepEqual(f.features[0].geometry.coordinates, [12.1234568, 41.9876543]);
@@ -133,7 +137,7 @@ test('defaults are left out of the file; positions on one line', () => {
   addDot(doc, [12.5, 41]);
   addShape(doc, [13, 41]);
   lineFrom(doc, a.id, [], [14, 41]);
-  addArea(doc, [[0, 0], [1, 0], [1, 1]]);
+  addRing(doc, [[0, 0], [1, 0], [1, 1]]);
   const lb = labelAt(doc, { position: [12, 41], element: a.id });
   const text = serialise(doc), f = JSON.parse(text);
   assert.deepEqual(Object.keys(f), ['type', 'charts', 'features']);
@@ -146,22 +150,23 @@ test('defaults are left out of the file; positions on one line', () => {
   assert.deepEqual(shape.properties.charts, { kind: 'point', parts: [{ kind: 'rectangle', length: 100, width: 50 }] }); // no symbol: the default
   assert.deepEqual(line.properties.charts, { kind: 'line' }); // no names: none written
   assert.deepEqual(line.geometry, { type: 'LineString', coordinates: [[12, 41], [14, 41]] });
-  assert.deepEqual(area.properties.charts, { kind: 'area' });
+  assert.deepEqual(area.properties.charts, { kind: 'line' }); // closed: its geometry says so
+  assert.deepEqual(area.geometry, { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] });
   assert.deepEqual(lab.properties.charts, { kind: 'label', text: '{name}' });
   assert.deepEqual(lab.geometry.coordinates, [12, 41]); // where it points
   assert.match(text, /"coordinates": \[12, 41\]/);
 });
 
-test('areas are written counter-clockwise; one stored clockwise says so and reads back as it was', () => {
+test('closed lines are Polygons, written counter-clockwise; one stored clockwise says so and reads back as it was, its names too', () => {
   const doc = emptyDoc(NOW);
-  const cw = addArea(doc, [[0, 0], [0, 1], [1, 1]]), ccw = addArea(doc, [[0, 0], [1, 0], [1, 1]]);
+  const cw = addRing(doc, [[0, 0], [0, 1], [1, 1]], { names: ['a', 'b', ''] }), ccw = addRing(doc, [[0, 0], [1, 0], [1, 1]]);
   const [fa, fb] = toFile(doc).features;
   assert.deepEqual(fa.geometry.coordinates, [[[1, 1], [0, 1], [0, 0], [1, 1]]]); // closed
-  assert.equal(fa.properties.charts.reversed, true);
+  assert.deepEqual(fa.properties.charts, { kind: 'line', reversed: true, names: ['a', 'b', ''] }); // its names in its own order
   assert.deepEqual(fb.geometry.coordinates, [[[0, 0], [1, 0], [1, 1], [0, 0]]]);
   assert.ok(!('reversed' in fb.properties.charts));
   const back = again(doc).doc;
-  assert.deepEqual(back.areas.map((x) => x.points), [cw.points, ccw.points]);
+  assert.deepEqual(back.lines.map((x) => [x.closed, x.points, x.names]), [[true, cw.points, cw.names], [true, ccw.points, ccw.names]]);
 });
 
 test('properties: the user\'s as columns, a key colliding with the feature\'s own renamed, the list kept; the common style names', () => {
@@ -211,14 +216,14 @@ test('skipped: latitudes out of range, positions missing, too few positions, wha
     'junk', { type: 'Feature', id: 'nogeo', properties: {} }, F('gc', 'GeometryCollection', undefined), F('odd', 'Curve', [0, 0]),
   ]));
   assert.deepEqual(doc.points.map((p) => [p.id, p.position]), [['ok', [0, 0]], ['west', [179, 0]]]);
-  assert.deepEqual([doc.lines, doc.areas], [[], []]);
+  assert.deepEqual(doc.lines, []);
   assert.deepEqual(skippedIds(report), ['far', 'nopos', 'short', 'one', 'badvertex', 'two', 'noring', '10', 'nogeo', 'gc', 'odd']);
   const why = Object.fromEntries(report.skipped.map((s) => [s.id, s.reason]));
   assert.match(why.far, /out of range/);
   assert.match(why.nopos, /not \[longitude, latitude\]/);
   assert.match(why.one, /two positions/);
   assert.match(why.badvertex, /position 2/);
-  assert.match(why.two, /3 corners/);
+  assert.match(why.two, /a ring needs three positions/);
   assert.match(why['10'], /not a Feature/);
   assert.match(why.nogeo, /no geometry/);
   assert.match(why.gc, /geometry collection/);
@@ -306,12 +311,13 @@ test('any GeoJSON: Multi geometries split, holes dropped, foreign points diamond
   assert.deepEqual([a.position, b.position], [[1, 1], [2, 2]]); // the altitude dropped
   assert.deepEqual([a.symbol, a.parts, a.name], ['diamond', [], 'Twin']);
   assert.deepEqual(a.properties, [{ key: 'depth', value: '12' }, { key: 'flag', value: 'true' }, { key: 'nested', value: '{"a":1}' }, { key: 'Description', value: 'two of them' }]); // a description: a property like any other
-  assert.deepEqual(doc.lines.map((s) => [s.name, s.points.length, s.names, s.look]), [['Pair', 2, ['', ''], { stroke: { color: '#00aa00', width: 3 } }], ['Pair', 3, ['', '', ''], { stroke: { color: '#00aa00', width: 3 } }]]);
+  assert.deepEqual(doc.lines.filter((s) => !s.closed).map((s) => [s.name, s.points.length, s.names, s.look]), [['Pair', 2, ['', ''], { stroke: { color: '#00aa00', width: 3 } }], ['Pair', 3, ['', '', ''], { stroke: { color: '#00aa00', width: 3 } }]]);
   assert.deepEqual(doc.links, []);
-  assert.equal(doc.areas.length, 3);
-  assert.deepEqual(doc.areas[0].points, [[0, 0], [2, 0], [2, 2], [0, 2]]); // the ring open, its outer edge only
-  assert.deepEqual(doc.areas[2].look, { fill: { color: '#0000ff', opacity: 0.4 } });
-  assert.ok(doc.areas.every((x) => !x.guide && !d.lookOf(doc, x).text.values));
+  const rings = doc.lines.filter((x) => x.closed);
+  assert.equal(rings.length, 3);
+  assert.deepEqual([rings[0].points, rings[0].names], [[[0, 0], [2, 0], [2, 2], [0, 2]], ['', '', '', '']]); // closed lines: their first position not repeated, the outer ring only
+  assert.deepEqual(rings[2].look, { fill: { color: '#0000ff', opacity: 0.4 } });
+  assert.ok(rings.every((x) => !x.guide && !d.lookOf(doc, x).text.values));
   // a bare Feature, and a bare geometry
   assert.deepEqual(read(F('one', 'Point', [3, 4])).doc.points.map((p) => [p.id, p.position]), [['one', [3, 4]]]);
   assert.deepEqual(read({ type: 'LineString', coordinates: [[0, 0], [1, 1]] }).doc.lines[0].points, [[0, 0], [1, 1]]);
@@ -337,10 +343,10 @@ test('links read: a place that disagrees with its target moves to it (counted); 
     F('s5', 'LineString', [[4, 4], [5, 5]], { kind: 'line' }),
   ], { links: [L(['s1', 0], { element: 'a' }), L(['s1', 2], 'b'), L(['s1', 1], { element: 'ar', vertex: 2 }), // a bare ID: its centre; a middle place as an end
     L(['s2', 0], 'a'), L(['s2', 1], { element: 'ar' }), L(['s3', 0], 'gone'), L(['s4', 1], { element: 'ar', vertex: 3 }),
-    L(['s5', 0], { element: 's5', vertex: 1 }), L(['s5', 2], 'a'), L(['s1', 0], 'b'), L(['ar', 0], 'a'), 'junk'] }));
-  const [s1, s2, s3, s4, s5] = doc.lines;
+    L(['s5', 0], { element: 's5', vertex: 1 }), L(['s5', 2], 'a'), L(['s1', 0], 'b'), L(['a', 0], 'b'), 'junk'] }));
+  const [, s1, s2, s3, s4, s5] = doc.lines;
   assert.deepEqual([0, 1, 2].map((i) => placeIn(doc, s1, i)), [{ position: [0, 0], to: { element: 'a' } }, { position: [1, 1], to: { element: 'ar', vertex: 2 } }, { position: [1, 0], to: { element: 'b' } }]);
-  assert.deepEqual([placeIn(doc, s2, 0).to, placeIn(doc, s2, 1)], [{ element: 'a' }, { position: d.centroid(doc.areas[0].points), to: { element: 'ar' } }]);
+  assert.deepEqual([placeIn(doc, s2, 0).to, placeIn(doc, s2, 1)], [{ element: 'a' }, { position: d.centroid(doc.lines[0].points), to: { element: 'ar' } }]);
   assert.deepEqual([placeIn(doc, s3, 0), placeIn(doc, s4, 1), placeIn(doc, s5, 0)], [{ position: [3, 3], to: null }, { position: [2, 2], to: null }, { position: [4, 4], to: null }]);
   assert.equal(doc.links.length, 5);
   warned(report, /^4 places moved to what they are linked to/);
@@ -348,7 +354,7 @@ test('links read: a place that disagrees with its target moves to it (counted); 
   warned(report, /link to gone, which is not here/);
   warned(report, /link to its own element: dropped/);
   warned(report, /link from s5 2, which is not a line's or a label's place here: dropped/);
-  warned(report, /link from ar 0, which is not/);
+  warned(report, /link from a 0, which is not/);
   warned(report, /link from a place already linked: dropped/);
 });
 
@@ -397,7 +403,7 @@ test('labels: on an element, along a line, on a vertex, or free; checked; writte
   assert.ok(Math.abs(resolve(doc, at(l2).to).along - 0.123456789 * resolve(doc, at(l2).to).length) < 1e-6);
   assert.deepEqual([at(l3), l3.leader, l3.offset, l3.look, text(l3).size], [{ position: [12, 41], to: null }, 'arrow', [40, -40], {}, 'medium']);
   assert.deepEqual([at(l4), at(l5), at(l6)], [{ position: [12, 42], to: null }, { position: [12, 40], to: { element: 's', edge: 0, at: 0 } }, { position: [12, 40], to: { element: 'a' } }]);
-  assert.deepEqual([at(l8), at(l9), at(l10)], [{ position: [12, 43], to: null }, { position: d.centroid(doc.areas[0].points), to: { element: 'ar' } }, { position: [13, 42], to: { element: 'ar', vertex: 2 } }]);
+  assert.deepEqual([at(l8), at(l9), at(l10)], [{ position: [12, 43], to: null }, { position: d.centroid(doc.lines[1].points), to: { element: 'ar' } }, { position: [13, 42], to: { element: 'ar', vertex: 2 } }]);
   assert.ok(!('name' in l1.look.text));
   for (const re of [/leader: unknown "zigzag"/, /offset: not \[x, y\]/, /size "huge" unknown/, /link to gone, which is not here/, /link to a, which is not here \(or has no such vertex/, /link from l7 0, which is not/]) warned(report, re);
   assert.deepEqual(doc.points[0].look, { text: { name: true } });
@@ -555,8 +561,8 @@ test('operations: new elements, names, parts, IDs', () => {
   assert.match(a.id, /^[a-z0-9]{8}$/);
   a.name = '';
   assert.equal(label('point', a), 'Point · 41.0000, 12.0000');
-  assert.equal(label('area', addArea(doc, [[0, 0], [3, 0], [0, 3]], { name: ' ' })), 'Area · 1.0000, 1.0000');
-  assert.deepEqual(placeOf('area', doc.areas[0]), [1, 1]);
+  assert.equal(label('line', addRing(doc, [[1, 0], [3, 0], [0, 3]], { name: ' ' })), 'Line · 0.0000, 1.0000');
+  assert.deepEqual(placeOf('line', doc.lines[0]), [1, 0]); // a line's, closed or not: its start
   const g = makeGroup(doc, []);
   assert.equal(label('group', { ...g, name: '' }), `Group ${g.id}`);
 });
@@ -657,7 +663,7 @@ test('measurements: guides showing their values (a line, an area, a point with i
   const doc = emptyDoc(NOW), m = () => ({ guide: true, look: { text: { values: true } } });
   const r1 = lineFrom(doc, [12, 44], [[12.5, 44.2]], [13, 44], { ...m(), name: 'Distance 1' });
   const c = addPoint(doc, [14, 40], { ...m(), symbol: 'none', parts: [makePart('circle', { radius: 5000 })] });
-  const a = addArea(doc, [[12, 44], [13, 44], [12.5, 45]], m());
+  const a = addRing(doc, [[12, 44], [13, 44], [12.5, 45]], m());
   assert.ok([r1, c, a].every((x) => isMeasurement(doc, x)));
   assert.ok(!isMeasurement(doc, addPoint(doc, [0, 0], { look: { text: { values: true } } })) && !isMeasurement(doc, addPoint(doc, [0, 0], { guide: true })));
   assert.deepEqual(styleOf(doc, r1), d.MEASURE_STYLE); // drawn as while it was measured
@@ -860,7 +866,7 @@ test('hardening: a property key named like Object.prototype\'s is a column like 
   assert.equal(p.parts.length, 100);
   assert.equal(p.name.length, 10000);
   assert.equal(doc.points.find((n) => n.id === 't').properties.length, 200);
-  assert.deepEqual([doc.lines.length, doc.areas.length], [0, 0], 'too many positions: skipped');
+  assert.deepEqual(doc.lines.length, 0, 'too many positions: skipped');
   assert.deepEqual(report.skipped.map((x) => x.id).sort(), ['q', 's']);
   assert.deepEqual(view.layers, [], 'neither "__proto__" nor "constructor" is a layer the app offers');
   assert.equal(view.data.colour, null);
@@ -897,19 +903,19 @@ test('a feature whose geometry type is not text is skipped with a reason, not th
 test('order: moved before one of its kind (into its group), or a step among its siblings; drawn first on top', async () => {
   const { drawParts } = await import('../../site/draw/features.js');
   const doc = emptyDoc(NOW);
-  const [a, b, c] = [0, 1, 2].map((i) => addArea(doc, [[i, 0], [i + 1, 0], [i, 1]]));
+  const [a, b, c] = [0, 1, 2].map((i) => addRing(doc, [[i, 0], [i + 1, 0], [i, 1]]));
   const p = addPoint(doc, [5, 5]);
   const g = makeGroup(doc, [c.id]);
   d.moveBefore(doc, c.id, a.id); // out of g, into a's (none), just before it
-  assert.deepEqual([doc.areas.map((x) => x.id), c.groupId], [[c.id, a.id, b.id], null]);
+  assert.deepEqual([doc.lines.map((x) => x.id), c.groupId], [[c.id, a.id, b.id], null]);
   d.moveBefore(doc, p.id, b.id); // another kind: nothing
-  assert.deepEqual(doc.areas.map((x) => x.id), [c.id, a.id, b.id]);
+  assert.deepEqual(doc.lines.map((x) => x.id), [c.id, a.id, b.id]);
   setGroup(doc, b.id, g.id);
   d.moveStep(doc, a.id, -1); // up among its siblings (not grouped): c
-  assert.deepEqual(doc.areas.map((x) => x.id), [a.id, c.id, b.id]);
+  assert.deepEqual(doc.lines.map((x) => x.id), [a.id, c.id, b.id]);
   d.moveStep(doc, b.id, -1); // alone in its group: stays
-  assert.deepEqual(doc.areas.map((x) => x.id), [a.id, c.id, b.id]);
+  assert.deepEqual(doc.lines.map((x) => x.id), [a.id, c.id, b.id]);
   const z = Object.fromEntries(drawParts(doc).base.filter((f) => f.properties.kind === 'polygon').map((f) => [f.properties.id, f.properties.z]));
   assert.ok(z[a.id] > z[c.id] && z[c.id] > z[b.id], 'the first drawn on top');
-  assert.deepEqual(again(doc).doc.areas.map((x) => x.id), [a.id, c.id, b.id]); // the order kept in the file
+  assert.deepEqual(again(doc).doc.lines.map((x) => x.id), [a.id, c.id, b.id]); // the order kept in the file
 });

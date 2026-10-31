@@ -2,7 +2,7 @@
 // drawing.js), the values shown on the map (valueFeatures, the draw-value layer) and what the GIS export
 // writes (exportFeatures). Pure, like document.js.
 
-import { circle, sector, cornersOf, reachesPole, ccw, areaOf, destination, inverse, pathOf, perimeterOf } from '../geodesy.js';
+import { circle, sector, cornersOf, reachesPole, ccw, areaOf, destination, inverse } from '../geodesy.js';
 
 import { styleOf, lookOf, minSizeOf, offsetOf, isShown, leavesOf, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf, columnsOf, linkFrom } from './document.js';
 import { mercator, unrollTo, metresPerPixel, D2R } from '../geo.js';
@@ -43,7 +43,7 @@ const lineProps = (s, colour = s.color, dash = s.dash) => ({ sc: colour, so: s.o
 // The features drawn, in three parts, each its own map source so that only what changed is drawn
 // again (drawing.js):
 // - base: what never depends on the zoom: each shown round part (a polygon, filled when its Fill is
-//   on), each area, each point's symbol, the names of points and of lines' places;
+//   on), each closed line's fill, each point's symbol, the names of points and of lines' places;
 // - zoom: what may (outlines drawn enlarged when small): each visible outline and line, and their
 //   names;
 // - marks: those of the selected elements (sel: Set of IDs) and of the one under the pointer (hover).
@@ -61,7 +61,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   // What says "selected": the one element selected shows its handles and its own stroke, untouched
   // (as the drawing tools do: the edge is what one aligns to), a point a small white dot at its
   // centre; among several selected, each shows squares as handles look at its key points (dots(): a
-  // line's places, an area's or an outline's corners), inert, thinned as handles are. The
+  // line's places, an outline's corners), inert, thinned as handles are. The
   // band along an element is for hovering only.
   const mark = (id, geometry, props = {}, dots = null) => {
     const kind = markOf(id);
@@ -113,7 +113,7 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   // the drawing order within a kind (drawing-format.md §2): the first in its list on top (layers.js
   // sorts by z, the higher above)
   const Z = new Map();
-  for (const list of [doc.points, doc.lines, doc.areas]) list.forEach((el, i) => Z.set(el.id, list.length - i));
+  for (const list of [doc.points, doc.lines]) list.forEach((el, i) => Z.set(el.id, list.length - i));
   // points: their round parts, then (with the lines) their outlines, then their symbols on top
   for (const n of doc.points) {
     const rounds = roundParts(n).filter(({ part }) => part.shown && drawable(n, part.radius));
@@ -143,18 +143,6 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
         items.push({ p: tip, role: 'rotate', ref: 0 });
       }
       handles(n.id, items);
-    }
-  }
-  // areas: at real size whatever the zoom; their corners dragged, a + halfway along each edge long
-  // enough on screen adds a corner there
-  for (const g of doc.areas) {
-    if (!isShown(doc, g) || (!want.base && !want.zoom && !markOf(g.id))) continue;
-    const st = styleOf(doc, g), rg = pathOf(g.points, true);
-    if (want.base) base.push({ type: 'Feature', properties: { id: g.id, kind: 'polygon', z: Z.get(g.id), fill: 1, fc: st.fill.color, fo: st.fill.opacity, ...lineProps(st.stroke) }, geometry: { type: 'Polygon', coordinates: [rg] } });
-    if (want.zoom && named(g)) name(zoomNames, g, { type: 'Point', coordinates: centroid(g.points) }, st.stroke.color, { ctr: 1 }); // with the outlines' names (a centre)
-    if (mark(g.id, { type: 'Polygon', coordinates: [ccw(rg)] }, { sw: st.stroke.width }, () => g.points) && sel.has(g.id)) {
-      handles(g.id, g.points.map((p, i) => ({ p, role: 'ppoint', ref: i })), true);
-      if (mpp) handles(g.id, g.points.flatMap((a, i) => { const b = g.points[(i + 1) % g.points.length], d = inverse(a, b); return d.s / ground(a[1]) > midPx ? [{ p: destination(a, d.azi, d.s / 2), role: 'pmid', ref: i + 1, kind: 'mid' }] : []; }));
     }
   }
   // outlines: to scale, all of a point's enlarged together when its largest is too small to see at
@@ -188,10 +176,12 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     }
   }
   // lines: a guide dashed and faint, the others solid; every visible line also has an invisible stroke
-  // wide enough to click. A line's halo is on both sides of it.
+  // wide enough to click, a closed one its fill (with the rings, under the lines). A line's halo is on
+  // both sides of it.
   for (const sg of doc.lines) {
     if (!isShown(doc, sg)) continue;
-    const st = styleOf(doc, sg).stroke;
+    const { fill, stroke: st } = styleOf(doc, sg);
+    if (want.base && sg.closed) base.push({ type: 'Feature', properties: { id: sg.id, kind: 'polygon', z: Z.get(sg.id), fill: 1, fc: fill.color, fo: fill.opacity }, geometry: { type: 'Polygon', coordinates: [lineTrace(doc, sg).coords] } });
     // its named places: at their real positions, whatever the zoom
     if (want.base && wants(sg)) sg.names.forEach((nm, i) => { if (nm.trim()) baseNames.push({ type: 'Feature', properties: { id: sg.id, kind: 'name', nm, c: st.color, vx: 1 }, geometry: { type: 'Point', coordinates: sg.points[i] } }); });
     if (!want.zoom && !markOf(sg.id)) continue;
@@ -199,11 +189,11 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
     const g = { type: 'LineString', coordinates: line.coords };
     if (want.zoom) {
       zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: 'linehit', off }, geometry: g });
-      if (named(sg)) name(zoomNames, sg, g, st.color);
+      if (named(sg)) name(zoomNames, sg, sg.closed ? { type: 'Point', coordinates: centroid(sg.points) } : g, st.color, sg.closed ? { ctr: 1 } : {}); // a closed one's at its centre
       zoomed.push({ type: 'Feature', properties: { id: sg.id, kind: sg.guide ? 'guide' : 'path', z: Z.get(sg.id), off, ...lineProps(st) }, geometry: g });
     }
     if (mark(sg.id, g, { sw: st.width, off }, () => sg.points) && sel.has(sg.id)) {
-      const ps = sg.points, last = ps.length - 1;
+      const ps = sg.points;
       // its places: one linked to a point's centre moves the point; another (free, or linked to a
       // corner, an edge, a vertex) itself, linked again where it is dropped
       const role = (to) => (to && to.edge == null && to.vertex == null && doc.points.some((p) => p.id === to.element) ? { role: 'point', ref: to.element } : null);
@@ -211,9 +201,9 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
       // a + halfway along each leg long enough on screen, on the line as drawn (a smooth line's curve):
       // dragging it adds a point there
       if (mpp) {
-        const tr = lineTrace(doc, sg), mids = [];
-        for (let i = 0; i < last; i++) {
-          if (tr.legs[i] / ground(ps[i][1]) > midPx) mids.push({ p: pointsAlong(tr.coords, [(tr.at[i] + tr.at[i + 1]) / 2])[0].position, role: 'mid', ref: i, kind: 'mid' });
+        const mids = [];
+        for (let i = 0; i < line.legs.length; i++) {
+          if (line.legs[i] / ground(ps[i][1]) > midPx) mids.push({ p: pointsAlong(line.coords, [(line.at[i] + line.at[i + 1]) / 2])[0].position, role: 'mid', ref: i, kind: 'mid' });
         }
         handles(sg.id, mids);
       }
@@ -245,23 +235,20 @@ const showsValues = (doc, el) => lookOf(doc, el).text.values;
 
 // The values of the elements showing them, as label features (the draw-value layer draws them): each leg
 // of a line its length (and its bearing, when bearings are on and the leg is straight), the total at
-// its end; an area its area and perimeter; a point each round part's radius. units: 'km' | 'nm'.
+// its end; a closed line its area and perimeter; a point each round part's radius. units: 'km' | 'nm'.
 export function valueFeatures(doc, units = 'km', bearings = false) {
   const out = [];
   const label = (id, coord, text, anchor = 'center') => out.push({ type: 'Feature', properties: { id, label: text, anchor }, geometry: { type: 'Point', coordinates: coord } });
   for (const s of doc.lines) {
     if (!showsValues(doc, s) || !isShown(doc, s)) continue;
     const tr = lineTrace(doc, s), an = anchorsOf(s);
+    if (s.closed) { label(s.id, centroid(s.points), `${fmtArea(tr.area, units)}\nperimeter ${fmtDist(tr.length, units)}`); continue; }
     tr.legs.forEach((len, i) => {
       const mid = pointsAlong(tr.coords, [tr.at[i] + len / 2])[0].position;
       const straight = !an[i].hOut && !an[i + 1].hIn;
       label(s.id, mid, bearings && straight ? `${fmtDist(len, units)} · ${fmtBrg(inverse(an[i].position, an[i + 1].position).azi)}` : fmtDist(len, units));
     });
     if (tr.legs.length > 1) label(s.id, s.points.at(-1), `Σ ${fmtDist(tr.length, units)}`, 'top');
-  }
-  for (const g of doc.areas) {
-    if (!showsValues(doc, g) || !isShown(doc, g)) continue;
-    label(g.id, centroid(g.points), `${fmtArea(areaOf(pathOf(g.points, true)), units)}\nperimeter ${fmtDist(perimeterOf(g.points), units)}`);
   }
   for (const n of doc.points) {
     if (!showsValues(doc, n) || !isShown(doc, n)) continue;
@@ -304,12 +291,8 @@ export function exportFeatures(doc, units = 'km') {
   for (const sg of doc.lines) {
     if (!isShown(doc, sg)) continue;
     const line = lineTrace(doc, sg);
-    feature({ ...base('line', sg), length_m: m(line.length), ...flatten(sg.properties) }, { type: 'LineString', coordinates: line.coords });
-  }
-  for (const g of doc.areas) {
-    if (!isShown(doc, g)) continue;
-    const rg = ccw(pathOf(g.points, true));
-    feature({ ...base('area', g), area_m2: Math.round(areaOf(rg)), perimeter_m: m(perimeterOf(g.points)), ...flatten(g.properties) }, { type: 'Polygon', coordinates: [rg] });
+    if (sg.closed) feature({ ...base('line', sg), area_m2: Math.round(line.area), perimeter_m: m(line.length), ...flatten(sg.properties) }, { type: 'Polygon', coordinates: [ccw(line.coords)] });
+    else feature({ ...base('line', sg), length_m: m(line.length), ...flatten(sg.properties) }, { type: 'LineString', coordinates: line.coords });
   }
   for (const a of doc.labels) {
     const to = linkFrom(doc, a.id)?.to, at = to && resolve(doc, to);
@@ -342,10 +325,6 @@ export const GEOMETRY = {
   line: {
     bounds: (doc, sg) => lineTrace(doc, sg).coords,
     inside: (doc, sg, inBox) => lineTrace(doc, sg).coords.every(inBox),
-  },
-  area: {
-    bounds: (doc, g) => g.points,
-    inside: (doc, g, inBox) => g.points.every(inBox),
   },
   label: {
     bounds: (doc, a) => [a.position],

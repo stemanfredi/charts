@@ -417,13 +417,15 @@ await section('dragging, parts, shapes, attaching', async () => {
   const square = await boxOf([DX + 300, 560], [DX + 380, 600]);
   check(sized[0] === 0 && Math.abs(sized[1] - sized[3]) < 2 && Math.abs(sized[2] - sized[4]) < 2 && Math.abs(sized[5] - DX - 340) <= 1 && Math.abs(sized[6] - 480) <= 1 && square[1] === square[2] && Math.abs(square[1] - square[4]) < 2,
     `shapes: a rectangle corner to corner, facing north, centred between them; Shift a square (${sized.map((v) => Math.round(v))}; ${square.slice(1, 3).map(Math.round)})`);
-  // a line closed into an area by a click on its first point; a sector in three clicks
+  // a line closed by a click on its first point (a closed line, "Area n", filled); a sector in three clicks
   await dw.keyboard.press('Escape');
   await dw.evaluate(() => drawing.stop());
   await dw.keyboard.press('g');
-  const areasBefore = await dw.evaluate(() => drawing.doc.areas.length);
+  const ringsBefore = await dw.evaluate(() => drawing.doc.lines.filter((x) => x.closed).length);
   for (const [x, y] of [[450, 450], [520, 450], [500, 520], [451, 451]]) await dw.mouse.click(DX + x, y);
-  const closed = await dw.evaluate(() => [drawing.doc.areas.length, drawing.doc.areas.at(-1)?.points.length, !!drawing.draft]);
+  await settled(dw);
+  const closed = await dw.evaluate(() => { const g = drawing.doc.lines.at(-1); return [drawing.doc.lines.filter((x) => x.closed).length, g.closed && g.points.length, !!drawing.draft, g.name.split(' ')[0],
+    map.querySourceFeatures('draw').some((f) => f.properties.id === g.id && f.properties.kind === 'polygon')]; });
   await dw.keyboard.press('Escape');
   await dw.evaluate(() => { drawing.variant.shape = 'sector'; });
   await dw.keyboard.press('s');
@@ -432,9 +434,9 @@ await section('dragging, parts, shapes, attaching', async () => {
   const sec = await dw.evaluate(() => { const x = drawing.doc.points.at(-1); return [x.parts.map((q) => [q.kind, q.fill, Math.round(q.aperture)].join(':')).join(), x.name.split(' ')[0],
     map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').map((f) => f.geometry.type)[0]]; });
   await dw.keyboard.press('Escape');
-  check(closed.join() === `${areasBefore + 1},3,false` && sec[0] === 'sector:true:90' && sec[1] === 'Sector' && sec[2] === 'Polygon',
-    `shapes: a line closed into an area on its first point (${closed}); a sector in three clicks (${sec})`);
-  await dw.evaluate(() => drawing.remove([drawing.doc.points.at(-1).id, drawing.doc.areas.at(-1).id])); // the checks after these find the drawing as it was
+  check(closed.join() === `${ringsBefore + 1},3,false,Area,true` && sec[0] === 'sector:true:90' && sec[1] === 'Sector' && sec[2] === 'Polygon',
+    `shapes: a line closed on its first point, filled (${closed}); a sector in three clicks (${sec})`);
+  await dw.evaluate(() => drawing.remove([drawing.doc.points.at(-1).id, drawing.doc.lines.at(-1).id])); // the checks after these find the drawing as it was
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('Escape');
   // attaching: a line drawn to a shape's corner ends attached there, and follows it when it turns
@@ -571,11 +573,11 @@ await section('labels, names, data and totals', async () => {
 
 await section('legs typed, list grids', async () => {
   // legs typed after drawing: the leg to a line's point 2 set to 1 km at 090°, that point alone moved
-  // (its end where it was); the edge to a polygon's corner 2 set to 500 m, that corner alone moved
+  // (its end where it was); the leg to a closed line's point 2 set to 500 m, that point alone moved
   const legIds = await dw.evaluate(async () => {
-    const { addLine, addArea } = await import('./draw/document.js');
+    const { addLine } = await import('./draw/document.js');
     let l, a;
-    drawing.change((d) => { l = addLine(d, [[13, 41], [13.02, 41.01], [13.04, 41]]); a = addArea(d, [[13, 40.5], [13.01, 40.5], [13.01, 40.51]]); });
+    drawing.change((d) => { l = addLine(d, [[13, 41], [13.02, 41.01], [13.04, 41]]); a = addLine(d, [[13, 40.5], [13.01, 40.5], [13.01, 40.51]], { closed: true }); });
     return [l.id, a.id];
   });
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
@@ -587,10 +589,17 @@ await section('legs typed, list grids', async () => {
   const leg1 = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const l = drawing.doc.lines.find((x) => x.id === id); const g = inverse(l.points[0], l.points[1]); return [Math.round(g.s), Math.round(g.azi)]; }, legIds[0]);
   const endAfter = await endAt();
   await dw.evaluate((id) => drawing.select([id]), legIds[1]);
-  await typeIn('Corner 2 leg length', '500 m');
-  const edge = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const a = drawing.doc.areas.find((x) => x.id === id); return [Math.round(inverse(a.points[0], a.points[1]).s), a.points[2].join()]; }, legIds[1]);
+  await typeIn('Point 2 leg length', '500 m');
+  const edge = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const a = drawing.doc.lines.find((x) => x.id === id); return [Math.round(inverse(a.points[0], a.points[1]).s), a.points[2].join()]; }, legIds[1]);
+  // its values: area and perimeter, no length; Closed unticked, it is an open line again (its length)
+  const rows = () => dw.evaluate(() => [...document.querySelectorAll('.dinspect .flabel')].map((x) => x.textContent).filter((t) => ['Length', 'Area', 'Perimeter'].includes(t)).join());
+  const ringRows = await rows();
+  await dw.locator('.dinspect input[aria-label="Closed"]').click();
+  const opened = [await dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).closed, legIds[1]), await rows()];
+  await dw.evaluate(() => drawing.undo());
+  check(ringRows === 'Area,Perimeter' && opened.join() === 'false,Length', `a closed line's values, area and perimeter; Closed unticked, open (${ringRows}; ${opened})`);
   check(leg1.join() === '1000,90' && endAfter === endBefore && edge[0] === 500 && edge[1] === '13.01,40.51',
-    `legs typed after drawing: the leg to a line's point (${leg1}), that point alone moved (its end ${endAfter}); a polygon's edge (${edge[0]}), corner 3 where it was`);
+    `legs typed after drawing: the leg to a line's point (${leg1}), that point alone moved (its end ${endAfter}); a closed line's (${edge[0]}), point 3 where it was`);
   // the points' table as a list grid: ↓ goes to the same column in the next row; the bar over it acts
   // on the current row (its vertex deleted); a part added from the parts' empty last row
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
