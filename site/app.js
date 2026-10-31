@@ -1143,8 +1143,9 @@ function metresOf(clip, maxZoom) {
 const depthAt = metresOf(seaClip, DEM_SEA_MAX);
 // the land's height as the relief shading has it (lakes their surface); NaN at sea
 const heightAt = metresOf(landClip, DEM_LAND_MAX);
-// the elevation at p: the sea's depth, else the land's height
-const elevationAt = async (p, z) => { const d = await depthAt(p, z); return Number.isFinite(d) ? d : heightAt(p, z); };
+// the elevation at p: the sea's depth, else the land's height; NaN where neither could be read (a
+// source unreachable leaves a gap in a profile, not the whole profile failed)
+const elevationAt = async (p, z) => { const d = await depthAt(p, z).catch(() => NaN); return Number.isFinite(d) ? d : heightAt(p, z).catch(() => NaN); };
 // the depth asked of the latest click only, and only while it still would be (no tool on, a depth layer on)
 let depthAsked = 0;
 const depthClicks = () => !(drawing.tool || drawing.picking || drawing.repointing) && (state.on.has('depth') || state.on.has('isobaths'));
