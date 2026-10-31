@@ -7,6 +7,7 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --row: 44px;          /* menu rows and targets: 44 px for fingers, 36 px with a mouse */
+  --tap: 32px;          /* the icon buttons over the map and in the bar: 32 px with a mouse, 44 px for fingers */
   --bar-h: 39px;        /* the bar across the top (its edge inside it) */
   --lw: 260px; --rw: 320px; --sheet-h: 52vh; /* the panels' widths, a phone's sheet's height: frame.js */
   --status-h: 36px;     /* height of the bottom row (credits, scale), kept current by app.js */
@@ -15,7 +16,7 @@
   accent-color: var(--accent); /* a box ticked, a slider: in the colour of what is pressed */
 }
 @media (pointer: fine) { :root { --row: 36px; } }
-@media (pointer: coarse) { :root { --bar-h: 49px; } } /* a finger's targets: 44 px */
+@media (pointer: coarse) { :root { --bar-h: 49px; --tap: 44px; } } /* a finger's targets: 44 px */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
@@ -106,8 +107,6 @@ body.loading .spin { visibility: visible; animation: spin .8s linear infinite; }
 .pick .line { gap: 8px; padding-right: 8px; }
 .pick .name { flex: none; width: 60px; }
 .pick select { flex: 1; min-width: 0; padding: 2px 8px; }
-.pick.error .name::after, .pick.partial .name::after { content: " ⚠"; color: var(--err); }
-.pick.partial .name::after { color: var(--warn); }
 .item label.name { flex: 1; cursor: pointer; align-self: stretch; display: flex; align-items: center; gap: 8px; }
 .item .hint { font-size: 11px; color: var(--warn); font-family: var(--mono); }
 .item.dim label.name { color: var(--soft); }
@@ -272,6 +271,7 @@ button.small.link:hover { border-color: var(--line); }
 .fbuttons { display: flex; gap: 6px; flex-wrap: wrap; }
 /* a boxed button: a form's, a small one in a row or a band's heading (.hbtns resets its case), About's Close, the touch row's */
 :is(.fbuttons, .touchbar) button, button.small, dialog .action { border: 1px solid var(--line); background: #fff; border-radius: 6px; min-height: var(--row); padding: 0 12px; }
+dialog .action { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; margin-top: 12px; } /* About's Close */
 :is(:is(.fbuttons, .touchbar) button, button.small, dialog .action):not(:disabled):hover { border-color: var(--accent); }
 button.small { min-width: var(--row); padding: 0 8px; font-size: 12px; color: var(--ink); font-weight: 400; }
 /* the drawings in this browser: the open one marked */
@@ -285,7 +285,7 @@ button.small { min-width: var(--row); padding: 0 8px; font-size: 12px; color: va
   background: var(--ink); color: #fff; border-radius: 6px; padding: 4px 12px; box-shadow: var(--shadow); font-size: 12px; line-height: 1.3; } /* centred on the window, over the panels if need be; a long one wraps */
 .dnote:empty { display: none; }
 .dnote .linkbtn { color: inherit; margin-left: 4px; min-height: 28px; } /* a new version's Reload, on the dark chip */
-@media (pointer: coarse) { .dnote .linkbtn { min-height: 44px; } } /* a finger's target */
+@media (pointer: coarse) { .dnote .linkbtn { min-height: var(--tap); } } /* a finger's target */
 .nostart { background: var(--warn); z-index: 10; }
 #update:not([hidden]) ~ .dnote { top: calc(var(--bar-h) + 48px); } /* a note while a new version is ready: under its chip, not over its Reload */
 @media (pointer: coarse) { #update:not([hidden]) ~ .dnote { top: calc(var(--bar-h) + 64px); } }
@@ -297,12 +297,12 @@ dialog .fbuttons button { min-height: 44px; padding: 0 14px; } /* a dialog's: a 
 /* ---- find a place (a place or coordinates): beside the map's controls, shown while it is used ---- */
 .search {
   position: absolute; z-index: 7; top: calc(var(--bar-h) + 8px); right: 8px; width: min(360px, calc(100vw - 16px));
-  display: none; align-items: center; gap: 6px; padding: 0 0 0 10px; min-height: 34px;
+  display: none; align-items: center; gap: 6px; padding: 0 0 0 10px; min-height: calc(var(--tap) + 2px);
   color: var(--soft);
 }
-.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; height: 32px; font-size: 13px; color: var(--ink); }
-.search .x { width: 32px; height: 32px; }
-@media (pointer: coarse) { .search { min-height: 46px; } .search input { height: 44px; font-size: 14px; } .search .x { width: 44px; height: 44px; } } /* a finger's 44 px */
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; height: var(--tap); font-size: 13px; color: var(--ink); }
+.search .x { width: var(--tap); height: var(--tap); }
+@media (pointer: coarse) { .search input { font-size: 14px; } }
 .search input::-webkit-search-cancel-button { display: none; }
 .search:focus-within { border-color: var(--accent); }
 body.finding .search { display: flex; }
@@ -362,15 +362,12 @@ dialog h2 { margin: 0 0 8px; font-size: 16px; }
 dialog h3 { margin: 12px 0 4px; }
 dialog .keys { margin: 0; padding-left: 18px; }
 kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg2); }
-dialog .action { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; margin-top: 12px; } /* About's Close */
 
-/* ---- phones: no cursor position ---- */
-@media (max-width: 719px) { .pos:not(.shown, .depthchip) { display: none; } } /* the time and depth shown stay */
 /* with a finger (drawing-ui.md §1): Done, Back, Delete, Duplicate, over the map's foot, at its left */
 .touchbar { display: none; }
 @media (pointer: coarse) {
   .touchbar:not([hidden]) { align-self: stretch; display: flex; flex-wrap: wrap; gap: 6px; }
-  .touchbar button { min-height: 44px; padding: 0 14px; font-size: 13px; box-shadow: var(--shadow); } /* over the map, as its controls */
+  .touchbar button { min-height: var(--tap); padding: 0 14px; font-size: 13px; box-shadow: var(--shadow); } /* over the map, as its controls */
 }
 /* a line's elevation profile (draw/panel.js profileBlock) */
 svg.profile { width: 100%; height: auto; display: block; background: var(--bg2); border-radius: 6px; touch-action: none; }
@@ -384,12 +381,11 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .bar { position: absolute; z-index: 9; left: 0; right: 0; top: 0; height: var(--bar-h); display: flex; align-items: center; gap: 2px; padding: 0 6px 1px;
   background: var(--bg2); box-shadow: inset 0 -1px var(--line); } /* its edge drawn inside: the buttons centred in what is seen */
 .dock { display: none; } /* a phone's (below) */
-/* an icon button of the bar, the dock, the map's controls and a tool's kinds: 32 px (44 with a finger), a 20 px icon */
-:is(.bar, .dock) > button, :is(.mapctl, .kinds) button { width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
+/* an icon button of the bar, the dock, the map's controls and a tool's kinds: --tap (32 px, 44 with a finger), a 20 px icon */
+:is(.bar, .dock) > button, :is(.mapctl, .kinds) button { width: var(--tap); height: var(--tap); flex: none; padding: 0; border: 0; border-radius: 6px; background: none; display: grid; place-items: center; color: var(--ink); }
 :is(.bar, .dock) > button { position: relative; }
 :is(.bar, .dock) > button svg, :is(.mapctl, .kinds) button svg { width: 20px; height: 20px; }
 :is(:is(.bar, .dock) > button, :is(.mapctl, .kinds) button):not(:disabled):hover { background: var(--hover); }
-@media (pointer: coarse) { :is(.bar, .dock) > button, :is(.mapctl, .kinds) button { width: 44px; height: 44px; } }
 /* what is pressed, everywhere: the accent, white on it */
 :is(.bar, .dock) > button[aria-pressed="true"], :is(.mapctl, .kinds, .touchbar, .seg) button[aria-pressed="true"], button.small[aria-pressed="true"], .vrow .x[aria-pressed="true"], button.done {
   background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -411,13 +407,13 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 .bar > .grow { flex: 1; }
 /* a tool's kinds: a row under its button, over the panel while they are picked */
 .kinds { position: absolute; display: flex; gap: 2px; padding: 4px; }
-.kinds button { width: auto; min-width: 32px; padding: 0 4px; } /* a kind's initials take their room */
+.kinds button { width: auto; min-width: var(--tap); padding: 0 4px; } /* a kind's initials take their room */
 .kinds .initials { font-size: 12px; font-weight: 600; }
-@media (pointer: coarse) { .kinds button { width: auto; min-width: 44px; } }
 /* a phone: the bar ☰, find a place, Layers, Elements; the dock along the bottom, Undo and the tools (while
    one is on: Back, it, Done), its kinds in a row above it; the panels a bottom sheet over the dock, as
    tall as dragged at its grip, the map's foot above it; Properties, while off, its head alone (a peek) */
 @media (max-width: 719px) {
+  .pos:not(.shown, .depthchip) { display: none; } /* no cursor position; the time and depth shown stay */
   :root { --sheet: min(var(--sheet-h), calc(100vh - 2 * var(--bar-h) - 160px)); } /* the sheet as tall as dragged, the map's foot and some map left */
   .bar > :is(.tsep, .grow, .urbtn, .pright, .selbtn, .boxbtn), #b-find { display: none; } /* find a place: the bar's field */
   .bar > .search { order: 1; flex: 1 1 auto; min-width: 0; }
@@ -457,7 +453,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 /* the scale switches the units; the time a chip */
 :is(#scale, .pos.shown, .depthchip) { cursor: pointer; }
 .depthchip { border: 0; height: auto; } /* a chip as the time's, its list the browser's (its arrow says it opens, as the time's ▾) */
-@media (pointer: coarse) { .pos.shown, .depthchip { min-height: 44px; display: inline-flex; align-items: center; } } /* a finger's targets: the one way to the calendar and the depth */
+@media (pointer: coarse) { .pos.shown, .depthchip { min-height: var(--tap); display: inline-flex; align-items: center; } } /* a finger's targets: the one way to the calendar and the depth */
 .pos.shown::after { content: " ▾"; color: var(--soft); }
 /* the time chip is its date field: the field covers the chip unseen, so the browser's calendar hangs from the chip (a browser without a picker: the field itself, .raw) */
 .pos.shown { position: relative; }

@@ -828,7 +828,7 @@ function dataBlock(items, sections) {
         const es = ENTRIES[slot].filter((e) => e.it.section === sec);
         return es.length ? h('optgroup', { label: sec }, es.map((e) => h('option', { value: e.key, selected: e.key === state[slot] }, e.label))) : null;
       }));
-    return h('li', { class: 'item pick' }, h('label', { class: 'line' }, h('span', { class: 'name' }, label), picks[slot]));
+    return h('li', { class: 'item pick' }, h('label', { class: 'line' }, h('span', { class: 'name' }, label, h('span', { class: 'hint' })), picks[slot]));
   };
   return h('ul', {}, pick('colour', 'Colours'), pick('arrows', 'Arrows'), h('li', { class: 'item' }, ...sourceRow(items, 'the ocean data shown')));
 }
