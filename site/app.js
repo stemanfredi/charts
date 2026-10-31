@@ -1015,8 +1015,7 @@ function free() {
 // find a place: a field in the bar, before About and Properties (/ goes to it; a phone: after ☰, its
 // tools being in the dock); where the bar has no room (a tablet's), behind a lens with the map's
 // controls, shown while it is used, gone when left
-const findBtn = $('#b-find'), searchBox = $('#search');
-$('#mapctl').prepend(findBtn);
+const findBtn = $('#b-find'), searchBox = $('#search'); // the lens: first of the map's controls (index.html)
 const openAbout = () => { about.showModal(); showVersion(); };
 const aboutBtn = h('button', { type: 'button', class: 'aboutbtn', 'aria-label': 'About', title: 'About', onclick: openAbout }, icon(...ICON.info));
 frame.rightBtn.before(aboutBtn);
