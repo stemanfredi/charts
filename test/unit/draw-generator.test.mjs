@@ -723,3 +723,18 @@ test('a distribution deleted with its line and its copies takes the empty groups
   settleGeometry(doc2);
   assert.deepEqual([doc2.rules.length, doc2.groups.map((x) => x.name)], [0, ['Distribute along Line 1', 'Copies']], 'the copies stay, in their groups');
 });
+
+test('a copy changed by hand keeps its change when the rule is edited with the same count and copy; moved with the others', () => {
+  const { doc, guide } = scene();
+  const { distribution: a } = makeDistribution(doc, { along: { element: guide.id }, count: 3, preset: 'rings', radius: 1500 });
+  const mine = pointsOf(doc, a)[1], [inner] = shapesOf(doc, mine);
+  inner.radius = 321; mine.symbol = 'square'; inner.name = 'mine';
+  const before = mine.position;
+  const { remade } = editDistribution(doc, a.id, { offset: 2000 });
+  assert.equal(remade, false, 'the same count and copy: moved, not made anew');
+  const now = pointsOf(doc, a)[1];
+  assert.equal(now.id, mine.id);
+  assert.ok(inverse(before, now.position).s > 1000, 'moved to its new place');
+  assert.deepEqual([now.symbol, shapesOf(doc, now).find((c) => c.name === 'mine')?.radius], ['square', 321], 'its own changes kept');
+  near(inverse(now.position, shapesOf(doc, now).find((c) => c.name === 'mine').position).s, 0, 1e-6, 'its circle carried with it');
+});

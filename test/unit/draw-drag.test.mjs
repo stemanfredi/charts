@@ -34,3 +34,16 @@ test('moving by the pointer', () => {
   near(d[0], mercator([12.1, 40.05])[0] - mercator([12, 40])[0], 1e-6, 'x');
   near(d[1], mercator([12.1, 40.05])[1] - mercator([12, 40])[1], 1e-6, 'y');
 });
+
+test('a selection moved: a point moved through a selected line\'s linked place carries its shapes once, a selected one too', async () => {
+  const { Drawing } = await import('../../site/draw/drawing.js');
+  const { emptyDoc, addPoint, addCircle } = await import('../../site/draw/document.js');
+  const { lineFrom } = await import('./helpers.mjs');
+  const { inverse } = await import('../../site/geodesy.js');
+  const doc = emptyDoc(0), p = addPoint(doc, [12, 40]), c = addCircle(doc, [12, 40], { groupId: p.id });
+  const l = lineFrom(doc, [11.9, 40], [], p.id);
+  const fake = { sel: new Set([c.id, l.id]), map: { project: ([x, y]) => ({ x, y }) } }; // the circle before the line: met before its point is known to move
+  Drawing.prototype.moveSelection.call(fake, doc, [12, 40], [12.1, 40.05]);
+  near(inverse(p.position, [12.1, 40.05]).s, 0, 1e-6, 'the point moved with the line\'s place on it');
+  near(inverse(p.position, c.position).s, 0, 1e-6, 'its circle carried once: still on it');
+});

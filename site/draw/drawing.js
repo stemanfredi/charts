@@ -667,16 +667,16 @@ export class Drawing extends DrawStore {
   moveSelection(doc, start, p) {
     const onlyLabels = [...this.sel].every((id) => find(doc, id)?.kind === 'label');
     const a = this.map.project(start), b = this.map.project(p), mv = (pos) => moved(pos, start, p);
-    const leaves = leavesOf(doc, this.sel), points = new Set(leaves.filter((x) => x.kind === 'point').map((x) => x.el.id)); // the points moved: selected, or what a selected line's place is on
+    const leaves = leavesOf(doc, this.sel), tiedOf = (el) => new Map(doc.links.filter((l) => l.from[0] === el.id).map((l) => [l.from[1], l.to.element]));
+    // the points moved: selected, or what a selected line's linked place is on; found first, so that a
+    // point's shapes go with it only (one also selected is not moved a second time)
+    const points = new Set(leaves.flatMap((x) => (x.kind === 'point' ? [x.el.id] : x.kind === 'line' ? [...tiedOf(x.el).values()] : [])));
     for (const { kind, el } of leaves) {
       if (kind === 'point' || points.has(el.groupId)) continue; // a point's shapes: carried with it
       if (kind === 'label' && onlyLabels) el.offset = [Math.round(el.offset[0] + b.x - a.x), Math.round(el.offset[1] + b.y - a.y)];
       else {
-        const tied = new Map(doc.links.filter((l) => l.from[0] === el.id).map((l) => [l.from[1], l.to.element]));
-        positionsIn(kind, el).forEach(([o, k], i) => {
-          if (!tied.has(i)) o[k] = mv(o[k]);
-          else if (kind === 'line') points.add(tied.get(i)); // a line's place linked: what it is on moves, if a point; a label on one follows it
-        });
+        const tied = tiedOf(el); // a place linked stays on what it is on (a line's: that moves, above; a label's follows it)
+        positionsIn(kind, el).forEach(([o, k], i) => { if (!tied.has(i)) o[k] = mv(o[k]); });
       }
     }
     for (const n of doc.points) if (points.has(n.id)) carry(doc, n, mv(n.position));
