@@ -82,6 +82,7 @@ await section('the drawing: the bar, the tools, the kinds, the inspector, its fi
   check(made.join() === '1,1000,true,true', `shapes: the Shape tool makes a point holding its circle, the point selected (${made})`);
   await dw.keyboard.press('Escape'); // the tool off
   await dw.keyboard.press('Escape'); // nothing selected
+  await settled(dw); // drawn: a click finds it
   // the first click on a point's shape selects its point (with its shapes), the next the shape alone
   const inside = await dw.evaluate(async () => { const { destination } = await import('./geodesy.js'); const c = drawing.doc.circles[0], q = map.project(destination(c.position, 90, c.radius / 2)), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; });
   const chosen = () => dw.evaluate(() => [...drawing.sel].map((id) => (drawing.doc.points.some((x) => x.id === id) ? 'point' : 'circle')).join());
