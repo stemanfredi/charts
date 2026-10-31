@@ -91,3 +91,11 @@ test('the view moved: saved with the next save or when the page goes, never by a
   d.saving.viewChanged();
   assert.equal(d.saving.viewMoved, false, 'an older copy never written back for a moved view');
 });
+
+test('an index holding what is not an entry (null, a number) still lists the drawings', () => {
+  data.clear();
+  localStorage.setItem('charts.drawings', JSON.stringify([null, 3, { id: 'k1', title: 'Kept', modified: '2026-01-01T00:00:00Z', size: 10 }]));
+  localStorage.setItem('charts.drawings.current', 'k9');
+  const d = drawing();
+  assert.deepEqual(d.saving.list().map((x) => x.id).sort(), ['k1', 'k9']);
+});
