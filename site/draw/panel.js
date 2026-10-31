@@ -446,13 +446,15 @@ export function drawView(root, ctx) {
   const profiles = new Map(); // line id → { key (its trace), prof (null while being read), failed }
   const profileShown = new Set();
   let profileCursor = null; // (d: metres along, or null) → the chart's cursor there
+  // the chart gone (closed, the line no longer selected, the inspector built anew): its mark too
+  const dropProfileCursor = () => { profileCursor?.(null); profileCursor = null; };
   let profileBuilt = 0;
   const W = 360, H = 110;
   // depths as said: metres below the surface, positive
   function profileBlock(id) {
     const el = now(id), u = ctx.units();
     const open = profileShown.has(id);
-    const head = foldHead('Depth profile', open, () => { if (open) { profileShown.delete(id); profileCursor = null; } else profileShown.add(id); renderInspector(); });
+    const head = foldHead('Depth profile', open, () => { if (open) profileShown.delete(id); else profileShown.add(id); renderInspector(); });
     if (!open) return h('div', { class: 'fblock' }, head);
     const tr = lineTrace(drawing.doc, el), key = JSON.stringify(tr.coords);
     let p = profiles.get(id);
@@ -478,9 +480,12 @@ export function drawView(root, ctx) {
     chart.append(cursor);
     const at = fvalue('');
     const nearest = (d) => pts.reduce((a, b) => (Math.abs(b.d - d) < Math.abs(a.d - d) ? b : a));
-    // the chart's cursor at d (metres along), and the place on the map; null: none
+    // the chart's cursor at d (metres along), and the place on the map; null: none (the map's mark
+    // taken away only if it is this one's: a form's preview is not)
+    let marked = false;
     profileCursor = (d) => {
-      if (d == null) { cursor.setAttribute('visibility', 'hidden'); at.textContent = ''; drawing.setPreview([]); return; }
+      if (d == null) { cursor.setAttribute('visibility', 'hidden'); at.textContent = ''; if (marked) drawing.setPreview([]); marked = false; return; }
+      marked = true;
       const x = nearest(d);
       cursor.setAttribute('x1', X(x.d)); cursor.setAttribute('x2', X(x.d)); cursor.setAttribute('visibility', 'visible');
       at.textContent = `${fmtDist(x.d, u)} · ${Number.isFinite(x.z) ? fmtDepth(x.z) : 'no depth'}`;
@@ -501,7 +506,7 @@ export function drawView(root, ctx) {
     if (!profileCursor || drawing.sel.size !== 1) return;
     const id = [...drawing.sel][0], x = find(drawing.doc, id);
     if (x?.kind !== 'line' || !profileShown.has(id)) return;
-    if (drawing.hitAt(e.point, 6).includes(id)) profileCursor(nearestAlong(lineTrace(drawing.doc, x.el).coords, [e.lngLat.lng, e.lngLat.lat]));
+    profileCursor(drawing.hitAt(e.point, 6).includes(id) ? nearestAlong(lineTrace(drawing.doc, x.el).coords, [e.lngLat.lng, e.lngLat.lat]) : null); // off the line: no mark
   });
 
   function lineInspector(id) {
@@ -946,6 +951,7 @@ export function drawView(root, ctx) {
   let shows = null;
   function renderInspector() {
     placesRead.clear();
+    dropProfileCursor(); // a profile shown again makes its own
     const xs = drawing.selected();
     if (form && selKey() !== form.sel) { closeForm(); note('The form closed: the selection changed'); }
     ctx.frame.has(!!form || xs.length > 0 || !NARROW.matches); // Properties shown while it has something (a computer: the drawing, with nothing selected), and is on

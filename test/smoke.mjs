@@ -1101,6 +1101,19 @@ await section('the depth profile, paging, Properties in place', async () => {
   const prof = await dw.evaluate(() => [document.querySelectorAll('svg.profile polyline').length, document.querySelector('.dinspect .fblock .fvalue[title*="lower bound"]')?.textContent || '']);
   const deepLength = await dw.evaluate(async (id) => { const { lineTrace } = await import('./draw/lines.js'); return lineTrace(drawing.doc, drawing.doc.lines.find((x) => x.id === id)).length; }, deepLine);
   check(prof[0] > 0 && /along the seabed/.test(prof[1]) && deepLength > 25000, `a line's depth profile: the chart and the length along the seabed (${prof[1]})`);
+  // the line pointed at on the map: its place marked; off the line, and with the section closed, no mark left
+  await dw.evaluate(() => map.jumpTo({ center: [12.15, 40.2], zoom: 9 }));
+  await dw.waitForTimeout(300);
+  const onLine = await dw.evaluate(() => { const p = map.project([12.15, 40.2]), r = map.getCanvas().getBoundingClientRect(); return [r.left + p.x, r.top + p.y]; });
+  const marks = () => dw.evaluate(() => drawing.previewPts?.length || 0);
+  await dw.mouse.move(onLine[0], onLine[1]);
+  const markedOn = await marks();
+  await dw.mouse.move(onLine[0], onLine[1] + 60);
+  const markedOff = await marks();
+  await dw.mouse.move(onLine[0], onLine[1]);
+  await dw.click('.dinspect button:has-text("Depth profile")'); // closed
+  const markedClosed = await marks();
+  check(markedOn === 1 && markedOff === 0 && markedClosed === 0, `a line's depth profile: its place marked while the line is pointed at (${markedOn}), not off it (${markedOff}), nor once the section is closed (${markedClosed})`);
   // a long line's table a page at a time: 100 rows built, not 502; ‹ › move by a page. A row clicked
   // ringed on the map; a point pressed on the map: its row picked, on its page
   const longId = await dw.evaluate(async () => {
