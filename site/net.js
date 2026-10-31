@@ -2,15 +2,35 @@
 // the page's <meta name="referrer" content="no-referrer">, so every fetch says it.
 export const FETCH = { credentials: 'omit', referrerPolicy: 'no-referrer' };
 
+// Saving an offline area (offline.js): a file fetched into the area's cache, by whoever reads it (the
+// page, its clipping worker). The copy there first (the page's base tiles, read again by the cut),
+// else the network's, put there when it is a file (2xx with a body: a 204 is no tile), stored(bytes,
+// url) said of it; the browser's storage full throws (a QuotaExceededError). area: { cache (a Cache,
+// or its promise), reload: the addresses asked of the providers themselves (cache 'reload', which
+// the service worker takes from no saved area: an area saved again), stored }
+export async function fetchInto(area, url, init = {}) {
+  const cache = await area.cache, had = await cache.match(url);
+  if (had) return had;
+  const r = await fetch(url, { ...FETCH, ...init, ...(area.reload.some((h) => url.startsWith(h)) && { cache: 'reload' }) });
+  if (!r.ok || r.status === 204) return r;
+  const body = await r.blob();
+  if (body.size) { await cache.put(url, new Response(body, r)); area.stored(body.size, url); }
+  return new Response(body, r);
+}
+// the area every fetch below goes into: set in a clipping worker saving one (clip-worker.js)
+let area = null;
+export const fetchAllInto = (a) => { area = a; };
+const get = (url, init = {}) => (area ? fetchInto(area, url, init) : fetch(url, { ...FETCH, ...init }));
+
 // a fetch that throws on any status but 2xx (init: on top of FETCH: a signal)
 export async function fetchOk(url, init = {}) {
-  const r = await fetch(url, { ...FETCH, ...init });
+  const r = await get(url, init);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r;
 }
 // the bytes at url, or null where there are none (403 and 404: a chunk not stored, a tile not there)
 export async function fetchBytes(url) {
-  const r = await fetch(url, FETCH);
+  const r = await get(url);
   if (r.status === 403 || r.status === 404) return null;
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());

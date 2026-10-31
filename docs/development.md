@@ -59,38 +59,14 @@ out of date), and test the page.
 
 ## The service worker
 
-`site/sw.js` keeps the page's own files in the browser, so that the page opens
-without a connection. It also answers from the areas saved for use without
-one: caches named `pack-…` holding the providers' files under their own
-addresses, for the hosts listed in `OFFLINE` in `site/hosts.js` only (never
-Esri's, whose terms forbid it; a unit test holds that). A saved file is served
-before the network, so a saved area asks nothing of its provider; the base
-map's description is asked of the network first, the saved copy used without a
-connection or after 4 s of a weak one; a tile of the base map's newer weekly
-build is looked for under the build the area was saved from. With no area
-saved, it leaves those requests alone. An area is complete once its manifest
-(`pack.json`) is in its cache; one whose saving never ended (its page closed) is
-never listed, and its cache is deleted an hour later. The page saving an area
-tells the worker so every second: one not told for 10 s stops keeping files. It tells the pages whether its last try
-of the base map's provider answered (another provider down is not the connection): with that, or the browser's own word, a
-page without a connection marks only the layers no area keeps (beyond a saved
-area the kept ones fail by design) and its place search says so (a phone with
-a signal but no data calls itself online). Its lists of files and
-hosts are written by `node tools/deps.mjs --write` (a unit test says when a file was
-added or removed without it). The deploy writes the commit into it as its
-version: each deploy is a new worker, which fetches the files of its version
-and waits until the page applies it (the chip's Reload, or About's) or every
-tab of the page is closed. On a development copy its version stays `dev`: the
-network first, the kept files only without a connection, so an edit shows at
-a reload. The smoke test blocks it but in its own section, which publishes a
-version, opens the page offline, then publishes a newer one and applies it;
-another saves an area by hand and draws it offline; another saves the view
-from the Offline areas dialog (`site/offline.js`: the page's own tile makers
-asked for every tile, a fresh clipping worker for the cut elevation, the
-service worker keeping what they fetch, a few at a time per host), draws it
-offline at several zooms and deletes it, after writing it as a file (a zip:
-`area.json` with each file's address, the files, the credits; the seamarks
-left out) that it opens again and draws offline.
+`site/sw.js` keeps the page's own files, so that the page opens without a
+connection, and answers the saved hosts (`OFFLINE` in `site/hosts.js`, never
+Esri's) from the finished offline areas (`pack-…` caches with their
+`pack.json`); it stores nothing of them: the page saving an area fetches into
+its cache itself (`site/offline.js`, `fetchInto` in `site/net.js`). Its lists
+of files and hosts are written by `node tools/deps.mjs --write`, its version by
+the deploy; `dev`, on a development copy, is network first. The details are
+in its comments.
 
 ## Continuous integration and deploy
 

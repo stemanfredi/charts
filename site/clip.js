@@ -389,18 +389,20 @@ export function clipper({ template, mode, omtTileJson, remember = true }) {
 // worker the map stays responsive. Tiles come back transferred, not copied.
 const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
 // A clipping worker started with its clippers' inits: ask(msg, signal) → promise of its answer (the
-// signal's abort cancels the tile there too); stop() ends it, and fails what waits on it. Dying (out
-// of memory, a script error) fails what waits and what is asked later, died(message) said once (a
-// dead worker may report twice). The page's own (below), and offline.js's for saving an area
-export function startClipWorker(inits, died = () => {}) {
+// signal's abort cancels the tile there too; an error keeps its name); stop() ends it, and fails what
+// waits on it. Dying (out of memory, a script error) fails what waits and what is asked later,
+// died(message) said once (a dead worker may report twice). stored(bytes, url): a file it put in an
+// area's cache (an init's keep). The page's own (below), and offline.js's for saving an area
+export function startClipWorker(inits, { died = () => {}, stored = () => {} } = {}) {
   const w = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' }), replies = new Map();
   let seq = 0, dead = null;
   for (const init of inits) w.postMessage({ init });
   const end = (err) => { dead = err; w.terminate(); for (const r of replies.values()) r.reject(err); replies.clear(); };
   w.onmessage = ({ data }) => {
+    if (data.stored) { stored(data.stored, data.url); return; }
     const r = replies.get(data.seq);
     replies.delete(data.seq);
-    if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);
+    if (r) data.error ? r.reject(Object.assign(new Error(data.error), { name: data.name || 'Error' })) : r.resolve(data.value);
   };
   w.onerror = (e) => { if (!dead) { end(new Error(`clip worker: ${e.message}`)); died(e.message); } };
   return {
@@ -422,7 +424,7 @@ const RETRY_MS = 5000; // after the worker died: no new one before this, or a sc
 function clipWorker() {
   if (worker) return worker;
   if (Date.now() - diedAt < RETRY_MS) throw new Error('clip worker: not running');
-  return (worker = startClipWorker(inits, (message) => { console.error('clip worker:', message); worker = null; diedAt = Date.now(); }));
+  return (worker = startClipWorker(inits, { died: (message) => { console.error('clip worker:', message); worker = null; diedAt = Date.now(); } }));
 }
 const ask = async (msg, signal) => clipWorker().ask(msg, signal); // throws while it is not to be started: this tile fails
 

@@ -1,15 +1,14 @@
 // Offline areas (ROADMAP, Offline areas): the view saved in this browser, to open without a
 // connection: the base map, the relief and land contours, the depths and isobaths, the seamarks.
-// The page asks for every file of the area, at the style's own addresses (style.js), and a fresh
-// clipping worker for the cut elevation (its caches empty, so every file it reads is asked for); the service worker
-// (sw.js) keeps each file of the saved hosts they fetch in the area's cache, a few at a time per
-// host. Only the hosts in hosts.js OFFLINE are kept: never Esri's.
+// The page fetches every file of the area into its cache, at the style's own addresses (style.js),
+// and a fresh clipping worker the files of the cut elevation; the service worker (sw.js) answers
+// the map from the finished areas. Only the hosts in hosts.js OFFLINE are kept: never Esri's.
 
 import { h } from './dom.js';
 import { HOSTS, OFFLINE_PREFIXES } from './hosts.js';
 import { OMT_TILEJSON, DEM_TILES, DEM_LAND_MAX, DEM_SEA_MAX } from './catalog.js';
 import { FONTS, GLYPHS, SEAMARK_TILES, SEAMARKS_MIN, ISOBATH_MAX } from './style.js';
-import { fetchOk, tileUrl } from './net.js';
+import { fetchInto, tileUrl } from './net.js';
 import { tileXY, MAX_LAT } from './geo.js';
 import { ask } from './menu.js';
 import { zip, unzip } from './zip.js';
@@ -71,96 +70,104 @@ if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
 }
 for (const e of ['online', 'offline']) window.addEventListener(e, changed);
 
-// the service worker: a message, or a question answered on a port
+// the service worker, told the saved areas changed
 const sw = () => navigator.serviceWorker?.controller;
 const tell = (msg) => sw()?.postMessage(msg);
-const askSw = (msg) => new Promise((resolve) => { const c = new MessageChannel(); c.port1.onmessage = (e) => resolve(e.data); sw()?.postMessage(msg, [c.port2]); setTimeout(() => resolve(null), 2000); });
-
-// A clipping worker of its own (clip.js): its caches start empty, so each file the cut reads is
-// asked for, and kept. remember false: each tile does its own reading of a lake's shore at lower
-// zooms, so the area holds what any tile the page asks first would read (the page's worker
-// remembers what its first one found)
-function freshClipper() {
-  const w = startClipWorker([{ mode: 'sea', omtTileJson: OMT_TILEJSON, remember: false }, { template: DEM_TILES, mode: 'land', omtTileJson: OMT_TILEJSON, remember: false }]);
-  return { run: (mode, op, zxy) => w.ask({ mode, op, zxy }).then((v) => v?.close?.()), stop: w.stop }; // a picture made only for its files: let go
-}
+// one tab at a time saves or opens an area (two would share the providers' limits, and race to replace
+// the same area): work run alone, or failing at once while another tab's runs
+const alone = (work) => navigator.locks.request('offline-areas', { ifAvailable: true }, (lock) => {
+  if (!lock) throw new Error('another tab is saving an area');
+  return work();
+});
+// saved again, only the base map and the seamarks change: taken anew from their providers; the
+// elevation and the depths (versioned paths) from the saved areas as before
+const CHANGING = [OFFLINE_PREFIXES.openfreemap, OFFLINE_PREFIXES.openseamap];
 
 // Saves the area, zooms from to top, under a new pack-… cache; fresh: the base map and the seamarks
 // from the network, not from the saved areas (an area saved again). progress({ done, total, bytes }).
 // Resolves to its manifest; throws (the cache deleted) when cancelled, a file could not be had,
 // the browser's storage is full, or the base map is over its terms.
+// Whoever fetches a file puts it in the area's cache (net.js fetchInto): the page its fonts, base
+// tiles and seamarks, then a clipping worker of its own the files the cut elevation reads (its
+// caches empty, so each is asked for; the base tiles found in the area). The service worker answers
+// from finished areas only, so another tab's map never lands in this one.
 async function saveArea({ bounds, from, top, name, fresh = false, signal, progress = () => {} }) {
   if (!sw()) throw new Error('this browser keeps no files for this page');
   if (baseTiles(bounds, from, top) > BASE_TILES) throw new Error(`more than ${BASE_TILES.toLocaleString()} tiles of the base map`);
   const { id, cache } = await newPack();
-  const get = (url) => fetchOk(url, { signal }).then((r) => r.arrayBuffer());
-  let clip = null, timer = 0;
-  const stop = () => { clearInterval(timer); clip?.stop(); clip = null; tell({ record: null }); }; // before the cache goes: nothing more put in it
+  // the bytes put in the area as they come, the base map's with its fonts (OpenFreeMap's terms: over
+  // them, it stops); the count from the cache, at the end, is the one kept
+  let bytes = 0, baseBytes = 0, clip = null;
+  const area = { cache, reload: fresh ? CHANGING : [], stored: (n, url) => { bytes += n; if (url.startsWith(OFFLINE_PREFIXES.openfreemap)) baseBytes += n; } };
+  const get = async (url) => { const r = await fetchInto(area, url, { signal }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; };
+  const cancel = () => clip?.stop(); // what the worker was doing fails at once
+  signal?.addEventListener('abort', cancel);
   try {
-    tell({ record: id, fresh });
-    await askSw({ stats: true }); // answered after the message before it: the service worker records from here
-    clip = freshClipper();
-    const omt = (await (await fetchOk(OMT_TILEJSON)).json()).tiles[0];
+    const omt = (await (await get(OMT_TILEJSON)).json()).tiles[0];
     const used = performance.getEntriesByType('resource').map((r) => r.name).filter((u) => u.startsWith(`${HOSTS.openfreemap}/fonts/`));
     const glyphs = new Set([...FONTS.flatMap((f) => RANGES.map((r) => GLYPHS.replace('{fontstack}', encodeURIComponent(f)).replace('{range}', `${r}-${r + 255}`))), ...used]);
     const range = (lo, hi, margin = 0) => Array.from({ length: Math.max(0, hi - lo + 1) }, (_, i) => tilesIn(bounds, lo + i, margin)).flat();
+    const cut = (mode, op) => (t) => () => clip.ask({ mode, op, zxy: t }).then((v) => v?.close?.()); // a picture made only for its files: let go
     // 256 px raster tiles show at map zoom z − 1: from + 1 to top + 1; the contours' 512 px tiles at z
-    const tasks = [
-      ...[...glyphs].map((u) => () => get(u)),
-      ...range(from, Math.min(top, TOP_MAX)).map((t) => () => get(tileUrl(omt, ...t))),
-      ...range(Math.max(from + 1, SEAMARKS_MIN), Math.min(top + 1, 18)).map((t) => () => get(tileUrl(SEAMARK_TILES, ...t))),
-      // the cut elevation; for the contours its neighbours too (a contour tile reads 3 × 3)
-      ...range(from + 1, Math.min(top + 1, DEM_LAND_MAX)).map((t) => () => clip.run('land', 'bitmap', t)),
-      ...range(from, Math.min(top, CONTOUR_MAX), 1).map((t) => () => clip.run('land', 'contourElevation', t)),
-      ...range(from + 1, Math.min(top + 1, DEM_SEA_MAX)).map((t) => () => clip.run('sea', 'bitmap', t)),
-      ...range(from, Math.min(top, CONTOUR_MAX), 1).map((t) => () => clip.run('sea', 'contourElevation', t)),
+    const base = [...[...glyphs].map((u) => () => get(u)), ...range(from, Math.min(top, TOP_MAX)).map((t) => () => get(tileUrl(omt, ...t)))];
+    const seamarks = range(Math.max(from + 1, SEAMARKS_MIN), Math.min(top + 1, 18)).map((t) => () => get(tileUrl(SEAMARK_TILES, ...t)));
+    // the cut elevation; for the contours its neighbours too (a contour tile reads 3 × 3)
+    const elevation = [
+      ...range(from + 1, Math.min(top + 1, DEM_LAND_MAX)).map(cut('land', 'bitmap')),
+      ...range(from, Math.min(top, CONTOUR_MAX), 1).map(cut('land', 'contourElevation')),
+      ...range(from + 1, Math.min(top + 1, DEM_SEA_MAX)).map(cut('sea', 'bitmap')),
+      ...range(from, Math.min(top, CONTOUR_MAX), 1).map(cut('sea', 'contourElevation')),
     ];
-    let done = 0, bytes = 0, failed = 0, next = 0, over = false, full = false;
-    timer = setInterval(async () => {
-      tell({ record: id, fresh }); // again: a service worker started anew has forgotten it, and one not told for a while stops
-      const st = await askSw({ stats: true });
-      if (!st) return;
-      bytes = Object.values(st.bytes).reduce((a, b) => a + b, 0);
-      if ((st.bytes[OFFLINE_PREFIXES.openfreemap] || 0) > BASE_BYTES) over = true; // over the terms: stop
-      if (st.full) full = true;
-      progress({ done, total: tasks.length, bytes });
-    }, 1000);
-    // eight at a time from the page; the service worker holds each host to its own limit
-    const worker = async () => {
-      while (next < tasks.length && !signal?.aborted && !over && !full) {
-        const task = tasks[next++];
-        try { await task(); } catch { try { await task(); } catch { if (!signal?.aborted) failed++; } } // once more, then counted
-        done++;
-      }
+    const total = base.length + seamarks.length + elevation.length;
+    let done = 0, failed = 0, full = false;
+    const stopped = () => signal?.aborted || full || baseBytes > BASE_BYTES;
+    // a task tried once more before it counts as failed; the storage full stops everything
+    const attempt = (task) => task().catch((err) => { if (err.name === 'QuotaExceededError' || signal?.aborted) throw err; return task(); });
+    // tasks n at a time, each until its file has come (the providers' terms: OpenFreeMap 4, OpenSeaMap 2)
+    const pool = (tasks, n) => {
+      let next = 0;
+      return Promise.all(Array.from({ length: n }, async () => {
+        while (next < tasks.length && !stopped()) {
+          try { await attempt(tasks[next++]); } catch (err) { if (err.name === 'QuotaExceededError') full = true; else if (!signal?.aborted) failed++; }
+          progress({ done: ++done, total, bytes });
+        }
+      }));
     };
-    await Promise.all(Array.from({ length: 8 }, worker)).finally(() => clearInterval(timer));
+    await Promise.all([pool(base, 4), pool(seamarks, 2)]);
+    // the cut after the base map, whose tiles it reads from the area: 4 at a time, as its own reads
+    // of the base map (a shore at lower zooms) are OpenFreeMap's too
+    if (!stopped()) {
+      clip = startClipWorker([{ mode: 'sea' }, { template: DEM_TILES, mode: 'land' }].map((init) => ({ ...init, omtTileJson: OMT_TILEJSON, remember: false, keep: { cache: id, reload: area.reload } })), { stored: area.stored });
+      await pool(elevation, 4);
+    }
     if (signal?.aborted) throw new Error('cancelled');
     if (full) throw new Error('this browser\'s storage is full');
-    if (over) throw new Error(`the base map is over ${MB(BASE_BYTES)} here: choose less detail or a smaller view`);
-    if (failed) throw new Error(`${failed} of ${tasks.length} could not be fetched`);
-    // what it holds, counted from the cache itself
-    // the base map's bytes with its fonts (as the service worker counts them, above), its tiles alone
-    let size = 0, base = 0, tiles = 0;
+    if (baseBytes > BASE_BYTES) throw new Error(`the base map is over ${MB(BASE_BYTES)} here: choose less detail or a smaller view`);
+    if (failed) throw new Error(`${failed} of ${total} could not be fetched`);
+    // what it holds, counted from the cache itself: the base map's bytes with its fonts (as above), its tiles alone
+    let size = 0, baseSize = 0, tiles = 0;
     for (const req of await cache.keys()) {
       const n = (await (await cache.match(req)).blob()).size;
       size += n;
-      if (req.url.startsWith(OFFLINE_PREFIXES.openfreemap)) base += n;
+      if (req.url.startsWith(OFFLINE_PREFIXES.openfreemap)) baseSize += n;
       if (isBaseTile(req.url)) tiles++;
     }
-    if (!tiles) throw new Error('nothing of the base map was kept'); // never an empty area listed (a service worker of an older version, a newer one waiting, keeps nothing)
-    if (base > BASE_BYTES || tiles > BASE_TILES) throw new Error(`the base map is over its ${BASE_TILES.toLocaleString()} tiles or ${MB(BASE_BYTES)} here: choose less detail or a smaller view`);
+    if (!tiles) throw new Error('nothing of the base map was kept'); // never an empty area listed
+    if (baseSize > BASE_BYTES || tiles > BASE_TILES) throw new Error(`the base map is over its ${BASE_TILES.toLocaleString()} tiles or ${MB(BASE_BYTES)} here: choose less detail or a smaller view`);
     const manifest = { name, saved: new Date().toISOString(), bounds, from, top, bytes: size };
     await putManifest(cache, manifest);
+    tell('packs');
     return { id, ...manifest };
   } catch (err) {
-    stop();
+    cancel(); // before the cache goes: nothing more put in it
     await caches.delete(id);
     throw err;
   } finally {
-    stop();
-    tell('packs');
+    cancel();
+    signal?.removeEventListener('abort', cancel);
   }
 }
+
 
 // the saved areas, newest first: [{ id, name, saved, bounds, from, top, bytes }]. One whose saving
 // never ended (its page closed meanwhile) has no manifest: never listed, its storage given back
@@ -330,8 +337,8 @@ export function offlineDialog({ map, fit, icon, download }) {
   // what happened; failed: in the warning's colour
   const say = (text, failed = false) => { status.textContent = text; status.classList.toggle('warn', failed); };
 
-  // work(signal, say) run with everything but Close off, its progress said, its failure said as
-  // "fail: reason."; cancellable: with a Cancel button
+  // work(signal, say) run alone (no other tab saving or opening an area) with everything but Close
+  // off, its progress said, its failure said as "fail: reason."; cancellable: with a Cancel button
   async function busy(text, cancellable, work, fail) {
     const ac = new AbortController();
     saving = ac;
@@ -341,7 +348,7 @@ export function offlineDialog({ map, fit, icon, download }) {
     say('');
     status.replaceChildren(progress, ...(cancellable ? [' ', h('button', { type: 'button', class: 'small', 'data-keep': '', onclick: () => ac.abort() }, 'Cancel')] : []));
     let said = '';
-    try { await work(ac.signal, (t) => { progress.textContent = t; }); } catch (err) { said = ac.signal.aborted ? 'Cancelled.' : `${fail}: ${err.message}.`; }
+    try { await alone(() => work(ac.signal, (t) => { progress.textContent = t; })); } catch (err) { said = ac.signal.aborted ? 'Cancelled.' : `${fail}: ${err.message}.`; }
     saving = null;
     status.removeAttribute('aria-busy');
     say(said, !!said && !ac.signal.aborted);
