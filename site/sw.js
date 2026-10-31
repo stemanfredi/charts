@@ -158,10 +158,11 @@ const readPacks = () => (packs ??= caches.keys().then(async (keys) => {
   return { areas, builds: [...builds] };
 }));
 readPacks();
-// a saved area's copy of url, if any: looked for in every finished area at once
+// a saved area's copy of url, if any: looked for in every finished area at once (a build named by a
+// file is put back as it is, never read as a pattern)
 async function saved(url) {
   const { areas, builds } = await readPacks();
-  for (const key of [url, ...(OFM_TILE.test(url) ? builds.map((b) => url.replace(OFM_TILE, `$1${b}$3`)) : [])]) {
+  for (const key of [url, ...(OFM_TILE.test(url) ? builds.map((b) => url.replace(OFM_TILE, (_, head, _build, tail) => head + b + tail)) : [])]) {
     const r = (await Promise.all(areas.map((c) => c.match(key)))).find(Boolean);
     if (r) return r;
   }

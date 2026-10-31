@@ -214,14 +214,22 @@ async function areaFile(id) {
   }
   return zip([{ name: 'area.json', data: JSON.stringify({ format: FORMAT, version: 1, name, saved, bounds, from, top, files: list }) }, { name: 'README.txt', data: README }, ...files]);
 }
-// what an area.json must say to be opened: its format, a date, an area of the world, zooms an area has
+// what an area keeps, by its address (saveArea): the base map's description, a tile, a font's
+// glyphs, a depth store's metadata or chunk, on a saved host and written as a browser writes it (no
+// ../ to step off it, no query); nothing else is opened from a file
+const KEPT_FILE = /(\/\d+\/\d+\/\d+\.(?:pbf|png)|\/fonts\/[^/?#]+\/\d+-\d+\.pbf|\.zarr\/(?:\.zmetadata|\d+\/\w+\/\d+\.\d+))$/;
+const canonical = (url) => { try { return new URL(url).href === url; } catch { return false; } };
+export const isKeptFile = (url) => typeof url === 'string' && canonical(url) && !/[?#]/.test(url)
+  && (url === OMT_TILEJSON || (KEPT_HOSTS.some((h) => url.startsWith(h)) && KEPT_FILE.test(url)));
+// what an area.json must say to be opened: its format, a date, an area of the world, zooms an area
+// has, and only files an area keeps
 const zoomOk = (z) => Number.isInteger(z) && z >= 0 && z <= TOP_MAX;
 export const isAreaHead = (a) => a?.format === FORMAT && a.version === 1 && Array.isArray(a.files) && typeof a.saved === 'string' && !Number.isNaN(Date.parse(a.saved))
   && Array.isArray(a.bounds) && a.bounds.length === 4 && a.bounds.every(Number.isFinite) && a.bounds[0] < a.bounds[2] && a.bounds[1] < a.bounds[3]
-  && zoomOk(a.from) && zoomOk(a.top) && a.from <= a.top;
-// a file of areaFile's opened: a new area of what it holds, for the saved hosts only; the same area
-// opened before (saved at the same time, of the same place) replaced. Resolves to its manifest;
-// throws on a file that is not one, or holds nothing of the base map
+  && zoomOk(a.from) && zoomOk(a.top) && a.from <= a.top && a.files.every((f) => isKeptFile(f?.url));
+// a file of areaFile's opened: a new area of what it holds; the same area opened before (saved at
+// the same time, of the same place) replaced. Resolves to its manifest; throws on a file that is
+// not one, or holds nothing of the base map
 async function openAreaFile(file) {
   if (!sw()) throw new Error('this browser keeps no files for this page');
   const files = await unzip(file), head = files.get('area.json');
@@ -232,7 +240,7 @@ async function openAreaFile(file) {
     let bytes = 0, tiles = 0;
     for (const f of area.files) {
       const read = files.get(f?.name);
-      if (!read || typeof f.url !== 'string' || !KEPT_HOSTS.some((h) => f.url.startsWith(h))) continue; // only what an area may keep
+      if (!read) continue;
       const data = await read(); // one file at a time: the whole area is never in memory
       await cache.put(f.url, new Response(data, { headers: f.type ? { 'content-type': String(f.type) } : {} }));
       bytes += data.length;

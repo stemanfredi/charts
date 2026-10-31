@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { tilesIn, baseTiles, fromZoom, areaOf, isAreaHead, BASE_TILES, TOP_MAX, PACK, MANIFEST_FILE } from '../../site/offline.js';
+import { tilesIn, baseTiles, fromZoom, areaOf, isAreaHead, isKeptFile, BASE_TILES, TOP_MAX, PACK, MANIFEST_FILE } from '../../site/offline.js';
 
 test('tilesIn: the tiles an area covers at a zoom, a margin of tiles more, clamped to the world', () => {
   assert.deepEqual(tilesIn([-180, -85, 180, 85], 0), [[0, 0, 0]]);
@@ -33,7 +33,17 @@ test('isAreaHead: an area file opened only with its format, a date, an area of t
   const head = { format: 'charts-offline-area', version: 1, name: 'A', saved: '2026-10-30T10:00:00.000Z', bounds: [9, 44, 10, 45], from: 8, top: 12, files: [] };
   assert.ok(isAreaHead(head));
   for (const bad of [{ saved: undefined }, { saved: 'soon' }, { bounds: [9, 44, 10] }, { bounds: [10, 44, 9, 45] }, { bounds: [9, 44, 10, '45'] },
-    { from: undefined }, { top: 15 }, { from: 13 }, { files: {} }, { version: 2 }]) assert.ok(!isAreaHead({ ...head, ...bad }), JSON.stringify(bad));
+    { from: undefined }, { top: 15 }, { from: 13 }, { files: {} }, { version: 2 }, { files: [{ name: 'files/0', url: 'https://example.com/1/2/3.png' }] }]) assert.ok(!isAreaHead({ ...head, ...bad }), JSON.stringify(bad));
+});
+
+test('isKeptFile: an area file carries only what saveArea keeps, on the saved hosts', () => {
+  for (const url of ['https://tiles.openfreemap.org/planet', 'https://tiles.openfreemap.org/planet/20261025_080012_pt/12/2170/1480.pbf',
+    'https://tiles.openfreemap.org/fonts/Noto%20Sans%20Regular/256-511.pbf', 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/11/1080/740.png',
+    'https://geodata.makaw.org/gebco-2026/elevation.zarr/.zmetadata', 'https://geodata.makaw.org/gebco-2026/elevation.zarr/0/elevation/12.34',
+    'https://tiles.openseamap.org/seamark/12/2170/1480.png']) assert.ok(isKeptFile(url), url);
+  for (const url of [undefined, 'https://example.com/1/2/3.png', 'https://tiles.openfreemap.org/planet/x.js', 'https://tiles.openfreemap.org/styles/liberty',
+    'https://s3.amazonaws.com/elevation-tiles-prod/../other/1/2/3.png', 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/1/2/3.png?x=1',
+    'https://geodata.makaw.org/gebco-2026/elevation.zarr/.zattrs']) assert.ok(!isKeptFile(url), url);
 });
 
 test('areaOf: the view\'s bounds in the world, a centre beyond ±180° (a hand-edited link) moved by whole turns', () => {
