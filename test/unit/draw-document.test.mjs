@@ -70,7 +70,8 @@ function sample() {
 test('refused: not JSON, not an object, neither GeoJSON nor a drawing, another format version', () => {
   for (const [text, re] of [['{', /not JSON/], ['[1]', /no document/], ['{"format":"x"}', /neither a drawing file nor GeoJSON/],
     ['{"type":"Topology"}', /neither/], [JSON.stringify(collection([], { version: VERSION + 1 })), /format version 2; this app reads version 1/],
-    [JSON.stringify(collection([], { version: 0 })), /format version 0/]]) {
+    [JSON.stringify(collection([], { version: 0 })), /format version 0/], [JSON.stringify(collection([], { version: '1' })), /format version 1;/],
+    [JSON.stringify(collection([], { version: null })), /format version null/]]) {
     const { doc, report } = parse(text, null, NOW);
     assert.equal(doc, null, text);
     assert.match(report.refused, re, text);

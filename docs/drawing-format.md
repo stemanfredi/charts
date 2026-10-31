@@ -64,7 +64,7 @@ kinds the stacking is fixed (drawing-ui.md §7). The writer writes points, then 
 | Field | Notes |
 |---|---|
 | `charts.format` | `"charts-drawing"`. Written, not checked. |
-| `charts.version` | `1`. A file of another version is refused (§12). Missing (or not a number): read as this version. |
+| `charts.version` | `1`. Missing: read as this version. Anything else (another number, text) is refused (§12). |
 | `charts.created`, `charts.modified` | missing or not a time: the time of import |
 | `charts.meta` | three free-text fields |
 | `charts.view` | §4. Missing: importing leaves the map's view and layers as they are. |
@@ -476,7 +476,7 @@ The import report lists what was refused, skipped and repaired, before the drawi
 ## 12. Reading: refusals and skips
 
 **The whole file is refused** (nothing loads) when it is larger than 64 MB; it is not JSON; its top level is not an object;
-it is not GeoJSON; `charts.version` is a number other than 1; or its lines and areas hold more than
+it is not GeoJSON; `charts.version` is there and not 1; or its lines and areas hold more than
 1 000 000 positions together.
 
 **Limits:** past 20 000 elements the rest are skipped; a text is cut to 10 000 characters; past 200

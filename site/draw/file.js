@@ -40,7 +40,7 @@ export function parse(text, known = null, now = Date.now()) {
   if (!isObj(raw)) return refuse('This is not a drawing file: it holds no document.');
   if (raw.type !== 'FeatureCollection' && raw.type !== 'Feature' && !GEOMETRIES.includes(raw.type)) return refuse('This is neither a drawing file nor GeoJSON.');
   const app = isObj(unpack(raw.charts)) ? unpack(raw.charts) : null; // as text: a GIS may write it so
-  if (app && app.version !== undefined && +app.version !== VERSION) return refuse(`This drawing is of format version ${app.version}; this app reads version ${VERSION}.`);
+  if (app && app.version !== undefined && app.version !== VERSION) return refuse(`This drawing is of format version ${String(app.version).slice(0, 20)}; this app reads version ${VERSION}.`); // missing: this one
   const { doc, view } = read(raw, app, known, now, report);
   return report.refused ? { doc: null, view: null, report } : { doc, view, report };
 }
