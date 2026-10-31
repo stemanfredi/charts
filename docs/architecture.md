@@ -19,7 +19,7 @@ runs anywhere else: no backend, no keys, no build.
 layers: what each shows, where its tiles or data come from, its licence and
 credits, its variants and periods. The menu, the map style (`site/style.js`),
 the legends, the credits on screen and in the exports, and the tests all read
-it. Adding a layer is adding an entry; a layer that needs its own behaviour
+it. The Layers panel is built from it and from the state once; a change of view reloads. Adding a layer is adding an entry; a layer that needs its own behaviour
 (time, depth, values as data) is a *kind*, a small object in `site/app.js`
 that says what it does with the state.
 
@@ -35,7 +35,9 @@ responsive). The sea's tiles are sampled from GEBCO's grid (`site/gebco.js`,
 reading a Zarr store the project publishes); the land's come from a public
 DEM. Inland water is classified per water body from the elevation along its
 shore: at sea level, a lake with no depth, or a sea with its own surface
-(the Caspian). The depths are drawn as GEBCO has them, no filter.
+(the Caspian). The depths are drawn as GEBCO has them, no filter; the
+isobaths trace them half a metre shallower, so that a flat of whole metres
+is never traced cell by cell.
 
 **Depths as data, not pictures.** Depth layers that come as images from their
 providers are not used for the sea, because their land is baked in and cannot
@@ -58,8 +60,10 @@ and the file are views of it. The file is GeoJSON that any GIS opens, with
 the app's own structure under one member (`site/draw/file.js`; the format in
 [drawing-format.md](drawing-format.md)). Attachments (`attach.js`) keep line
 ends on what they touch; rules (`generator.js`) keep copies along a line and
-connections to roots linked to what they were made from. Drawings are saved
-in the browser as they change and never sent.
+connections to roots linked to what they were made from; they live in the
+document as `doc.rules`, the state the generator needs to redo them. Undo and
+the selection are the store's (`store.js`). Drawings are saved in the
+browser as they change (`saving.js`) and never sent.
 
 **Display-only is kept apart from geometry.** What changes how a line is
 drawn without changing where it is (an offset beside its path) is a look,
@@ -73,6 +77,13 @@ state, the credits. `site/gis.js` assembles the zip (a georeferenced picture,
 each vector layer clipped to the view, elevation and data values as GeoTIFF,
 a STAC item); `site/png.js` the picture with its text fields. Readers of the
 files learn the same facts as a viewer of the screen.
+
+**Offline: whoever fetches, stores.** The service worker (`site/sw.js`)
+keeps the page's own files, and answers the saved hosts' requests from the
+offline areas that are complete. It records nothing: an area is saved by the
+page (`site/offline.js`), which stores its own downloads (fonts, base tiles,
+seamarks) and runs a clipping worker of its own that stores every file it
+reads, held to each provider's limits, one tab at a time.
 
 **Visible failures.** A source that fails is marked in the Layers tab
 instead of leaving blank tiles that could be read as data. An export that
@@ -89,15 +100,20 @@ necessarily says, the area looked at, and the place name typed into search.
 
 | For | Start at |
 |---|---|
-| The page, its state and the URL, legends, the time line | `site/app.js` |
+| The page, its state and the URL, legends, the time line, the elevation profile's reads | `site/app.js` |
+| Search: places and typed coordinates | `site/search.js` |
+| The UI's basics: elements, menus and dialogs, fields, keys, icons | `site/dom.js`, `menu.js`, `fields.js`, `keys.js`, `icons.js` |
 | The frame: the bar, the side panels, a phone's sheet | `site/frame.js` |
 | A layer: its sources, variants, legend, credits | `site/catalog.js`, then `site/style.js` |
 | Elevation tiles, the coastline cut, inland water | `site/clip.js`, `site/gebco.js` |
 | Copernicus layers, their times and depths | `site/cmems.js`, `site/values.js` |
-| Readers and writers: Zarr, GeoTIFF, zip, PNG | `site/zarr.js`, `site/geotiff.js`, `site/zip.js`, `site/png.js` |
+| Readers and writers: Zarr, GeoTIFF, zip (both ways), PNG (written) | `site/zarr.js`, `site/geotiff.js`, `site/zip.js`, `site/png.js` |
 | The exports | `site/gis.js`, `site/export.js`, `snapshot` in `site/app.js` |
 | The drawing's model, file and rules | `site/draw/document.js`, `file.js`, `generator.js` |
-| The drawing on the map and in the panel | `site/draw/drawing.js`, `layers.js`, `features.js`, `panel.js` |
+| Undo, the selection, saving in the browser | `site/draw/store.js`, `saving.js` |
+| The drawing on the map and in the panel | `site/draw/drawing.js`, `layers.js`, `features.js`, `panel.js`, `tree.js` |
+| The bar's tools and its file group (Open, Download, Copy link) | `site/draw/tools.js`, `files.js` |
+| A line's elevation profile | `site/draw/profile.js`, `profileFor` in `site/app.js` |
 | Geodesy and map maths | `site/geodesy.js`, `site/geo.js` |
 | The page's files and the offline areas kept for use without a connection | `site/sw.js`, `site/offline.js` |
 | The data builds | `tools/gebco.mjs`, `tools/seagrass.mjs` |
