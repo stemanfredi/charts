@@ -57,3 +57,14 @@ test('unzip: what zip() writes read back, stored and deflated; a damaged file re
   bv.setUint32(22, 10, true); bv.setUint32(cd + 24, 10, true); // the uncompressed size, local and central: 10 bytes
   await assert.rejects((await unzip(new Blob([bomb]))).get('x')(), /damaged/);
 });
+
+test('inflate: exactly the size said, raw or zlib; a size beyond deflate\'s 1032 to 1 refused before it starts', async () => {
+  const { inflate } = await import('../../site/zip.js');
+  const data = new Uint8Array(100000).fill(3), pack = async (f) => new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new CompressionStream(f))).arrayBuffer());
+  const raw = await pack('deflate-raw'), zlib = await pack('deflate');
+  assert.deepEqual(await inflate(raw, data.length), data);
+  assert.deepEqual(await inflate(zlib, data.length, 'deflate'), data);
+  await assert.rejects(inflate(raw, data.length - 1), /long/);
+  await assert.rejects(inflate(raw, data.length + 1), /short/);
+  await assert.rejects(inflate(raw.subarray(0, 2), 4000), /more than deflate holds/);
+});

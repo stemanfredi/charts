@@ -3,6 +3,7 @@
 // grids (tools/gebco.mjs builds them). What these stores use, and nothing more: Blosc (version 1
 // format) with LZ4 or zlib, and byte shuffle; little-endian int8, int16, int32, float32, float64;
 // C order; coordinates time, [elevation,] latitude, longitude.
+import { inflate } from './zip.js';
 
 // ---- Blosc ----------------------------------------------------------------------------------
 
@@ -24,22 +25,6 @@ function lz4(src, dst) {
     for (let end = o + len + 4; o < end; o++) dst[o] = dst[o - off]; // may overlap itself: byte by byte
   }
   return o;
-}
-
-// a zlib stream → its bytes, by the browser's own decompressor; never more than `size` of them (a
-// small stream can say it holds anything)
-async function inflate(src, size) {
-  const reader = new Blob([src]).stream().pipeThrough(new DecompressionStream('deflate')).getReader(), out = new Uint8Array(size);
-  let n = 0;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (n + value.length > size) { reader.cancel(); throw new Error('Blosc: a zlib stream decodes long'); }
-    out.set(value, n);
-    n += value.length;
-  }
-  if (n !== size) throw new Error('Blosc: a zlib stream decodes short');
-  return out;
 }
 
 // a Blosc buffer (16-byte header, block starts, blocks of LZ4 or zlib streams) → promise of its
@@ -68,7 +53,7 @@ export async function unblosc(b, expected = null) {
       if (cb < 0 || p + cb > b.length) throw new Error('Blosc: a stream runs past the chunk');
       const dst = tmp.subarray(s * part, (s + 1) * part);
       if (cb === part) dst.set(b.subarray(p, p + cb));
-      else if (codec === 3) dst.set(await inflate(b.subarray(p, p + cb), part));
+      else if (codec === 3) dst.set(await inflate(b.subarray(p, p + cb), part, 'deflate').catch((e) => { throw new Error(`Blosc: ${e.message}`); }));
       else if (lz4(b.subarray(p, p + cb), dst) !== part) throw new Error('Blosc: a stream decodes short');
       p += cb;
     }

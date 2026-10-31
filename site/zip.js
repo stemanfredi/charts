@@ -65,16 +65,20 @@ export async function zip(files, date = new Date()) {
   return new Blob([...out, ...central, end], { type: 'application/zip' });
 }
 
-// at most `size` bytes inflated (a file's own count): an archive that says less cannot fill memory
-async function inflate(b, size) {
-  const reader = new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(), out = new Uint8Array(size);
+// A deflate stream ('deflate-raw': a zip's; 'deflate': zlib's, a Blosc block's) → exactly `size`
+// bytes (its container's count), by the browser's own decompressor: never more, so a small stream
+// that says it holds anything cannot fill memory; a size beyond what deflate can make of the stream
+// (1032 to 1 at most) refused before it starts
+export async function inflate(src, size, format = 'deflate-raw') {
+  if (size > 1032 * src.length) throw new Error('a stream says more than deflate holds');
+  const reader = new Blob([src]).stream().pipeThrough(new DecompressionStream(format)).getReader(), out = new Uint8Array(size);
   let n = 0;
   for (let r; !(r = await reader.read()).done;) {
-    if (n + r.value.length > size) { reader.cancel(); throw new Error('damaged'); }
+    if (n + r.value.length > size) { reader.cancel(); throw new Error('a stream inflates long'); }
     out.set(r.value, n);
     n += r.value.length;
   }
-  if (n !== size) throw new Error('damaged');
+  if (n !== size) throw new Error('a stream inflates short');
   return out;
 }
 
