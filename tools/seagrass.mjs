@@ -13,7 +13,7 @@
 // names in English, French or Italian, and EUNIS codes (classOf). One layer, "seagrass": polygons
 // and points, property c (catalog.js SEAGRASS_CLASSES). Cut a zoom-5 region at a time (geojson-vt,
 // then vt-pbf), so that memory holds one region's features, not Europe's.
-import { openSync, readSync, closeSync, mkdirSync, writeFileSync, existsSync, statSync, createWriteStream } from 'node:fs';
+import { openSync, readSync, closeSync, mkdirSync, writeFileSync, existsSync, statSync, createWriteStream, renameSync } from 'node:fs';
 import { tileXY } from '../site/geo.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -171,10 +171,11 @@ async function build(dir) {
 async function download(dir) {
   mkdirSync(dir, { recursive: true });
   const zip = join(dir, ZIP.split('/').pop());
-  if (!existsSync(zip)) {
+  if (!existsSync(zip)) { // written under .part, named when whole: a download cut short is not taken for the file next time
     const r = await fetch(ZIP);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    await pipeline(Readable.fromWeb(r.body), createWriteStream(zip));
+    await pipeline(Readable.fromWeb(r.body), createWriteStream(`${zip}.part`));
+    renameSync(`${zip}.part`, zip);
   }
   execFileSync('unzip', ['-o', '-q', zip, '-d', join(dir, 'shp')], { stdio: 'inherit' });
 }

@@ -326,8 +326,9 @@ export async function download(dir, { log = console.log } = {}) {
         const have = (() => { try { return statSync(path).size; } catch { return 0; } })();
         if (have === size) break;
         if (have > size) rmSync(path);
-        const res = await fetch(`${CEDA}/${g.remote}/geotiff/${name}`, { headers: have && have < size ? { Range: `bytes=${have}-` } : {} });
-        if (!res.ok) { log(`${name}: HTTP ${res.status}, attempt ${attempt}`); continue; }
+        // a network error (the error itself) is an attempt failed, as a bad status is
+        const res = await fetch(`${CEDA}/${g.remote}/geotiff/${name}`, { headers: have && have < size ? { Range: `bytes=${have}-` } : {} }).catch((e) => e);
+        if (!res.ok) { log(`${name}: ${res.status ? `HTTP ${res.status}` : res.message}, attempt ${attempt}`); continue; }
         const append = res.status === 206, file = createWriteStream(path, { flags: append ? 'a' : 'w' });
         try { for await (const part of res.body) if (!file.write(part)) await new Promise((r2) => file.once('drain', r2)); } catch (e) { log(`${name}: ${e.message}, attempt ${attempt}`); }
         await new Promise((r2) => file.end(r2));
