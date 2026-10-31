@@ -19,6 +19,7 @@ import { $, h, svg, typing, NARROW, COMPACT, store, animate } from './dom.js';
 import { keyEntry, openKey, keyList } from './keys.js';
 import { note } from './menu.js';
 import { createFrame } from './frame.js';
+import { select } from './fields.js';
 import { search } from './search.js';
 import { gisExport } from './gis.js';
 import { chartCanvas, chartPng } from './png.js';
@@ -438,7 +439,7 @@ async function creditEsri() {
 //   show(id)       draws the item as the state says: its source, then its layers' visibility
 //   time(id)       'hour' or 'day' if it changes with the map's time; depth(id): drawn at the map's depth
 //   range(id)      promise of its datasets' spans, [[start, end]] in ms (null where not known)
-//   controls(it)   elements under its row; render(it, el) brings them up to date
+//   controls(it)   what goes under its row, built with the state's values (its own changes keep them)
 //   values(it, box) promise of its values as GeoTIFF over [west, south, east, north], or null:
 //                  in the pictures only
 //   legend(id)     what its legend is now, or null: { key (drawn again only when it changes), ready
@@ -515,9 +516,8 @@ const KINDS = {
       map.getSource(id).setTiles(densityTiles(id, state.variant[id], state.period[id]));
       applyItem(id);
     },
-    controls: (it) => [h('select', { class: 'period', 'aria-label': `${it.label} period`, onchange: (e) => { state.period[it.id] = e.target.value; refresh(it.id); writeHash(); renderMenu(); } },
-      DENSITY[it.id].periods.map((p) => h('option', { value: p }, DENSITY[it.id].periodLabel(p))))],
-    render(it, el) { $('select.period', el).value = state.period[it.id]; },
+    controls: (it) => select(`${it.label} period`, DENSITY[it.id].periods.map((p) => [p, DENSITY[it.id].periodLabel(p)]), state.period[it.id],
+      (p) => { state.period[it.id] = p; refresh(it.id); writeHash(); renderMenu(); }, { class: 'period' }),
     legend(id) {
       const d = DENSITY[id];
       return { key: `${state.variant[id]}|${state.period[id]}`, paint: (el) => drawRamp(el, d.title, `${d.unit} · ${d.types[state.variant[id]]} · ${d.periodLabel(state.period[id])}`, d.stops, d.unit) };
@@ -760,10 +760,13 @@ function setVariant(id, v) {
 const shiftDay = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 const today = () => new Date().toISOString().slice(0, 10);
 
+// The panel's controls are built with the state's values and kept so by their own changes: the
+// opacity, the variants, the periods and the menus are written by their controls alone (readHash
+// runs before this, a view applied reloads the page); renderMenu follows what changes beside them.
 // provenance (and the opacity slider) behind an item's ⓘ
 function infoBlock(it) {
   const opacity = it.opacity != null ? h('label', { class: 'opacity' }, h('span', {}, it.id === 'relief' ? 'Strength' : 'Opacity'),
-    h('input', { type: 'range', min: 0, max: 1, step: 0.05, oninput: (e) => { state.opacity[it.id] = +e.target.value; applyItem(it.id); writeHash(); } })) : null;
+    h('input', { type: 'range', min: 0, max: 1, step: 0.05, value: state.opacity[it.id], oninput: (e) => { state.opacity[it.id] = +e.target.value; applyItem(it.id); writeHash(); } })) : null;
   return h('div', { class: 'info', hidden: true }, opacity,
     h('p', {}, h('b', {}, 'Source '), it.info.src),
     h('p', {}, h('b', {}, 'Licence '), it.info.lic),
@@ -775,61 +778,59 @@ function moreButton(label, onclick) {
 }
 // a ⓘ's click: its block shown or hidden
 const toggles = (info) => (e) => { info.hidden = !info.hidden; e.currentTarget.setAttribute('aria-expanded', String(!info.hidden)); };
-// what the item shows (scheme, source, its kind's controls) sits under its row while it is on
+// A group whose items show one at a time (Base, Ocean data): one "Source and licence" row, its ⓘ
+// the provenance of whichever is on (what), kept so as that changes (renderMenu)
+const sourceRows = [];
+function sourceRow(items, what) {
+  const infos = items.map((it) => [it.id, infoBlock(it)]);
+  const render = () => { for (const [id, el] of infos) el.hidden = !(more.getAttribute('aria-expanded') === 'true' && state.on.has(id)); };
+  const more = moreButton(what, (e) => { e.currentTarget.setAttribute('aria-expanded', String(e.currentTarget.getAttribute('aria-expanded') !== 'true')); render(); });
+  sourceRows.push(render);
+  return [h('div', { class: 'line' }, h('span', { class: 'name' }, 'Source and licence'), more), ...infos.map(([, el]) => el)];
+}
+// what the item shows (scheme, source, its kind's controls) sits under its row while it is on; none
+// for an item without them
 function controlsOf(it) {
-  let variant = null;
-  if (it.variants) {
-    variant = h('select', { class: 'variant', 'aria-label': `${it.label} variant`, onchange: (e) => setVariant(it.id, e.target.value) },
-      Object.entries(it.variants).map(([k, label]) => h('option', { value: k }, label)));
-  }
-  return h('div', { class: 'controls' }, variant, kindOf(it.id)?.controls?.(it)); // the time and depth: at the panel's head
+  const kind = kindOf(it.id)?.controls;
+  if (!it.variants && !kind) return null;
+  return h('div', { class: 'controls', hidden: !state.on.has(it.id) }, // the time and depth: at the panel's head
+    it.variants ? select(`${it.label} variant`, Object.entries(it.variants), state.variant[it.id], (v) => setVariant(it.id, v), { class: 'variant' }) : null, kind?.(it));
 }
 function itemRow(it) {
-  const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, onchange: (e) => setOn(it.id, e.target.checked) });
+  const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id: `i-${it.id}`, checked: state.on.has(it.id), onchange: (e) => setOn(it.id, e.target.checked) });
   const info = infoBlock(it), controls = controlsOf(it);
   const row = h('li', { class: 'item' },
     h('div', { class: 'line' }, h('label', { class: 'name', for: input.id }, it.label, h('span', { class: 'hint' })), moreButton(it.label, toggles(info)), input),
     controls, info);
-  rows[it.id] = { row, input, controls };
+  rows[it.id] = { row, controls };
   return row;
 }
 // Base: two cards (a radio group); the satellite source and the provenance below them
 function baseBlock(items) {
-  const infos = Object.fromEntries(items.map((it) => [it.id, infoBlock(it)]));
-  const more = moreButton('this base', (e) => { // the info of whichever base is shown
-    const open = e.currentTarget.getAttribute('aria-expanded') !== 'true';
-    e.currentTarget.setAttribute('aria-expanded', String(open));
-    for (const [id, el] of Object.entries(infos)) el.hidden = !(open && state.on.has(id));
-  });
   const cards = items.map((it) => {
-    const card = h('button', { type: 'button', class: 'basecard', 'data-base': it.id, id: `i-${it.id}`, 'aria-pressed': 'false', onclick: () => setOn(it.id, true) },
+    const card = h('button', { type: 'button', class: 'basecard', 'data-base': it.id, id: `i-${it.id}`, 'aria-pressed': String(state.on.has(it.id)), onclick: () => setOn(it.id, true) },
       h('div', { class: 'thumb' }), h('span', {}, it.label));
-    rows[it.id] = { row: card, input: card, controls: controlsOf(it), infos, more };
+    rows[it.id] = { row: card, card, controls: controlsOf(it) };
     return card;
   });
   return h('div', { class: 'base' },
     h('div', { class: 'bases', role: 'group', 'aria-label': 'Base map' }, cards),
-    h('ul', {}, h('li', { class: 'item' }, ...items.map((it) => rows[it.id].controls),
-      h('div', { class: 'line' }, h('span', { class: 'name' }, 'Source and licence'), more), ...Object.values(infos))));
+    h('ul', {}, h('li', { class: 'item' }, ...items.map((it) => rows[it.id].controls), ...sourceRow(items, 'this base'))));
 }
 // Ocean data: two menus, colours and arrows, their entries under the sections' headings; the
 // source, licence and opacity of what is chosen behind one ⓘ, as for the base
 const picks = {}; // slot → its menu
-let dataMore = null, dataInfos = {};
 function dataBlock(items, sections) {
-  dataInfos = Object.fromEntries(items.map((it) => [it.id, infoBlock(it)]));
-  dataMore = moreButton('the ocean data shown', (e) => { e.currentTarget.setAttribute('aria-expanded', String(e.currentTarget.getAttribute('aria-expanded') !== 'true')); renderMenu(); });
   const pick = (slot, label) => {
     picks[slot] = h('select', { 'aria-label': label, onchange: (e) => { state[slot] = e.target.value; applyData(); labelPaint(); writeHash(); renderMenu(); } },
       h('option', { value: '' }, 'None'),
       sections.map((sec) => {
         const es = ENTRIES[slot].filter((e) => e.it.section === sec);
-        return es.length ? h('optgroup', { label: sec }, es.map((e) => h('option', { value: e.key }, e.label))) : null;
+        return es.length ? h('optgroup', { label: sec }, es.map((e) => h('option', { value: e.key, selected: e.key === state[slot] }, e.label))) : null;
       }));
     return h('li', { class: 'item pick' }, h('label', { class: 'line' }, h('span', { class: 'name' }, label), picks[slot]));
   };
-  return h('ul', {}, pick('colour', 'Colours'), pick('arrows', 'Arrows'),
-    h('li', { class: 'item' }, h('div', { class: 'line' }, h('span', { class: 'name' }, 'Source and licence'), dataMore), ...Object.values(dataInfos)));
+  return h('ul', {}, pick('colour', 'Colours'), pick('arrows', 'Arrows'), h('li', { class: 'item' }, ...sourceRow(items, 'the ocean data shown')));
 }
 // the Layers groups open: kept in this browser, as the panel's tab (frame.js), not in the link
 const GROUPS_OPEN = 'charts.groups.open', keptOpen = store.json(GROUPS_OPEN);
@@ -852,25 +853,11 @@ menu.append(...groupEls);
 // zoom the rows' zoom hints and the legends (renderZoom)
 function renderMenu() {
   for (const it of ITEMS) {
-    const r = rows[it.id];
-    if (!r) continue; // Ocean data: below
-    const on = state.on.has(it.id);
-    if (it.group === 'base') r.input.setAttribute('aria-pressed', String(on));
-    else r.input.checked = on;
-    r.controls.hidden = !on || !(it.variants || kindOf(it.id)?.controls);
-    if (on) kindOf(it.id)?.render?.(it, r.controls);
-    if (r.infos && r.more.getAttribute('aria-expanded') === 'true') r.infos[it.id].hidden = !on;
-    const sel = r.controls.querySelector('select.variant');
-    if (sel) sel.value = state.variant[it.id];
-    const rng = (r.infos?.[it.id] || r.row).querySelector('input[type=range]');
-    if (rng) rng.value = state.opacity[it.id];
+    const r = rows[it.id], on = state.on.has(it.id);
+    r?.card?.setAttribute('aria-pressed', String(on)); // a base: another chosen turns it off
+    if (r?.controls) r.controls.hidden = !on;
   }
-  for (const slot in picks) picks[slot].value = state[slot];
-  for (const [id, el] of Object.entries(dataInfos)) {
-    el.hidden = !(dataMore.getAttribute('aria-expanded') === 'true' && state.on.has(id));
-    const rng = el.querySelector('input[type=range]');
-    if (rng) rng.value = state.opacity[id];
-  }
+  for (const render of sourceRows) render();
   renderWhen();
   for (const g of groupEls) {
     const n = g._items.filter((it) => state.on.has(it.id)).length;
