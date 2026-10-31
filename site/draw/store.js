@@ -57,12 +57,12 @@ export class DrawStore {
     if (this.pending == null) this.pending = JSON.stringify(this.doc);
     fn(this.doc);
   }
-  // fn(doc) changes the document: one undo step (none when nothing changed: a field applied twice)
+  // fn(doc) changes the document: one undo step (none when nothing changed: a field applied twice).
+  // One that fails leaves the document as it was before it, not half changed.
   change(fn) {
     const before = this.pending ?? JSON.stringify(this.doc);
     this.pending = null;
-    fn(this.doc);
-    settleGeometry(this.doc);
+    try { fn(this.doc); settleGeometry(this.doc); } catch (e) { this.doc = JSON.parse(before); this.settle(); throw e; }
     if (JSON.stringify(this.doc) === before) return;
     touch(this.doc);
     this.undos.push(before);

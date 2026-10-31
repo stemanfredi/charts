@@ -30,6 +30,15 @@ test('a change is one undo step; undo and redo go back and forth; nothing change
   assert.equal(s.told.changed, 3);
 });
 
+test('a change that fails leaves the document as it was, no step made', () => {
+  const s = store();
+  s.change((doc) => { addPoint(doc, [14, 44]); });
+  const before = JSON.stringify(s.doc);
+  assert.throws(() => s.change((doc) => { doc.points[0].name = 'half'; addPoint(doc, [15, 44]); throw new Error('failed'); }), /failed/);
+  assert.equal(JSON.stringify(s.doc), before);
+  assert.equal(s.undos.length, 1);
+});
+
 test('previews make no step; the change after them makes one, from before the first preview', () => {
   const s = store();
   s.change((doc) => { addPoint(doc, [14, 44]); });
