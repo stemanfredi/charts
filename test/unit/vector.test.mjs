@@ -71,6 +71,18 @@ test('viewFeatures: polygon pieces overlapping in the buffers are one polygon; a
   assert.deepEqual(fs.filter((f) => f.geometry.type === 'Point').map((f) => f.properties.name), ['Gulf']);
 });
 
+test('viewFeatures: a polygon the library throws on is left out, its error said; the rest kept', () => {
+  const box = (x0, x1) => ({ type: 'Polygon', coordinates: [[[x0, B + 0.02], [x1, B + 0.02], [x1, T - 0.02], [x0, T - 0.02], [x0, B + 0.02]]] });
+  const failing = { ...polygonClipping, union: () => { throw new Error('unable to complete output ring'); } };
+  const failed = [], fs = viewFeatures([
+    { properties: { class: 'ocean' }, tile: [Z, 512, 511], geometry: box(W + 0.1, M + buf) },
+    { properties: { class: 'ocean' }, tile: [Z, 513, 511], geometry: box(M - buf, E + buf) }, // two pieces: a union
+    { properties: { class: 'lake' }, tile: [Z, 512, 511], geometry: box(W + 0.1, M - 0.1) }, // one: none
+  ], view, failing, failed);
+  assert.deepEqual(fs.map((f) => f.properties.class), ['lake']);
+  assert.deepEqual(failed, ['unable to complete output ring']);
+});
+
 test('viewFeatures: a tile across the antimeridian is moved to the view', () => {
   // view just east of 180°, as MapLibre gives it (continuous longitudes); the tile is canonical (x 0)
   const v = [[180.01, 0.3], [180.2, 0.3], [180.2, 0.1], [180.01, 0.1]];

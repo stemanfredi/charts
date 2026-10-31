@@ -100,8 +100,9 @@ export function joinLines(lines, tol) {
 
 // pieces: [{ id, properties, geometry (lon/lat, as MapLibre gives it), tile: [z, x, y] or null }];
 // corners: the view's corners as for export.js affine; polygonClipping: the library's API.
-// → GeoJSON features, clipped to the view.
-export function viewFeatures(pieces, corners, polygonClipping) {
+// → GeoJSON features, clipped to the view. A polygon the library fails on (it throws on some
+// degenerate input) is left out, its error pushed to failed: the rest is kept.
+export function viewFeatures(pieces, corners, polygonClipping, failed = []) {
   const view = corners.map(mercator);
   const cx = view.reduce((s, p) => s + p[0], 0) / view.length;
   const groups = new Map();
@@ -148,8 +149,11 @@ export function viewFeatures(pieces, corners, polygonClipping) {
       const lines = joinLines(grp.parts, grp.tol || 1e-6).flatMap((l) => clipLine(l, view)).map(ll);
       if (lines.length) feature(grp, lines.length === 1 ? { type: 'LineString', coordinates: lines[0] } : { type: 'MultiLineString', coordinates: lines });
     } else {
-      const merged = grp.parts.length > 1 ? polygonClipping.union(...grp.parts.map((p) => [p])) : [grp.parts[0]];
-      const polys = polygonClipping.intersection(merged, [[...view, view[0]]]).map(polygon).filter(Boolean);
+      let polys;
+      try {
+        const merged = grp.parts.length > 1 ? polygonClipping.union(...grp.parts.map((p) => [p])) : [grp.parts[0]];
+        polys = polygonClipping.intersection(merged, [[...view, view[0]]]).map(polygon).filter(Boolean);
+      } catch (e) { failed.push(e.message); continue; }
       if (polys.length) feature(grp, polys.length === 1 ? { type: 'Polygon', coordinates: polys[0] } : { type: 'MultiPolygon', coordinates: polys });
     }
   }
