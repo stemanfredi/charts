@@ -364,9 +364,8 @@ export const changedByHand = (doc, pointId) => {
 // Connect points to roots (doc is changed: one undo step for the caller). params: pointIds, roots
 // ([{ id (a point), weight }]), newRoots (positions where a root point is made: square, weight 1),
 // pattern ('tree' or 'chain'), groupSize (a number, or 'auto'), minBranch (a tree's shortest branch,
-// m), id (the connection made again: its own), groupId (made again: its group, kept), parentId (the group a new "Connection" group goes in;
-// undefined: the first point's, a distribution's own for its copies). Returns { connection, groups, groupSize, lines, unused (root IDs), total (m) }, or null (no
-// point or no root).
+// m), id (the connection made again: its own), groupId (made again: its group, kept). Returns
+// { connection, groups, groupSize, lines, unused (root IDs), total (m) }, or null (no point or no root).
 export function connect(doc, params) {
   const byId = new Map(doc.points.map((n) => [n.id, n]));
   const first = params.pointIds.map((id) => byId.get(id)).find(Boolean);
@@ -377,7 +376,7 @@ export function connect(doc, params) {
   // beside their Copies, in its own group)
   const around = distributions(doc).find((a) => a.copiesId && a.copiesId === first.groupId)?.groupId ?? first.groupId ?? null;
   const groupId = doc.groups.some((g) => g.id === params.groupId) ? params.groupId
-    : addGroup(doc, 'Connection', params.parentId !== undefined ? params.parentId : around).id;
+    : addGroup(doc, 'Connection', around).id;
   const inGroup = (el) => { el.groupId = groupId; return el; };
   const before = idsOf(doc);
   const made = (params.newRoots || []).map((pos) => inGroup(addPoint(doc, pos, { symbol: 'square', parts: [] })));
@@ -449,10 +448,6 @@ export function ruleOf(doc, id) {
   }
   return null;
 }
-// the distribution whose copies a connection connects, or null
-export const distributionOf = (doc, c) => distributions(doc).find((a) => c.pointIds.length && c.pointIds.every((n) => a.points.some((x) => x.pointId === n))) ?? null;
-// the connection made on a distribution's copies, or null
-export const connectionOn = (doc, a) => { const ids = new Set(a.points.map((x) => x.pointId)); return connections(doc).find((c) => c.pointIds.length && c.pointIds.every((n) => ids.has(n))) ?? null; };
 
 // ---- after any change: what the tools made follows ---------------------------------------------------
 

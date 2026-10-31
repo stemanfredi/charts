@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
 const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistribution, editDistribution, connect, unconnect, reconnect, refreshGenerated, DISTRIBUTE_D,
-  distributions, connections, copyOf, giveBack, changedByHand, ruleOf, distributionOf, connectionOn, removePartOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
+  distributions, connections, copyOf, giveBack, changedByHand, ruleOf, removePartOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
 const { emptyDoc, addPoint, addLine, makePart, find, remove } = await import('../../site/draw/document.js');
 const { BUILT_IN, scaled } = await import('../../site/draw/place.js');
 const { lineTrace, nearestAlong, pointsAlong, totals, madeLines } = await import('../../site/draw/lines.js');
@@ -681,19 +681,19 @@ test('a copy changed by hand keeps its own when the rule is edited; giveBack giv
   for (const n of ns) near(inverse(p.position, n.position).s, 8000, 0.01, 'round the larger circle');
 });
 
-test('rule groups: Connection in the points\' group, the repetition\'s own (parentId), the top (null) or one given; gone with unconnect when empty', () => {
+test('rule groups: Connection in the points\' group (a distribution\'s copies: beside Copies) or one given; gone with unconnect when empty', () => {
   const { doc, guide, o1, o2 } = scene();
   const { distribution: array, group } = makeDistribution(doc, { ...ARRAY, along: { element: guide.id } });
   const ids = array.points.map((x) => x.pointId);
   const groupOf = (r) => doc.groups.find((g) => g.id === r.connection.groupId);
   const inRule = (r) => r.connection.created.every((id) => find(doc, id).el.groupId === r.connection.groupId);
-  const own = connect(doc, { pointIds: ids, roots: roots(o1.id), pattern: 'chain', groupSize: 'auto', parentId: group.id });
+  const own = connect(doc, { pointIds: ids, roots: roots(o1.id), pattern: 'chain', groupSize: 'auto' });
   assert.deepEqual([groupOf(own).name, groupOf(own).groupId], ['Connection', group.id], 'beside Copies');
   assert.ok(inRule(own));
   assert.deepEqual(doc.groups.filter((g) => g.groupId === group.id).map((g) => g.name).sort(), ['Connection', 'Copies']);
   unconnect(doc, own.connection.id);
   assert.equal(doc.groups.length, 2, 'empty: gone');
-  const top = connect(doc, { pointIds: ids, roots: roots(o1.id), parentId: null });
+  const top = connect(doc, { pointIds: [addPoint(doc, [13, 40]).id, addPoint(doc, [13.1, 40]).id], roots: roots(o1.id) }); // points at the top
   assert.equal(groupOf(top).groupId, null);
   // kept: on unconnect asked to keep it; with something else in it
   unconnect(doc, top.connection.id, true);
@@ -707,7 +707,7 @@ test('rule groups: Connection in the points\' group, the repetition\'s own (pare
   assert.ok(doc.groups.some((g) => g.id === given.connection.groupId), 'a point left in it: kept');
 });
 
-test('ruleOf, distributionOf, connectionOn: the rule an element belongs to; a connection on a distribution\'s copies', () => {
+test('ruleOf: the rule an element belongs to', () => {
   const { doc, guide, o1 } = scene();
   const { distribution: array, group } = makeDistribution(doc, { ...ARRAY, along: { element: guide.id } });
   const ids = array.points.map((x) => x.pointId);
@@ -716,14 +716,6 @@ test('ruleOf, distributionOf, connectionOn: the rule an element belongs to; a co
   const hubs = c.hubs.map((h) => h.pointId), made = doc.lines.filter((s) => s !== guide).map((s) => s.id);
   for (const id of [c.groupId, ...hubs, ...made]) assert.equal(ruleOf(doc, id), c, id);
   for (const id of [o1.id, guide.id, 'nothing']) assert.equal(ruleOf(doc, id), null, id);
-  assert.equal(distributionOf(doc, c), array);
-  assert.equal(connectionOn(doc, array), c);
-  // a connection on other points; a distribution with none
-  const others = [addPoint(doc, [13, 40]), addPoint(doc, [13.1, 40])];
-  const d = connect(doc, { pointIds: others.map((n) => n.id), roots: roots(o1.id) }).connection;
-  assert.equal(distributionOf(doc, d), null);
-  const bare = makeDistribution(doc, { along: { element: guide.id }, count: 2 }).distribution;
-  assert.equal(connectionOn(doc, bare), null);
 });
 
 test('hubFor: the median; with a shortest branch, at least that far from every point and from the root; on one exactly, off to the left', () => {

@@ -12,8 +12,8 @@ import { labelValues, labelText, TOKENS } from './labels.js';
 import { OUTLINE_NAME } from './outlines.js';
 import { lineTrace, totals, breakdown, nearestAlong, positionsOf } from './lines.js';
 import { profileCsv } from './profile.js';
-import { DISTRIBUTE_D, distribute, lines, plan, planConnection, makeDistribution, editDistribution, connect, reconnect, unconnect, alongTrace, alongOf,
-  distributions, connections, ruleOf, distributionOf, connectionOn, changedByHand, giveBack, removePartOf, MAX_COPIES, MAX_TREE } from './generator.js';
+import { DISTRIBUTE_D, distribute, lines, planConnection, makeDistribution, editDistribution, connect, reconnect, alongTrace, alongOf,
+  distributions, connections, ruleOf, changedByHand, giveBack, removePartOf, MAX_COPIES, MAX_TREE } from './generator.js';
 import { BUILT_IN, builtInName } from './place.js';
 import { boundsOf, drawable } from './features.js';
 import { inverse, areaOf, pathOf, destination, perimeterOf } from '../geodesy.js';
@@ -597,7 +597,7 @@ export function drawView(root, ctx) {
     return [...commonTop('group', id),
       row('Members', fvalue([plural(below.length, 'element'), allSubs ? plural(allSubs, 'subgroup') : ''].filter(Boolean).join(' · ')), direct.length ? shownEye : null),
       totalsOf,
-      actionsRow(ruleActs(id), h('button', { type: 'button', class: 'small', title: 'Everything in it', disabled: !below.length, onclick: () => drawing.select(below.map((x) => x.el.id)) }, 'Select members')),
+      actionsRow(ruleActs(id), h('button', { type: 'button', class: 'small', title: 'Everything in it', disabled: !below.length, onclick: () => drawing.select(below.map((x) => x.el.id)) }, 'Select members'), connectBtn(below)),
       ...(shared.length ? [h('div', { class: 'fblock' }, h('h3', {}, 'Each member'), ...shared)] : []),
       lookBlock([item(id)], null, 'Look · sets each member'), ...commonBottom('group', id)];
   }
@@ -651,7 +651,6 @@ export function drawView(root, ctx) {
     const counts = {};
     for (const x of xs) counts[x.kind] = (counts[x.kind] || 0) + 1;
     const ids = xs.map((x) => x.el.id);
-    const pointIds = xs.filter((x) => x.kind === 'point').map((x) => x.el.id);
     // two points: how far apart, and the bearing from the first to the second
     const between = xs.length === 2 && xs.every((x) => x.kind === 'point') ? inverse(xs[0].el.position, xs[1].el.position) : null;
     title = `${xs.length} elements · ${Object.entries(counts).map(([k, n]) => plural(n, KIND[k].name.toLowerCase())).join(', ')}`;
@@ -659,70 +658,61 @@ export function drawView(root, ctx) {
     between ? row('Bearing 1→2', fvalue(norm360(between.azi).toFixed(1), { title: `From ${label(xs[0].kind, xs[0].el)} to ${label(xs[1].kind, xs[1].el)}` }), funit('°T')) : null,
     ...sharedRows(flat(xs)),
     flat(xs).some((x) => x.kind === 'label') ? leaderRow(flat(xs).filter((x) => x.kind === 'label')) : null,
-    actionsRow(pointIds.length > 1 ? h('button', { type: 'button', class: 'small', title: 'Lines from roots to these points', onclick: () => openConnect(pointIds) }, 'Connect…') : null),
+    actionsRow(connectBtn(flat(xs))),
     lookBlock(xs),
     groupRow(ids),
   ];
   }
 
+  // Connect… for the points among xs (a group's: everything in it), two or more
+  const connectBtn = (xs) => { const ids = xs.filter((x) => x.kind === 'point').map((x) => x.el.id); return ids.length > 1 ? h('button', { type: 'button', class: 'small', title: 'Lines from roots to these points', onclick: () => openConnect(ids) }, 'Connect…') : null; };
   const copies = (n) => `${n} ${n === 1 ? 'copy' : 'copies'}`;
   // a root no group is cheapest from, once made: said, as the form said it before
   const unusedRoots = (ids) => `Not used: ${ids.map((o) => label('point', now(o))).join(', ')} (no group is cheapest from it)`;
   // The rule an element was made by (generator.js ruleOf: a copy, a hub, a line, the rule's groups):
-  // { row (what it made, a row at the top), acts (Edit…: its form, a distribution's with its connection,
-  // a connection's on points placed by hand; Select all: everything it made) }, or null
+  // { row (what it made, a row at the top), acts (Edit…: its form; Select all: everything it made) },
+  // or null
   function ruleRow(id) {
     const doc = drawing.doc, r = ruleOf(doc, id);
     if (!r) return null;
     const live = (ids) => ids.filter((x) => doc.points.some((n) => n.id === x)).length;
-    const a = r.kind === 'distribute' ? r : distributionOf(doc, r), c = r.kind === 'connect' ? r : connectionOn(doc, r);
-    const along = a && find(doc, a.along.element);
-    const rootIds = (x) => x.roots.map((o) => o.id);
-    const text = a ? `Distribute along ${along ? label(along.kind, along.el) : 'what is gone'} · ${copies(a.points.length)}${c ? `, connected to ${plural(live(rootIds(c)), 'root')}` : ''}`
-      : `Connection · ${c.pattern === 'chain' ? 'chains' : 'trees'}, ${plural(live(c.pointIds), 'point')} to ${plural(live(rootIds(c)), 'root')}`;
-    const all = () => { const g = a ? a.groupId : c.groupId; drawing.select(membersOf(drawing.doc, g, true).filter((x) => x.kind !== 'group').map((x) => x.el.id)); };
+    const along = r.kind === 'distribute' && find(doc, r.along.element);
+    const text = r.kind === 'distribute' ? `Distribute along ${along ? label(along.kind, along.el) : 'what is gone'} · ${copies(r.points.length)}`
+      : `Connection · ${r.pattern === 'chain' ? 'chains' : 'trees'}, ${plural(live(r.pointIds), 'point')} to ${plural(live(r.roots.map((o) => o.id)), 'root')}`;
+    const all = () => drawing.select(leavesOf(drawing.doc, [r.groupId]).map((x) => x.el.id));
     return { row: row('Made by', fvalue(text, { title: text })),
-      acts: [h('button', { type: 'button', class: 'small', title: 'Its settings', disabled: a && !along, onclick: () => (a ? openDistribution(a.along, a) : openConnect(c.pointIds, c)) }, 'Edit…'),
+      acts: [h('button', { type: 'button', class: 'small', title: 'Its settings', disabled: r.kind === 'distribute' && !along, onclick: () => (r.kind === 'distribute' ? openDistribution(r.along, r) : openConnect(r.pointIds, r)) }, 'Edit…'),
         h('button', { type: 'button', class: 'small', title: 'Everything it made', onclick: all }, 'Select all')] };
   }
 
-  // ---- the tools' forms (generator.js): Distribute along a line or an arc, connected to roots or not;
-  // Connect, for points placed by hand ----------------------------------------------------------------
-  // form: { kind: 'distribute', along (a reference: the line, or the point), distributionId, connectionId } or
-  // { kind: 'connect', pointIds, connectionId }
-  // (an id: the one edited or made again, or null), and the selection it was opened with (another
-  // closes it)
+  // ---- the tools' forms (generator.js): Distribute along a line or an arc; Connect points to roots
+  // form: { kind: 'distribute', along (a reference: the line, or the point), distributionId } or
+  // { kind: 'connect', pointIds, connectionId } (an id: the one edited or made again, or null), and the
+  // selection it was opened with (another closes it)
   let form = null;
-  const DFORM = { by: 'spacing', spacing: 1000, count: 10, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: DISTRIBUTE_D.radius, aperture: null, part: null, preset: 'circle', copy: null, groupId: null, connect: false };
+  const DFORM = { by: 'spacing', spacing: 1000, count: 10, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: DISTRIBUTE_D.radius, aperture: null, part: null, preset: 'circle', copy: null, groupId: null };
   const CON = { pattern: 'tree', groupSize: 'auto', minBranch: 0, roots: [], newRoots: [] };
   const dform = { ...DFORM }, con = { ...CON }; // a new form starts from these; one edited, from its rule's
   const dformParams = () => ({ spacing: dform.spacing, count: dform.by === 'count' ? dform.count : null, startMargin: dform.startMargin, endMargin: dform.endMargin, offset: dform.offset, side: dform.side, radius: dform.radius, aperture: dform.aperture, preset: dform.preset, copy: dform.copy, groupId: dform.groupId,
     along: form && { element: form.along.element, part: dform.part } });
   const conParams = () => ({ pattern: con.pattern, groupSize: con.groupSize, minBranch: con.minBranch, roots: con.roots.map((r) => ({ ...r })), newRoots: con.newRoots.map((q) => [...q]) });
-  const fromConnection = (c) => (c ? { pattern: c.pattern, groupSize: c.groupSize, minBranch: c.minBranch, roots: c.roots.map((r) => ({ ...r })) } : { roots: [] });
   const selKey = () => [...drawing.sel].sort().join(' ');
-  // roots are picked on the map while the form connects
-  const picks = () => form && (form.kind === 'connect' || dform.connect);
   function openForm(f) {
     drawing.stop(); // a click on the map now picks a root, not a tool's next point
     drawing.boxSelect(false);
     form = { ...f, sel: selKey() };
-    drawing.setPicking(picks() ? pick : null, true);
+    drawing.setPicking(form.kind === 'connect' ? pick : null, true); // roots are picked on the map while Connect's is open
     formPreview();
     renderInspector();
   }
   function openDistribution(along, a = null) {
-    const c = a && connectionOn(drawing.doc, a);
     Object.assign(dform, DFORM, { part: along.part ?? null }); // a new one: the defaults, round the part followed by default
-    Object.assign(con, CON);
     if (a) Object.assign(dform, { by: a.count ? 'count' : 'spacing', spacing: a.spacing || dform.spacing, count: a.count || a.points.length, startMargin: a.startMargin, endMargin: a.endMargin,
       offset: a.offset, side: a.side, radius: a.radius, aperture: a.aperture, preset: a.preset ?? 'circle', copy: a.copy });
-    dform.connect = !!c;
-    Object.assign(con, fromConnection(c), { newRoots: [] });
-    openForm({ kind: 'distribute', along: { element: along.element, part: along.part ?? null }, distributionId: a?.id ?? null, connectionId: c?.id ?? null });
+    openForm({ kind: 'distribute', along: { element: along.element, part: along.part ?? null }, distributionId: a?.id ?? null });
   }
   function openConnect(pointIds, c = null) {
-    Object.assign(con, CON, fromConnection(c), { newRoots: [] });
+    Object.assign(con, CON, c ? { pattern: c.pattern, groupSize: c.groupSize, minBranch: c.minBranch, roots: c.roots.map((r) => ({ ...r })) } : {}, { newRoots: [] });
     openForm({ kind: 'connect', pointIds: [...pointIds], connectionId: c?.id ?? null });
   }
   function closeForm() {
@@ -731,35 +721,23 @@ export function drawView(root, ctx) {
     drawing.setPreview([]);
   }
   const distributionRun = () => distribute(drawing.doc, alongOf(drawing.doc, form.along.element), { ...dformParams(), part: dform.part });
-  const distributionPoints = () => distributionRun().points, distributionCapped = () => distributionRun().capped;
-  // the points being connected: the form's (Connect), or the distribution's being edited
-  const formPointIds = () => (form.kind === 'connect' ? form.pointIds : distributions(drawing.doc).find((a) => a.id === form.distributionId)?.points.map((x) => x.pointId) ?? []);
-  // the roots as the planner takes them, those gone or among the points dropped
-  const rootsNow = () => {
-    con.roots = con.roots.filter((r) => drawing.doc.points.some((n) => n.id === r.id) && !formPointIds().includes(r.id));
-    return [...con.roots.map((r) => ({ position: now(r.id).position, weight: r.weight })), ...con.newRoots.map((position) => ({ position, weight: 1 }))];
-  };
-  // a connection's plan before it is made: { positions (in order), roots, plan }; for Distribute along,
-  // on the places the points would have. Planned once for each change: the preview and the form, drawn
-  // in the same task, share it (the next task plans again)
-  // what the form would make (plan() in generator.js keeps the last plan by its inputs: the preview and the form share it)
-  const connectPlan = () => {
-    if (form.kind === 'connect') return (({ nodes, roots, plan: p }) => ({ positions: nodes.map((n) => n.position), roots, plan: p }))(planConnection(drawing.doc, { pointIds: form.pointIds, ...conParams() }));
-    const positions = distributionPoints().map((x) => x.position), roots = rootsNow();
-    return { positions, roots, plan: dform.connect && positions.length && roots.length ? plan(positions, roots, con.groupSize, con.pattern, con.minBranch) : null };
-  };
-  // what the form would make, faint on the map: the points; the lines, the roots ringed
+  // what Connect would make (plan() in generator.js keeps the last plan by its inputs: the preview and
+  // the form, drawn in the same task, share it): { positions (in order), roots, plan }
+  const connectPlan = () => { const { nodes, roots, plan: p } = planConnection(drawing.doc, { pointIds: form.pointIds, ...conParams() }); return { positions: nodes.map((n) => n.position), roots, plan: p }; };
+  // what the form would make, faint on the map: a distribution's points; a connection's lines, its
+  // roots ringed
   function formPreview() {
-    const c = connectPlan(), joined = form.kind === 'connect' || dform.connect;
-    drawing.setPreview(form.kind === 'distribute' ? c.positions : [], joined ? c.roots.map((r) => r.position) : [], c.plan ? lines(c.positions, c.roots, c.plan, con.pattern) : []);
+    if (form.kind === 'distribute') return drawing.setPreview(distributionRun().points.map((x) => x.position));
+    const c = connectPlan();
+    drawing.setPreview([], c.roots.map((r) => r.position), c.plan ? lines(c.positions, c.roots, c.plan, con.pattern) : []);
   }
   // a setting changed: the preview and the form follow
-  const formChanged = () => { drawing.setPicking(picks() ? pick : null, true); formPreview(); renderInspector(); };
+  const formChanged = () => { formPreview(); renderInspector(); };
   // a click on the map while roots are picked: on a point, it is a root or no longer one; anywhere
   // else, a new root there (on one, it goes)
   function pick(nid, pos) {
     if (nid) {
-      if (formPointIds().includes(nid)) return note('That point is one of those being connected');
+      if (form.pointIds.includes(nid)) return note('That point is one of those being connected');
       con.roots = con.roots.some((r) => r.id === nid) ? con.roots.filter((r) => r.id !== nid) : [...con.roots, { id: nid, weight: 1 }];
     } else {
       const near = con.newRoots.findIndex((q) => { const a = map.project(q), b = map.project(pos); return Math.hypot(a.x - b.x, a.y - b.y) < 12; });
@@ -771,8 +749,7 @@ export function drawView(root, ctx) {
     h('button', { type: 'button', class: 'done', disabled: !ok, onclick }, text),
     h('button', { type: 'button', onclick: () => { closeForm(); renderInspector(); } }, 'Cancel'));
 
-  // the connection's settings (tree or chain, group size, roots and their weights) and what it would
-  // make, for both forms
+  // the connection's settings (tree or chain, group size, roots and their weights) and what it would make
   function connectRows(c) {
     const u = ctx.units(), redo = formChanged, p = c.plan;
     const names = [...con.roots.map((r) => label('point', now(r.id))), ...con.newRoots.map((_, i) => `New root ${i + 1}`)];
@@ -797,19 +774,15 @@ export function drawView(root, ctx) {
             weight(k), h('button', { type: 'button', class: 'x', 'aria-label': `Drop ${name}`, title: 'Drop it', onclick: drop(k) }, '×')] })) }) : null),
       h('p', { class: 'note fsummary' }, summary, unused.length ? ` Not used: ${unused.join(', ')} (no group is cheapest from it; a weight above 1 would pull some).` : '')];
   }
-  const sameConnection = (c) => c && c.pattern === con.pattern && c.groupSize === con.groupSize && c.minBranch === con.minBranch && !con.newRoots.length
-    && c.roots.length === con.roots.length && c.roots.every((o) => con.roots.some((r) => r.id === o.id && r.weight === o.weight));
-
-  // Distribute along a line or a point's arc, and its connection to roots: one form, one undo step
+  // Distribute along a line or a point's arc: one form, one undo step
   function distributionForm() {
     const doc = drawing.doc, along = find(doc, form.along.element), editing = form.distributionId && distributions(doc).find((a) => a.id === form.distributionId);
     const tr = alongTrace(doc, along.el, dform.part), closed = tr?.closed;
-    const c = connectPlan(), points = c.positions, redo = formChanged;
+    const run = distributionRun(), points = run.points, redo = formChanged;
     // a distance that may be 0 (margins, the offset), or must be above 0 (spacing)
     const dist = (key, aria, zero) => withUnit(F.dist(() => dform[key], (m) => { dform[key] = m; redo(); }, aria, { zero }));
     const differs = editing && points.length !== editing.points.length;
-    const was = form.connectionId && connections(doc).find((x) => x.id === form.connectionId);
-    const ok = points.length && (!dform.connect || c.plan);
+    const connected = differs && connections(doc).some((c) => c.pointIds.some((n) => editing.points.some((x) => x.pointId === n)));
     // what is repeated: a built-in kind (the circle to start with), or a preset of the user's (its size its own)
     const mine = drawing.presets.filter((x) => x.point.parts.length);
     const choose = (v) => {
@@ -825,7 +798,7 @@ export function drawView(root, ctx) {
       arc && along.el.parts.length > 1 ? row('Part', select('Part', along.el.parts.map((part, i) => [i, `${i + 1} · ${PART_NAME[part.kind]}${part.name ? ` ${part.name}` : ''}`]), dform.part ?? followedPart(along.el), (v) => { dform.part = +v; redo(); })) : null,
       row('By', segOf('Points by', [['spacing', 'Spacing'], ['count', 'Count']], dform.by, (v) => { dform.by = v; redo(); })),
       dform.by === 'spacing' ? row('Spacing', dist('spacing', 'Spacing', false)) : row('Count', F.number(() => dform.count, (v) => { dform.count = v; redo(); }, 'Count', { whole: true, above: true, max: MAX_COPIES })),
-      distributionCapped() ? h('p', { class: 'note warn' }, `At most ${MAX_COPIES.toLocaleString('en')} copies: the spacing would give more`) : null,
+      run.capped ? h('p', { class: 'note warn' }, `At most ${MAX_COPIES.toLocaleString('en')} copies: the spacing would give more`) : null,
       closed ? null : row('Margins', pair(dist('startMargin', 'Start margin', true), '·', dist('endMargin', 'End margin', true))),
       row('Offset', pair(dist('offset', 'Offset', true), '·', select('Side', [['left', arc ? 'Out' : 'Left'], ['right', arc ? 'In' : 'Right'], ['alternate', 'Alternate']], dform.side, (v) => { dform.side = v; redo(); }))),
       row('Copy', select('Copy', [...Object.keys(BUILT_IN).map((k) => [k, builtInName(k)]), ...mine.map((x) => [`preset:${x.name}`, x.name]),
@@ -835,24 +808,13 @@ export function drawView(root, ctx) {
       dform.preset === 'circle' ? row('Aperture', F.angle(() => dform.aperture, (v) => { dform.aperture = v; redo(); }, `Aperture (degrees): a sector ${arc ? 'facing outwards' : 'facing away from the line'}; empty: a circle`, { wrap: false, none: true }), funit('°')) : null,
       editing ? null : row('In group', select('Group', [['', 'none (at the top)'], ...doc.groups.map((g) => [g.id, groupPath(drawing.doc, g)])], dform.groupId ?? '', (v) => { dform.groupId = v || null; }, { title: 'Where its group goes' })),
       h('p', { class: 'note fsummary' }, points.length ? `${copies(points.length)}.` : `No copy fits: ${arc ? 'the part' : 'the line'} is shorter than the margins, or the spacing too long.`),
-      differs ? h('p', { class: 'note warn' }, `Another number of points (${editing.points.length} now): they are made anew${was ? ', and connected again' : ''}. Changes made to those by hand are lost; Undo brings them back.`) : null,
-      row('Connect', check('', dform.connect, (v) => { dform.connect = v; redo(); }, { 'aria-label': 'Connect to roots', title: 'Lines from roots to the copies' })),
-      dform.connect ? connectRows(c) : null,
-      was && dform.connect && !sameConnection(was) ? h('p', { class: 'note warn' }, 'Its lines and hubs are made again. Changes made to those by hand are lost; Undo brings them back.') : null,
-      was && !dform.connect ? h('p', { class: 'note warn' }, 'Its lines and hubs go (its roots stay).') : null,
-      formButtons(editing ? 'Apply' : 'Create', ok, () => {
-        let r, k = null;
-        drawing.change((d) => {
-          r = editing ? editDistribution(d, editing.id, dformParams()) : makeDistribution(d, dformParams());
-          const was2 = connections(d).find((x) => x.id === form.connectionId);
-          if (!dform.connect) { if (was2) unconnect(d, was2.id); return; }
-          if (was2 && sameConnection(was2)) return;
-          k = was2 ? reconnect(d, was2.id, conParams()) : connect(d, { pointIds: r.distribution.points.map((x) => x.pointId), ...conParams(), parentId: r.distribution.groupId });
-        });
+      differs ? h('p', { class: 'note warn' }, `Another number of points (${editing.points.length} now): they are made anew${connected ? ', and connected again' : ''}. Changes made to those by hand are lost; Undo brings them back.`) : null,
+      formButtons(editing ? 'Apply' : 'Create', points.length, () => {
+        let r;
+        drawing.change((d) => { r = editing ? editDistribution(d, editing.id, dformParams()) : makeDistribution(d, dformParams()); });
         closeForm();
         renderInspector(); // the selection may stay as it was (the group)
         drawing.select([r.distribution.groupId]);
-        if (k?.unused.length) note(unusedRoots(k.unused));
       })];
   }
 

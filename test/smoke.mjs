@@ -777,7 +777,8 @@ await section('lines, groups and the box', async () => {
 });
 
 await section('the rules: Distribute along, Connect', async () => {
-  // points along a line, connected to one root in the same form: one step, undone at once
+  // points along a line, one step; then connected to one root (the distribution's group's Connect…),
+  // another: each undone at once
   await dw.keyboard.press('Escape');
   await dw.keyboard.press('g');
   await dw.mouse.click(DX + 150, 650);
@@ -794,13 +795,16 @@ await section('the rules: Distribute along, Connect', async () => {
   const gsp = dw.locator('input[aria-label=Spacing]');
   await gsp.fill('2 km');
   await gsp.press('Enter');
-  await dw.click('.dinspect input[aria-label="Connect to roots"]');
+  const previewed = [await dw.evaluate(() => drawing.previewPts?.length ?? 0)];
+  await dw.click('.dinspect button.done:has-text("Create")');
+  const distributed = await dw.evaluate(() => [drawing.undos.length, drawing.selected()[0]?.kind, drawing.doc.rules.length]);
+  await dw.click('.dinspect button:has-text("Connect…")'); // the group's: its copies
   await dw.mouse.click(DX + 420, 700); // the circle's centre: a root (a click on a point uses it)
   const mb = dw.locator('input[aria-label="Shortest branch"]'); // Tree: each branch at least this long
   await mb.fill('300 m');
   await mb.press('Enter');
-  const previewed = await dw.evaluate(() => [drawing.previewPts?.length ?? 0, drawing.previewLines?.length ?? 0]);
-  await dw.click('.dinspect button.done:has-text("Create")');
+  previewed.push(await dw.evaluate(() => drawing.previewLines?.length ?? 0));
+  await dw.click('.dinspect button.done:has-text("Connect")');
   const gen = await dw.evaluate(() => {
     const rules = (k) => drawing.doc.rules.filter((r) => r.kind === k), a = rules('distribute')[0], c = rules('connect')[0];
     // what each line the connection made is, from its ends: a trunk at a root, else a branch
@@ -817,10 +821,13 @@ await section('the rules: Distribute along, Connect', async () => {
   });
   await dw.locator('.dinsphead .ititle').click();
   await dw.keyboard.press('Control+z');
+  const connUndone = await dw.evaluate(() => drawing.doc.rules.map((r) => r.kind).join());
+  await dw.keyboard.press('Control+z');
   const genUndone = await dw.evaluate(() => [drawing.doc.rules.filter((r) => r.kind === 'connect').length, drawing.doc.lines.length, drawing.doc.rules.filter((r) => r.kind === 'distribute').length]);
-  check(previewed[0] === gen.n && previewed[1] > 0, `drawing: Distribute along previews its points and lines before making them (${previewed})`);
-  check(gen.a === 1 && gen.n > 1 && gen.c === 1 && gen.trunks > 0 && gen.branches > 0 && gen.attached >= gen.trunks + gen.branches && gen.undos === beforeGen[1] + 1 && gen.group === 'group'
-    && genUndone.join() === `0,${beforeGen[0]},0`, `drawing: Distribute along and Connect in one form, one undo step, the group selected (${gen.n} points, ${gen.trunks} + ${gen.branches} lines)`);
+  check(previewed[0] === gen.n && previewed[1] > 0, `drawing: Distribute along previews its points, Connect its lines, before making them (${previewed})`);
+  check(distributed.join() === `${beforeGen[1] + 1},group,1` && gen.a === 1 && gen.n > 1 && gen.c === 1 && gen.trunks > 0 && gen.branches > 0 && gen.attached >= gen.trunks + gen.branches
+    && gen.undos === beforeGen[1] + 2 && gen.group === 'group' && connUndone === 'distribute' && genUndone.join() === `0,${beforeGen[0]},0`,
+  `drawing: Distribute along, then Connect… on its group, one undo step each, the group selected (${gen.n} points, ${gen.trunks} + ${gen.branches} lines)`);
   check(gen.subgroups === 'Connection,Copies' && gen.inCircles, `rules: Distribute along's own group holds Copies and Connection (${gen.subgroups})`);
   check(gen.minBranch === 300 && gen.shortest >= 297 && gen.hubs === gen.trunks && gen.branches === gen.n,
     `drawing: Tree, a hub of its own per trunk, a branch to every point, each at least the 300 m set (${Math.round(gen.shortest)} m)`);
