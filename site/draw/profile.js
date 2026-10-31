@@ -27,11 +27,14 @@ export function samplesOf(trace) {
 // The profile: each sample's elevation (metres, negative below sea level; NaN where there is none),
 // the lowest and the highest, and the length along the surface: each step's length counting the
 // change in elevation between two known, flat otherwise. A lower bound: relief finer than the data is
-// not in it. elevationAt(p, z): a promise of the elevation at p, read at zoom z.
+// not in it. elevationAt(p, z): a promise of the elevation at p, read at zoom z. A place that could
+// not be read is a gap, as one without data is; only when none could, it fails.
 export async function profileOf(trace, elevationAt, maxZoom) {
   const { step, samples } = samplesOf(trace);
   const z = zoomFor(step, samples[0]?.p[1] ?? 0, maxZoom);
-  const zs = await Promise.all(samples.map((x) => elevationAt(x.p, z)));
+  let failed = 0;
+  const zs = await Promise.all(samples.map((x) => elevationAt(x.p, z).catch(() => { failed++; return NaN; })));
+  if (failed === samples.length) throw new Error('the elevation could not be read');
   const pts = samples.map((x, i) => ({ ...x, z: zs[i] }));
   let surface = 0, lowest = null, highest = null;
   pts.forEach((x, i) => {

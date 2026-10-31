@@ -207,8 +207,9 @@ takes one unit by its largest value.
   on screen are drawn enlarged, dotted.
 - A line's **Path**: straight, or smooth (a curve through the vertices, following them).
   **Elevation profile**: the elevation along it, as the shadings draw it (the sea's depths below sea
-  level, the land's heights above; every 30 m, at most 1,000 places), its lowest and highest, a chart
-  linked to the map both ways, its length along the surface, CSV.
+  level, the land's heights above; every 30 m, at most 1,000 places; one that could not be read a
+  gap), its lowest and highest, a chart linked to the map both ways, its length along the surface,
+  CSV. When none could be read it says so, and reads again when next shown.
 - A point's **Parts** are its own: circles, sectors, outlines; a table of Kind, **Size** (a radius, an
   outline's length), **Across** (a sector's aperture in °, an outline's width), and Fill; the row
   current has its name and **Shown** in the bar. One way to add one: the table's empty last row. A
