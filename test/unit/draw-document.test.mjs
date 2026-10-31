@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { addShape } from './helpers.mjs';
 
 const d = await import('../../site/draw/document.js');
 const { parse, serialise, toFile } = await import('../../site/draw/file.js');
 const { refreshAttached, lineRef, resolve } = await import('../../site/draw/attach.js');
 const { distributions, connections } = await import('../../site/draw/generator.js');
-const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
+const { emptyDoc, addPoint, addDot, addLine, addArea, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
   label, styleOf, offsetOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, splitLine,
   DEFAULT_STYLE, GUIDE_STYLE, FORMAT, VERSION } = d;
 
@@ -466,7 +467,7 @@ test('rules (distribute, connect) are kept as records; defaults left out; an unk
   assert.deepEqual(f.rules[3], { id: 'c1', kind: 'connect', groupId: 'g3', groupSize: 3, roots: [{ id: 'n9' }, { id: 'n8', weight: 2 }], pointIds: ['n1'], created: ['gone'] });
   assert.deepEqual(f.rules[0], { id: 'a1', kind: 'distribute', groupId: 'g1', copiesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250,
     preset: 'preset:mine', copy, points: [{ pointId: 'n1', t: 0.5, pos: [1, 2] }] });
-  assert.deepEqual(f.rules[1], { id: 'a3', kind: 'distribute', along: { element: 's' }, points: [] });
+  assert.deepEqual(f.rules[1], { id: 'a3', kind: 'distribute', along: { element: 's' } });
   assert.deepEqual(again(doc).doc, doc);
 });
 
@@ -589,6 +590,7 @@ test('attached ends follow their point; a point gone leaves them free where they
   assert.deepEqual(s.start, { position: [0, 0.5], element: a.id });
   assert.deepEqual(dependents(doc, [b.id]), new Set([b.id])); // lines do not go with a point
   assert.deepEqual([...remove(doc, [b.id])], [b.id]);
+  refreshAttached(doc); // after every change
   assert.deepEqual(doc.lines.map((x) => x.id), [s.id, t.id]);
   assert.deepEqual([s.end, t.start], [{ position: [1, 0], element: null }, { position: [1, 0], element: null }]);
   doc.points = []; // gone some other way
@@ -703,6 +705,7 @@ test('delete a group: members ungrouped, keeping their own parts, or deleted wit
   assert.equal(kept.lines[0].end.element, c.id);
   const gone = structuredClone(doc);
   remove(gone, [g.id], true);
+  refreshAttached(gone); // after every change
   assert.deepEqual(gone.points.map((p) => p.id), [a.id]);
   assert.deepEqual(gone.lines[0].end, { position: [2, 0], element: null }); // the line stays, its end free
   assert.equal(s.end.element, c.id); // the original untouched

@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near } from './helpers.mjs';
+import { near, addShape, drawFeatures } from './helpers.mjs';
 
 const drawgeo = await import('../../site/draw/features.js');
-const { drawParts, drawFeatures, exportFeatures, valueFeatures, flatten, boundsOf, enlargement, shapeOf, zoomDependent, GEOMETRY } = drawgeo;
-const { emptyDoc, addPoint, addDot, addShape, addArea, addLine, addLabel, makeGroup, makePart, styleOf } = await import('../../site/draw/document.js');
+const { drawParts, exportFeatures, valueFeatures, flatten, boundsOf, enlargement, shapeOf, zoomDependent, GEOMETRY } = drawgeo;
+const { emptyDoc, addPoint, addDot, addArea, addLine, addLabel, makeGroup, makePart, styleOf, leavesOf, positionsIn } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');
 const { inverse, destination, areaOf, pathOf, perimeterOf } = await import('../../site/geodesy.js');
 const { fmtArea, fmtDist } = await import('../../site/format.js');
@@ -293,7 +293,7 @@ test('boundsOf: a point to its largest shown round part, an outline by its corne
   assert.deepEqual(boundsOf(doc, new Set([l.id])).map((v) => +v.toFixed(6)), [179.9, 0, 180.1, 0]);
 });
 
-test('geometry by kind: a group is bounded by its members; inside a box; a group moves all of its members, each once', () => {
+test('geometry by kind: a group is bounded by its members; inside a box; what a group stands for, each once', () => {
   const doc = emptyDoc(0);
   addPoint(doc, [12, 41], { id: 'a', parts: [] });
   addPoint(doc, [12.2, 41.1], { id: 'b', parts: [] });
@@ -312,15 +312,10 @@ test('geometry by kind: a group is bounded by its members; inside a box; a group
   // a small outline is inside by its corners as drawn (enlarged)
   const hb = (p) => Math.abs(p[0] - 13) < 0.01 && Math.abs(p[1] - 42) < 0.01;
   assert.deepEqual([1, 1000].map((k) => GEOMETRY.point.inside(doc, el('h'), hb, () => k)), [true, false]);
-  // the move: the group's points and lines collected, its area moved once though selected as well
-  const shift = (p) => [p[0] + 1, p[1]], seen = new Set(), labels = [];
-  const acc = { points: new Set(), lines: new Set(), once: (x) => !seen.has(x) && !!seen.add(x), label: (x) => labels.push(x.id), each: (x) => GEOMETRY[x.kind].move(doc, x.el, shift, acc) };
-  acc.each({ kind: 'group', el: g });
-  acc.each({ kind: 'area', el: el('q') });
-  assert.deepEqual([...acc.points].sort(), ['a', 'b', 'h']);
-  assert.deepEqual([...acc.lines].map((x) => x.id), ['s']);
-  assert.deepEqual(labels, ['l']);
-  assert.deepEqual(el('q').points[0], [12, 40]);
+  // what moves: everything in the group, each once though selected as well; each position of each
+  assert.deepEqual(leavesOf(doc, [g.id, 'q']).map((x) => x.el.id), ['a', 'b', 'h', 's', 'q', 'l']);
+  assert.deepEqual(positionsIn('line', el('s')).map(([o, k]) => o[k]), [[12, 41], [12.2, 41.1], [12.1, 41.2]]);
+  assert.deepEqual(positionsIn('area', el('q')).map(([o, k]) => o[k]), el('q').points);
 });
 
 test('minimum display size: an outline too small on screen is drawn enlarged, dotted; real size once big enough', () => {
@@ -423,9 +418,6 @@ test('areas: drawn at real size, corners and edge midpoints as handles, bounded 
   assert.deepEqual(f.filter((x) => x.properties.role === 'ppoint').map((x) => x.properties.ref), [0, 1, 2]);
   assert.deepEqual(f.filter((x) => x.properties.role === 'pmid').map((x) => x.properties.ref), [1, 2, 3]);
   assert.deepEqual(boundsOf(doc, new Set(['q'])).map((v) => +v.toFixed(3)), [12, 40, 12.1, 40.1]);
-  const seen = new Set(), acc = { once: (el) => !seen.has(el) && !!seen.add(el) };
-  GEOMETRY.area.move(doc, doc.areas[0], (p) => [p[0] + 1, p[1]], acc);
-  assert.deepEqual(doc.areas[0].points[0], [13, 40]);
 });
 
 test('the parts: what never depends on the zoom, what may, the marks; only those wanted are made', () => {

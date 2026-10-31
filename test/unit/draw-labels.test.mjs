@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near } from './helpers.mjs';
+import { near, addShape, drawFeatures } from './helpers.mjs';
 
 const { labelText, labelValues, TOKENS, leaderFrom, labelFeatures } = await import('../../site/draw/labels.js');
 const { resolve: anchorAt } = await import('../../site/draw/attach.js');
 const { lineRef, targetPosition, refreshAttached, splitKeeping } = await import('../../site/draw/attach.js');
-const { emptyDoc, addPoint, addShape, addArea, addLine, addLabel, makeGroup, centroid, lookOf, LOOK_FIELDS, makePart, remove } = await import('../../site/draw/document.js');
-const { drawFeatures, exportFeatures } = await import('../../site/draw/features.js');
+const { emptyDoc, addPoint, addArea, addLine, addLabel, makeGroup, centroid, lookOf, LOOK_FIELDS, makePart, remove } = await import('../../site/draw/document.js');
+const { exportFeatures } = await import('../../site/draw/features.js');
 const { lineTrace, nearestAlong } = await import('../../site/draw/lines.js');
 const { inverse, destination } = await import('../../site/geodesy.js');
 const { mercator, unmercator } = await import('../../site/geo.js');
@@ -143,6 +143,7 @@ test('deleting what a label points at leaves the label free, where it pointed; a
   withLabel(doc, 'l2', on(doc, 15000));
   withLabel(doc, 'l3', on(doc, 4000));
   remove(doc, ['a']);
+  refreshAttached(doc); // after every change
   assert.deepEqual(doc.labels[0].anchor, { position: [12, 40], element: null });
   assert.deepEqual(doc.lines[0].start, { position: [12, 40], element: null }); // the line stays, its end free
   const was = anchorAt(doc, doc.labels[1].anchor).position;
@@ -171,6 +172,7 @@ test('deleting a group: with its members, their labels are left free; without, t
   assert.ok(doc.areas.some((x) => x.id === 'q'));
   assert.deepEqual(doc.labels[0].anchor, { position: centroid(AREA), element: 'q' });
   remove(doc, [g2.id], true);
+  refreshAttached(doc);
   assert.ok(!doc.points.some((x) => x.id === 'h'));
   assert.deepEqual(doc.labels[1].anchor, { position: [12.5, 40.5], element: null });
 });

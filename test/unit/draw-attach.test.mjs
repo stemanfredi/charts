@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { addShape } from './helpers.mjs';
 
-const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, centroid, remove, makePart, removePart } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, addLine, addArea, centroid, remove, makePart, removePart } = await import('../../site/draw/document.js');
 const { targetPosition, resolve, refreshAttached, reattach, insertCorner, removeCorner, addVertex, removeVertex, splitKeeping, attachTo, verticesOf, partName, refNear } = await import('../../site/draw/attach.js');
 const { snapAt, stepped, neighbours } = await import('../../site/draw/snap.js');
 const { parse, serialise } = await import('../../site/draw/file.js');
@@ -66,6 +67,7 @@ test('ends follow what they are attached to: an outline turned, an area\'s corne
   assert.deepEqual([s1.end.part, s1.end.vertex, s2.end.edge, s2.end.at, s3.start.vertex], [0, 0, 1, 0.25, 1]);
   const was = [...s1.end.position];
   remove(doc, ['sh']);
+  refreshAttached(doc); // after every change
   assert.deepEqual(s1.end, { position: was, element: null });
   sh.parts = [makePart('circle')]; // a point without an outline: nothing to attach to there
   doc.points.push(sh);

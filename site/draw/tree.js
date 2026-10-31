@@ -4,9 +4,9 @@
 // into a group or before one of their kind, shown or hidden by their eye.
 
 import { h } from '../dom.js';
-import { find, elements, groupsOf, membersOf, label, kindName, pointKind, POINT_KIND_NAME, mainOutline, followedPart, setGroup, moveBefore, isShown } from './document.js';
+import { find, elements, groupsOf, membersOf, label, KIND, pointKind, mainOutline, followedPart, setGroup, moveBefore, isShown } from './document.js';
 import { labelText } from './labels.js';
-import { OUTLINE_NAME } from './outlines.js';
+import { builtInName } from './place.js';
 import { lineTrace } from './lines.js';
 import { areaOf, pathOf } from '../geodesy.js';
 import { MOD } from '../keys.js';
@@ -20,7 +20,7 @@ const countOf = (b, u) => [b.points ? `${plural(b.points, 'point')}${b.ringed &&
 // an element's icon and what the panel calls its kind: a point by what it looks like (a circle, a
 // rectangle…); an area a polygon
 const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[kind === 'area' ? 'polygon' : kind]);
-export const kindTitle = (kind, el) => (kind === 'point' ? (POINT_KIND_NAME[pointKind(el)] ?? OUTLINE_NAME[pointKind(el)]) : kindName(kind));
+export const kindTitle = (kind, el) => (kind === 'point' ? builtInName(pointKind(el)) : KIND[kind].name);
 // an element's name as shown: its own, else a label's text as it reads on the map (its first line)
 export const shownName = (doc, kind, el, units) => (kind === 'label' && !el.name?.trim() ? labelText(doc, el, units).split('\n')[0].trim() || 'Label' : label(kind, el));
 // a group's name with the groups it is in: "A › B"

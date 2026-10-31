@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near } from './helpers.mjs';
+import { near, addShape } from './helpers.mjs';
 
 const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals } = await import('../../site/draw/lines.js');
-const { emptyDoc, addPoint, addDot, addShape, addLine, addArea, makeGroup, splitLine, remove, makePart } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, addLine, addArea, makeGroup, splitLine, remove, makePart } = await import('../../site/draw/document.js');
 const { settleGeometry } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { emptyDoc, addPoint, addLine, addLabel, makeGroup, makePart } = await import('../../site/draw/document.js');
-const { copyOf, paste, centreOf } = await import('../../site/draw/clipboard.js');
+const { clipOf, paste, centreOf } = await import('../../site/draw/clipboard.js');
 const { refreshAttached } = await import('../../site/draw/attach.js');
 const { loadPresets, savePresets, presetOf, presetsFile, readPresets } = await import('../../site/draw/presets.js');
 
@@ -15,7 +15,7 @@ test('a copy pasted: new IDs and numbered names, moved, its group kept; attachme
   const g = makeGroup(doc, ['a']);
   addLine(doc, 'a', [[10.05, 40.05]], 'b', { id: 'l', name: 'Line 1' });
   const lab = addLabel(doc, { position: [10.1, 40], element: 'b' });
-  const clip = copyOf(doc, [g.id, 'l', lab.id]); // the group: its member
+  const clip = clipOf(doc, [g.id, 'l', lab.id]); // the group: its member
   assert.deepEqual(clip.items.map((x) => x.el.id), ['a', 'l', lab.id]);
   assert.deepEqual(centreOf(clip), [10.05, 40.025]);
   const made = paste(doc, clip, shift);
@@ -38,7 +38,7 @@ test('a copy pasted: new IDs and numbered names, moved, its group kept; attachme
   const [a3, , lab3] = paste(other, clip, shift).map((x) => x.el);
   assert.deepEqual([a3.groupId, a3.name], [null, 'Point 1']);
   assert.deepEqual(lab3.anchor, { position: [11.1, 40], element: null }); // free, where it pointed (moved with the copy)
-  const twice = paste(doc, copyOf(doc, ['b']), shift)[0].el;
+  const twice = paste(doc, clipOf(doc, ['b']), shift)[0].el;
   assert.equal(twice.name, 'Mark 2');
 });
 
@@ -72,5 +72,5 @@ test('a large import: Zoom to, Duplicate and Paste take hundreds of thousands of
   const pts = Array.from({ length: 300000 }, (_, i) => [10 + (i % 1000) / 1000, 40 + i / 1e6]);
   const g = addArea(doc, pts);
   assert.deepEqual(boundsOf(doc, new Set([g.id])), [10, 40, 10.999, 40.299999]);
-  assert.deepEqual(centreOf(copyOf(doc, [g.id])).map((v) => +v.toFixed(7)), [10.4995, 40.1499995]);
+  assert.deepEqual(centreOf(clipOf(doc, [g.id])).map((v) => +v.toFixed(7)), [10.4995, 40.1499995]);
 });

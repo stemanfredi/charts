@@ -4,7 +4,7 @@
 
 import { circle, sector, cornersOf, reachesPole, ccw, areaOf, destination, inverse, pathOf, perimeterOf } from '../geodesy.js';
 
-import { styleOf, lookOf, minSizeOf, offsetOf, isShown, elements, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf, columnsOf } from './document.js';
+import { styleOf, lookOf, minSizeOf, offsetOf, isShown, leavesOf, groupsOf, centroid, roundParts, outlineParts, mainOutline, reachOf, columnsOf } from './document.js';
 import { mercator, unrollTo, metresPerPixel, D2R } from '../geo.js';
 import { rotateHandle } from './drag.js';
 import { lineTrace, anchorsOf, positionsOf, pointsAlong } from './lines.js';
@@ -235,11 +235,6 @@ export function drawParts(doc, sel = new Set(), hover = null, display = {}, want
   }
   return { base: [...base, ...baseNames], zoom: [...zoomed, ...zoomNames], marks };
 }
-// All of it as one collection (the tests, and anything that wants the whole picture)
-export function drawFeatures(doc, sel = new Set(), hover = null, display = {}) {
-  const p = drawParts(doc, sel, hover, display);
-  return { type: 'FeatureCollection', features: [...p.base, ...p.zoom, ...p.marks] };
-}
 // whether anything drawn changes with the zoom: an outline that may be drawn enlarged
 export function zoomDependent(doc) {
   return doc.points.some((p) => mainOutline(p) && isShown(doc, p)) && minSizeOf(doc) > 0;
@@ -327,19 +322,12 @@ export function exportFeatures(doc, units = 'km') {
 }
 
 // ---- each kind's geometry -------------------------------------------------------------------
-// What bounds an element (Zoom to), whether it lies inside a screen box (Shift-drag), how it moves
-// with the pointer (dragging a selection). bounds(doc, el): its points, at real size. inside(doc, el,
-// inBox, k): all of it in the box (inBox(position): on screen inside it; k(point): how much its outline
-// is drawn enlarged). move(doc, el, mv, acc): moved by mv(position), each point once: acc collects
-// the points and lines to move after, once(el) says whether el moves now (not yet moved),
-// label(el) moves a label as the selection says, each({ kind, el }) moves another element.
-const members = (doc, g) => elements(doc).filter((x) => x.el.groupId === g.id);
+// What bounds an element (Zoom to) and whether it lies inside a screen box (Shift-drag). bounds(doc,
+// el): its points, at real size. inside(doc, el, inBox, k): all of it in the box (inBox(position): on
+// screen inside it; k(point): how much its outline is drawn enlarged). A group: its members are, or
+// are not.
 export const GEOMETRY = {
-  group: {
-    bounds: (doc, g) => members(doc, g).flatMap((x) => GEOMETRY[x.kind].bounds(doc, x.el)),
-    inside: () => false, // its members are, or are not
-    move: (doc, g, mv, acc) => { for (const x of members(doc, g)) acc.each(x); },
-  },
+  group: { inside: () => false },
   point: {
     bounds: (doc, n) => {
       const far = Math.max(0, ...roundParts(n).filter(({ part }) => part.shown && drawable(n, part.radius)).map(({ part }) => part.radius));
@@ -351,22 +339,18 @@ export const GEOMETRY = {
       const e = k(n); // as drawn: small outlines' enlarged corners
       return outs.every(({ part }) => cornersOf(n.position, n.bearing, part.length * e, part.width * e).every(inBox));
     },
-    move: (doc, n, mv, acc) => { acc.points.add(n.id); },
   },
   line: {
     bounds: (doc, sg) => lineTrace(doc, sg).coords,
     inside: (doc, sg, inBox) => lineTrace(doc, sg).coords.every(inBox),
-    move: (doc, sg, mv, acc) => { acc.lines.add(sg); },
   },
   area: {
     bounds: (doc, g) => g.points,
     inside: (doc, g, inBox) => g.points.every(inBox),
-    move: (doc, g, mv, acc) => { if (acc.once(g)) g.points = g.points.map(mv); },
   },
   label: {
     bounds: (doc, a) => { const at = resolve(doc, a.anchor); return at ? [at.position] : []; },
     inside: (doc, a, inBox) => { const at = resolve(doc, a.anchor); return !!at && inBox(at.position); },
-    move: (doc, a, mv, acc) => acc.label(a),
   },
 };
 
@@ -382,4 +366,4 @@ export function extentOf(pts) {
   return b;
 }
 // for the map's Zoom to: the extent of the elements ids, or null
-export const boundsOf = (doc, ids) => extentOf(elements(doc).filter((x) => ids.has(x.el.id)).flatMap((x) => GEOMETRY[x.kind].bounds(doc, x.el)));
+export const boundsOf = (doc, ids) => extentOf(leavesOf(doc, ids).flatMap((x) => GEOMETRY[x.kind].bounds(doc, x.el)));

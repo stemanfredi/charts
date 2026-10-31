@@ -927,9 +927,9 @@ await section('dragging, parts, shapes, attaching', async () => {
   await dw.keyboard.press('Escape');
   // attaching: a line drawn to a shape's corner ends attached there, and follows it when it turns
   const sc = await dw.evaluate(async () => {
-    const { addShape } = await import('./draw/document.js'), { verticesOf } = await import('./draw/attach.js');
+    const { addPoint, makePart } = await import('./draw/document.js'), { verticesOf } = await import('./draw/attach.js');
     let x;
-    drawing.change((d) => { const c = map.unproject([500, 500]); x = addShape(d, [c.lng, c.lat]); Object.assign(x.parts[0], { length: 3000, width: 2000 }); });
+    drawing.change((d) => { const c = map.unproject([500, 500]); x = addPoint(d, [c.lng, c.lat], { symbol: 'none', parts: [makePart('rectangle', { length: 3000, width: 2000 })] }); });
     const q = map.project(verticesOf({ kind: 'point', el: x })[0]);
     return { id: x.id, x: q.x, y: q.y };
   });

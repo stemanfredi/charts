@@ -2,7 +2,7 @@
 // layers of layers.js from features.js and labels.js, with the placing tools, clicks, hit testing,
 // dragging and the box (Shift-drag); saved in this browser as it changes (saving.js).
 
-import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf, mainOutline, MAX_RADIUS } from './document.js';
+import { emptyDoc, addPoint, addLine, addLabel, addArea, find, elements, leavesOf, positionsIn, isShown, nextName, makePart, KIND, LABEL_OFFSET, lookOf, setLook, offsetOf, mainOutline, MAX_RADIUS } from './document.js';
 import { typing } from '../dom.js';
 import { outlineOf } from './outlines.js';
 import { placeKind, placeBox, BOX, nameByLook } from './place.js';
@@ -18,7 +18,7 @@ import { inverse, cornersOf, sector, circle } from '../geodesy.js';
 import { snapAt, stepped, neighbours, RADIUS as SNAP_RADIUS } from './snap.js';
 import { attachTo, insertCorner, addVertex, refNear, lineRef, resolve, removeVertex, removeCorner, reattach } from './attach.js';
 import { removePartOf } from './generator.js';
-import { copyOf, paste, centreOf } from './clipboard.js';
+import { clipOf, paste, centreOf } from './clipboard.js';
 import { radiusTo, bearingTo, sectorEdgeTo, resizeRect, resizeSide, moved } from './drag.js';
 
 // the ID of the line being drawn, as measured for its values: always the same, so the traces cached by
@@ -167,8 +167,7 @@ export class Drawing extends DrawStore {
   }
   click(e) {
     const p = [e.lngLat.lng, e.lngLat.lat];
-    if (this.tool === 'line') return this.lineClick(e.point, e.originalEvent);
-    if (this.tool === 'measure') return this.measureClick(e.point, e.originalEvent);
+    if (this.tool === 'line' || this.tool === 'measure') return this.lineClick(e.point, e.originalEvent);
     if (this.tool === 'shape') return this.shapeClick(e.point, e.originalEvent);
     if (this.tool === 'sector') return this.sectorClick(e.point, e.originalEvent);
     // picking (Connect's roots): a click on a point or anywhere is for the picker, not a selection
@@ -304,7 +303,7 @@ export class Drawing extends DrawStore {
   // (else the map's centre), or duplicated beside itself (20 px on screen); one undo step, the copy selected
   copy() {
     if (!this.sel.size) return 0;
-    this.clip = copyOf(this.doc, [...this.sel]);
+    this.clip = clipOf(this.doc, [...this.sel]);
     return this.clip.items.length;
   }
   paste(clip = this.clip, at = null) {
@@ -318,7 +317,7 @@ export class Drawing extends DrawStore {
     return made.length;
   }
   duplicate() {
-    const clip = this.sel.size && copyOf(this.doc, [...this.sel]), c = clip && centreOf(clip);
+    const clip = this.sel.size && clipOf(this.doc, [...this.sel]), c = clip && centreOf(clip);
     if (!c) return 0;
     const q = this.map.project(c);
     return this.paste(clip, { x: q.x + 20, y: q.y + 20 });
@@ -366,23 +365,25 @@ export class Drawing extends DrawStore {
     if (to.end) return { position: p, pending: to };
     return attachTo(this.doc, to);
   }
-  // The Line tool, as Measure: each click a point, snapped (on something to attach to, its first and
-  // last attach there); Enter, a double-click or Done ends it, a click on its first point closes it
-  // into an area
+  // The Line tool, and Measure (drawing-ui.md §3) as it: each click a point, snapped (the Line tool's
+  // first and last, on something to attach to, attach there; a measurement's attach to nothing);
+  // Enter, a double-click or Done ends it, a click on its first point closes it into an area. What is
+  // measured goes in the drawing as a measurement (a guide showing its values, its legs' lengths shown
+  // as it is drawn), selected: saved and printed with it, deleted as anything else.
   lineClick(point, e) {
     if (this.closesPath(point)) return this.closeLine();
-    const d = this.draft, r = this.snapFor(point, e, this.lastLeg()), p = r.position;
-    if (!d) this.draft = { start: r.to ? this.endAt(r.to, p) : p, pts: [], lastTo: null };
+    const d = this.draft, r = this.snapFor(point, e, this.lastLeg()), p = r.position, to = this.tool === 'line' ? r.to : null;
+    if (!d) this.draft = { start: to ? this.endAt(to, p) : p, pts: [], lastTo: null };
     else {
       const last = this.lastLeg().from; // the start too: a double-click's second click, the same point
-      if (!last || last[0] !== p[0] || last[1] !== p[1]) { d.pts.push(p); d.lastTo = r.to ?? null; }
+      if (!last || last[0] !== p[0] || last[1] !== p[1]) { d.pts.push(p); d.lastTo = to ?? null; }
     }
     this.renderMarks();
     this.onChange('draft');
   }
   // end the line at its last point: attached to what it snapped to, else free
   finishLine() {
-    const d = this.draft;
+    const d = this.draft, measured = this.tool === 'measure';
     if (!d?.pts.length) return; // no second point: nothing to make yet
     const pts = d.pts.slice(), last = pts.pop(), to = d.lastTo ? this.endAt(d.lastTo, last) : last;
     this.draft = null;
@@ -391,13 +392,13 @@ export class Drawing extends DrawStore {
       // a free end waiting for its point (resolve): made now, once for both ends if they are the same
       const start = d.start?.pending ? attachTo(doc, d.start.pending) : d.start;
       const end = !to?.pending ? to : JSON.stringify(to.pending) === JSON.stringify(d.start?.pending) ? start : attachTo(doc, to.pending);
-      seg = addLine(doc, start, pts, end);
+      seg = addLine(doc, start, pts, end, measured ? { ...guideWithValues(), name: nextName(doc, 'line', 'Distance') } : {});
     });
     this.select([seg.id]);
     this.onChange('draft');
   }
   // Undo while a line or measurement is being drawn: its last point back (Backspace too)
-  undo() { if (this.draft && this.draft.pts.length) this.undoPoint(); else super.undo(); }
+  undo() { if (this.draft) this.undoPoint(); else super.undo(); }
   undoPoint() {
     const d = this.draft;
     if (!d) return;
@@ -408,48 +409,26 @@ export class Drawing extends DrawStore {
   cancelDraft() { this.draft = null; this.renderMarks(); this.onChange('draft'); }
   // the line or measurement being drawn, three points or more so far: the pointer on its first point (a
   // click there closes it)
-  pathPoints() { const d = this.draft; return !d ? [] : this.tool === 'line' ? [placeOfEnd(this.doc, d.start), ...d.pts].filter(Boolean) : d.pts; }
+  pathPoints() { const d = this.draft; return d?.start ? [placeOfEnd(this.doc, d.start), ...d.pts].filter(Boolean) : []; }
   closesPath(point) {
-    const pts = (this.tool === 'line' || this.tool === 'measure') && this.pathPoints();
+    const pts = this.finishesOnDoubleClick() && this.pathPoints();
     if (!pts || pts.length < 3) return false;
     const q = this.map.project(pts[0]);
     return Math.hypot(q.x - point.x, q.y - point.y) <= SNAP_PX;
   }
-  // the line closed: an area of its points (what its first point was attached to is not kept); the
-  // tool stays on for the next
+  // the line closed: an area of its points (what its first point was attached to is not kept; a
+  // measurement's shows its area and perimeter); the tool stays on for the next
   closeLine() {
-    const pts = this.pathPoints();
+    const pts = this.pathPoints(), measured = this.tool === 'measure';
     this.draft = null;
     let g;
-    this.change((doc) => { g = addArea(doc, pts); });
+    this.change((doc) => { g = addArea(doc, pts, measured ? guideWithValues() : {}); });
     this.select([g.id]);
-    this.onChange('draft');
-  }
-  // Measure (drawing-ui.md §3): a click a point, snapped (the leg's length and the total shown as it
-  // is drawn); Enter or a double-click ends it, a click on its first point closes it (its area and
-  // perimeter). What is measured goes in the drawing as a measurement (a guide showing its values),
-  // selected: saved and printed with it, deleted as anything else.
-  measureClick(point, e) {
-    if (this.closesPath(point)) return this.finishMeasure(true);
-    const p = this.snapFor(point, e, this.lastLeg()).position;
-    if (!this.draft) this.draft = { pts: [] };
-    const last = this.draft.pts.at(-1);
-    if (!last || last[0] !== p[0] || last[1] !== p[1]) this.draft.pts.push(p);
-    this.renderMarks();
-    this.onChange('draft');
-  }
-  finishMeasure(closed = false) {
-    const pts = this.draft?.pts ?? [];
-    if (pts.length < (closed ? 3 : 2)) return;
-    this.draft = null;
-    let el;
-    this.change((doc) => { el = closed ? addArea(doc, pts, guideWithValues()) : addLine(doc, pts[0], pts.slice(1, -1), pts.at(-1), { ...guideWithValues(), name: nextName(doc, 'line', 'Distance') }); });
-    this.select([el.id]);
     this.onChange('draft');
   }
   // the keys' (keyEvents): Enter or a double-click ends the line or measurement being drawn;
   // Esc drops it, or else ends the tool
-  finish() { if (this.tool === 'line') this.finishLine(); else if (this.tool === 'measure') this.finishMeasure(); }
+  finish() { if (this.finishesOnDoubleClick()) this.finishLine(); }
   escape() {
     if (this.tool === 'sector' && this.draft?.pts.length) return this.undoPoint(); // one click back
     if (this.draft && (this.draft.start || this.draft.pts.length)) this.cancelDraft();
@@ -537,15 +516,10 @@ export class Drawing extends DrawStore {
     const ap = Math.round(norm360(inverse(c, q).azi - a.azi) * 10) / 10 || 360;
     return { centre: c, r: a.s, bearing: +norm360(a.azi + ap / 2).toFixed(4), aperture: ap >= 360 ? null : ap, first };
   }
-  // the measurement being drawn, to the cursor: its points, or null
-  draftMeasure() {
-    if (this.tool !== 'measure' || !this.draft) return null;
-    return [...this.draft.pts, ...(this.cursor ? [this.cursor.p] : [])];
-  }
-  // the line being drawn, to the cursor: its points
+  // the line or measurement being drawn, to the cursor: its points
   draftLine() {
     const d = this.draft;
-    if (!d) return null;
+    if (!d || !this.finishesOnDoubleClick()) return null;
     const start = placeOfEnd(this.doc, d.start);
     if (!start) return null;
     return { pts: [start, ...d.pts, ...(this.cursor ? [this.cursor.p] : [])] };
@@ -569,9 +543,6 @@ export class Drawing extends DrawStore {
       if (this.draft.pts[1] && sec.r > 0) out.push(line(sec.aperture ? sector(sec.centre, sec.r, sec.bearing, sec.aperture) : circle(sec.centre, sec.r)));
       return out;
     }
-    const m = this.draftMeasure();
-    if (m) return [line(m), ...this.draft.pts.map(dot)];
-    if (this.tool !== 'line') return [];
     const l = this.draftLine();
     if (!l) return [];
     return [line(l.pts), ...l.pts.slice(0, this.cursor ? -1 : undefined).map(dot)];
@@ -588,13 +559,7 @@ export class Drawing extends DrawStore {
       return valueFeatures({ ...this.doc, points: [], lines: [], areas: [], [KIND[dragged.kind].list]: [shows(dragged.el)] }, u, b); // it alone
     }
     if (sh) return valueFeatures(sh.doc, u, b);
-    const ps = this.draftMeasure();
-    if (ps && ps.length > 1) {
-      const doc = emptyDoc(0);
-      addLine(doc, ps[0], ps.slice(1, -1), ps.at(-1), { ...guideWithValues(), id: DRAFT_ID });
-      return valueFeatures(doc, u, b);
-    }
-    const l = this.tool === 'line' && this.draftLine();
+    const l = this.draftLine();
     if (!l || l.pts.length < 2) return [];
     const doc = emptyDoc(0);
     addLine(doc, l.pts[0], l.pts.slice(1, -1), l.pts.at(-1), { ...guideWithValues(), id: DRAFT_ID });
@@ -765,29 +730,25 @@ export class Drawing extends DrawStore {
     const r = this.snapFor(pt, e, { exclude: opts.exclude });
     return r.kind ? r : { position: at, to: null };
   }
-  // the selection moved by the pointer's displacement, each kind as features.js GEOMETRY says: points,
-  // lines (their vertices, their free ends, the points their ends are attached to), areas, a group's
-  // members; each position once
-  // Labels: alone in the selection, their text moves (its offset on screen); with other elements, a
-  // free one moves with them, one on an element follows it.
+  // the selection moved by the pointer's displacement (a group: everything in it), each position once:
+  // a line's end attached moves what it is on when that is a point (once, however many ends are on
+  // it), else follows it. Labels: alone in the selection, their text moves (its offset on screen); with
+  // other elements, a free one moves with them, one on an element follows it.
   moveSelection(doc, start, p) {
     const onlyLabels = [...this.sel].every((id) => find(doc, id)?.kind === 'label');
-    const a = this.map.project(start), b = this.map.project(p);
-    const mv = (pos) => moved(pos, start, p), seen = new Set();
-    const acc = { points: new Set(), lines: new Set(),
-      once: (el) => !seen.has(el) && !!seen.add(el),
-      label: (el) => {
-        if (!acc.once(el)) return;
-        if (onlyLabels) el.offset = [Math.round(el.offset[0] + b.x - a.x), Math.round(el.offset[1] + b.y - a.y)];
-        else if (!el.anchor.element) el.anchor.position = mv(el.anchor.position);
-      },
-      each: (x) => GEOMETRY[x.kind].move(doc, x.el, mv, acc) };
-    for (const id of this.sel) { const x = find(doc, id); if (x) acc.each(x); }
-    for (const sg of acc.lines) {
-      for (const e of [sg.start, sg.end]) if (e.element) acc.points.add(e.element); else e.position = mv(e.position);
-      for (const v of sg.vertices) v.position = mv(v.position);
+    const a = this.map.project(start), b = this.map.project(p), mv = (pos) => moved(pos, start, p);
+    const points = new Set(); // the points moved: selected, or what a selected line's end is on
+    for (const { kind, el } of leavesOf(doc, this.sel)) {
+      if (kind === 'point') points.add(el.id);
+      else if (kind === 'label' && onlyLabels) el.offset = [Math.round(el.offset[0] + b.x - a.x), Math.round(el.offset[1] + b.y - a.y)];
+      else {
+        for (const [o, k] of positionsIn(kind, el)) {
+          if (!o.element) o[k] = mv(o[k]);
+          else if (kind === 'line') points.add(o.element); // a line's end attached: what it is on moves, if a point; a label on one follows it
+        }
+      }
     }
-    for (const n of doc.points) if (acc.points.has(n.id)) n.position = mv(n.position);
+    for (const n of doc.points) if (points.has(n.id)) n.position = mv(n.position);
   }
 
   // Box select (Select's other kind, B): the next drag on the map, a mouse's or a finger's, draws the

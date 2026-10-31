@@ -10,11 +10,10 @@ import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET, META_D,
   emptyDoc, newId, columnsOf } from './document.js';
 import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, pointSpec, parts, readView, VIEW_D, VIEW_DATA_D } from './check.js';
 import { resolve, targetPosition, refreshAttached } from './attach.js';
-import { groupSizeOf, patternOf, DISTRIBUTE_D, CONNECT_D } from './generator.js';
+import { groupSizeOf, patternOf, settings, DISTRIBUTE_D, CONNECT_D } from './generator.js';
 import { positionsOf } from './lines.js';
 import { norm180, samePosition, signedArea2 } from '../geo.js';
 
-const SIDES = ['left', 'right', 'alternate'];
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
 const MAX_POSITIONS = 100000; // positions in one line or area: more would stall the page at every change
 const MAX_FEATURES = 20000; // elements in one file: the rest are skipped (as many points stall the list)
@@ -185,13 +184,8 @@ function read(raw, app, known, now, report) {
         const along = isObj(x.along) ? ref(x.along.element) : null;
         if (!along) c.skip('nothing it is along');
         taken.add(x.id);
-        const D = DISTRIBUTE_D, d = (k) => (fin(x[k]) && x[k] >= 0 ? x[k] : D[k]);
-        const copy = isObj(x.copy) ? pointSpec(x.copy, c) : null;
         return { id: x.id, kind: 'distribute', groupId: ref(x.groupId), copiesId: ref(x.copiesId), along: { element: along, part: Number.isInteger(x.along.part) && x.along.part >= 0 ? x.along.part : null },
-          spacing: fin(x.spacing) && x.spacing > 0 ? x.spacing : D.spacing, count: Number.isInteger(x.count) && x.count > 0 ? x.count : D.count,
-          startMargin: d('startMargin'), endMargin: d('endMargin'), offset: d('offset'), side: SIDES.includes(x.side) ? x.side : D.side,
-          radius: fin(x.radius) && x.radius > 0 ? x.radius : D.radius, aperture: fin(x.aperture) && x.aperture > 0 && x.aperture < 360 ? x.aperture : D.aperture,
-          preset: typeof x.preset === 'string' ? x.preset : D.preset, copy: copy?.parts.length ? copy : D.copy,
+          ...settings({ ...x, copy: isObj(x.copy) ? pointSpec(x.copy, c) : null }),
           points: Array.isArray(x.points) ? x.points.filter((f) => isObj(f) && ref(f.pointId) && fin(f.t) && pair(f.pos)).map((f) => ({ pointId: f.pointId, t: f.t, left: f.left === true, pos: [f.pos[0], f.pos[1]] })) : [] };
       }
       taken.add(x.id);

@@ -5,35 +5,18 @@
 // elements as the document does, in this page, so they paste into another drawing opened in it too.
 // Pure.
 
-import { find, elements, membersOf, newId, idsOf, KIND, nextName } from './document.js';
+import { find, leavesOf, positionsIn, newId, idsOf, KIND, nextName } from './document.js';
 import { extentOf } from './features.js';
 
 const clone = (x) => structuredClone(x);
 
 // The elements ids as a clipboard: { items: [{ kind, el }] } (for a group, everything in it; the
 // groups themselves are not copied); a label's anchor holds where it points.
-export function copyOf(doc, ids) {
-  const want = new Set();
-  for (const id of ids) {
-    const x = find(doc, id);
-    if (!x) continue;
-    if (x.kind === 'group') for (const m of membersOf(doc, id, true)) { if (m.kind !== 'group') want.add(m.el.id); } else want.add(id);
-  }
-  const items = elements(doc).filter((x) => want.has(x.el.id)).map(({ kind, el }) => ({ kind, el: clone(el) }));
-  return { items };
-}
+export const clipOf = (doc, ids) => ({ items: leavesOf(doc, ids).map(({ kind, el }) => ({ kind, el: clone(el) })) });
 
-// every position an element has (to move it), as [object, key] pairs
-function places(kind, el) {
-  if (kind === 'point') return [[el, 'position']];
-  if (kind === 'area') return el.points.map((_, i) => [el.points, i]);
-  if (kind === 'line') return [[el.start, 'position'], [el.end, 'position'], ...el.vertices.map((v) => [v, 'position'])];
-  if (kind === 'label') return [[el.anchor, 'position']]; // where it points: an attached one's follows what it is on
-  return [];
-}
 // the middle of what a clipboard holds (its bounding box's centre), or null
 export function centreOf(clip) {
-  const b = extentOf(clip.items.flatMap(({ kind, el }) => places(kind, el).map(([o, k]) => o[k])));
+  const b = extentOf(clip.items.flatMap(({ kind, el }) => positionsIn(kind, el).map(([o, k]) => o[k])));
   return b && [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
 }
 // "Point 4" → "Point"; a name with no number of its own is its own base
@@ -51,7 +34,7 @@ export function paste(doc, clip, mv) {
     el.id = ids.get(src.id);
     el.name = nameOn(doc, kind, baseOf(src.name));
     if (el.groupId && !groups.has(el.groupId)) el.groupId = null;
-    for (const [o, k] of places(kind, el)) o[k] = mv(o[k]);
+    for (const [o, k] of positionsIn(kind, el)) o[k] = mv(o[k]);
     if (kind === 'line') {
       for (const key of ['start', 'end']) {
         const e = el[key];
