@@ -160,4 +160,6 @@ export function exportName(when, lat, lng) {
 // rows as text a spreadsheet takes: tab-separated, a header line first
 export const rowsText = (head, rows) => [head, ...rows].map((r) => r.map((v) => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t')).join('\n') + '\n';
 // "1 line", "2 lines"
+// a name as part of a file's name: letters, digits and hyphens, at most 60 ('' when none is left)
+export const slug = (t) => t.normalize('NFKD').replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-').slice(0, 60);
 export const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;

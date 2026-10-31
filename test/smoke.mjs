@@ -384,8 +384,8 @@ await section('the PNG and GIS exports', async () => {
   // an export that fails says so in the note, its button as it was, and the next click tries again
   await again.route('**/polygon-clipping*', (r) => r.abort());
   await exportItem(again, 'zip');
-  await again.waitForFunction(() => /export failed/.test(document.querySelector('.dnote')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
-  const [zipNote, zipLabel] = await again.evaluate(() => [document.querySelector('.dnote')?.textContent || '', document.querySelector('#zip span').textContent]);
+  await again.waitForFunction(() => /export failed/.test(document.querySelector('.dnote:not(#update)')?.textContent || ''), null, { timeout: 15000 }).catch(() => {});
+  const [zipNote, zipLabel] = await again.evaluate(() => [document.querySelector('.dnote:not(#update)')?.textContent || '', document.querySelector('#zip span').textContent]);
   check(/^GIS data \(ZIP\): export failed: .*polygon-clipping/.test(zipNote) && zipLabel === 'GIS data (ZIP)', `a failed GIS export says so in the note (${zipNote}; the button: ${zipLabel})`);
   await again.unroute('**/polygon-clipping*');
   await again.keyboard.press('Escape'); // the menu closed (from 1024 px wide it stays open while an export runs)

@@ -8,7 +8,7 @@ import { popup, dialog, ask, note } from '../menu.js';
 import { parse } from './file.js';
 import { elements, isMeasurement, mainOutline } from './document.js';
 import { presetsFile, readPresets, savePresets } from './presets.js';
-import { plural } from '../format.js';
+import { plural, slug } from '../format.js';
 import { icon, UI_ICON } from '../icons.js';
 
 // drawing (drawing.js); ctx: { download(text, name), openDrawing(id), onImport(doc, view), openArea(file) (an offline area's zip),
@@ -20,7 +20,7 @@ export function fileGroup(drawing, ctx, presetsChanged) {
   function exportFile() {
     const text = drawing.text();
     const when = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
-    const title = drawing.doc.meta.title.normalize('NFKD').replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'chart';
+    const title = slug(drawing.doc.meta.title) || 'chart';
     ctx.download(text, `${title}-${when}.geojson`);
   }
   // one menu, opened from Open or from Download, with what that button holds

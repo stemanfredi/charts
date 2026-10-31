@@ -3,7 +3,7 @@
 // (Shift: a range; Ctrl/⌘: add or remove), hovered on the map, renamed (a double-click, F2), dragged
 // into a group or before one of their kind, shown or hidden by their eye.
 
-import { h } from '../dom.js';
+import { h, editInPlace } from '../dom.js';
 import { find, elements, groupsOf, membersOf, label, KIND, pointKind, mainOutline, followedPart, setGroup, moveBefore, isShown } from './document.js';
 import { labelText } from './labels.js';
 import { builtInName } from './place.js';
@@ -173,38 +173,21 @@ export function createTree(drawing, ctx, { facts }) {
   function rename(id) {
     const row = list.querySelector(`[data-id="${CSS.escape(id)}"]`), x = find(drawing.doc, id);
     if (!row || !x) return;
-    const btn = row.querySelector('.dname'), key = x.kind === 'label' ? 'text' : 'name'; // a label is its text
-    const input = h('input', { class: 'dname', value: x.el[key], 'aria-label': key === 'text' ? 'Text' : 'Name' });
-    let done = false;
-    const finish = (apply) => {
-      if (done) return;
-      done = true;
-      if (apply && input.value !== x.el[key]) drawing.change((doc) => { find(doc, id).el[key] = input.value; });
+    const key = x.kind === 'label' ? 'text' : 'name'; // a label is its text
+    editInPlace(row.querySelector('.dname'), x.el[key], { 'aria-label': key === 'text' ? 'Text' : 'Name' }, (v) => {
+      if (v !== null && v !== x.el[key]) drawing.change((doc) => { find(doc, id).el[key] = v; });
       else render();
-    };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } });
-    input.addEventListener('blur', () => finish(true));
-    btn.replaceWith(input);
-    input.focus();
-    input.select();
+    });
   }
 
   // the drawing renamed in its row, as an element is: its title
   function renameDrawing() {
-    const input = h('input', { class: 'dname', value: drawing.doc.meta.title || '', placeholder: 'Untitled drawing', 'aria-label': 'Title' });
-    let done = false;
-    const finish = (apply) => {
-      if (done) return;
-      done = true;
+    const title = drawing.doc.meta.title || '';
+    const input = editInPlace(rootName, title, { placeholder: 'Untitled drawing', 'aria-label': 'Title' }, (v) => {
       input.replaceWith(rootName);
-      if (apply && input.value !== (drawing.doc.meta.title || '')) drawing.change((doc) => { doc.meta.title = input.value; });
+      if (v !== null && v !== title) drawing.change((doc) => { doc.meta.title = v; });
       else render();
-    };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') { e.stopPropagation(); finish(false); } });
-    input.addEventListener('blur', () => finish(true));
-    rootName.replaceWith(input);
-    input.focus();
-    input.select();
+    });
   }
 
   function mark() {

@@ -48,6 +48,19 @@ const NAMES = ['type', 'role', 'aria-label', 'data-unit', 'data-r', 'data-id', '
 const sameAs = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && NAMES.every((k) => a.getAttribute(k) === b.getAttribute(k))
   && (!(button(a) || button(b)) || (a.className === b.className && a.textContent === b.textContent))));
 const button = (el) => el.acts && (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button');
+// A name edited in place: an input where el was, focused; Enter or leaving it applies, Esc does not.
+// apply(value), once: the text typed, or null when cancelled (the caller draws the row again).
+export function editInPlace(el, value, attrs, apply) {
+  const input = h('input', { class: 'dname', value, ...attrs });
+  let done = false;
+  const finish = (ok) => { if (!done) { done = true; apply(ok ? input.value : null); } };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } });
+  input.addEventListener('blur', () => finish(true));
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  return input;
+}
 export function morph(old, next) {
   const was = [...old.childNodes], now = [...next.childNodes];
   now.forEach((n, i) => {
