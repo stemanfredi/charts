@@ -4,7 +4,7 @@
 // into a group or before one of their kind, shown or hidden by their eye.
 
 import { h } from '../dom.js';
-import { find, elements, groupsOf, label, kindName, pointKind, POINT_KIND_NAME, mainOutline, followedPart, setGroup, moveBefore, isShown } from './document.js';
+import { find, elements, groupsOf, membersOf, label, kindName, pointKind, POINT_KIND_NAME, mainOutline, followedPart, setGroup, moveBefore, isShown } from './document.js';
 import { labelText } from './labels.js';
 import { OUTLINE_NAME } from './outlines.js';
 import { lineTrace } from './lines.js';
@@ -101,7 +101,7 @@ export function createTree(drawing, ctx, { facts }) {
     const offset = el.look?.offset ? '⇉' : ''; // Offset set here: found again in the list
     if (kind === 'line') return [el.guide ? 'guide' : '', fmtDist(lineTrace(drawing.doc, el).length, u), offset].filter(Boolean).join(' · ');
     if (kind === 'label') return el.name?.trim() ? labelText(drawing.doc, el, u).split('\n')[0] : ''; // unnamed: its text is its name already
-    const t = facts().totals.groups.get(el.id), n = t ? t.points + t.lines + t.areas : 0;
+    const n = membersOf(drawing.doc, el.id, true).filter((x) => x.kind !== 'group').length; // labels and guides too: the totals leave them out
     return [n ? plural(n, 'element') : 'empty', offset].filter(Boolean).join(' · ');
   }
 

@@ -140,29 +140,26 @@ export function nearestAlong(coords, p) {
   return at;
 }
 
-// Totals: each line's length (guides left out: they are supporting geometry), the lines' count and
-// length, the points' count (ringed: those with radii) and the areas' count, per group (everything
-// in it, its subgroups' too), per value of the property by (a key; '' for those without it), and for
-// the whole drawing. Hidden elements count, and each total says whether it includes any (hidden:
-// true). Groups by ID ('' for not grouped); values only with by.
-export function totals(doc, by = null) {
-  const lines = new Map();
+// Totals: the lines' count and length (guides left out: they are supporting geometry), the points'
+// count (ringed: those with radii) and the areas' count, per group (everything in it, its subgroups'
+// too) and for the whole drawing. Hidden elements count, and each total says whether it includes any
+// (hidden: true). Groups by ID ('' for not grouped).
+export function totals(doc) {
   const bucket = () => ({ length: 0, lines: 0, points: 0, ringed: 0, areas: 0, hidden: false });
-  const groups = new Map(), values = new Map(), all = bucket();
-  const into = (map, key) => { if (!map.has(key)) map.set(key, bucket()); return map.get(key); };
+  const groups = new Map(), all = bucket();
+  const into = (key) => { if (!groups.has(key)) groups.set(key, bucket()); return groups.get(key); };
   const each = (el, fn) => {
-    const gs = groupsOf(doc, el).map((g) => g.id), value = by ? [into(values, el.properties.find((p) => p.key === by)?.value ?? '')] : [];
-    for (const b of [...(gs.length ? gs : ['']).map((g) => into(groups, g)), ...value, all]) { fn(b); if (!isShown(doc, el)) b.hidden = true; }
+    const gs = groupsOf(doc, el).map((g) => g.id);
+    for (const b of [...(gs.length ? gs : ['']).map(into), all]) { fn(b); if (!isShown(doc, el)) b.hidden = true; }
   };
   for (const s of doc.lines) {
     if (s.guide) continue;
     const len = lineTrace(doc, s).length;
-    lines.set(s.id, len);
     each(s, (b) => { b.length += len; b.lines++; });
   }
   for (const p of doc.points) if (!p.guide) each(p, (b) => { b.points++; if (roundParts(p).length) b.ringed++; });
   for (const g of doc.areas) if (!g.guide) each(g, (b) => { b.areas++; });
-  return { lines, groups, values, all };
+  return { groups, all };
 }
 
 // The lines a connection made, by what each is, from its ends: 'trunk' (a tree's, root → hub),

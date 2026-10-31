@@ -111,30 +111,24 @@ test('nearest along: the distance from the start of the place nearest a position
   near(nearestAlong(tr.coords, [12.1, 41]), tr.length, 1e-6, 'past the end');
 });
 
-test('totals: per line, per group, per value of a property and in all; guides left out; hidden elements flagged', () => {
+test('totals: per group and in all; guides left out; hidden elements flagged', () => {
   const doc = emptyDoc(0);
   const ringedPoint = addPoint(doc, [12, 40]), dot = addDot(doc, [12.1, 40]);
   addPoint(doc, [12.2, 40], { guide: true });
   const inGroup = addLine(doc, ringedPoint.id, [], dot.id, { properties: [{ key: 'kind', value: 'x' }] });
-  const guide = addLine(doc, [12, 40], [], [12.3, 40], { guide: true });
+  addLine(doc, [12, 40], [], [12.3, 40], { guide: true });
   const hidden = addLine(doc, [12, 41], [[12.1, 41.1]], [12.2, 41], { properties: [{ key: 'kind', value: 'x' }], visible: false });
   addArea(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
   addArea(doc, [[13, 42], [13.1, 42], [13.1, 42.1]], { guide: true });
   const g = makeGroup(doc, [ringedPoint.id, dot.id, inGroup.id]);
-  const t = totals(doc, 'kind');
+  const t = totals(doc);
   const a = lineTrace(doc, inGroup).length, b = lineTrace(doc, hidden).length;
-  assert.deepEqual([...t.lines.keys()].sort(), [inGroup.id, hidden.id].sort(), 'guides have no total');
-  near(t.lines.get(inGroup.id), a, 1e-9, 'a line\'s length');
-  assert.ok(!t.lines.has(guide.id));
-  assert.deepEqual({ ...t.all, length: 0 }, { length: 0, lines: 2, points: 2, ringed: 1, areas: 1, hidden: true });
+  assert.deepEqual({ ...t.all, length: 0 }, { length: 0, lines: 2, points: 2, ringed: 1, areas: 1, hidden: true }, 'guides left out');
   near(t.all.length, a + b, 1e-6, 'all');
   // the group's points: one with a round part (the group's), a dot without
   assert.deepEqual({ ...t.groups.get(g.id), length: 0 }, { length: 0, lines: 1, points: 2, ringed: 1, areas: 0, hidden: false });
+  near(t.groups.get(g.id).length, a, 1e-9, 'the group\'s line');
   assert.deepEqual({ ...t.groups.get(''), length: 0 }, { length: 0, lines: 1, points: 0, ringed: 0, areas: 1, hidden: true });
-  near(t.values.get('x').length, a + b, 1e-6, 'kind x');
-  assert.equal(t.values.get('x').hidden, true);
-  assert.equal(t.values.get('').hidden, false); // those without it
-  assert.equal(totals(doc).values.size, 0, 'no key: no values counted');
   // a hidden group hides its members: its totals say so
   g.visible = false;
   assert.equal(totals(doc).groups.get(g.id).hidden, true);

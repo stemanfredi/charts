@@ -43,7 +43,7 @@ export function drawView(root, ctx) {
   let facts = null; // the totals: computed once per change, when the list or the inspector reads them
   let totalsBy = ''; // the drawing's totals by group (''), or by the values of a property (its key)
   const totalsFolded = new Set(); // the Totals view's groups folded (by key)
-  const computeFacts = () => (facts = { totals: totals(drawing.doc, totalsBy || null), breakdown: breakdown(drawing.doc, totalsBy || null) });
+  const computeFacts = () => (facts = { totals: totals(drawing.doc), breakdown: breakdown(drawing.doc, totalsBy || null) });
   const fx = () => facts || computeFacts();
 
   drawing.presets = loadPresets();
