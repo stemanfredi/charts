@@ -17,7 +17,7 @@ import { DISTRIBUTE_D, distribute, lines, plan, planConnection, makeDistribution
 import { BUILT_IN, builtInName } from './place.js';
 import { boundsOf, drawable } from './features.js';
 import { inverse, areaOf, pathOf, destination, perimeterOf } from '../geodesy.js';
-import { norm360 } from '../geo.js';
+import { norm180, norm360 } from '../geo.js';
 import { fields, choice, select, check } from '../fields.js';
 import { mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetTool } from './presets.js';
@@ -40,6 +40,11 @@ const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'under
 export function drawView(root, ctx) {
   const { drawing, map, icon } = ctx;
   const F = fields({ note, units: ctx.units }), { field } = F; // fields.js: each applies on Enter or when left
+  // a longitude past ±180° (clicked on a world copy) shown in range, as the file writes it: the field
+  // would refuse it back
+  const { coord, position } = F, inRange = (v) => (v == null ? v : norm180(v));
+  F.coord = (axis, get, ...rest) => coord(axis, axis === 'lon' ? () => inRange(get()) : get, ...rest);
+  F.position = (get, ...rest) => position(() => { const p = get(); return [inRange(p[0]), p[1]]; }, ...rest);
   let facts = null; // the totals: computed once per change, when the list or the inspector reads them
   let totalsBy = ''; // the drawing's totals by group (''), or by the values of a property (its key)
   const totalsFolded = new Set(); // the Totals view's groups folded (by key)
@@ -1012,7 +1017,7 @@ export function drawView(root, ctx) {
     // copy, paste, duplicate (Ctrl/⌘ C, V, D): the selection's elements, not text being typed
     if (mod && !e.altKey && !typed && ['c', 'v', 'd'].includes(e.key.toLowerCase())) {
       const k = e.key.toLowerCase();
-      if (k === 'c' && !drawing.sel.size) return; // nothing selected: the page's own copy
+      if (k === 'c' && (!drawing.sel.size || !getSelection().isCollapsed)) return; // nothing selected, or text (in Properties): the page's own copy
       e.preventDefault();
       const n = k === 'c' ? drawing.copy() : k === 'v' ? drawing.paste() : drawing.duplicate();
       if (n && k === 'c') note(`Copied: ${plural(n, 'element')}`); // the clipboard has no other sign; a paste or a copy made is selected

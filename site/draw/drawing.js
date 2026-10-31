@@ -827,13 +827,17 @@ export class Drawing extends DrawStore {
       const p = at(e);
       Object.assign(box.style, { left: `${Math.min(from.x, p.x)}px`, top: `${Math.min(from.y, p.y)}px`, width: `${Math.abs(p.x - from.x)}px`, height: `${Math.abs(p.y - from.y)}px` });
     });
-    window.addEventListener('pointerup', (e) => {
-      if (!from) return;
-      const p = at(e), a = from;
+    const end = () => {
       from = null;
       box.hidden = true;
       map.dragPan.enable();
       if (this.boxNext) this.boxSelect(false); // one box, then Select again
+    };
+    window.addEventListener('pointercancel', () => { if (from) end(); }); // taken by the browser: nothing selected
+    window.addEventListener('pointerup', (e) => {
+      if (!from) return;
+      const p = at(e), a = from;
+      end();
       if (Math.abs(p.x - a.x) < 3 && Math.abs(p.y - a.y) < 3) return; // a click, not a drag
       this.select(this.inside([Math.min(a.x, p.x), Math.min(a.y, p.y), Math.max(a.x, p.x), Math.max(a.y, p.y)]), 'add');
       this.onChange('area');
