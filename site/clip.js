@@ -17,7 +17,7 @@ import { NO_DEPTH_M } from './catalog.js';
 import { HOSTS } from './hosts.js';
 import { gebcoTile, gebcoSeaTile } from './gebco.js';
 import { latOf, tileBounds, TILE } from './geo.js';
-import { FETCH, fetchOk, lru } from './net.js';
+import { fetchOk, fetchBytes, tileUrl, lru } from './net.js';
 
 const OMT_MAXZOOM = 14;
 // Every tile is cut, at every zoom: each shortcut tried (deep ocean, low zooms) left a hole
@@ -124,15 +124,9 @@ function waterLayer(buf) {
 
 const omtCache = lru(48); // promises of tiles (net.js lru): shared by neighbouring requests
 
-// the `water` layer of OpenMapTiles tile oz/ox/oy (cached)
+// the `water` layer of OpenMapTiles tile oz/ox/oy (cached); a tile empty (204) or not there: none
 function omtLayer(omtTemplate, oz, ox, oy) {
-  return omtCache(`${oz}/${ox}/${oy}`, async () => {
-    const url = (await omtTemplate()).replace('{z}', oz).replace('{x}', ox).replace('{y}', oy);
-    const r = await fetch(url, FETCH);
-    if (r.status === 204 || r.status === 404) return { extent: 4096, features: [] }; // empty tile
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return waterLayer(new Uint8Array(await r.arrayBuffer()));
-  });
+  return omtCache(`${oz}/${ox}/${oy}`, async () => waterLayer((await fetchBytes(tileUrl(await omtTemplate(), oz, ox, oy))) ?? new Uint8Array(0)));
 }
 
 // surface of the DATUMS water body at lon/lat, or 0 (sea level)
@@ -299,7 +293,7 @@ export function clipper({ template, mode, omtTileJson, remember = true }) {
   const rawCache = lru(64), cache = lru(64), waterLevel = remember ? new Map() : { has: () => false, set() {} }; // waterLevel: OSM id → DEPTH, FLAT or LAKE
   // a tile's elevation in metres as the data has it (no mask): also what inland water is classified
   // from, at lower zooms too
-  const raw = (z, x, y) => rawCache(`${z}/${x}/${y}`, () => (mode === 'sea' ? gebcoTile(z, x, y) : demMetres(template.replace('{z}', z).replace('{x}', x).replace('{y}', y))));
+  const raw = (z, x, y) => rawCache(`${z}/${x}/${y}`, () => (mode === 'sea' ? gebcoTile(z, x, y) : demMetres(tileUrl(template, z, x, y))));
   // the sea's depths as drawn: blended from water cells alone (gebco.js), so the shore's land cells do
   // not pull them shallower; the land's are its DEM as it is
   const drawn = (z, x, y) => (mode === 'sea' ? rawCache(`${z}/${x}/${y}/sea`, () => gebcoSeaTile(z, x, y)) : raw(z, x, y));
@@ -394,46 +388,48 @@ export function clipper({ template, mode, omtTileJson, remember = true }) {
 // The cutting is the page's heaviest work (seconds of main-thread time while panning); in a
 // worker the map stays responsive. Tiles come back transferred, not copied.
 const zxy = (url) => url.match(/(\d+)\/(\d+)\/(\d+)(?:\.png)?$/).slice(1).map(Number);
-let worker = null, seq = 0, diedAt = 0;
-const replies = new Map(), inits = []; // each clipper's init, sent again to a worker started anew
-const RETRY_MS = 5000; // after the worker died: no new one before this, or a script that fails to load is fetched at every tile
-function clipWorker() {
-  if (worker) return worker;
-  if (Date.now() - diedAt < RETRY_MS) throw new Error('clip worker: not running');
-  const w = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
-  worker = w;
+// A clipping worker started with its clippers' inits: ask(msg, signal) → promise of its answer (the
+// signal's abort cancels the tile there too); stop() ends it, and fails what waits on it. Dying (out
+// of memory, a script error) fails what waits and what is asked later, died(message) said once (a
+// dead worker may report twice). The page's own (below), and offline.js's for saving an area
+export function startClipWorker(inits, died = () => {}) {
+  const w = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' }), replies = new Map();
+  let seq = 0, dead = null;
   for (const init of inits) w.postMessage({ init });
+  const end = (err) => { dead = err; w.terminate(); for (const r of replies.values()) r.reject(err); replies.clear(); };
   w.onmessage = ({ data }) => {
-    if (data.setup) { console.error(`clip worker, ${data.setup} set-up:`, data.error); return; } // every tile of that mode will fail: said once, here
     const r = replies.get(data.seq);
     replies.delete(data.seq);
     if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);
   };
-  // the worker died (out of memory, a script error): every tile waiting on it fails now rather than
-  // waits forever, and a later ask starts a new one. Said once: a dead worker may report twice
-  w.onerror = (e) => {
-    if (worker !== w) return;
-    console.error('clip worker:', e.message);
-    w.terminate();
-    worker = null;
-    diedAt = Date.now();
-    for (const r of replies.values()) r.reject(new Error(`clip worker: ${e.message}`));
-    replies.clear();
+  w.onerror = (e) => { if (!dead) { end(new Error(`clip worker: ${e.message}`)); died(e.message); } };
+  return {
+    init: (init) => w.postMessage({ init }),
+    ask: (msg, signal) => new Promise((resolve, reject) => {
+      if (dead) { reject(dead); return; }
+      const n = ++seq;
+      replies.set(n, { resolve, reject });
+      signal?.addEventListener('abort', () => { replies.delete(n); reject(new Error('aborted')); if (!dead) w.postMessage({ cancel: n }); }, { once: true });
+      w.postMessage({ ...msg, seq: n });
+    }),
+    stop: () => end(new Error('aborted')),
   };
-  return w;
 }
-const ask = (msg, signal) => new Promise((resolve, reject) => {
-  const w = clipWorker(); // throws while it is not to be started: this tile fails
-  const n = ++seq;
-  replies.set(n, { resolve, reject });
-  signal?.addEventListener('abort', () => { replies.delete(n); reject(new Error('aborted')); if (worker === w) w.postMessage({ cancel: n }); }, { once: true });
-  w.postMessage({ ...msg, seq: n });
-});
+let worker = null, diedAt = 0;
+const inits = []; // each clipper's init, sent again to a worker started anew
+const RETRY_MS = 5000; // after the worker died: no new one before this, or a script that fails to load is fetched at every tile
+// the page's worker; one that died: every tile waiting on it has failed, and a later ask starts a new one
+function clipWorker() {
+  if (worker) return worker;
+  if (Date.now() - diedAt < RETRY_MS) throw new Error('clip worker: not running');
+  return (worker = startClipWorker(inits, (message) => { console.error('clip worker:', message); worker = null; diedAt = Date.now(); }));
+}
+const ask = async (msg, signal) => clipWorker().ask(msg, signal); // throws while it is not to be started: this tile fails
 
 // MapLibre protocol handler and maplibre-contour hooks for one clipper (mode 'sea' or 'land')
 export function workerClipper({ template, mode, omtTileJson }) {
   inits.push({ template, mode, omtTileJson });
-  if (worker) worker.postMessage({ init: inits.at(-1) }); // else the next start sends every init once
+  if (worker) worker.init(inits.at(-1)); // else the next start sends every init once
   else clipWorker();
   return {
     protocol: async (params, abortController) => {

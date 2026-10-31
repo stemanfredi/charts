@@ -9,10 +9,11 @@ import { h } from './dom.js';
 import { HOSTS, OFFLINE_PREFIXES } from './hosts.js';
 import { OMT_TILEJSON, DEM_TILES, DEM_LAND_MAX, DEM_SEA_MAX } from './catalog.js';
 import { FONTS, GLYPHS, SEAMARK_TILES, SEAMARKS_MIN, ISOBATH_MAX } from './style.js';
-import { fetchOk } from './net.js';
+import { fetchOk, tileUrl } from './net.js';
 import { tileXY, MAX_LAT } from './geo.js';
 import { ask } from './menu.js';
 import { zip, unzip } from './zip.js';
+import { startClipWorker } from './clip.js';
 
 // the map's sources an area keeps (style.js): without a connection, theirs fail only beyond the
 // saved areas, which is no fault to mark
@@ -24,7 +25,6 @@ export const TOP_MAX = 14; // the base map's tiles stop there; the map magnifies
 const CONTOUR_MAX = Math.min(ISOBATH_MAX, DEM_LAND_MAX); // the contours and isobaths stop there (style.js)
 const RANGES = [0, 256, 512, 768, 1024]; // the fonts' characters for Latin, Greek and Cyrillic
 const PACK = 'pack-', MANIFEST = () => new URL('pack.json', document.baseURI).href;
-const fill = (t, [z, x, y]) => t.replace('{z}', z).replace('{x}', x).replace('{y}', y);
 const isBaseTile = (url) => url.startsWith(`${HOSTS.openfreemap}/planet/`); // not the fonts, not the description
 const MB = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${(n / 1e6).toFixed(n < 1e7 ? 1 : 0)} MB`);
 
@@ -70,27 +70,13 @@ const sw = () => navigator.serviceWorker?.controller;
 const tell = (msg) => sw()?.postMessage(msg);
 const askSw = (msg) => new Promise((resolve) => { const c = new MessageChannel(); c.port1.onmessage = (e) => resolve(e.data); sw()?.postMessage(msg, [c.port2]); setTimeout(() => resolve(null), 2000); });
 
-// A clipping worker of its own (clip-worker.js): its caches start empty, so each file the cut reads
-// is asked for, and kept
+// A clipping worker of its own (clip.js): its caches start empty, so each file the cut reads is
+// asked for, and kept. remember false: each tile does its own reading of a lake's shore at lower
+// zooms, so the area holds what any tile the page asks first would read (the page's worker
+// remembers what its first one found)
 function freshClipper() {
-  const w = new Worker(new URL('./clip-worker.js', import.meta.url), { type: 'module' });
-  const replies = new Map();
-  let seq = 0, died = null;
-  // remember false: each tile does its own reading of a lake's shore at lower zooms, so the area holds
-  // what any tile the page asks first would read (the page's worker remembers what its first one found)
-  w.postMessage({ init: { mode: 'sea', omtTileJson: OMT_TILEJSON, remember: false } });
-  w.postMessage({ init: { template: DEM_TILES, mode: 'land', omtTileJson: OMT_TILEJSON, remember: false } });
-  w.onmessage = ({ data }) => {
-    const r = replies.get(data.seq);
-    replies.delete(data.seq);
-    if (data.setup) for (const x of replies.values()) x.reject(new Error(data.error));
-    else if (r) data.error ? r.reject(new Error(data.error)) : r.resolve(data.value);
-  };
-  // the worker died (out of memory, a script error): what waits on it fails, and what is asked later
-  w.onerror = (e) => { died = new Error(`the clipping worker stopped: ${e.message}`); for (const r of replies.values()) r.reject(died); replies.clear(); };
-  const run = (mode, op, zxy) => new Promise((resolve, reject) => { if (died) return reject(died); const n = ++seq; replies.set(n, { resolve, reject }); w.postMessage({ mode, op, zxy, seq: n }); })
-    .then((v) => v?.close?.()); // a picture made only for its files: let go
-  return { run, stop: () => w.terminate() };
+  const w = startClipWorker([{ mode: 'sea', omtTileJson: OMT_TILEJSON, remember: false }, { template: DEM_TILES, mode: 'land', omtTileJson: OMT_TILEJSON, remember: false }]);
+  return { run: (mode, op, zxy) => w.ask({ mode, op, zxy }).then((v) => v?.close?.()), stop: w.stop }; // a picture made only for its files: let go
 }
 
 // Saves the area, zooms from to top, under a new pack-… cache; fresh: the base map and the seamarks
@@ -115,8 +101,8 @@ async function saveArea({ bounds, from, top, name, fresh = false, signal, progre
     // 256 px raster tiles show at map zoom z − 1: from + 1 to top + 1; the contours' 512 px tiles at z
     const tasks = [
       ...[...glyphs].map((u) => () => get(u)),
-      ...range(from, Math.min(top, TOP_MAX)).map((t) => () => get(fill(omt, t))),
-      ...range(Math.max(from + 1, SEAMARKS_MIN), Math.min(top + 1, 18)).map((t) => () => get(fill(SEAMARK_TILES, t))),
+      ...range(from, Math.min(top, TOP_MAX)).map((t) => () => get(tileUrl(omt, ...t))),
+      ...range(Math.max(from + 1, SEAMARKS_MIN), Math.min(top + 1, 18)).map((t) => () => get(tileUrl(SEAMARK_TILES, ...t))),
       // the cut elevation; for the contours its neighbours too (a contour tile reads 3 × 3)
       ...range(from + 1, Math.min(top + 1, DEM_LAND_MAX)).map((t) => () => clip.run('land', 'bitmap', t)),
       ...range(from, Math.min(top, CONTOUR_MAX), 1).map((t) => () => clip.run('land', 'contourElevation', t)),

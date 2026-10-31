@@ -15,6 +15,8 @@ export async function fetchBytes(url) {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());
 }
+// a tile's address: its template ({z}/{x}/{y}) filled
+export const tileUrl = (template, z, x, y) => template.replace('{z}', z).replace('{x}', x).replace('{y}', y);
 // A cache of promises (max Infinity: every one kept), the least recently used forgotten past max: get(key, make) gives the
 // one kept or makes it (forgotten if it fails, so the next ask tries again); peek(key) the one kept,
 // if any, without counting as a use.
