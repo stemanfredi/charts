@@ -902,6 +902,7 @@ function renderZoom() {
 const legends = $('#legends');
 const legendEls = {};
 let legendWant = [];
+// shown once painted, its aria text set (style.css): a bare canvas is 300 × 150 px of nothing
 function legendEl(id) {
   return (legendEls[id] ||= h('canvas', { role: 'img', 'data-legend': id }));
 }
@@ -916,7 +917,7 @@ async function paintLegend(id, el, spec) {
     if (el.dataset.key !== spec.key) return; // switched meanwhile
     el.setAttribute('aria-label', spec.paint(el, data));
     later ? renderLegends() : snapLegends(); // painted after the stack was laid out (await): its size may have changed
-  } catch (e) { el.dataset.key = ''; console.warn(`${byId[id].label} legend:`, e.message); }
+  } catch (e) { el.dataset.key = ''; el.removeAttribute('aria-label'); console.warn(`${byId[id].label} legend:`, e.message); } // not shown (style.css): what it held is not what is drawn
 }
 function renderLegends() {
   const want = [];

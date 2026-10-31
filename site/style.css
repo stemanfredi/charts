@@ -329,6 +329,7 @@ body.finding .search { display: flex; }
 .legends { margin-bottom: 3px; /* the outline drawn outside the canvases */ display: flex; flex-direction: column; align-items: flex-start; gap: var(--legend-gap, 6px); pointer-events: none; }
 .legends:empty { display: none; }
 .legends canvas { display: block; outline: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); } /* an outline, not a border: it moves no pixel of the canvas */
+.legends canvas:not([aria-label]) { display: none; } /* not painted yet (its data loading), or failed */
 
 /* ---- bottom row: credits left; the time and depth shown, position and scale right. No bar: the row is
    transparent (clicks reach the map) and each item carries its own light backing. ---- */
