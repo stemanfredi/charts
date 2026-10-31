@@ -8,7 +8,7 @@
 // copy: the network first, the files kept only for when there is none, so an edit shows at a reload.
 const VERSION = 'dev';
 // the files, relative to this worker (tools/deps.mjs --write: every file in site/ but this one,
-// the preview picture and version.json, which is asked for apart)
+// the preview picture and version.json, which only a deployed copy has: kept apart, below)
 const SHELL = [
   // shell:start (written by tools/deps.mjs --write; do not edit by hand)
   'app.js',
@@ -96,8 +96,9 @@ const SAVED_HOSTS = {
 };
 const SAVED = Object.values(SAVED_HOSTS);
 const CACHE = `shell-${VERSION}`, PREFIX = 'shell-', PACK = 'pack-';
-const INDEX = new URL('index.html', self.registration.scope).href, VERSION_FILE = new URL('version.json', self.registration.scope).href;
-const OWN = new Set(SHELL.map((f) => new URL(f, self.registration.scope).href));
+const INDEX = new URL('index.html', self.registration.scope).href;
+// version.json answered as the other files: About says the version running, not the one deployed since
+const OWN = new Set([...SHELL, 'version.json'].map((f) => new URL(f, self.registration.scope).href));
 
 self.addEventListener('install', (e) => {
   // each file asked again of the server (no-cache: revalidated, so not a copy the browser kept from
@@ -244,7 +245,6 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   url.search = ''; // a file is the same file whatever its query; the view is in the hash, never sent
   const key = req.mode === 'navigate' && url.href.startsWith(self.registration.scope) ? INDEX : url.href; // the page's address: index.html
-  if (key === VERSION_FILE) { e.respondWith(networkFirst(req, key)); return; } // the version shown in About: the latest when online
   const host = SAVED.find((h) => req.url.startsWith(h));
   if (recording && Date.now() - recording.told > 10000) recording = null; // its page is gone
   if (host && recording) { e.respondWith(record(req, host)); return; }
