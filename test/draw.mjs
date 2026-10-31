@@ -5,7 +5,7 @@
 //   CHROME=/path/to/chrome npm run draw     (default: /usr/bin/google-chrome)
 // What needs a provider stays in smoke.mjs: the elevation profile (relief and depth tiles).
 import { readFile } from 'node:fs/promises';
-import { start, openPage, exportItem, unzip } from './browser.mjs';
+import { start, openPage, exportItem, unzip, settled, frames } from './browser.mjs';
 
 const { browser, base, check, section, finish } = await start();
 // a context with no network but the site's own (base: http://127.0.0.1:8099/)
@@ -27,6 +27,10 @@ const exportDrawing = async () => {
 };
 // the drawing open, as saved in this browser (one key each, the open one's in charts.drawings.current): GeoJSON
 const saved = () => dw.evaluate(() => JSON.parse(localStorage.getItem(`charts.drawing.${localStorage.getItem('charts.drawings.current')}`) || 'null'));
+// the same, once written: 400 ms after the last change (draw/saving.js), its timer then cleared
+const written = async () => { await dw.waitForFunction(() => !drawing.saving.timer, null, { timeout: 5000 }); return saved(); };
+// the page at the state it is waited for, else on after timeout (the check then says what it found)
+const until = (fn, arg) => dw.waitForFunction(fn, arg, { timeout: 5000 }).catch(() => {});
 const own = (f) => f.properties.charts; // the app's own part of a feature
 const featuresOf = (fc, kind) => (fc?.features || []).filter((f) => own(f)?.kind === kind && !(own(f).guide && own(f).look?.text?.values));
 const measuredOf = (fc) => (fc?.features || []).filter((f) => own(f)?.guide && own(f)?.look?.text?.values);
@@ -84,39 +88,34 @@ await section('the drawing: the bar, the tools, the kinds, the inspector, its fi
   const bearing = dw.locator('input[aria-label^=Bearing]');
   await bearing.fill('-30');
   await bearing.press('Enter');
-  let d; // saved a moment after the change: waited for, not timed (a slow runner saves later)
+  let d = await written();
   const pt0 = () => own(featuresOf(d, 'point')[0] || { properties: {} });
-  for (let i = 0; i < 25 && pt0()?.bearing !== 330; i++) { await dw.waitForTimeout(200); d = await saved(); }
   check(d?.type === 'FeatureCollection' && featuresOf(d, 'point').length === 1 && pt0().parts?.[0].kind === 'sector' && pt0().parts[0].radius === 2778 && pt0().bearing === 330 && pt0().parts[0].aperture === 90,
     `drawing: a point placed, its radius (1.5 NM), bearing (−30° → 330°) and sector set in the inspector, saved as GeoJSON (${JSON.stringify(pt0())})`);
   // the inspector as tables: every value row one line high (nothing wraps); ↑ in a value field nudges it
   const tall = await dw.evaluate(() => [...document.querySelectorAll('.dinspect .vrow')].filter((r) => r.getBoundingClientRect().height > 56).map((r) => r.textContent.slice(0, 30)));
   await bearing.focus();
   await bearing.press('ArrowUp');
-  await dw.waitForTimeout(200);
+  await until(() => drawing.selected()[0]?.el.bearing !== 330);
   const nudged = await dw.evaluate(() => drawing.selected()[0].el.bearing);
   await dw.evaluate(() => drawing.undo()); // back to 330, for the undo check below
   check(!tall.length && nudged === 331, `inspector: value rows never wrap (${tall.join(' | ') || 'none taller'}); ↑ nudges a bearing (330 → ${nudged})`);
   await dw.locator('.dinsphead .ititle').click(); // out of the fields: the keys are the drawing's
   await dw.keyboard.press('Control+z');
-  await dw.waitForTimeout(600);
-  d = await saved();
+  d = await written();
   const undone = pt0().bearing ?? 0;
   await dw.keyboard.press('Control+Shift+Z');
-  await dw.waitForTimeout(600);
-  d = await saved();
+  d = await written();
   check(undone === 0 && pt0().bearing === 330, `drawing: undo and redo (bearing ${undone}, then 330)`);
   // the list's header box: all shown, a click hides them all; again, shows them all
   const allBox = dw.locator('.droot .deye');
   const isAll = async () => (await allBox.getAttribute('aria-pressed')) === 'true';
   const wasAll = await isAll();
   await allBox.click();
-  await dw.waitForTimeout(600);
-  d = await saved();
+  d = await written();
   const hidden = pt0().visible ?? true;
   await allBox.click();
-  await dw.waitForTimeout(600);
-  d = await saved();
+  d = await written();
   const allAgain = await isAll();
   check(wasAll && hidden === false && (pt0().visible ?? true) === true && allAgain, 'drawing: the list\'s eye hides all, then shows all');
   // the Layers tab's spinner: the drawing's own sources, set as the hover moves, never switch it on
@@ -231,7 +230,7 @@ await section('lines, groups and the box', async () => {
   const offField = dw.locator('.dinspect input[aria-label="Offset (px)"]');
   await offField.fill('-8');
   await offField.press('Enter');
-  await dw.waitForTimeout(600);
+  await settled(dw);
   const offset = await dw.evaluate(async () => { const { totals } = await import('./draw/lines.js'); return [drawing.offset().length, drawing.doc.lines[0].look.offset, drawing.doc.lines.at(-1).look.offset, totals(drawing.doc).all.lines]; });
   const painted = await dw.evaluate(() => map.querySourceFeatures('drawzoom').filter((f) => f.properties.kind === 'path').map((f) => f.properties.off));
   check(before === 0 && offset.join() === '2,-8,-8,4' && painted.includes(-8),
@@ -367,12 +366,12 @@ await section('dragging, parts, shapes, attaching', async () => {
   await dw.mouse.click(DX + 640, 300);
   await dw.mouse.click(DX + 640, 300); // its centre again: the default size
   await dw.keyboard.press('Escape');
-  await dw.waitForTimeout(300);
+  await settled(dw); // its handles drawn: the drag below starts on one
   const nd = await dw.evaluate(async () => { const { destination } = await import('./geodesy.js'); const x = drawing.doc.points.at(-1); const q = map.project(destination(x.position, 0, x.parts[0].radius)); return { r: x.parts[0].radius, x: q.x, y: q.y, undos: drawing.undos.length }; });
   await dw.mouse.move(nd.x, nd.y);
   await dw.mouse.down();
   await dw.mouse.move(nd.x, nd.y - 30, { steps: 5 });
-  await dw.waitForTimeout(100);
+  await frames(dw); // the drag's last move applied (on the next frame: draw/drawing.js)
   await dw.mouse.up();
   const dragged = await dw.evaluate(() => [drawing.doc.points.at(-1).parts[0].radius, drawing.undos.length]);
   await dw.mouse.move(nd.x, nd.y - 30);
@@ -391,7 +390,7 @@ await section('dragging, parts, shapes, attaching', async () => {
   await dw.keyboard.press('Escape');
   await dw.selectOption('.dinspect select[aria-label="Part 1 kind"]', 'surface-vehicle');
   await dw.selectOption('.dinspect select[aria-label="Add a part"]', 'circle');
-  await dw.waitForTimeout(300);
+  await settled(dw);
   const twoParts = await dw.evaluate(() => { const x = drawing.doc.points.at(-1); return { kinds: x.parts.map((q) => q.kind).join(), len: x.parts[0].length, preset: x.properties.find((q) => q.key === 'preset')?.value,
     drawn: map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').length + map.querySourceFeatures('drawzoom').filter((f) => f.properties.id === x.id && f.properties.kind === 'shape').length }; });
   check(twoParts.kinds === 'surface-vehicle,circle' && twoParts.len === 100 && twoParts.preset === 'Rectangle' && twoParts.drawn >= 2,
@@ -424,7 +423,7 @@ await section('dragging, parts, shapes, attaching', async () => {
   await dw.evaluate(() => { drawing.variant.shape = 'sector'; });
   await dw.keyboard.press('s');
   for (const [x, y] of [[600, 450], [600, 400], [650, 450]]) await dw.mouse.click(DX + x, y);
-  await dw.waitForTimeout(300);
+  await settled(dw);
   const sec = await dw.evaluate(() => { const x = drawing.doc.points.at(-1); return [x.parts.map((q) => [q.kind, q.fill, Math.round(q.aperture)].join(':')).join(), x.name.split(' ')[0],
     map.querySourceFeatures('draw').filter((f) => f.properties.id === x.id && f.properties.kind === 'ring').map((f) => f.geometry.type)[0]]; });
   await dw.keyboard.press('Escape');
@@ -462,7 +461,7 @@ await section('dragging, parts, shapes, attaching', async () => {
     drawing.change((d) => { s = addLine(d, at(250, 200), [], at(550, 200)); });
     return { id: s.id, n: s.vertices.length, x: 400, y: 200 };
   });
-  await dw.waitForTimeout(400); // drawn: what snapping looks for is on the map
+  await settled(dw); // drawn: what snapping looks for is on the map
   await dw.keyboard.press('g');
   await dw.mouse.click(host.x, host.y + 120);
   await dw.mouse.click(host.x, host.y);
@@ -499,7 +498,7 @@ await section('labels, names, data and totals', async () => {
   await dw.mouse.move(lab.x, lab.y);
   await dw.mouse.down();
   await dw.mouse.move(lab.x + 60, lab.y + 10, { steps: 5 });
-  await dw.waitForTimeout(100);
+  await frames(dw);
   await dw.mouse.up();
   const moved = await dw.evaluate((id) => [drawing.doc.labels[0].offset, drawing.undos.length, drawing.doc.points.find((x) => x.id === id).position], nid);
   check(Math.abs(moved[0][0] - lab.a.offset[0] - 60) <= 2 && moved[1] === lab.undos + 1 && moved[2].join() === lab.point.join(),
@@ -515,7 +514,7 @@ await section('labels, names, data and totals', async () => {
   await dw.click('.droot .dname');
   await dw.locator('.dinspect .fblock:has(h3:text-is("Display")) input[aria-label="Names on map"]').check();
   const byDefault = await dw.evaluate((id) => [drawing.doc.look.text?.name, drawing.doc.points.find((n) => n.id === id).look.text], nid);
-  await dw.waitForTimeout(300);
+  await until(() => map.queryRenderedFeatures({ layers: ['draw-name-point'] }).length > 0);
   const named = await dw.evaluate(() => map.queryRenderedFeatures({ layers: ['draw-name-point'] }).length);
   check(byDefault[0] === true && byDefault[1] === undefined && named > 0, `drawing: names on in the drawing's Display, shown for a point with none of its own (${named})`);
   // a property added in its Data; the drawing's totals by that key
@@ -567,7 +566,7 @@ await section('legs typed, list grids', async () => {
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
   await dw.locator('.dinspect input[aria-label="Point 2 leg length"]').focus();
   await dw.keyboard.press('ArrowDown');
-  await dw.waitForTimeout(200);
+  await frames(dw); // focus moves on the next frame, to the grid as built again (draw/grid.js)
   const movedTo = await dw.evaluate(() => document.activeElement?.getAttribute('aria-label'));
   await dw.locator('.dinspect input[aria-label="Point 2 latitude"]').focus();
   await dw.click('.dinspect .lbar button:has-text("Delete")');
@@ -581,12 +580,12 @@ await section('legs typed, list grids', async () => {
   await dw.click('.dinspect [data-grid$=":parts"] tr[data-r="1"] td:first-child');
   const partMarked = await dw.evaluate(() => !drawing.placeAt()); // a row clicked draws nothing over: its handles say it
   const rh = await dw.evaluate((id) => { const x = drawing.doc.points.find((q) => q.id === id); map.jumpTo({ center: x.position, zoom: 14 }); return [0, 0, x.parts[0].radius]; }, pid);
-  await dw.waitForTimeout(300);
+  await settled(dw);
   const handle = await dw.evaluate(async ([id]) => { const { destination } = await import('./geodesy.js'); const x = drawing.doc.points.find((q) => q.id === id), q = map.project(destination(x.position, 90, x.parts[0].radius)), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; }, [pid]);
   await dw.mouse.move(handle[0], handle[1]);
   await dw.mouse.down();
   await dw.mouse.up();
-  await dw.waitForTimeout(300);
+  await until(() => document.querySelector('.dinspect .lbar .funit')?.textContent === 'Part 1:');
   const partPicked = await dw.evaluate(() => document.querySelector('.dinspect .lbar .funit')?.textContent);
   check(partMarked && partPicked === 'Part 1:', `parts: a row clicked marks nothing on the map (${partMarked}); a part's handle pressed picks its row (${partPicked}, ${Math.round(rh[2])} m)`);
   // a list's Copy: its rows, tab-separated, a header first
@@ -618,12 +617,12 @@ await section('paging, Properties in place', async () => {
   await dw.click('.dinspect [data-grid*=":points"] tr[data-r="4"] td:first-child'); // point 205
   const ringed = await dw.evaluate((id) => drawing.placeAt()?.join() === drawing.doc.lines.find((x) => x.id === id).vertices[203].position.join(), longId);
   const vAt = await dw.evaluate((id) => { const v = drawing.doc.lines.find((x) => x.id === id).vertices[349].position; map.jumpTo({ center: v, zoom: 15 }); return v; }, longId);
-  await dw.waitForTimeout(500);
+  await settled(dw);
   const vPx = await dw.evaluate((v) => { const q = map.project(v), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; }, vAt);
   await dw.mouse.move(vPx[0], vPx[1]);
   await dw.mouse.down();
   await dw.mouse.up();
-  await dw.waitForTimeout(300);
+  await until(() => document.querySelector('.dinspect .lbar .funit')?.textContent === 'Point 351:');
   const pickedRow = await dw.evaluate(() => [document.querySelector('.dinspect .lbar .funit')?.textContent, document.querySelector('.dinspect .lpager .funit').textContent, document.querySelector('.dinspect tr.cur td')?.textContent]);
   await dw.click('.dinspect .lbar button:has-text("Delete")'); // the row picked from the map, not the one current before
   const deleted = await dw.evaluate(([id, v]) => { const x = drawing.doc.lines.find((l) => l.id === id); return [x.vertices.length, x.vertices.some((q) => q.position.join() === v.join())]; }, [longId, vAt]);

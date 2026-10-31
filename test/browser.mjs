@@ -65,7 +65,7 @@ export async function openPage(ctx, url, tab = null, groups = null) {
   page.on('console', (m) => m.type() === 'error' && (/Failed to load resource/.test(m.text()) ? page.providerErrors : page.errors).push(m.text().slice(0, 200)));
   await page.goto(url);
   await page.waitForFunction(() => window.map?.loaded?.() && map.areTilesLoaded(), null, { timeout: 90000 });
-  await page.waitForTimeout(1000);
+  await settled(page);
   return page;
 }
 // one of the view's outputs: the link (the bar's own button), png, zip (in the bar's Download menu, which
