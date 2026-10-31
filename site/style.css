@@ -462,6 +462,7 @@ svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 /* the time chip is its date field: the field covers the chip unseen, so the browser's calendar hangs from the chip (a browser without a picker: the field itself, .raw) */
 .pos.shown { position: relative; }
 .pos.shown input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.pos.shown:has(input:not(.raw):focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; } /* the field focused, unseen: the chip shows it */
 .pos.shown input.raw { position: static; width: auto; height: auto; opacity: 1; pointer-events: auto; font: inherit; background: none; }
 :is(.pos.shown, .depthchip):hover { background: #fff; }
 

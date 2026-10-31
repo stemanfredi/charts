@@ -244,9 +244,8 @@ function watchLocation(on) {
   }, { enableHighAccuracy: true, maximumAge: 10000 });
 }
 function setLocating(on) {
-  locate.setAttribute('aria-pressed', String(on));
+  locate.setAttribute('aria-pressed', String(on)); // its name stays "Show my location" (index.html): pressed says it is on
   locate.title = on ? 'Hide my location' : 'Show my location';
-  locate.setAttribute('aria-label', locate.title);
   located = false;
   if (!on) showLocation(null);
   watchLocation(on);
