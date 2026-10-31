@@ -36,8 +36,7 @@ export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASUR
 // drawing's); the defaults fill it in. fill, stroke: as a style; text: its name on the map, its values
 // shown, and a label's size, colour (null: the default) and
 // background; offset: a line drawn this many px to the right of where it is (negative: left; 0: on
-// it; display only); minSize: a small outline drawn enlarged below it
-// (px, 0: never; for a vehicle, twice the drawing's).
+// it; display only); minSize: a small outline drawn enlarged below it (px, 0: never).
 const LOOK_TEXT = Object.freeze({ name: false, values: false, size: 'medium', color: '#1f2c36', background: 'halo' }); // the colour: a label's text, the UI's ink (style.css --ink)
 export const DEFAULT_LOOK = Object.freeze({ fill: DEFAULT_STYLE.fill, stroke: DEFAULT_STYLE.stroke, text: LOOK_TEXT, offset: 0, minSize: MIN_DISPLAY_SIZE });
 export const SYMBOLS = ['diamond', 'square', 'triangle', 'dot', 'none'];
@@ -179,7 +178,6 @@ export function lookOf(doc, el) {
 export const styleOf = (doc, el) => { const l = lookOf(doc, el); return { fill: l.fill, stroke: l.stroke }; };
 // a measurement: a guide showing its values (what Measure makes)
 export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.values;
-// a label's colour: its own, else the default (the drawing's look has none: LOOK_FIELDS.drawing)
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
 export const offsetOf = (doc, el) => lookOf(doc, el).offset;
 // the drawing's minimum display size (px)

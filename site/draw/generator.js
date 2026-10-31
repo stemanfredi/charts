@@ -264,7 +264,6 @@ export function copyOf(a) {
 // whether a point is the copy given (its symbol and parts as the rule gives them; else changed by hand)
 const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
 const isCopy = (n, copy) => canon({ symbol: n.symbol, parts: n.parts }) === canon({ symbol: copy.symbol, parts: copy.parts });
-// a group made for a rule, in parent (null: at the top)
 // the distribution's copies made at places, into its Copies group (or the group given): each facing
 // away from what it follows
 function place(doc, a, points, groupId = a.copiesId) {
