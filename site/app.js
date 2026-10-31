@@ -1050,16 +1050,6 @@ function flash(b, text, title = '', ms = 1200) {
   b.flashTimer = setTimeout(() => { b.querySelector('span').textContent = own.label; b.title = own.title; }, ms);
 }
 const about = $('#about');
-// the version published: version.json, written by the deploy (ci.yml); none on a development copy.
-// { commit, date }, or null
-async function published() {
-  try {
-    const r = await fetch('version.json', { cache: 'no-store' });
-    if (!r.ok) return null;
-    const v = await r.json();
-    return /^[0-9a-f]{40}$/.test(v?.commit) ? v : null;
-  } catch { return null; }
-}
 // The service worker (sw.js) keeps the page's own files in this browser, so that the page opens
 // without a connection. A new version, once fetched, waits for the page: the chip says it is ready,
 // and a Reload (the chip's, or About's) applies it; closing every tab of the page does too.
@@ -1082,16 +1072,13 @@ function reload() {
   waiting.postMessage('apply');
 }
 for (const b of document.querySelectorAll('[data-reload]')) b.addEventListener('click', reload);
-let versionShown = false;
-async function showVersion() {
-  if (versionShown) return;
-  versionShown = true;
-  const v = await published();
-  if (v) {
-    const { commit, date } = v;
-    $('#version').replaceChildren('version ', h('a', { href: `https://github.com/stemanfredi/charts/commit/${commit}`, target: '_blank', rel: 'noopener' }, commit.slice(0, 7)), date ? ` of ${String(date).slice(0, 10)}` : '');
-  }
-}
+// About's version: the one published, version.json, written by the deploy (ci.yml; none on a
+// development copy), read when About first opens
+let versionShown = null;
+const showVersion = () => (versionShown ||= fetch('version.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((v) => {
+  if (!/^[0-9a-f]{40}$/.test(v?.commit)) return;
+  $('#version').replaceChildren('version ', h('a', { href: `https://github.com/stemanfredi/charts/commit/${v.commit}`, target: '_blank', rel: 'noopener' }, v.commit.slice(0, 7)), v.date ? ` of ${String(v.date).slice(0, 10)}` : '');
+}, () => {}));
 // Report an issue: a new GitHub issue with this view's link (the area and the layers; never the
 // measurements or the drawing), editable before it is submitted
 $('#issue').addEventListener('click', (e) => {
