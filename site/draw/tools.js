@@ -12,7 +12,7 @@ import { savePresets, presetTool } from './presets.js';
 import { keyOf, MOD } from '../keys.js';
 import { icon, KIND_ICON, POINT_ICON, SELECT_ICON, BOX_ICON, UI_ICON } from '../icons.js';
 
-// drawing (drawing.js); ctx: { units(), bar, frame }; del(ids): delete, asked
+// drawing (drawing.js); ctx: { bar, frame, props }; del(ids): delete, asked
 // first (the touch row's); fileBtns: the bar's file group (files.js). Returns { press,
 // renderTools, renderTouch }.
 export function createTools(drawing, ctx, { del, fileBtns }) {

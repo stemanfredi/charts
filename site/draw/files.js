@@ -12,7 +12,7 @@ import { plural, slug } from '../format.js';
 import { icon, UI_ICON } from '../icons.js';
 
 // drawing (drawing.js); ctx: { download(text, name), openDrawing(id), onImport(doc, view), openArea(file) (an offline area's zip),
-// known, outputs (the view's, menu items), offlineItem (Offline areas…, a menu item), copyLink(), about() }; presetsChanged(): the tools' kinds shown again. Returns { buttons (the bar's),
+// outputs (the view's, menu items), offlineItem (Offline areas…, a menu item), copyLink(), about() }; presetsChanged(): the tools' kinds shown again. Returns { buttons (the bar's),
 // importFile(file) }.
 export function fileGroup(drawing, ctx, presetsChanged) {
   const fileInput = h('input', { type: 'file', accept: '.geojson,.json,.zip,application/geo+json,application/json,application/zip', hidden: true, onchange: (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); } });
@@ -87,7 +87,7 @@ export function fileGroup(drawing, ctx, presetsChanged) {
       savePresets(drawing.presets);
       return presetsChanged();
     }
-    const { doc, view, report } = parse(text, ctx.known);
+    const { doc, view, report } = parse(text, drawing.known);
     const list = (items) => h('ul', {}, items.map((t) => h('li', {}, t)));
     const counts = doc ? [['point', doc.points.filter((x) => !mainOutline(x))], ['shape', doc.points.filter((x) => mainOutline(x))], ['line', doc.lines], ['area', doc.areas], ['label', doc.labels], ['group', doc.groups]]
       .map(([k, xs]) => [k, xs.filter((x) => !isMeasurement(doc, x)).length]).filter(([, n]) => n).map(([k, n]) => plural(n, k)) : [];

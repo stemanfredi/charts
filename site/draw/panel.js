@@ -33,12 +33,12 @@ const PART_NAME = { circle: 'Circle', sector: 'Sector', ...OUTLINE_NAME };
 const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle', dot: 'Dot', none: 'None' };
 const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'underwater-vehicle': 'Diameter' }; // a shape's width, as said of each outline
 
-// root: the left panel's Elements tab. ctx: { drawing, map, units() ('km' | 'nm'), known, bar
+// root: the left panel's Elements tab. ctx: { drawing, map, bar
 // (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), outputs, offlineItem, copyLink(), about() (files.js),
 // onImport(doc, view) (an imported document, the view it was made in), openDrawing(id), openArea(file), download(text, name), profile(trace) }
 export function drawView(root, ctx) {
   const { drawing, map } = ctx;
-  const F = fields({ note, units: ctx.units }), { field } = F; // fields.js: each applies on Enter or when left
+  const F = fields({ note, units: drawing.units }), { field } = F; // fields.js: each applies on Enter or when left
   // a longitude past ±180° (clicked on a world copy) shown in range, as the file writes it: the field
   // would refuse it back
   const { coord, position } = F, inRange = (v) => (v == null ? v : norm180(v));
@@ -56,7 +56,7 @@ export function drawView(root, ctx) {
   const { renderTools } = tools;
 
   // ---- the tree (tree.js), its first row the drawing ------------------------------------------
-  const tree = createTree(drawing, ctx, { facts: fx });
+  const tree = createTree(drawing, { facts: fx });
   // the tree built only while it is seen (a large drawing's rows cost tens of ms per change); built
   // when its tab opens (render('tool'), after any change of the frame)
   let listStale = false;
@@ -109,7 +109,7 @@ export function drawView(root, ctx) {
   const withUnit = (input) => [input, funit(input.unitText())];
   const fvalue = (t, attrs = {}) => h('span', { class: 'fvalue', ...attrs }, t);
   const valued = (text, attrs = {}) => { const i = text.lastIndexOf(' '); return i < 0 ? [fvalue(text, attrs)] : [fvalue(text.slice(0, i), attrs), funit(text.slice(i + 1))]; };
-  const distValue = (m, attrs = {}) => valued(fmtDist(m, ctx.units()), attrs);
+  const distValue = (m, attrs = {}) => valued(fmtDist(m, drawing.units()), attrs);
   const segOf = (aria, options, current, pick) => choice(aria, options, () => current, pick);
 
   // The look of xs ({ kind, el }, one or several; a group: everything in it; the drawing: { kind:
@@ -210,7 +210,7 @@ export function drawView(root, ctx) {
   // every inspector's top (its title, kind · name, in the head): the rule that made it, its name
   const commonTop = (kind, id) => {
     const el = now(id);
-    title = `${kindTitle(kind, el)} · ${shownName(drawing.doc, kind, el, ctx.units())}`;
+    title = `${kindTitle(kind, el)} · ${shownName(drawing.doc, kind, el, drawing.units())}`;
     return [ruleRow(id)?.row, kind === 'label' ? null : row('Name', textField(id, 'name', 'Name'))]; // a label is its text
   };
   const ruleActs = (id) => ruleRow(id)?.acts ?? [];
@@ -233,7 +233,7 @@ export function drawView(root, ctx) {
     return { ...next, fill: part.fill, shown: part.shown, name: part.name };
   };
   function partsBlock(id) {
-    const el = now(id), u = ctx.units();
+    const el = now(id), u = drawing.units();
     const fits = (m) => drawable(now(id), m);
     const at = (i, fn) => drawing.change((d) => { fn(find(d, id).el.parts[i]); reattach(d, id); }); // part i as it is now; what points at its corners stays where it was
     const adder = (aria, text) => select(aria, [['', text], ...PART_KINDS.map((k) => [k, PART_NAME[k]])], '', (k) => { if (k) set(id, (x) => addPart(x, k)); }, { title: 'Add a part' });
@@ -306,7 +306,7 @@ export function drawView(root, ctx) {
   // an area: its area and perimeter, its corners (typed, one inserted halfway to the next, one
   // removed while more than three)
   function areaInspector(id) {
-    const el = now(id), u = ctx.units(), n = el.points.length;
+    const el = now(id), u = drawing.units(), n = el.points.length;
     const corner = (i, axis) => F.coord(axis, () => now(id).points[i][axis === 'lat' ? 1 : 0],
       (v) => set(id, (x) => { const q = x.points[i]; x.points[i] = axis === 'lat' ? [q[0], v] : [v, q[1]]; }), `Corner ${i + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
     const insertAt = (i) => drawing.change((doc) => { const x = find(doc, id).el, q = x.points[i], r = x.points[(i + 1) % x.points.length]; insertCorner(doc, x, i + 1, along(q, r, 0.5)); });
@@ -345,7 +345,7 @@ export function drawView(root, ctx) {
     along: ['distance along', 'The distance along the line to where it points'], bearing: ['bearing', 'The bearing of the side or leg it points at'],
     radius: ['radius', 'The point\'s filled radius'], area: ['area', 'The area of the area or shape'], perimeter: ['perimeter', 'The perimeter of the area or shape'] };
   function labelInspector(id) {
-    const doc = drawing.doc, el = now(id), u = ctx.units();
+    const doc = drawing.doc, el = now(id), u = drawing.units();
     const at = resolve(doc, el.anchor), values = labelValues(doc, el.anchor, u);
     const text = h('textarea', { rows: 3, 'aria-label': 'Text', class: 'ltext' }, el.text);
     text.addEventListener('input', () => drawing.previewLabels((d) => { find(d, id).el.text = text.value; })); // seen on the map as it is typed
@@ -418,7 +418,7 @@ export function drawView(root, ctx) {
   }
   // a table's distances: one unit for the column (its head says it), by the rule a field's value
   // follows (format.js distText): metres while its largest is under 1 km, else km; NM in NM
-  const unitOf = (ms) => (ctx.units() === 'nm' ? 'nm' : ms.every((m) => !(Number.isFinite(m) && m >= 1000)) ? 'm' : 'km'); // every: a long line's legs are more than Math.max(...) takes
+  const unitOf = (ms) => (drawing.units() === 'nm' ? 'nm' : ms.every((m) => !(Number.isFinite(m) && m >= 1000)) ? 'm' : 'km'); // every: a long line's legs are more than Math.max(...) takes
   // a table of places (a line's points, an area's corners, a point's parts): its row k made current
   // (k: the place's index), the table at its page; from the map (a place pressed: drawing.currentPlace)
   function pickPlace(table, k, paged = true) {
@@ -461,7 +461,7 @@ export function drawView(root, ctx) {
   let profileBuilt = 0;
   const W = 360, H = 110;
   function profileBlock(id) {
-    const el = now(id), u = ctx.units();
+    const el = now(id), u = drawing.units();
     const open = profileShown.has(id);
     const head = foldHead('Elevation profile', open, () => { if (open) profileShown.delete(id); else profileShown.add(id); renderInspector(); });
     if (!open) return h('div', { class: 'fblock' }, head);
@@ -552,7 +552,7 @@ export function drawView(root, ctx) {
     const name = (k) => field(() => now(id).vertices[k - 1].name, (t) => t, (nv) => set(id, (x) => { x.vertices[k - 1].name = nv; }), { 'aria-label': `Point ${k + 1} name`, placeholder: 'name' });
     // the grid fits the panel's 320 px: #, Lat, Lon, the leg and its bearing; the row current says
     // how far along the line its point is, and holds a vertex's name, in the bar over the grid
-    const along = (k) => funit(`${distText(at[k] || 0, ctx.units()).text} along`);
+    const along = (k) => funit(`${distText(at[k] || 0, drawing.units()).text} along`);
     const rowAt = (k) => ({ cells: [k === 0 || k === N - 1 ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
         ...(k === 0 || k === N - 1 ? endCells(k) : [vcoord(k, 'lat'), vcoord(k, 'lon')]),
         ...(k ? legCells(k) : [null, null])] });
@@ -748,7 +748,7 @@ export function drawView(root, ctx) {
 
   // the connection's settings (tree or chain, group size, roots and their weights) and what it would make
   function connectRows(c) {
-    const u = ctx.units(), redo = formChanged, p = c.plan;
+    const u = drawing.units(), redo = formChanged, p = c.plan;
     const names = [...con.roots.map((r) => label('point', now(r.id))), ...con.newRoots.map((_, i) => `New root ${i + 1}`)];
     const sizes = p ? p.groups.map((g) => g.nodes.length) : [];
     const what = con.pattern === 'chain' ? 'chain' : 'tree';
@@ -866,7 +866,7 @@ export function drawView(root, ctx) {
   // b: what is counted (the drawing's, or a group's: breakdown's only); key: the property it is by, or ''
   const totalsClosed = new Set(); // the Totals sections folded (by their grid's name)
   function totalsBlock(by, groupName, b = fx().breakdown, key = totalsBy, name = 'totals') {
-    const u = ctx.units(), doc = drawing.doc;
+    const u = drawing.units(), doc = drawing.doc;
     const open = !totalsClosed.has(name);
     const head = foldHead('Totals', open, () => { totalsClosed[open ? 'add' : 'delete'](name); renderInspector(); });
     if (!open) return h('div', { class: 'fblock' }, head);

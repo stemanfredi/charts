@@ -42,11 +42,11 @@ export function eyeFor(drawing, xs, what) {
   return b;
 }
 
-// drawing (drawing.js); ctx: { units() }; facts(): the totals computed for this rendering;
+// drawing (drawing.js); facts(): the totals computed for this rendering;
 // Returns { box, render(), mark() (the selection marked,
 // the last selected scrolled to), shown() (the rows, in order), step(dir) (↑ ↓:
 // the next row selected; false if none), rename(id) }.
-export function createTree(drawing, ctx, { facts }) {
+export function createTree(drawing, { facts }) {
   let anchor = null; // the row a Shift-click range starts from
   let filter = '';
   const folded = new Set(); // groups folded (this session)
@@ -86,10 +86,10 @@ export function createTree(drawing, ctx, { facts }) {
   }
   function shown() {
     const f = filter.trim().toLowerCase();
-    return ordered().filter((x) => !f || shownName(drawing.doc, x.kind, x.el, ctx.units()).toLowerCase().includes(f) || x.el.properties.some((p) => p.value.toLowerCase().includes(f)));
+    return ordered().filter((x) => !f || shownName(drawing.doc, x.kind, x.el, drawing.units()).toLowerCase().includes(f) || x.el.properties.some((p) => p.value.toLowerCase().includes(f)));
   }
   function value(kind, el) {
-    const u = ctx.units();
+    const u = drawing.units();
     if (kind === 'point') {
       // its largest outline's size, its first filled round part's radius (its kind: its icon and name)
       const o = mainOutline(el)?.part, r = el.parts[followedPart(el)];
@@ -122,7 +122,7 @@ export function createTree(drawing, ctx, { facts }) {
     const fold = kind === 'group' ? h('button', { type: 'button', class: 'dfold', 'aria-expanded': String(!folded.has(id)), 'aria-label': `Show the members of ${label(kind, el)}`,
       onclick: () => { if (folded.has(id)) folded.delete(id); else folded.add(id); render(); } }) : null;
     const t = kind === 'group' && facts().totals.groups.get(id);
-    return elementRow({ id, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: shownName(drawing.doc, kind, el, ctx.units()), value: value(kind, el), valueTitle: t ? countOf(t, ctx.units()) : undefined,
+    return elementRow({ id, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: shownName(drawing.doc, kind, el, drawing.units()), value: value(kind, el), valueTitle: t ? countOf(t, drawing.units()) : undefined,
       visible: el.visible, drawn: isShown(drawing.doc, el), selected: drawing.sel.has(id) }, {
       select: (e) => clickRow(id, e), hover: (x) => drawing.setHover(x),
       visible: (v) => drawing.change((doc) => { find(doc, id).el.visible = v; }),
@@ -137,7 +137,7 @@ export function createTree(drawing, ctx, { facts }) {
     eyeAll.render();
     rootName.textContent = drawing.doc.meta.title || 'Untitled drawing';
     rootVal.textContent = plural(drawElements().filter((x) => x.kind !== 'group').length, 'element');
-    rootVal.title = countOf(facts().totals.all, ctx.units());
+    rootVal.title = countOf(facts().totals.all, drawing.units());
     if (!rows.length) list.append(h('li', { class: 'empty' }, filter ? 'Nothing matches the filter.' : 'Nothing drawn yet: pick a tool, then click on the map.'));
   }
   // A row dragged (drawing-ui.md §4): dropped on a group's row, into that group; on a row of its
