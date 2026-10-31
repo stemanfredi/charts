@@ -34,13 +34,13 @@ test('a profile: elevations along, the lowest and the highest, the length along 
   assert.match(csv.at(-1), /^\d+\.\d,,40\.0+,12\.05/); // no data: empty
 });
 
-test('a profile: a place whose depth could not be read is a gap; none read, it fails', async () => {
+test('a profile: a place that could not be read is a gap; none read, it fails', async () => {
   const tr = traceOf([[12, 40], [12.05, 40]]);
   let n = 0;
   const p = await profileOf(tr, async () => { if (n++ === 3) throw new Error('tile'); return -20; }, 12);
   assert.ok(Number.isNaN(p.pts[3].z) && p.pts.filter((x) => Number.isFinite(x.z)).length === p.pts.length - 1);
-  assert.equal(p.deepest.z, -20);
+  assert.equal(p.lowest.z, -20);
   await assert.rejects(profileOf(tr, async () => { throw new Error('offline'); }, 12));
-  const land = await profileOf(tr, async () => NaN, 12);
-  assert.equal(land.deepest, null, 'all land: read, no depth');
+  const none = await profileOf(tr, async () => NaN, 12);
+  assert.equal(none.lowest, null, 'no data anywhere: read, no elevation');
 });
