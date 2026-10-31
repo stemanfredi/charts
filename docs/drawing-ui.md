@@ -88,7 +88,7 @@ presets) opens its kinds.
 | Tool | Kinds | Makes |
 |---|---|---|
 | Point | symbol, the user's presets without extent | a point: a marker, the same size at every zoom |
-| Line | none | a line; closed on its first point, an area |
+| Line | none | a line; closed on its first point, a closed line (an area) |
 | Shape | circle, rings, sector, rectangle, ellipse, triangle, three vehicles, the user's presets with extent | a point with parts and no symbol, named after its kind, its preset kept as the property `preset` |
 | Label | none | a label |
 | Measure | none | nothing, unless kept (§3) |
@@ -102,15 +102,15 @@ presets) opens its kinds.
   its size: one click.
 - **Line**: as Measure, a click per point, snapped to what is drawn; Enter, a double-click, a
   right-click or Done ends it at its last point, attached when its first or last point snapped to something it can
-  attach to; a click on its first point (three or more) closes it into an area. Backspace or Undo
-  takes back a point.
+  attach to; a click on its first point (three or more) closes it: a closed line, "Area 1", filled,
+  its last leg back to its first point. Backspace or Undo takes back a point.
 - **Sector**: the centre; the radius and one edge; the other edge, clockwise (back on the first: a
   circle). Esc goes one click back.
-- **Label**: points at what snapping finds (else an area's centre, a place on a line), or is free
+- **Label**: points at what snapping finds (else a closed line's centre, a place on an open line), or is free
   text where clicked; its text selected, ready to type. It has no name of its own: the tree shows
   it by its text as it reads, and renames it by its text.
 - What is drawn or dragged shows its values on the map (legs, total, area, radius). Exact lengths and
-  bearings are typed afterwards, in the points' and corners' tables (§5).
+  bearings are typed afterwards, in the points' tables (§5).
 - **Shift**: 15° steps from the leg before (from north for the first). **Alt**: nothing snapped or
   attached.
 - **Esc** (or a right-click with nothing to finish) steps back one level: what is half drawn, else
@@ -119,7 +119,7 @@ presets) opens its kinds.
 ### 2.2 Snapping and attaching
 
 Clicks and drags snap within **6 px**. The nearest target of the first kind found wins: a **vertex**
-(a point's centre, a corner of an outline or area, a line's place or free end), then a **crossing**
+(a point's centre, a corner of an outline, a line's place or an open line's free end), then a **crossing**
 of two edges or legs, then an **edge**. Hidden elements are not snapped to. The target is marked: a
 ring on a vertex, a cross on a crossing, a dot on an edge.
 
@@ -134,7 +134,7 @@ keeps it on the nearest vertex or edge.
 
 Measure: a click per point, snapped; each leg and the total shown. Enter or a double-click ends it; a
 click on its first point closes it (area and perimeter). What it measured goes in the drawing,
-selected, as a line "Distance 1" or an area: a guide showing its values, magenta and dashed. Saved,
+selected, as a line "Distance 1" or a closed line "Area 1": a guide showing its values, magenta and dashed. Saved,
 printed and exported with the drawing; Delete (or Undo) removes it; unticking Guide makes it part of
 the drawing.
 
@@ -176,7 +176,7 @@ takes one unit by its largest value.
 
 - **Rows**: a label, one value or a pair (latitude · longitude, colour · opacity), and a last column
   for an action (detach, attach, ↺). A box ticked is a row like any other.
-- **Lists** (parts, a line's points, an area's corners, data, the totals, a connection's roots): one
+- **Lists** (parts, a line's points, data, the totals, a connection's roots): one
   kind of table, none wider than the panel's 320 px. A long one scrolls in its own box, its head
   kept. The row clicked is current, its
   actions (and what did not fit the columns) in a bar over the list, shown only then, and on keys
@@ -186,23 +186,26 @@ takes one unit by its largest value.
   to 1.
 - **Sections** have the heads of Layers' groups, the arrow at the right where one folds: **Data**, open while it has properties of the user's;
   **Elevation profile**, read when opened; **Totals**, open to start with.
-- **A line's points**, 1 (its start) to N (its end): Lat, Lon; the **leg** from the point before,
-  its length and bearing (typed: that point alone moves, the legs either side of it change). The row
-  current says how far **along** the line its point is and holds its name. A point attached shows
-  what to, its leg as it is. Every row's bar has **Attach to…** (pressed while the next click
-  chooses) and, attached, **Detach** (it stays where it is); **Insert after** (not the last),
-  **Delete** (two are kept) and **Split** (not an end). An area's **corners** the same, 1 to n, corner 1's
-  edge from the last. The row current is ringed on the map; a point pressed on the map makes its row
-  current, on its page.
+- **A line**: its **Length**; closed, its **Area** and **Perimeter** instead. **Closed** (three
+  points or more) joins its last point to its first, unticked opens it again.
+- **A line's points**, 1 (its start) to N (its end): Lat, Lon; the **leg** from the point before (a
+  closed line's point 1: from its last), its length and bearing (typed: that point alone moves, the
+  legs either side of it change). The row current says how far **along** the line its point is and
+  holds its name. A point attached shows what to, its leg as it is. Every row's bar has **Attach
+  to…** (pressed while the next click chooses) and, attached, **Detach** (it stays where it is);
+  **Insert after** (not an open line's last), **Delete** (two are kept; closed, three) and **Split**
+  (not an end: two lines, attached to a point made there; on a closed line, any point: it opens
+  there, its start and its end at that point). The row current is ringed on the map; a point pressed
+  on the map makes its row current, on its page.
 - **What several share** (two or more selected, or a group's members under **Each member**): every
   row two or more of them have, "mixed" where they differ; a value set there goes to each that has
   it. Points: Position each axis alone (a latitude typed puts them all on that parallel, their
   longitudes kept), Bearing, Symbol (those without an outline), and their **Parts** part by part,
   every row two or more points have: its kind (changed, each keeps its reach), size (each round
   part's radius and each outline's length at once), across (a sector's aperture, an outline's width,
-  each where two or more have one), fill. Lines: Path. Points, lines and areas: Guide. Labels: Leader.
+  each where two or more have one), fill. Lines: Path. Points and lines: Guide. Labels: Leader.
 - **The look's cascade:** an element's own value, else the drawing's Display, else the default; **↺**
-  gives a field back. Fill and Stroke are rows (a colour, its opacity in %), Width (px) and Dash
+  gives a field back. Fill (a closed line's, not an open one's) and Stroke are rows (a colour, its opacity in %), Width (px) and Dash
   their own. Where several differ a field says "mixed" and a change writes only that field. A group
   is only who is in it: joining or leaving changes nothing of an element; its Look sets each member.
   A hidden group hides everything in it. **Min. size** is the drawing's only: shapes shorter than it
@@ -221,14 +224,14 @@ takes one unit by its largest value.
   **Data**: its properties as keys and values.
 - A **label**: its text, with value codes ({name}, {along}…: **+ name** and the like insert them) and,
   while it has any, what it **reads** under it; **Attached to** what and where (a line's point or leg,
-  an area's or outline's corner or edge, as the tables number them), or its **Position**; **Along**, on
+  an outline's corner or edge, as the tables number them), or its **Position**; **Along**, on
   a line; **Text offset**, where its text was dragged to (↺: back); **Leader**, when attached. Look:
   text size, colour, background (halo or box).
 - A **group**: **Members** as the tree counts them (everything in it, its subgroups' too) and its
   subgroups, with the group's eye (as its row's); **Totals** as the drawing's, its members only, by subgroup
   (Copy); **Select members**; **Look · sets each member** (a group has no look of its own); its foot
   as every element's.
-- **Guide** (points, lines, areas): faint and dashed, left out of the totals.
+- **Guide** (points, lines): faint and dashed, left out of the totals.
 
 ## 6. Distribute along and Connect: rules
 
@@ -237,10 +240,11 @@ from, and can be edited again. What a rule makes is in a group of its own; anyth
 **Made by** row ("Distribute along Line 2 · 12 copies", "Connection · trees, 12 points to 1 root")
 with **Edit…** (its form again) and **Select all**.
 
-**Distribute along…** (a line, or a point round one of its parts, clockwise: a circle's whole round
-from its bearing, a sector's arc, an outline's ring) opens a form in Properties (any tool goes off):
+**Distribute along…** (a line, a closed one round its ring from its first point, or a point round
+one of its parts, clockwise: a circle's whole round from its bearing, a sector's arc, an outline's
+ring) opens a form in Properties (any tool goes off):
 
-- **By** spacing or count; **Margins** at the start and the end; **Offset** left, right or
+- **By** spacing or count; **Margins** at the start and the end (none round a ring); **Offset** left, right or
   alternating (Out, In round a part); **Copy**, a built-in kind or a preset of yours; **Radius**
   (500 m to start with; a preset keeps its size); **Aperture** (a sector facing away; empty: circles);
   **In group**.
@@ -271,7 +275,7 @@ Copies) opens its form (a click on the map picks a root):
 
 ## 7. On the map
 
-- **Stacking**, bottom to top: points' circles and sectors, areas, lines (guides under), shapes'
+- **Stacking**, bottom to top: points' circles and sectors, closed lines' fills, lines (guides under), shapes'
   outlines, symbols, names and values, labels; within each, the drawing order (§4).
 - **Marks** are yellow cased in white, seen on the sea's blue as on the chart: half strength for hovering (a band just outside the
   element), full for the selection and for targets. The one element selected shows its handles; among
@@ -282,7 +286,7 @@ Copies) opens its form (a click on the map picks a root):
   positions snap (Alt: free; Shift: 15° steps). **Handles**: a round part's radius; a sector's two
   ends; the stalk (bearing); an outline's corners (resize, the opposite kept; Shift: proportions; Alt:
   the centre) and sides; a line's points (one attached to a point's centre moves the point; another,
-  dropped on something, attaches there) and a **+** halfway along a leg; an area's corners and a **+** on each edge; a label's text and, free or
+  dropped on something, attaches there) and a **+** halfway along a leg (a closed line's last leg too); a label's text and, free or
   on a line, its point. Outlines drawn enlarged are only moved.
 - **Display only** (never in lengths or exports): **Offset**, a line drawn beside itself (−50 to 50
   px, as QGIS offsets a line symbol; ⇉ in the tree), and the enlarged small shapes. Names collide
@@ -301,7 +305,7 @@ Copies) opens its form (a click on the map picks a root):
 | Backspace | takes back a point |
 | Esc, right-click | steps back one level |
 | ↑ ↓ | previous, next element in the tree |
-| Delete (Mac: also ⌘ Backspace) | deletes the place current (a line's point, a corner, a part: pressed on the map or its row), else the selection |
+| Delete (Mac: also ⌘ Backspace) | deletes the place current (a line's point, a part: pressed on the map or its row), else the selection |
 | F2 | rename |
 | Ctrl/⌘ Z, Ctrl/⌘ Shift Z (or Ctrl Y) | undo, redo |
 | Ctrl/⌘ C, V, D | copy, paste, duplicate |

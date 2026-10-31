@@ -39,8 +39,8 @@ The app makes random 8-character IDs. Any unique IDs will do (`a`, `l1`, `p-main
 them. A feature's `id` given as a number is read as text.
 
 **Order matters.** The order of the features is the order in the panel and the drawing order within a
-kind: the first on top (areas among areas, lines among lines, points' shapes among points'). Between
-kinds the stacking is fixed (drawing-ui.md §7). The writer writes points, then lines, areas and labels.
+kind: the first on top (lines among lines, closed or not; points' shapes among points'). Between
+kinds the stacking is fixed (drawing-ui.md §7). The writer writes points, then lines and labels.
 
 ## 3. The collection
 
@@ -128,7 +128,7 @@ An unknown layer, variant, period, data entry or depth is skipped with a warning
 | `name` | free text |
 | its properties | one column each, in their order, values as text (a description, a category: properties like any other; the totals can count by any key). A key equal to one of the names in this table, or `charts`, is written `p_<key>`; a repeated key `<key>_2`, `<key>_3`… |
 | `stroke`, `stroke-width`, `stroke-opacity` | the element's own stroke colour, width and opacity (§6) |
-| `fill`, `fill-opacity` | the element's own fill (points and areas) |
+| `fill`, `fill-opacity` | the element's own fill (points and lines: drawn while a line is closed) |
 
 Only the element's **own** values are written here: a value it takes from the drawing is not (§6).
 
@@ -136,7 +136,7 @@ Only the element's **own** values are written here: a value it takes from the dr
 
 | Field | Notes |
 |---|---|
-| `kind` | `"point"`, `"line"`, `"area"` or `"label"`. Always written. On reading only `"label"` matters (a `Point` geometry is then a label); otherwise the geometry decides. |
+| `kind` | `"point"`, `"line"` or `"label"`. Always written. On reading only `"label"` matters (a `Point` geometry is then a label); otherwise the geometry decides (a `Polygon` is a closed line). |
 | `group` | the ID of its group, at most one |
 | `visible` | `false`: hidden. Hidden elements are not drawn and not exported to GIS data, but they are in the file. A hidden group hides its members. |
 | `guide` | supporting geometry: drawn faint and dashed in one colour, left out of totals (not on labels). A guide showing its values is a **measurement**. |
@@ -159,9 +159,9 @@ How an element is drawn is its **look**: one object, every field optional where 
 
 | Field | Notes |
 |---|---|
-| `fill`, `stroke` | colours `#rrggbb`; opacities 0–1; width 0.5–20 px; dash `"solid"`, `"dashed"` or `"dotted"`. Lines have no fill. |
-| `text.name` | its name drawn on the map (points, lines, areas; a group's: everything in it) |
-| `text.values` | its values drawn on the map: a line's legs, an area's area and perimeter, a point's round parts' radii |
+| `fill`, `stroke` | colours `#rrggbb`; opacities 0–1; width 0.5–20 px; dash `"solid"`, `"dashed"` or `"dotted"`. A line's fill is drawn while it is closed. |
+| `text.name` | its name drawn on the map (points, lines: a closed one's at its centre; a group's: everything in it) |
+| `text.values` | its values drawn on the map: a line's legs, a closed line's area and perimeter, a point's round parts' radii |
 | `text.size`, `text.color`, `text.background` | a label's text: `"small"`, `"medium"` or `"large"`; its colour; `"halo"` or `"box"` |
 | `offset` | Offset: a line drawn this many pixels beside its geometry, to the right of its direction (negative: the left), −50 to 50; 0: on it. Display only, as QGIS offsets a line symbol. |
 | `minSize` | screen pixels, 0–200: an outline whose long side is shorter than this on screen is drawn enlarged (display only, dotted); 0: always real size. The drawing's only. |
@@ -251,7 +251,8 @@ Circle by its round parts.
 ### 7.3 Line
 
 A `LineString` geometry: its places in order, the first its start, the last its end. A line has one
-**leg** between each two places.
+**leg** between each two places. A **closed** line (an area) is a `Polygon` (§7.6): one more leg, from
+its last place back to its first.
 
 ```json
 "charts": {
@@ -264,17 +265,17 @@ A `LineString` geometry: its places in order, the first its start, the last its 
 | Field | Notes |
 |---|---|
 | `smooth` | `true`: a smooth curve through its places; missing or `false`: straight legs |
-| `names` | one entry per place of the geometry, in order: its name (text). Places have no ID. Written only when one of them is named; matched to the positions by order, a missing entry `""`. |
+| `names` | one entry per place, in the line's order (§7.6): its name (text). Places have no ID. Written only when one of them is named; matched to the positions by order, a missing entry `""`. |
 
 What a place is tied to is in the drawing's links (§7.4), not in the line.
 
 **Legs.** A straight line's legs are the **geodesics** between its places (as the ruler draws
 them). A smooth line's (with at least three places) are cubic Béziers in the map's projection (Web
-Mercator) whose handles are worked out from the places (Catmull-Rom: at an inner place parallel to
-the chord between its neighbours, a third of each leg; `site/draw/lines.js`), so the curve follows
-its places. Lengths are always geodesic: a curve's is summed over close samples of it until the sum
-settles. A curve is the line itself: its length, the values shown and the GIS export are the
-curve's. Lengths are never stored.
+Mercator) whose handles are worked out from the places (Catmull-Rom: at an inner place, and at every
+place of a closed line, parallel to the chord between its neighbours, a third of each leg;
+`site/draw/lines.js`), so the curve follows its places. Lengths are always geodesic: a curve's is
+summed over close samples of it until the sum settles. A curve is the line itself: its length (a closed line's area and perimeter too), the values
+shown and the GIS export are the curve's. Lengths and areas are never stored.
 
 The geometry holds the places only: other tools show a curved line straight through its places,
 and its legs straight in longitude and latitude (§13).
@@ -297,11 +298,11 @@ a label's `0` (where it points). A place has one link at most. `to` is the targe
 
 | `to` | Points at |
 |---|---|
-| `{ "element": "a" }` | its centre: a point's position, an area's centroid, a line's middle |
-| `{ "element": "a", "vertex": 2 }` | vertex 2: a corner of an area or of a point's outline; a line's place 2 |
-| `{ "element": "a", "edge": 1, "at": 0.25 }` | a place on edge 1 (from vertex 1 to the next; an area's and an outline's close, a line's are its legs, as drawn), a fraction `at` (0–1, 6 decimals) along it, so that it turns and stretches with it |
+| `{ "element": "a" }` | its centre: a point's position, a closed line's centroid (the mean of its places), an open line's middle |
+| `{ "element": "a", "vertex": 2 }` | vertex 2: a line's place 2; a corner of a point's outline |
+| `{ "element": "a", "edge": 1, "at": 0.25 }` | a place on edge 1 (from vertex 1 to the next: a line's leg, as drawn, a closed line's last back to its first; an outline's side, closed), a fraction `at` (0–1, 6 decimals) along it, so that it turns and stretches with it |
 
-A bare ID (`"a"`) is read as `{ "element": "a" }`. Indices count from 0. An area's corners are
+A bare ID (`"a"`) is read as `{ "element": "a" }`. Indices count from 0. A closed line's places are
 counted in its own order (§7.6: the geometry's ring reversed when `reversed` is set). An outline's
 corners are those of its silhouette in order (`site/draw/outlines.js`): a rectangle's front right,
 back right, back left, front left; a triangle's apex, back right, back left. An ellipse's are the
@@ -317,7 +318,9 @@ from a place already linked is dropped, its place free where the geometry says (
 vertices are added to or taken from a target, a link to it stays where it was: on the nearest
 vertex, or the nearest place on an edge. When places are added to or taken from a line, its links
 are numbered again (one from a place taken away goes); a line split at a place carries the links of
-its second half to the new line, and both are linked to the point made there.
+its second half to the new line, and both are linked to the point made there. A closed line split at
+a place is opened there instead: one open line from that place round to it again (its start and its
+end there, nothing made), its links numbered from its new start.
 
 ### 7.5 Outline
 
@@ -328,13 +331,16 @@ are geodesic destinations from the centre and its edges geodesics. The triangle 
 apex at the front. Drawn small, a point's outlines are enlarged together, by what its largest needs to
 reach the minimum display size.
 
-### 7.6 Area
+### 7.6 Closed line
 
-A `Polygon` geometry: one ring, closed, at least three corners. Its edges are geodesics.
+A closed line is a `Polygon` geometry, so that other tools see an area: one ring, its first place
+repeated at its end, at least three places. `charts` is a line's (§7.3): `kind` `"line"`, `smooth`,
+`names`. Its legs, straight or smooth, close: the last runs from its last place back to its first.
+It shows its area and perimeter where an open line shows its length.
 
-The ring is written **counter-clockwise**, as RFC 7946 asks. An area kept clockwise in the app is
-written reversed, with `"reversed": true` in `charts`; the reader reverses it back, so corners keep
-their numbers (§7.4).
+The ring is written **counter-clockwise**, as RFC 7946 asks. A closed line kept clockwise in the app
+is written reversed, with `"reversed": true` in `charts`; the reader reverses it back, so its places
+keep their numbers (§7.4) and its `names` their order.
 
 ### 7.7 Label
 
@@ -354,9 +360,10 @@ A `Point` geometry where the label points, with `"kind": "label"`:
   place on an edge or a line's leg, an element's centre. None: a free label, at the geometry's
   position.
 - **`text`:** free text; `\n` breaks lines. Filled in as drawn, in the display units (one that does
-  not apply is left empty): `{name}` (the element's name); `{length}` (its line's length, or the
-  side it is on); `{along}` (the distance along its line); `{bearing}` (the side's or leg's);
-  `{radius}` (a point's filled radius); `{area}`, `{perimeter}` (an area's, a shape's outline's).
+  not apply is left empty): `{name}` (the element's name); `{length}` (its line's length, a closed
+  one's perimeter; or the outline's side it is on); `{along}` (the distance along its line);
+  `{bearing}` (the side's or leg's); `{radius}` (a point's filled radius); `{area}`, `{perimeter}` (a
+  closed line's, a shape's outline's).
 - **`offset`:** the text's centre, in screen pixels from where it points (x right, y down; ±2000).
 - **`leader`:** `"arrow"` (a line from the text to where it points, an arrow head there) or `"none"`.
 - **`look`:** its text's `size` (`"small"`, `"medium"` or `"large"`: 11, 13, 16 px), `color` (set
@@ -385,7 +392,7 @@ They are checked loosely: one without a valid, unused `id` is skipped.
 
 | Field | Notes |
 |---|---|
-| `along` | required: `{ "element" }`, the line the copies are placed along, or the point round whose part they are placed (`"part"`: its place; missing: its first filled round part, else its first), clockwise: a circle's whole round from its bearing, a sector's arc, an outline's ring. Without it the rule is skipped. |
+| `along` | required: `{ "element" }`, the line the copies are placed along (a closed one round its ring, from its first place), or the point round whose part they are placed (`"part"`: its place; missing: its first filled round part, else its first), clockwise: a circle's whole round from its bearing, a sector's arc, an outline's ring. Without it the rule is skipped. |
 | `groupId` | its own group ("Distribute along" and the name of what it follows), which holds `copiesId`, the group of its copies ("Copies"), and its connection's group |
 | `spacing`, `count` | a copy every `spacing` metres from the start margin, or `count` copies evenly between the margins (round a whole circle: evenly, no margins) |
 | `startMargin`, `endMargin` | metres left free at each end |
@@ -467,9 +474,9 @@ it.
 The reader takes a FeatureCollection, a single Feature or a bare geometry.
 
 - **Geometry:** `Point` → point (a label when its `charts.kind` is `"label"`), `LineString` → line,
-  `Polygon` → area. Each part of a `MultiPoint`, `MultiLineString` or `MultiPolygon` is an element of
+  `Polygon` → closed line. Each part of a `MultiPoint`, `MultiLineString` or `MultiPolygon` is an element of
   its own: the first keeps the feature's ID, the others get new ones. A Polygon's holes are dropped
-  (warning); a ring repeating its first corner at the end is read without the repeat.
+  (warning); a ring repeating its first position at the end is read without the repeat.
 - **Foreign features** (no `charts`): a point is a `"diamond"` with no parts; `name` is read from
   `name`, `Name` or `title` (on the app's own features only `name`: a user's property `title` stays
   one); the style from `stroke`, `stroke-width`, `stroke-opacity`, `fill`, `fill-opacity`;
@@ -493,8 +500,8 @@ The import report lists what was refused, skipped and repaired, before the drawi
 ## 12. Reading: refusals and skips
 
 **The whole file is refused** (nothing loads) when it is larger than 64 MB; it is not JSON; its top level is not an object;
-it is not GeoJSON; `charts.version` is there and not 1; or its lines and areas hold more than
-1 000 000 positions together.
+it is not GeoJSON; `charts.version` is there and not 1; or its lines hold more than 1 000 000
+positions together.
 
 **Limits:** past 20 000 elements the rest are skipped; a text is cut to 10 000 characters; past 200
 properties on one element and 100 parts on one point the rest are dropped (each with a warning).
@@ -502,14 +509,15 @@ properties on one element and 100 parts on one point the rest are dropped (each 
 **One feature or element is skipped** (the rest loads; the report gives its ID and why) when it is not
 a Feature; it has no geometry; its geometry is a GeometryCollection or of another type; a position is
 not `[longitude, latitude]` or its latitude out of range (a longitude past ±180° is brought back); a line has fewer than two positions, or more than
-100 000; an area fewer than three corners, or more than 100 000. A group or rule without a valid, unused ID is skipped, a rule of another kind, and a
+100 000; a closed line fewer than three positions, or more than 100 000. A group or rule without a valid, unused ID is skipped, a rule of another kind, and a
 Distribute along without `along`.
 
 ## 13. What other tools see
 
 A GIS opening the file sees:
 
-- points, lines and areas with their real positions, and labels as points where they point;
+- points, lines (closed ones as polygons) with their real positions, and labels as points where they
+  point;
 - the name and the properties as columns, and each element's own stroke
   and fill in the common style names (not a style it takes from its group or the defaults);
 - each feature's `charts` property, usually as text; it is the app's and can be left as it is. The
@@ -538,7 +546,8 @@ beside it `vector/drawings.geojson`: the drawing **as drawn**, for tools that kn
   `surface_length_m` (its length along the surface, seabed and ground, from the depths and heights the
   shadings draw: a lower bound; only for a line whose elevation profile was opened as it is now drawn:
   an export reads no elevation).
-- An area: a `Polygon`, counter-clockwise, densified, with `area_m2` and `perimeter_m`.
+- A closed line: a `Polygon` along its legs as drawn, counter-clockwise, with `area_m2` and
+  `perimeter_m` (and `surface_length_m` as a line's) in place of `length_m`.
 - A label: a `Point` where it points, with `text` (values filled in, in the display units), `anchor`
   (the element's ID, or empty) and `along_m` on a line.
 - Every feature has `kind`, `id`, `name`, `group` (the groups' names, outermost first, `A / B`),
@@ -548,7 +557,7 @@ beside it `vector/drawings.geojson`: the drawing **as drawn**, for tools that kn
 ## 15. Example
 
 A point with a 5 km sector, a rectangle outline, a line from the first's centre to a corner of the
-second, an area, and a label along the line, tied by three links. Written by the app (`serialise`), then shortened only in
+second, a closed line, and a label along the line, tied by three links. Written by the app (`serialise`), then shortened only in
 layout.
 
 ```json
@@ -584,7 +593,7 @@ layout.
     { "type": "Feature", "id": "g1",
       "geometry": { "type": "Polygon", "coordinates": [[[12.5, 41.75], [12.55, 41.8], [12.45, 41.8], [12.5, 41.75]]] },
       "properties": { "name": "Area 1", "fill-opacity": 0.3,
-        "charts": { "kind": "area", "reversed": true } } },
+        "charts": { "kind": "line", "reversed": true } } },
     { "type": "Feature", "id": "t1",
       "geometry": { "type": "Point", "coordinates": [12.429105, 41.8941893] },
       "properties": { "name": "Label 1",
@@ -595,8 +604,8 @@ layout.
 
 The point `a` says its symbol, a diamond; the shape says none, so it has none (the default). Its
 part has no ID: it is part 1 of `a`. The line's start is linked to `a`'s centre, its end (place 2) to
-vertex 2 (the back left corner) of the rectangle; its coordinates are where those are. The area was
-drawn clockwise: its ring is written counter-clockwise and says so. The label's geometry is half way
+vertex 2 (the back left corner) of the rectangle; its coordinates are where those are. The closed
+line was drawn clockwise: its ring is written counter-clockwise and says so. The label's geometry is half way
 along the line's first leg, where its link says.
 
 ## 16. Every default
@@ -638,7 +647,7 @@ What a value is when the file leaves it out. Writing it with this value means th
 | point | `parts` | `[]` |
 | line | `names` | each `""` |
 | line | `smooth` | `false` |
-| area | `reversed` | `false` |
+| line | `reversed` | `false` (a closed line's) |
 | label | `text` | `""` |
 | link target | `at`; `part` | `0`; none: the point's largest outline |
 | label | `offset` | `[40, -40]` |
