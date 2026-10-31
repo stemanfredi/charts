@@ -62,6 +62,8 @@ export function search(map, Marker, free) {
     }
     q.blur();
   }
+  // results that come when the box no longer asks for them (left, or holding other text): dropped
+  const stale = (text) => document.activeElement !== q || q.value.trim() !== text;
   async function searchPlaces(text) {
     searchCtl?.abort();
     if (noConnection()) { showResults([{ name: 'No connection', where: 'place search needs one; coordinates work' }]); return; }
@@ -76,6 +78,7 @@ export function search(map, Marker, free) {
       const features = ((await r.json()).features || []).filter(place) // only results with a place and properties
         .filter(({ properties: p }) => { const k = `${(p.name || '').toLowerCase()}|${resultKind(p)}|${p.city}`; return !seen.has(k) && seen.add(k); })
         .sort((a, b) => seaFirst(a) - seaFirst(b)).slice(0, 7);
+      if (stale(text)) return;
       showResults(features.map((f) => {
         const p = f.properties, e = Array.isArray(p.extent) && p.extent.length === 4 && p.extent.every(Number.isFinite) ? p.extent : null; // [west, north, east, south]; across ±180° east < west: east taken past 180°
         return { go: true, name: p.name || p.street || text, at: f.geometry.coordinates,
@@ -83,20 +86,19 @@ export function search(map, Marker, free) {
           bounds: e ? [[e[0], e[3]], [e[2] + (e[2] < e[0] ? 360 : 0), e[1]]] : null, zoom: ZOOM_OF[p.osm_value] || 14 };
       }));
     } catch (err) {
-      if (err.name !== 'AbortError') showResults([{ name: 'Place search is not available right now', where: err.message }]);
+      if (err.name !== 'AbortError' && !stale(text)) showResults([{ name: 'Place search is not available right now', where: err.message }]);
     }
   }
   q.addEventListener('input', () => {
     const text = q.value.trim();
     qClear.hidden = !text;
     clearTimeout(searchTimer);
-    if (!text) { searchCtl?.abort(); hideResults(); return; }
+    searchCtl?.abort(); // a search under way answers a query no longer there
+    if (!text) { hideResults(); return; }
     const ll = parseLatLon(text);
     if (ll) { // coordinates: nothing leaves the page
-      searchCtl?.abort();
       showResults([{ go: true, name: `${dm(ll.lat, 'N', 'S')}  ${dm(ll.lon, 'E', 'W')}`, where: 'coordinates', at: [ll.lon, ll.lat], zoom: 11 }]);
     } else if (looksLikeCoords(text)) { // coordinates still being typed: never sent either
-      searchCtl?.abort();
       showResults([{ name: 'Coordinates: latitude, then longitude', where: 'kept in the page' }]);
     } else if (text.length >= 3) searchTimer = setTimeout(() => searchPlaces(text), 300);
     else hideResults();
