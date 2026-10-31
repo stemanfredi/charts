@@ -26,7 +26,7 @@ export function fileGroup(drawing, ctx, presetsChanged) {
   // one menu, opened from Open or from Download, with what that button holds
   const menuEl = h('div', { class: 'dmenu', role: 'menu', hidden: true });
   document.body.append(menuEl, fileInput);
-  const menu = popup(menuEl, { choose: false, // the view's outputs say how they went in it, open meanwhile
+  const menu = popup(menuEl, { choose: false, // open while an output is prepared (it says how it went in the note)
     place: (b) => { const r = b.getBoundingClientRect(); Object.assign(menuEl.style, { top: `${r.bottom + 4}px`, left: `${Math.max(8, Math.min(r.left, innerWidth - 360))}px` }); },
   });
   const close = () => menu.close();
