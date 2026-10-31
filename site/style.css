@@ -214,7 +214,7 @@ input.bad { border-color: var(--err) !important; background: #fdf3f2 !important;
 /* the box being dragged (Shift-drag), on the map */
 .dbox { position: absolute; border: 1.5px solid #ffc400; background: rgba(255, 196, 0, .1); /* the marks' yellow (draw/layers.js MARK) */ pointer-events: none; z-index: 2; }
 /* a group's row: a caret folds its members */
-.dfold { flex: none; width: 20px; height: var(--row); border: 0; background: none; padding: 0; display: grid; place-items: center; color: var(--soft); }
+.dfold { flex: none; width: var(--row); height: var(--row); border: 0; background: none; padding: 0; display: grid; place-items: center; color: var(--soft); }
 .dfold.none::after { display: none; } /* the room of a fold, so that icons line up */
 .drow.dgroup { padding-left: 0; font-weight: 600; }
 /* how far in the tree a row is: what is in a group, one step further than the group */

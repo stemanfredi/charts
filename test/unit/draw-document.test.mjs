@@ -6,7 +6,8 @@ const d = await import('../../site/draw/document.js');
 const { parse, serialise, toFile } = await import('../../site/draw/file.js');
 const { refreshAttached, lineRef, resolve, splitLine, insertPlace, deletePlace } = await import('../../site/draw/attach.js');
 const { distributions, connections } = await import('../../site/draw/generator.js');
-const { emptyDoc, addPoint, addDot, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
+const { outlinePoints } = await import('../../site/draw/outlines.js');
+const { emptyDoc, addPoint, addDot, addLabel, addCircle, addLine, carry, membersOf, dependents, remove, idsOf, newId, nextName,
   label, styleOf, offsetOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, linkFrom,
   DEFAULT_STYLE, GUIDE_STYLE, FORMAT, VERSION } = d;
 
@@ -26,22 +27,25 @@ const labelAt = (doc, r) => addLabel(doc, r.position ?? resolve(doc, r).position
 // metres and pixels 3, angles 4)
 const r = (n) => (v) => (typeof v === 'number' ? +v.toFixed(n) : v);
 const ROUND = { position: 7, pos: 7, center: 7, points: 7,
-  radius: 3, length: 3, width: 3, at: 6, offset: 3, minSize: 3, opacity: 3, bearing: 4, aperture: 4, zoom: 4 };
+  radius: 3, width: 3, at: 6, offset: 3, opacity: 3, bearing: 4, aperture: 4, zoom: 4 };
 function rounded(x, n = null) {
   if (Array.isArray(x)) return x.map((y) => rounded(y, n));
   if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, rounded(v, k in ROUND ? ROUND[k] : n)]));
   return n === null ? x : r(n)(x);
 }
 
-// a drawing made by the operations, one of each kind and most of their parts
+// a drawing made by the operations, one of each kind and most of their fields
 function sample() {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [12, 41]), b = addPoint(doc, [12.2, 41.1]);
   b.bearing = 30;
-  Object.assign(b.parts[0], { kind: 'sector', aperture: 120, shown: false, name: 'inner' });
-  addPart(b, 'sector');
-  addPart(b, 'triangle');
-  addShape(doc, [12.1, 41], 'ellipse').bearing = 45;
+  // b's shapes: two sectors (one hidden, one unfilled) and a triangle
+  addCircle(doc, b.position, { groupId: b.id, aperture: 120, bearing: 30, visible: false, name: 'inner' });
+  addCircle(doc, b.position, { groupId: b.id, radius: 2000, aperture: 120, bearing: 30, look: { fill: { opacity: 0 } } });
+  const tri = addLine(doc, outlinePoints(b.position, 30, 100, 50, 'triangle'), { groupId: b.id, closed: true });
+  const el = addShape(doc, [12.1, 41], 'ellipse');
+  carry(doc, el.point, el.point.position, 45);
+  addCircle(doc, [12.4, 41], { radius: 300.5 }); // a free one
   addDot(doc, [12.3, 41]);
   const l = lineFrom(doc, a.id, [[12.1, 41.2]], b.id);
   l.look.stroke = { ...d.GUIDE_STROKE }; // its own, though as a guide's
@@ -60,15 +64,17 @@ function sample() {
   labelAt(doc, { position: [12, 41], element: a.id });
   labelAt(doc, { position: [12, 40], element: ring.id, vertex: 1 });
   labelAt(doc, { position: [12, 40], element: ring.id, edge: 2, at: 0.5 }); // on its closing leg
-  labelAt(doc, { position: [12, 40], element: doc.points[2].id, edge: 2, at: 0.25 });
-  labelAt(doc, { position: [12, 40], element: b.id, part: 2, vertex: 1 }); // on an outline part's corner
+  labelAt(doc, { position: [12, 40], element: el.shapes[0].id, edge: 2, at: 0.25 });
+  labelAt(doc, { position: [12, 40], element: tri.id, vertex: 1 }); // on a corner of a point's shape
+  labelAt(doc, { position: [12, 40], element: doc.circles[0].id }); // on a circle's centre
   makeGroup(doc, [b.id]);
   // measurements: guides showing their values
   const m = () => ({ guide: true, look: { text: { values: true } } });
-  addPoint(doc, [12, 41], { name: 'Ring 1', symbol: 'none', parts: [makePart('circle', { radius: 500 })], ...m() });
+  addCircle(doc, [12, 41], { name: 'Ring 1', radius: 500, ...m() });
   lineFrom(doc, [12, 41], [[12.5, 41]], [13, 41], { name: 'Distance 1', ...m() });
   addRing(doc, [[12, 41], [12.5, 41], [13, 42]], m());
-  doc.look = { minSize: 20 }; // the drawing's
+  doc.look = { offset: 2 }; // the drawing's
+  for (const l of doc.lines) l.points = l.points.map((q) => q.map(r(7))); // as the file writes them
   refreshAttached(doc); // each reference where it points
   return doc;
 }
@@ -94,7 +100,7 @@ test('a minimal file: defaults everywhere', () => {
   assert.deepEqual(doc.meta, { title: '', description: '', author: '' });
   assert.deepEqual(doc.look, {});
   assert.deepEqual(doc.points[0], { id: 'n1', name: '', properties: [], groupId: null, visible: true, guide: false,
-    position: [12, 41], bearing: 0, symbol: 'none', parts: [], look: {} });
+    position: [12, 41], bearing: 0, symbol: 'none', look: {} });
   assert.deepEqual(styleOf(doc, doc.points[0]), DEFAULT_STYLE); // no look of its own: the default
   assert.deepEqual(d.lookOf(doc, doc.points[0]), d.DEFAULT_LOOK);
 });
@@ -109,17 +115,17 @@ test('round trip: a drawing made by the operations survives its file unchanged, 
 
 test('round trip: values come back rounded as the file writes them', () => {
   const doc = emptyDoc(NOW);
-  const p = addPoint(doc, [12.123456789, 41.987654321], { bearing: 45.123456, parts: [makePart('sector', { radius: 1000.12345, aperture: 90.000049 })] });
-  p.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 } };
+  const p = addPoint(doc, [12.123456789, 41.987654321], { bearing: 45.123456 });
+  p.look = { stroke: { opacity: 0.123456 } };
+  const c = addCircle(doc, [3, 3], { groupId: p.id, radius: 1000.12345, aperture: 90.000049, bearing: 45.123456 });
+  c.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 } };
   const s = lineFrom(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { look: { offset: 3.33333 } });
   labelAt(doc, lineRef(doc, s, 1500.12345)).offset = [10.12345, -20.98765];
   addRing(doc, [[0, 0], [1.123456789, 0], [1, 1]]);
-  Object.assign(addShape(doc, [3, 3]).parts[0], { length: 120.12345, width: 40.98765 });
   const f = toFile(doc);
   assert.deepEqual(f.features[0].geometry.coordinates, [12.1234568, 41.9876543]);
-  assert.deepEqual(f.features[0].properties.charts.parts, [{ kind: 'sector', radius: 1000.123, aperture: 90 }]);
-  assert.deepEqual(f.features.find((x) => x.geometry.coordinates[0] === 3).properties.charts.parts, [{ kind: 'rectangle', length: 120.123, width: 40.988 }]);
-  assert.equal(f.features[0].properties['fill-opacity'], 0.123);
+  assert.deepEqual(f.features[1].properties.charts, { kind: 'circle', group: p.id, radius: 1000.123, aperture: 90, bearing: 45.1235 });
+  assert.deepEqual([f.features[0].properties['stroke-opacity'], f.features[1].properties['fill-opacity'], f.features[1].properties['stroke-width']], [0.123, 0.123, 2]);
   assert.equal(f.features[0].properties.charts.bearing, 45.1235);
   const { doc: back } = again(doc);
   // a label linked: where its target is in the drawing read (the link wins over the geometry)
@@ -135,7 +141,7 @@ test('defaults are left out of the file; positions on one line', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [12, 41]);
   addDot(doc, [12.5, 41]);
-  addShape(doc, [13, 41]);
+  const c = addCircle(doc, [13, 41]);
   lineFrom(doc, a.id, [], [14, 41]);
   addRing(doc, [[0, 0], [1, 0], [1, 1]]);
   const lb = labelAt(doc, { position: [12, 41], element: a.id });
@@ -143,11 +149,11 @@ test('defaults are left out of the file; positions on one line', () => {
   assert.deepEqual(Object.keys(f), ['type', 'charts', 'features']);
   assert.deepEqual(f.charts, { format: FORMAT, version: VERSION, created: '2026-10-22T10:00:00Z', modified: '2026-10-22T10:00:00Z',
     links: [{ from: [doc.lines[0].id, 0], to: { element: a.id } }, { from: [lb.id, 0], to: { element: a.id } }] }); // the ties, in one table
-  const [pt, dot, shape, line, area, lab] = f.features;
+  const [pt, dot, circ, line, area, lab] = f.features;
   assert.deepEqual(pt, { type: 'Feature', id: a.id, geometry: { type: 'Point', coordinates: [12, 41] },
-    properties: { name: 'Point 1', charts: { kind: 'point', symbol: 'diamond', parts: [{ kind: 'circle', radius: 1000 }] } } }); // its symbol: written (the default is none); a part's Fill and Shown: on
-  assert.deepEqual(dot.properties.charts, { kind: 'point', symbol: 'dot' }); // no parts: none written
-  assert.deepEqual(shape.properties.charts, { kind: 'point', parts: [{ kind: 'rectangle', length: 100, width: 50 }] }); // no symbol: the default
+    properties: { name: 'Point 1', charts: { kind: 'point', symbol: 'diamond' } } }); // its symbol: written (the default is none)
+  assert.deepEqual(dot.properties.charts, { kind: 'point', symbol: 'dot' });
+  assert.deepEqual(circ, { type: 'Feature', id: c.id, geometry: { type: 'Point', coordinates: [13, 41] }, properties: { name: 'Circle 1', charts: { kind: 'circle', radius: 1000 } } }); // its radius always; no aperture: a whole circle
   assert.deepEqual(line.properties.charts, { kind: 'line' }); // no names: none written
   assert.deepEqual(line.geometry, { type: 'LineString', coordinates: [[12, 41], [14, 41]] });
   assert.deepEqual(area.properties.charts, { kind: 'line' }); // closed: its geometry says so
@@ -171,18 +177,18 @@ test('closed lines are Polygons, written counter-clockwise; one stored clockwise
 
 test('properties: the user\'s as columns, a key colliding with the feature\'s own renamed, the list kept; the common style names', () => {
   const doc = emptyDoc(NOW);
-  const p = addPoint(doc, [0, 0], { properties: [{ key: 'description', value: 'about it' }, { key: 'category', value: 'kind A' }, { key: 'depth', value: '120' }, { key: 'stroke', value: 'thin' }, { key: 'depth', value: 'again' }] });
+  const p = addCircle(doc, [0, 0], { properties: [{ key: 'description', value: 'about it' }, { key: 'category', value: 'kind A' }, { key: 'depth', value: '120' }, { key: 'stroke', value: 'thin' }, { key: 'depth', value: 'again' }] });
   p.look = { stroke: { color: '#ff0000', width: 3, opacity: 0.5, dash: 'dashed' }, fill: { color: '#00ff00', opacity: 0.25 } };
   const q = addPoint(doc, [1, 0], { properties: [{ key: 'a', value: '1' }] });
-  const [fp, fq] = toFile(doc).features;
-  assert.deepEqual(fp.properties, { name: 'Point 1', description: 'about it', category: 'kind A', depth: '120', p_stroke: 'thin', depth_2: 'again',
+  const [fq, fp] = toFile(doc).features;
+  assert.deepEqual(fp.properties, { name: 'Circle 1', description: 'about it', category: 'kind A', depth: '120', p_stroke: 'thin', depth_2: 'again',
     stroke: '#ff0000', 'stroke-width': 3, 'stroke-opacity': 0.5, fill: '#00ff00', 'fill-opacity': 0.25, charts: fp.properties.charts });
   assert.deepEqual(fp.properties.charts.properties, p.properties); // the keys as they are
   assert.deepEqual(fp.properties.charts.look, { stroke: { dash: 'dashed' } }); // the rest of its look: the app's
   assert.ok(!('properties' in fq.properties.charts)); // nothing renamed: the columns are enough
   assert.equal(fq.properties.a, '1');
   const back = again(doc).doc;
-  assert.deepEqual([back.points[0].properties, back.points[0].look, back.points[1].properties], [p.properties, p.look, q.properties]);
+  assert.deepEqual([back.circles[0].properties, back.circles[0].look, back.points[0].properties], [p.properties, p.look, q.properties]);
 });
 
 test('unknown fields are ignored; foreign columns are kept as properties', () => {
@@ -230,70 +236,41 @@ test('skipped: latitudes out of range, positions missing, too few positions, wha
   assert.match(why.odd, /Curve: not read/);
 });
 
-test('repairs: symbol, angles, sizes, Offset, style values, parts, flags', () => {
+test('repairs: symbol, angles, sizes, Offset, style values, circles, flags', () => {
   const st = { stroke: '#FF0000', 'stroke-width': 99, 'stroke-opacity': 2, fill: 'red' };
   const { doc, report } = read(collection([
-    F('p1', 'Point', [0, 0], { kind: 'point', symbol: 'star', bearing: -90, look: { minSize: -3, stroke: { dash: 'wavy' }, text: { name: 'yes' } },
-      parts: [{ kind: 'circle', radius: 100 }, { kind: 'circle', radius: 200 }, { kind: 'circle', radius: 0 }, { kind: 'circle', radius: 2e7 }, 'x',
-        { kind: 'sector', radius: 300, aperture: 400 }] }, st),
-    F('p2', 'Point', [0, 0], { kind: 'point', look: { minSize: 900 },
-      parts: [{ kind: 'hovercraft', length: 10, width: 4 }, { kind: 'sector', radius: 5, aperture: 0 }, { kind: 'circle', radius: 1, fill: false, shown: false, name: 7 },
-        { kind: 'circle', radius: 2, fill: 'no', shown: 0 }] }),
-    F('p3', 'Point', [0, 0], { kind: 'point', parts: [{ kind: 'rectangle', length: 0, width: 4 }, { kind: 'sector', radius: 50 }, { kind: 'sector', radius: 60, aperture: 360 },
-      { kind: 'ellipse', length: 10, width: 4, aperture: 30, radius: 9 }, { kind: 'sector', radius: 70, aperture: 45, length: 3 }, { kind: 'triangle', length: 10 }] }),
+    F('p1', 'Point', [0, 0], { kind: 'point', symbol: 'star', bearing: -90, look: { minSize: -3, stroke: { dash: 'wavy' }, text: { name: 'yes' } } }, st),
+    F('p2', 'Point', [0, 0], { kind: 'point', parts: [{ kind: 'circle', radius: 100 }] }), // a point holds no parts
+    F('c1', 'Point', [0, 0], { kind: 'circle', radius: 100 }), F('c2', 'Point', [0, 0], { kind: 'circle', radius: 0 }), F('c3', 'Point', [0, 0], { kind: 'circle', radius: 2e7 }),
+    F('c4', 'Point', [0, 0], { kind: 'circle' }), F('c5', 'Point', [0, 0], { kind: 'circle', radius: 300, aperture: 400, bearing: 370 }),
+    F('c6', 'Point', [0, 0], { kind: 'circle', radius: 5, aperture: 0 }), F('c7', 'Point', [0, 0], { kind: 'circle', radius: 60, aperture: 360 }),
+    F('c8', 'Point', [0, 0], { kind: 'circle', radius: 70, aperture: 45, length: 3 }), F('c9', 'LineString', [[0, 0], [1, 0]], { kind: 'circle', radius: 70 }),
     F('s1', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: -99 }, smooth: 'yes' }),
     F('s2', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: 99 } }),
     F('s3', 'LineString', [[0, 0], [1, 0]], { kind: 'line', look: { offset: true } }),
   ]));
-  const [p1, p2, p3] = doc.points, [s1, s2, s3] = doc.lines;
+  const [p1, p2] = doc.points, [, s1, s2, s3] = doc.lines;
   assert.deepEqual([p1.symbol, p1.bearing, p1.look.minSize, p1.look.text, d.lookOf(doc, p1).text.name], ['none', 270, undefined, undefined, false]); // not valid: left out, the drawing's applies
-  assert.deepEqual(p1.parts.map((x) => [x.kind, x.radius, x.fill, x.shown]), [['circle', 100, true, true], ['circle', 200, true, true], ['circle', 300, true, true]]); // a sector of 360° or more: a circle
-  assert.ok(!('aperture' in p1.parts[2]));
-  assert.deepEqual([p1.look.fill, p1.look.stroke], [undefined, { color: '#ff0000', width: 20, opacity: 1 }]); // the bad colour and dash dropped: the group's, else the defaults
-  assert.deepEqual([p2.symbol, p2.look.minSize], ['none', undefined]); // a point has none of its own
-  assert.deepEqual(p2.parts, [makePart('circle', { radius: 5 }), { ...makePart('circle', { radius: 1 }), fill: false, shown: false, name: '7' }, makePart('circle', { radius: 2 })]); // Fill and Shown: on unless false
-  assert.deepEqual(p3.parts, [makePart('circle', { radius: 50 }), makePart('circle', { radius: 60 }), makePart('ellipse', { length: 10, width: 4 }), makePart('sector', { radius: 70, aperture: 45 })]); // only a kind's own sizes kept
-  assert.equal(p3.symbol, 'none');
+  assert.deepEqual([p1.look.fill, p1.look.stroke], [undefined, { color: '#ff0000', width: 20, opacity: 1 }]); // the bad colour and dash dropped: the defaults; a fill a point has none of
+  assert.ok(!('parts' in p2));
+  assert.deepEqual(doc.circles.map((c) => [c.id, c.radius, c.aperture, c.bearing]), [['c1', 100, null, 0], ['c5', 300, null, 10], ['c6', 5, null, 0], ['c7', 60, null, 0], ['c8', 70, 45, 0]]); // a sector of 360° or more: a circle; only a circle's fields kept
+  assert.ok(!('length' in doc.circles[4]));
+  assert.deepEqual([doc.lines.length, skippedIds(report).sort()], [4, ['c2', 'c3', 'c4']]); // a LineString is a line, whatever it says
+  assert.match(report.skipped[0].reason, /radius not between 0 and 10 000 km/);
   assert.deepEqual([s1.look.offset, s1.smooth], [-d.MAX_OFFSET, false]); // clamped either side
   assert.deepEqual([s2.look.offset, s3.look.offset], [d.MAX_OFFSET, undefined]); // true or false is not a number of pixels
-  for (const re of [/unknown symbol "star"/, /bearing -90 read as 270/, /aperture 400 read as a full circle/, /aperture: not an angle above 0; a circle/,
-    /unknown dash "wavy"/, /look text name: not true or false, ignored/, /part 3 skipped: radius not between/, /part 4 skipped: radius not between/, /part 5 skipped: not an object/,
-    /part 1 skipped: unknown kind "hovercraft"/, /part 3 name: number made text/, /part 1 skipped: length or width not above 0/, /part 2: a sector with no aperture; a circle/,
-    /part 6 skipped: length or width not above 0/, /stroke width 99 clamped to 20/, /stroke opacity 2 clamped to 1/, /fill colour: not a #rrggbb/,
+  for (const re of [/unknown symbol "star"/, /bearing -90 read as 270/, /aperture 400 read as a full circle/, /aperture: not an angle above 0; a circle/, /bearing 370 read as 10/,
+    /unknown dash "wavy"/, /look text name: not true or false, ignored/, /stroke width 99 clamped to 20/, /stroke opacity 2 clamped to 1/, /fill colour: not a #rrggbb/,
     /Offset: not a number/, /smooth is not true or false/]) warned(report, re);
-  assert.equal(report.warnings.filter((w) => /aperture/.test(w)).length, 3); // those three; a sector of exactly 360°: a circle, quietly
+  assert.equal(report.warnings.filter((w) => /aperture/.test(w)).length, 2); // those two; a sector of exactly 360°: a circle, quietly
 });
 
-test('parts: named by their place, without IDs; an ID in the file is ignored and never written', () => {
-  const { doc, report } = read(collection([
-    F('n1', 'Point', [0, 0], { kind: 'point', parts: [{ id: 'r1', kind: 'circle', radius: 100 }] }),
-    F('r1', 'Point', [0, 0], { kind: 'point' }), // a point with what was a part's ID: its own
-    F('n2', 'Point', [0, 0], { kind: 'point', parts: [{ id: 'r1', kind: 'circle', radius: 200 }, { id: 'bad id', kind: 'circle', radius: 300, fill: false }] }),
-  ]));
-  assert.deepEqual(report.warnings, []);
-  assert.deepEqual(doc.points.map((p) => p.id), ['n1', 'r1', 'n2']);
-  assert.deepEqual(doc.points[2].parts, [makePart('circle', { radius: 200 }), { ...makePart('circle', { radius: 300 }), fill: false }]);
-  assert.ok(doc.points.every((p) => p.parts.every((x) => !('id' in x))));
-  assert.deepEqual(idsOf(doc), new Set(['n1', 'r1', 'n2'])); // parts take no ID
-  const f = toFile(doc);
-  assert.deepEqual(f.features[2].properties.charts.parts, [{ kind: 'circle', radius: 200 }, { kind: 'circle', radius: 300, fill: false }]);
-  assert.ok(!/"id"/.test(JSON.stringify(f.features.map((x) => x.properties.charts.parts ?? []))));
-});
-
-test('parts in the file: only what differs from the defaults, sizes rounded; no outline, radii or aperture on a point', () => {
+test('circles in the file: a Point with kind circle, its radius always, aperture and bearing when not the defaults, rounded; read back', () => {
   const doc = emptyDoc(NOW);
-  addPoint(doc, [0, 0], { bearing: 10, parts: [makePart('circle', { radius: 100.00049 }), { ...makePart('sector', { radius: 200, aperture: 33.333333 }), fill: false, shown: false, name: 'b' },
-    makePart('underwater-vehicle', { length: 12.34567, width: 2.5 })] });
-  const c = toFile(doc).features[0].properties.charts;
-  assert.deepEqual(c.parts, [{ kind: 'circle', radius: 100 }, { kind: 'sector', radius: 200, aperture: 33.3333, fill: false, shown: false, name: 'b' },
-    { kind: 'underwater-vehicle', length: 12.346, width: 2.5 }]);
-  assert.ok(!('outline' in c) && !('radii' in c) && !('aperture' in c));
-  const back = again(doc).doc.points[0];
-  assert.deepEqual(back.parts, rounded(doc.points[0].parts));
-  // the old fields of a point are not read
-  const old = read(collection([F('p', 'Point', [0, 0], { kind: 'point', outline: { kind: 'rectangle', length: 10, width: 5 }, radii: [{ value: 100, primary: true }], aperture: 90 })])).doc.points[0];
-  assert.deepEqual(old.parts, []);
-  assert.ok(!('outline' in old) && !('radii' in old) && !('aperture' in old));
+  addCircle(doc, [0, 0], { radius: 100.00049, aperture: 33.333333, bearing: 10, name: 'b', visible: false, guide: true });
+  const f = toFile(doc).features[0];
+  assert.deepEqual([f.geometry, f.properties], [{ type: 'Point', coordinates: [0, 0] }, { name: 'b', charts: { kind: 'circle', visible: false, guide: true, radius: 100, aperture: 33.3333, bearing: 10 } }]);
+  assert.deepEqual(again(doc).doc.circles, rounded(doc.circles));
 });
 
 test('any GeoJSON: Multi geometries split, holes dropped, foreign points diamonds, names and columns read', () => {
@@ -309,7 +286,7 @@ test('any GeoJSON: Multi geometries split, holes dropped, foreign points diamond
   assert.equal(a.id, 'mp'); // the first part keeps the feature's ID, the others get new ones
   assert.match(b.id, /^[a-z0-9]{8}$/);
   assert.deepEqual([a.position, b.position], [[1, 1], [2, 2]]); // the altitude dropped
-  assert.deepEqual([a.symbol, a.parts, a.name], ['diamond', [], 'Twin']);
+  assert.deepEqual([a.symbol, a.name], ['diamond', 'Twin']);
   assert.deepEqual(a.properties, [{ key: 'depth', value: '12' }, { key: 'flag', value: 'true' }, { key: 'nested', value: '{"a":1}' }, { key: 'Description', value: 'two of them' }]); // a description: a property like any other
   assert.deepEqual(doc.lines.filter((s) => !s.closed).map((s) => [s.name, s.points.length, s.names, s.look]), [['Pair', 2, ['', ''], { stroke: { color: '#00aa00', width: 3 } }], ['Pair', 3, ['', '', ''], { stroke: { color: '#00aa00', width: 3 } }]]);
   assert.deepEqual(doc.links, []);
@@ -417,24 +394,25 @@ test('labels: on an element, along a line, on a vertex, or free; checked; writte
   assert.deepEqual(again(doc).doc, doc);
 });
 
-test('groups in the file: a member\'s parts are its own (none when missing); a group\'s parts or sector not read; a missing group makes it standalone', () => {
+test('groups in the file: a group holds nothing of its own; a point holds shapes (circles, lines), nothing else; a missing group or point makes it standalone', () => {
   const { doc, report } = read(collection([
     F('m', 'Point', [0, 0], { kind: 'point', group: 'g' }),
-    F('own', 'Point', [0, 0], { kind: 'point', group: 'g', parts: [{ kind: 'sector', radius: 1, aperture: 90 }] }),
-    F('none', 'Point', [0, 0], { kind: 'point', group: 'g', parts: [] }),
+    F('c', 'Point', [0, 0], { kind: 'circle', radius: 1, aperture: 90, group: 'm' }), // a point's: its shape
+    F('l', 'Polygon', [[[0, 0], [1, 0], [1, 1], [0, 0]]], { kind: 'line', group: 'm' }),
+    F('p', 'Point', [0, 0], { kind: 'point', group: 'm' }), // a point holds no point
+    F('t', 'Point', [0, 0], { kind: 'label', group: 'c' }), // nor does a circle hold anything
     F('lost', 'Point', [0, 0], { kind: 'point', group: 'nowhere' }),
   ], { groups: [{ id: 'g', look: { fill: { color: '#ff0000' }, offset: 3 }, parts: [{ kind: 'circle', radius: 300 }], radii: [{ value: 300, primary: true }], aperture: 90 }] }));
-  const [m, own, none, lost] = doc.points;
+  const [m, p, lost] = doc.points;
   const g = doc.groups[0];
   assert.ok(!('look' in g) && !('parts' in g) && !('radii' in g) && !('aperture' in g)); // a group is only who is in it
   assert.equal(offsetOf(doc, m), 0); // nothing from the group
   assert.equal(styleOf(doc, m).fill.color, DEFAULT_STYLE.fill.color);
-  assert.deepEqual([m.parts, m.symbol, d.pointKind(m)], [[], 'none', 'point']);
-  assert.deepEqual([own.parts.map((x) => [x.kind, x.radius, x.aperture]), own.symbol, d.pointKind(own)], [[['sector', 1, 90]], 'none', 'sector']);
-  assert.deepEqual([none.parts, none.symbol], [[], 'none']);
-  assert.deepEqual([lost.groupId, lost.parts], [null, []]);
-  warned(report, /group nowhere not found; now standalone/);
+  assert.deepEqual(membersOf(doc, 'm').map((x) => x.el.id), ['c', 'l']);
+  assert.deepEqual([p.groupId, doc.labels[0].groupId, lost.groupId], [null, null, null]);
+  for (const re of [/point p: group m not found; now standalone/, /label t: group c not found/, /group nowhere not found; now standalone/]) warned(report, re);
   assert.ok(!('parts' in toFile(doc).charts.groups[0]) && !('radii' in toFile(doc).charts.groups[0]));
+  assert.deepEqual(toFile(doc).features.find((x) => x.id === 'c').properties.charts.group, 'm'); // its point
   assert.deepEqual(again(doc).doc, doc);
 });
 
@@ -451,23 +429,11 @@ test('view: layers, variants and data checked against what the app offers', () =
   assert.deepEqual(read(serialise(emptyDoc(NOW), v), known).view, v, 'written and read again as it is');
 });
 
-test('minimum display size: the drawing\'s, read, checked and written; a point has none of its own', () => {
-  const { doc } = read(collection([
-    F('a', 'Point', [12, 40], { kind: 'point', parts: [{ kind: 'rectangle', length: 10, width: 5 }], look: { minSize: 0 } }),
-  ], { look: { minSize: 900 } }));
-  assert.deepEqual([doc.look, doc.points[0].look.minSize, d.minSizeOf(doc)], [{ minSize: 200 }, undefined, 200]); // clamped; the point's not read
-  const bad = read(collection([], { look: { minSize: -3 } }));
-  warned(bad.report, /look minSize: not a number of pixels/);
-  assert.equal(d.minSizeOf(bad.doc), 12); // the default
-  assert.deepEqual(toFile(doc).charts.look, { minSize: 200 });
-});
-
 test('rules (distribute, connect) are kept as records; defaults left out; an unknown kind or a distribution along nothing skipped', () => {
-  const copy = { symbol: 'square', parts: [{ kind: 'circle', radius: 300 }, { kind: 'rectangle', length: 400, width: 200, fill: false }] };
   const { doc, report } = read(collection([], { rules: [
-    { id: 'a1', kind: 'distribute', groupId: 'g1', copiesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250, preset: 'preset:mine', copy,
+    { id: 'a1', kind: 'distribute', groupId: 'g1', copiesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250, preset: 'preset:mine', copy: { symbol: 'square' },
       points: [{ pointId: 'n1', t: 0.5, pos: [1, 2] }] },
-    { id: 'a2', kind: 'distribute' }, { id: 'a3', kind: 'distribute', along: { element: 's', part: -1 } }, { id: 'a4', kind: 'distribute', along: { element: 's', part: 1.5 } },
+    { id: 'a2', kind: 'distribute' }, { id: 'a3', kind: 'distribute', along: { element: 's' } }, { id: 'a4', kind: 'distribute', along: { element: 's', part: 1.5 } },
     { id: 'a5', kind: 'distribute', along: {} },
     { id: 'c1', kind: 'connect', groupId: 'g3', groupSize: 3, roots: [{ id: 'n9' }, { id: 'n8', weight: 2 }, 'x'], pointIds: ['n1'], created: ['gone'] }, { id: 'c1', kind: 'connect' },
     { id: 'x1', kind: 'spiral' }, { id: 'x2' }] }));
@@ -477,16 +443,15 @@ test('rules (distribute, connect) are kept as records; defaults left out; an unk
   assert.deepEqual(report.skipped.filter((x) => x.kind === 'rule').map((x) => x.id), ['a2', 'a5', 'c1', 'x1', 'x2']);
   assert.ok(report.skipped.some((x) => x.id === 'x1' && /unknown kind "spiral"/.test(x.reason)));
   assert.deepEqual([a.kind, a.groupId, a.copiesId, a.along, a.spacing, a.side, a.offset, a.count, a.radius, a.aperture, a.preset, a.points[0].left],
-    ['distribute', 'g1', 'g2', { element: 's', part: 2 }, 1000, 'alternate', 0, null, 250, null, 'preset:mine', false]);
-  assert.deepEqual([a.copy.symbol, a.copy.parts], ['square', [makePart('circle', { radius: 300 }), { ...makePart('rectangle', { length: 400, width: 200 }), fill: false }]]);
-  assert.deepEqual(distributions(doc).slice(1).map((x) => x.along.part), [null, null]); // not a place in the list: the part followed by default
-  assert.deepEqual(distributions(doc).slice(1).map((x) => [x.groupId, x.copiesId, x.preset, x.copy]), [[null, null, null, null], [null, null, null, null]]);
+    ['distribute', 'g1', 'g2', { element: 's' }, 1000, 'alternate', 0, null, 250, null, 'preset:mine', false]); // what it is along: an element, nothing else
+  assert.ok(!('copy' in a)); // its copies are in the drawing: no copy kept
+  assert.deepEqual(distributions(doc).slice(1).map((x) => [x.groupId, x.copiesId, x.preset]), [[null, null, null], [null, null, null]]);
   assert.equal(connections(doc).length, 1); // the second c1: its ID used
   assert.deepEqual([c.kind, c.groupId, c.pattern, c.groupSize, c.created, c.hubs, c.roots], ['connect', 'g3', 'tree', 3, ['gone'], [], [{ id: 'n9', weight: 1 }, { id: 'n8', weight: 2 }]]); // deleted since: not an error; a weight of 1 unless given
   const f = toFile(doc).charts;
   assert.deepEqual(f.rules[3], { id: 'c1', kind: 'connect', groupId: 'g3', groupSize: 3, roots: [{ id: 'n9' }, { id: 'n8', weight: 2 }], pointIds: ['n1'], created: ['gone'] });
-  assert.deepEqual(f.rules[0], { id: 'a1', kind: 'distribute', groupId: 'g1', copiesId: 'g2', along: { element: 's', part: 2 }, spacing: 1000, side: 'alternate', radius: 250,
-    preset: 'preset:mine', copy, points: [{ pointId: 'n1', t: 0.5, pos: [1, 2] }] });
+  assert.deepEqual(f.rules[0], { id: 'a1', kind: 'distribute', groupId: 'g1', copiesId: 'g2', along: { element: 's' }, spacing: 1000, side: 'alternate', radius: 250,
+    preset: 'preset:mine', points: [{ pointId: 'n1', t: 0.5, pos: [1, 2] }] });
   assert.deepEqual(f.rules[1], { id: 'a3', kind: 'distribute', along: { element: 's' } });
   assert.deepEqual(again(doc).doc, doc);
 });
@@ -515,77 +480,53 @@ test('the collection\'s charts member written as text by a GIS is read; a featur
 
 // ---- operations ------------------------------------------------------------------------------------
 
-test('operations: new elements, names, parts, IDs', () => {
+test('operations: new elements, names, IDs', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [12, 41]), b = addPoint(doc, [13, 41]);
-  assert.deepEqual([a.name, b.name, a.symbol, a.parts.map((x) => [x.kind, x.radius, x.fill, x.shown])], ['Point 1', 'Point 2', 'diamond', [['circle', 1000, true, true]]]);
+  assert.deepEqual([a.name, b.name, a.symbol, a.bearing, 'parts' in a], ['Point 1', 'Point 2', 'diamond', 0, false]);
   b.name = 'Point 7';
   assert.equal(nextName(doc, 'point'), 'Point 8');
+  const c = addCircle(doc, [12, 41]), sec = addCircle(doc, [12, 41], { aperture: 90 });
+  assert.deepEqual([c.name, c.radius, c.aperture, c.bearing, c.groupId, sec.name], ['Circle 1', 1000, null, 0, null, 'Sector 1']);
   const h = addShape(doc, [12, 41]);
-  assert.deepEqual([h.name, h.symbol, h.parts], ['Shape 1', 'none', [{ kind: 'rectangle', fill: true, shown: true, name: '', length: 100, width: 50 }]]);
-  assert.equal(addShape(doc, [12, 41], 'ellipse').parts[0].kind, 'ellipse');
-  doc.points.pop();
-  assert.equal(nextName(doc, 'point', 'Shape'), 'Shape 2');
+  assert.deepEqual([h.point.name, h.point.symbol, h.shapes.map((x) => [x.name, x.closed, x.points.length, x.groupId])], ['Rectangle 1', 'none', [['Rectangle 1', true, 4, h.point.id]]]);
   const j = addDot(doc, [12, 42]);
-  assert.deepEqual([j.symbol, j.parts, d.pointKind(j), d.pointKind(a), d.pointKind(h)], ['dot', [], 'point', 'circle', 'rectangle']);
-  const rr = addPart(a);
-  assert.deepEqual(rr, { kind: 'circle', fill: false, shown: true, name: '', radius: 2000 }); // no ID; twice the last, not filled
-  assert.equal(d.pointKind(a), 'rings');
-  assert.equal(d.followedPart(a), 0);
-  a.parts[0].fill = false; // none filled: the first followed
-  assert.equal(d.followedPart(a), 0);
-  a.parts[1].fill = true; // by its place in the list: the first filled
-  assert.equal(d.followedPart(a), 1);
-  a.parts[0].fill = true; // both filled: each its own Fill
-  assert.deepEqual([a.parts.map((x) => x.fill), d.followedPart(a)], [[true, true], 0]);
-  removePart(a, 1);
-  assert.deepEqual(a.parts.map((x) => [x.radius, x.fill]), [[1000, true]]);
-  removePart(a, 5); // no such place: nothing
-  assert.equal(a.parts.length, 1);
-  assert.deepEqual([addPart(j).fill, j.parts[0].radius], [true, 1000]); // the first round part: filled, of the new point's radius
-  const sec = addPart(a, 'sector'), out = addPart(a, 'ellipse');
-  assert.deepEqual([sec.kind, sec.radius, sec.aperture, sec.fill], ['sector', 2000, 90, false]);
-  assert.deepEqual(addPart(a, 'sector').aperture, 90); // twice the last round one, its aperture
-  assert.deepEqual([a.parts.at(-1).radius, a.parts.at(-1).aperture], [4000, 90]);
-  assert.deepEqual([out.kind, out.length, out.width, out.fill], ['ellipse', 100, 50, true]); // an outline: the default size
-  assert.equal(d.pointKind(a), 'ellipse');
-  removePart(a, 3);
-  removePart(a, 2);
-  assert.equal(d.pointKind(a), 'sector');
-  removePart(a, 1);
+  assert.equal(j.symbol, 'dot');
   const ids = idsOf(doc);
-  assert.equal(ids.size, 4); // the points (parts take no ID)
+  assert.equal(ids.size, 7); // the points, circles and lines
   const before = new Set(ids);
   for (let i = 0; i < 200; i++) assert.ok(!before.has(newId(doc, ids)));
-  assert.equal(ids.size, 204); // each new ID taken as it is made
+  assert.equal(ids.size, 207); // each new ID taken as it is made
   assert.match(a.id, /^[a-z0-9]{8}$/);
   a.name = '';
   assert.equal(label('point', a), 'Point · 41.0000, 12.0000');
+  assert.equal(label('circle', { ...c, name: '' }), 'Circle · 41.0000, 12.0000');
   assert.equal(label('line', addRing(doc, [[1, 0], [3, 0], [0, 3]], { name: ' ' })), 'Line · 0.0000, 1.0000');
-  assert.deepEqual(placeOf('line', doc.lines[0]), [1, 0]); // a line's, closed or not: its start
+  assert.deepEqual([placeOf('line', doc.lines.at(-1)), placeOf('circle', c)], [[1, 0], [12, 41]]); // a line's, closed or not: its start; a circle's centre
   const g = makeGroup(doc, []);
   assert.equal(label('group', { ...g, name: '' }), `Group ${g.id}`);
 });
 
-test('parts: round and outline ones by place, each one\'s reach, the largest outline, the part followed; the point\'s kind', () => {
+test('a point holds shapes: its circles and lines, nothing else; they are shown with it, deleted with it, and the tree\'s under it', () => {
   const doc = emptyDoc(NOW);
-  const p = addPoint(doc, [0, 0], { parts: [makePart('rectangle', { length: 300, width: 400 }), { ...makePart('circle', { radius: 100 }), fill: false },
-    makePart('triangle', { length: 500, width: 10 }), makePart('sector', { radius: 200, aperture: 30 })] });
-  assert.deepEqual([d.isRound(p.parts[1]), d.isRound(p.parts[0]), d.ROUND, d.PART_KINDS], [true, false, ['circle', 'sector'], ['circle', 'sector', ...d.OUTLINES]]);
-  assert.deepEqual(p.parts.map(d.reachOf), [150, 100, 250, 200]); // an outline: half its length, whatever its width
-  assert.deepEqual(d.roundParts(p).map((x) => x.i), [1, 3]);
-  assert.deepEqual(d.outlineParts(p).map((x) => x.i), [0, 2]);
-  assert.deepEqual(d.mainOutline(p), { part: p.parts[2], i: 2 }); // by reach: the longer, not the wider
-  assert.equal(d.followedPart(p), 3); // the first filled round part
-  assert.equal(d.pointKind(p), 'triangle'); // the largest outline's kind
-  p.parts = p.parts.filter((x) => d.isRound(x));
-  assert.deepEqual([d.mainOutline(p), d.pointKind(p)], [null, 'sector']); // a sector among them
-  p.parts[1].kind = 'circle';
-  assert.equal(d.pointKind(p), 'rings');
-  p.parts[1].fill = false;
-  assert.equal(d.followedPart(p), 0); // none filled: the first round one
-  p.parts = [makePart('ellipse')];
-  assert.deepEqual([d.followedPart(p), d.pointKind(p)], [null, 'ellipse']);
+  const p = addPoint(doc, [0, 0]), q = addPoint(doc, [1, 0]);
+  const c = addCircle(doc, [0, 0]), l = addRing(doc, [[0, 0], [0.1, 0], [0, 0.1]]), t = labelAt(doc, { position: [0, 0] });
+  for (const x of [c, l, t, q]) setGroup(doc, x.id, p.id);
+  assert.deepEqual([c.groupId, l.groupId, t.groupId, q.groupId], [p.id, p.id, null, null]); // a label, a point: not a point's
+  assert.deepEqual([d.canHold(doc, p.id, c.id), d.canHold(doc, p.id, q.id), d.holderOf(doc, c)?.id, d.holderOf(doc, q)], [true, false, p.id, null]);
+  const g = makeGroup(doc, [p.id]);
+  assert.deepEqual([p.groupId, c.groupId], [g.id, p.id]); // the point in the group, its shapes in it
+  assert.deepEqual(d.leavesOf(doc, [p.id]).map((x) => x.el.id), [p.id, c.id, l.id]); // a point stands for its shapes
+  assert.deepEqual(d.leavesOf(doc, [g.id]).map((x) => x.el.id), [p.id, c.id, l.id]);
+  p.visible = false;
+  assert.deepEqual([isShown(doc, c), isShown(doc, l)], [false, false]); // hidden with it
+  assert.deepEqual(dependents(doc, [p.id]), new Set([p.id, c.id, l.id])); // deleted with it
+  assert.deepEqual(dependents(doc, [c.id]), new Set([c.id])); // one alone
+  setGroup(doc, c.id, g.id); // taken out of it: free, in its group
+  assert.deepEqual([d.holderOf(doc, c), membersOf(doc, p.id).map((x) => x.el.id)], [null, [l.id]]);
+  remove(doc, [p.id]);
+  assert.deepEqual([doc.points.map((x) => x.id), doc.circles.map((x) => x.id), doc.lines], [[q.id], [c.id], []]);
+  assert.deepEqual(again(doc).doc, doc);
 });
 
 test('lines: positions and names only, ties in the links; places inserted and deleted, the links from them numbered again', () => {
@@ -651,7 +592,7 @@ test('split a line at a place: a dot carrying the place\'s name, both lines link
   d.setLink(doc, s.id, 2, { element: b.id }); // the place split at: its link goes, the point is there
   const p = splitLine(doc, s.id, 2);
   const rest = doc.lines[1];
-  assert.deepEqual([p.symbol, p.parts, p.name, p.properties, p.position], ['dot', [], 'bend', [], [2, 0]]);
+  assert.deepEqual([p.symbol, p.name, p.properties, p.position], ['dot', 'bend', [], [2, 0]]);
   assert.deepEqual([s.points, s.names, placeIn(doc, s, -1).to], [[[0, 0], [1, 0], [2, 0]], ['', '', ''], { element: p.id }]);
   assert.deepEqual([rest.points, rest.names, rest.name], [[[2, 0], [3, 0], [4, 0]], ['', '', ''], 'Line 1']);
   assert.deepEqual(doc.links.map((l) => [l.from, l.to.element]), [[[s.id, 0], a.id], [[rest.id, 1], b.id], [[s.id, 2], p.id], [[rest.id, 0], p.id]]);
@@ -659,13 +600,13 @@ test('split a line at a place: a dot carrying the place\'s name, both lines link
   assert.equal(splitLine(doc, s.id, 1).name, 'Point 3'); // an unnamed place: the next point's name
 });
 
-test('measurements: guides showing their values (a line, an area, a point with its radius), drawn as while measured', () => {
+test('measurements: guides showing their values (a line, an area, a circle with its radius), drawn as while measured', () => {
   const doc = emptyDoc(NOW), m = () => ({ guide: true, look: { text: { values: true } } });
   const r1 = lineFrom(doc, [12, 44], [[12.5, 44.2]], [13, 44], { ...m(), name: 'Distance 1' });
-  const c = addPoint(doc, [14, 40], { ...m(), symbol: 'none', parts: [makePart('circle', { radius: 5000 })] });
+  const c = addCircle(doc, [14, 40], { ...m(), radius: 5000 });
   const a = addRing(doc, [[12, 44], [13, 44], [12.5, 45]], m());
   assert.ok([r1, c, a].every((x) => isMeasurement(doc, x)));
-  assert.ok(!isMeasurement(doc, addPoint(doc, [0, 0], { look: { text: { values: true } } })) && !isMeasurement(doc, addPoint(doc, [0, 0], { guide: true })));
+  assert.ok(!isMeasurement(doc, addCircle(doc, [0, 0], { look: { text: { values: true } } })) && !isMeasurement(doc, addCircle(doc, [0, 0], { guide: true })));
   assert.deepEqual(styleOf(doc, r1), d.MEASURE_STYLE); // drawn as while it was measured
   r1.look.stroke = { color: '#000000' };
   assert.deepEqual(styleOf(doc, r1).stroke, { ...d.MEASURE_STYLE.stroke, color: '#000000' });
@@ -687,42 +628,24 @@ test('shown: hidden itself, or in a hidden group', () => {
 
 // ---- groups --------------------------------------------------------------------------------------
 
-test('groups: made from a selection, only who is in it changes: members keep their own look and parts, joining or leaving', () => {
+test('groups: made from a selection, only who is in it changes: members keep their own look, joining or leaving', () => {
   const doc = emptyDoc(NOW);
-  const a = addPoint(doc, [12, 41]), b = addPoint(doc, [12.1, 41]), h = addShape(doc, [12, 40]), j = addDot(doc, [13, 40]);
-  const s = lineFrom(doc, a.id, [], b.id, { look: { offset: 6 } });
-  a.parts[0].radius = 750;
-  a.look.fill = { color: '#123456' };
+  const a = addPoint(doc, [12, 41]), b = addCircle(doc, [12.1, 41], { aperture: 45, bearing: 20 }), h = addShape(doc, [12, 40]).point, j = addDot(doc, [13, 40]);
+  const s = lineFrom(doc, a.id, [], [12.1, 41], { look: { offset: 6 } });
+  a.look.stroke = { color: '#123456' };
   b.look.fill = { color: '#654321' };
-  b.bearing = 20;
-  Object.assign(b.parts[0], { kind: 'sector', aperture: 45 });
-  const before = structuredClone([a, b, h, j, s].map((x) => [x.look, x.parts ?? null]));
+  const before = structuredClone([a, b, h, j, s].map((x) => [x.look, x.aperture ?? null]));
   const g = makeGroup(doc, [h.id, b.id, a.id, j.id, s.id]);
   assert.equal(g.name, 'Group 1');
-  assert.ok(!('look' in g) && !('parts' in g)); // a group has no look of its own
+  assert.ok(!('look' in g)); // a group has no look of its own
   assert.ok([a, b, h, j, s].every((x) => x.groupId === g.id));
-  assert.deepEqual([a, b, h, j, s].map((x) => [x.look, x.parts ?? null]), before); // as they were
-  assert.deepEqual([styleOf(doc, a).fill.color, styleOf(doc, b).fill.color, offsetOf(doc, s)], ['#123456', '#654321', 6]);
+  assert.equal(doc.lines[0].groupId, h.id); // the shape's point is in it; the shape still its point's
+  assert.deepEqual([a, b, h, j, s].map((x) => [x.look, x.aperture ?? null]), before); // as they were
+  assert.deepEqual([styleOf(doc, a).stroke.color, styleOf(doc, b).fill.color, offsetOf(doc, s)], ['#123456', '#654321', 6]);
   setGroup(doc, a.id, null);
   setGroup(doc, s.id, null);
-  assert.deepEqual([a.look, s.look], [{ fill: { color: '#123456' } }, { offset: 6 }]); // leaving: as it was too
-  assert.deepEqual(again(doc).doc, doc);
-});
-
-test('a sector is the point\'s own: joining or leaving a group keeps it as it was', () => {
-  const doc = emptyDoc(NOW);
-  const a = addPoint(doc, [12, 41]), b = addPoint(doc, [12.1, 41]);
-  Object.assign(a.parts[0], { kind: 'sector', aperture: 120 });
-  const g = makeGroup(doc, [a.id, b.id]);
-  assert.deepEqual([a.parts[0].aperture, b.parts[0].kind, d.pointKind(a), d.pointKind(b)], [120, 'circle', 'sector', 'circle']);
-  Object.assign(b.parts[0], { kind: 'sector', aperture: 60 });
-  b.bearing = 90; // facing its own way
-  setGroup(doc, a.id, null);
-  assert.equal(a.parts[0].aperture, 120);
-  setGroup(doc, a.id, g.id);
-  assert.equal(a.parts[0].aperture, 120);
-  const back = again(doc).doc;
-  assert.deepEqual(back.points.map((p) => [p.parts[0].aperture, p.bearing]), [[120, 0], [60, 90]]);
+  assert.deepEqual([a.look, s.look], [{ stroke: { color: '#123456' } }, { offset: 6 }]); // leaving: as it was too
+  assert.deepEqual(again(doc).doc, rounded(doc));
 });
 
 test('a label in a group keeps its own colour; else the default', () => {
@@ -734,24 +657,23 @@ test('a label in a group keeps its own colour; else the default', () => {
   assert.deepEqual([d.lookOf(doc, l).text.color, d.lookOf(doc, m).text.color], ['#111111', '#1f2c36']);
 });
 
-test('delete a group: members ungrouped, keeping their own parts, or deleted with it; ends attached to them freed', () => {
+test('delete a group: members ungrouped, a point keeping its shapes, or deleted with it; ends attached to them freed', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]), c = addPoint(doc, [2, 0]);
   const s = lineFrom(doc, a.id, [], c.id);
   const g = makeGroup(doc, [c.id, b.id]);
-  Object.assign(c.parts[0], { kind: 'sector', radius: 50, aperture: 30 });
+  const sec = addCircle(doc, [2, 0], { groupId: c.id, radius: 50, aperture: 30 });
   assert.deepEqual(dependents(doc, [g.id]), new Set([g.id]));
-  assert.deepEqual(dependents(doc, [g.id], true), new Set([g.id, b.id, c.id]));
+  assert.deepEqual(dependents(doc, [g.id], true), new Set([g.id, b.id, c.id, sec.id]));
   const kept = structuredClone(doc);
   remove(kept, [g.id]);
-  const [kb, kc] = [b.id, c.id].map((id) => kept.points.find((p) => p.id === id));
-  assert.deepEqual([kc.groupId, kc.parts.map((x) => [x.kind, x.radius, x.aperture]), kept.groups], [null, [['sector', 50, 30]], []]);
-  assert.deepEqual(kb.parts.map((x) => [x.kind, x.radius, x.aperture]), [['circle', 1000, undefined]]);
+  const kc = kept.points.find((p) => p.id === c.id);
+  assert.deepEqual([kc.groupId, kept.circles[0].groupId, kept.groups], [null, c.id, []]);
   assert.equal(placeIn(kept, kept.lines[0], -1).to.element, c.id);
   const gone = structuredClone(doc);
   remove(gone, [g.id], true);
   refreshAttached(gone); // after every change
-  assert.deepEqual(gone.points.map((p) => p.id), [a.id]);
+  assert.deepEqual([gone.points.map((p) => p.id), gone.circles], [[a.id], []]);
   assert.deepEqual(placeIn(gone, gone.lines[0], -1), { position: [2, 0], to: null }); // the line stays, its end free
   assert.equal(placeIn(doc, s, -1).to.element, c.id); // the original untouched
 });
@@ -831,15 +753,15 @@ test('the look: the drawing\'s defaults, then its own (a group adds nothing); a 
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]);
   const m = lineFrom(doc, [0, 0], [], [1, 1], { guide: true, look: { text: { values: true } } });
   const s = lineFrom(doc, a.id, [], b.id);
-  doc.look = { text: { name: true }, offset: 4, minSize: 20 };
-  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, m).text.name, offsetOf(doc, s), d.minSizeOf(doc)], [true, false, 4, 20]);
+  doc.look = { text: { name: true }, offset: 4 };
+  assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, m).text.name, offsetOf(doc, s)], [true, false, 4]);
   makeGroup(doc, [a.id, s.id]);
   d.setLook(a, 'text.name', false); // its own, over the drawing's
   assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, b).text.name, offsetOf(doc, s)], [false, true, 4]);
   d.setLook(a, 'text.name', undefined); // taken back
   assert.deepEqual(a.look, {});
   const f = toFile(doc);
-  assert.deepEqual(f.charts.look, { text: { name: true }, offset: 4, minSize: 20 });
+  assert.deepEqual(f.charts.look, { text: { name: true }, offset: 4 });
   assert.ok(!('look' in f.charts.groups[0]));
   assert.deepEqual(f.features.find((x) => x.id === m.id).properties.charts.look, { text: { values: true } });
   assert.deepEqual(again(doc).doc, doc);
@@ -853,24 +775,22 @@ test('the file\'s text: number pairs on one line, the user\'s text never touched
   assert.deepEqual([parse(text, null, NOW).doc.points[0].name, parse(text, null, NOW).doc.points[0].properties[0].value], ['grid [ 3, 4 ]', '[  10,  20 ]']);
 });
 
-test('hardening: a property key named like Object.prototype\'s is a column like any other; a layer so named is not "known"; caps on parts, properties, text, positions', () => {
+test('hardening: a property key named like Object.prototype\'s is a column like any other; a layer so named is not "known"; caps on properties, text, positions', () => {
   const { doc, view, report } = read(collection([
-    F('p', 'Point', [12, 41], { kind: 'point', properties: [{ key: 'toString', value: 'a' }, { key: '__proto__', value: 'b' }, { key: 'constructor', value: 'c' }],
-      parts: Array.from({ length: 150 }, () => ({ kind: 'circle', radius: 100 })) }, { name: 'x'.repeat(20000) }),
+    F('p', 'Point', [12, 41], { kind: 'point', properties: [{ key: 'toString', value: 'a' }, { key: '__proto__', value: 'b' }, { key: 'constructor', value: 'c' }] }, { name: 'x'.repeat(20000) }),
     F('s', 'LineString', Array.from({ length: 100001 }, (_, i) => [12 + i * 1e-6, 41]), { kind: 'line' }),
     F('q', 'Polygon', [[...Array.from({ length: 100001 }, (_, i) => [12 + i * 1e-6, 41]), [12, 41]]], { kind: 'area' }),
     F('t', 'Point', [12, 41], { kind: 'point', properties: Array.from({ length: 250 }, (_, i) => ({ key: `k${i}`, value: '1' })) }),
   ], { view: { center: [12, 41], zoom: 5, layers: [{ id: '__proto__' }, { id: 'constructor' }], data: { colour: { id: 'toString' } } } }), { layers: { chart: { variants: null, periods: null } }, data: {}, depths: [] });
   const p = doc.points.find((n) => n.id === 'p');
   assert.deepEqual(p.properties.map((x) => x.key), ['toString', '__proto__', 'constructor']);
-  assert.equal(p.parts.length, 100);
   assert.equal(p.name.length, 10000);
   assert.equal(doc.points.find((n) => n.id === 't').properties.length, 200);
   assert.deepEqual(doc.lines.length, 0, 'too many positions: skipped');
   assert.deepEqual(report.skipped.map((x) => x.id).sort(), ['q', 's']);
   assert.deepEqual(view.layers, [], 'neither "__proto__" nor "constructor" is a layer the app offers');
   assert.equal(view.data.colour, null);
-  for (const re of [/more than 100 parts/, /cut to 10000 characters/, /more than 200 properties/, /layer "__proto__" not known/, /layer "constructor" not known/, /colour: "toString" not known/]) warned(report, re);
+  for (const re of [/cut to 10000 characters/, /more than 200 properties/, /layer "__proto__" not known/, /layer "constructor" not known/, /colour: "toString" not known/]) warned(report, re);
   // the columns of the export keep every key as it is: toString, not toString_2
   const cols = Object.entries(toFile(doc).features.find((f) => f.id === 'p').properties).filter(([k]) => k !== 'charts' && k !== 'name');
   assert.deepEqual(cols, [['toString', 'a'], ['__proto__', 'b'], ['constructor', 'c']]);

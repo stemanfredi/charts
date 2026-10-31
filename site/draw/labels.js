@@ -4,35 +4,32 @@
 // gives the projection (view.project, view.unproject) and the size of a text (view.measure). Pure
 // otherwise: no map, no DOM.
 
-import { isShown, label, lookOf, followedPart, linkFrom } from './document.js';
-import { resolve, verticesOf } from './attach.js';
+import { isShown, label, lookOf, linkFrom } from './document.js';
+import { resolve } from './attach.js';
 import { lineTrace } from './lines.js';
-import { areaOf, pathOf, perimeterOf } from '../geodesy.js';
+import { areaOf, circle, sector } from '../geodesy.js';
 import { fmtArea, fmtBrg, fmtDist } from '../format.js';
 
 const SIZE_PX = { small: 11, medium: 13, large: 16 };
 const PAD = { halo: 3, box: 6 }; // px around the text a leader stops short of (a box's padding and border)
 
 // The live values a label can show of what it points at (to: its link's target, or none), each as
-// text, or undefined where it does not apply: name; length (its line's, or the side it is on); along (from its line's start); bearing (of
-// the side or leg it is on); radius (a point's filled one); area and perimeter (a closed line's, a
-// shape's outline's).
+// text, or undefined where it does not apply: name; length (its line's); along (from its line's
+// start); bearing (of the leg it is on); radius (a circle's); area (a closed line's, a circle's) and
+// perimeter (a closed line's).
 export const TOKENS = ['name', 'length', 'along', 'bearing', 'radius', 'area', 'perimeter'];
 export function labelValues(doc, to, units = 'km') {
   const at = to && resolve(doc, to), x = at?.element;
   if (!x) return {};
-  const ring = x.kind === 'point' ? verticesOf(x, to.part) : null; // its outline part (pointed at, else its largest)
-  const tr = x.el.closed ? lineTrace(doc, x.el) : null;
-  const round = x.kind === 'point' ? x.el.parts[followedPart(x.el)] : null; // its filled circle, else its first
-  const len = at.edge && x.kind !== 'line' ? at.edge.length : at.length;
+  const tr = x.el.closed ? lineTrace(doc, x.el) : null, c = x.kind === 'circle' ? x.el : null;
   return {
     name: x.el.name || label(x.kind, x.el),
-    length: len === undefined ? undefined : fmtDist(len, units),
+    length: at.length === undefined ? undefined : fmtDist(at.length, units),
     along: at.along === undefined ? undefined : fmtDist(at.along, units),
     bearing: at.edge ? fmtBrg(at.edge.bearing) : undefined,
-    radius: round ? fmtDist(round.radius, units) : undefined,
-    area: ring ? fmtArea(areaOf(pathOf(ring, true)), units) : tr ? fmtArea(tr.area, units) : undefined,
-    perimeter: ring ? fmtDist(perimeterOf(ring), units) : tr ? fmtDist(tr.length, units) : undefined,
+    radius: c ? fmtDist(c.radius, units) : undefined,
+    area: c ? fmtArea(areaOf(c.aperture ? sector(c.position, c.radius, c.bearing, c.aperture) : circle(c.position, c.radius)), units) : tr ? fmtArea(tr.area, units) : undefined,
+    perimeter: tr ? fmtDist(tr.length, units) : undefined,
   };
 }
 // A label's text, its {name}, {length}, {along}, {bearing}, {radius}, {area}, {perimeter} filled in (in

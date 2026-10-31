@@ -4,10 +4,14 @@ import assert from 'node:assert/strict';
 // a and b within tol of each other (what: what they are, for the message)
 export const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 
-const { addPoint, nextName, makePart } = await import('../../site/draw/document.js');
+const { build } = await import('../../site/draw/place.js');
 const { drawParts } = await import('../../site/draw/features.js');
-// a point with one outline drawn to scale, no symbol
-export const addShape = (doc, position, kind = 'rectangle') => addPoint(doc, position, { name: nextName(doc, 'point', 'Shape'), symbol: 'none', parts: [makePart(kind)] });
+// the Shape tool's kind (an outline: 100 × 50 m) about position: its point, and the shapes it holds
+// ({ point, shapes: [element] })
+export function addShape(doc, position, kind = 'rectangle', d = 0) {
+  const point = build(doc, position, kind, d);
+  return { point, shapes: [...doc.circles, ...doc.lines].filter((x) => x.groupId === point.id) };
+}
 // what the map draws, all of it as one collection
 export function drawFeatures(doc, sel = new Set(), hover = null, display = {}) {
   const p = drawParts(doc, sel, hover, display);

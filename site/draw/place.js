@@ -1,54 +1,62 @@
-// What the Point and Shape tools place (docs/drawing-ui.md §9). The Shape tool's kinds are presets
-// built in, as the user's are: a symbol and parts, placed in two clicks. Pure: it changes the document
-// given; the caller keeps the undo step.
+// What the Point and Shape tools place (docs/drawing-ui.md §9): a point, and the shapes it holds. The
+// Shape tool's kinds are built in (build); the user's presets are points kept with their shapes,
+// placed again as copies (placeCopy). Pure: it changes the document given; the caller keeps the undo
+// step.
 
-import { addPoint, nextName, idsOf, makePart, pointKind, reachOf, POINT_KIND_NAME, OUTLINES } from './document.js';
-import { OUTLINE_NAME } from './outlines.js';
-import { inverse } from '../geodesy.js';
+import { addPoint, addCircle, addLine, nextName, carry, OUTLINES } from './document.js';
+import { OUTLINE_NAME, outlinePoints } from './outlines.js';
+import { inverse, destination } from '../geodesy.js';
 import { unrollTo } from '../geo.js';
+import { clipOf, paste } from './clipboard.js';
 
-// The built-in presets, by the Shape tool's kind: a circle of 1 km; rings at 1, 2 and 3 km (the first
-// filled); a sector of 1 km, 90° wide; an outline (a triangle equilateral, 100 m a side; the others
-// 100 × 50 m).
-const outline = (kind) => makePart(kind, kind === 'triangle' ? { length: 50 * Math.sqrt(3), width: 100 } : {});
-export const BUILT_IN = {
-  circle: { symbol: 'none', parts: [makePart('circle', { radius: 1000 })] },
-  rings: { symbol: 'none', parts: [1000, 2000, 3000].map((radius, i) => ({ ...makePart('circle', { radius }), fill: !i })) },
-  sector: { symbol: 'none', parts: [makePart('sector', { radius: 1000, aperture: 90 })] },
-  ...Object.fromEntries(OUTLINES.map((k) => [k, { symbol: 'none', parts: [outline(k)] }])),
-};
 // what a built-in kind is called: "Circle", "Rings", "Rectangle"…
-export const builtInName = (kind) => POINT_KIND_NAME[kind] ?? OUTLINE_NAME[kind];
-// the name a new point gets after what it is: "Circle 2", "Sector 1", "Rectangle 3"…
-export const nameByLook = (doc, el) => nextName(doc, 'point', builtInName(pointKind(el)) ?? 'Point');
+const KIND_NAME = { circle: 'Circle', rings: 'Rings', sector: 'Sector', ...OUTLINE_NAME };
+export const builtInName = (kind) => KIND_NAME[kind];
+export const BUILT_IN = Object.keys(KIND_NAME);
 
-// A preset's parts scaled so that the largest reaches d (metres: a round part's radius, an outline's
-// half length), every other one with it
-export function scaled(parts, d) {
-  const k = d / Math.max(...parts.map(reachOf));
-  const r3 = (v) => Math.round(v * k * 1000) / 1000;
-  return parts.map((p) => (p.radius ? { ...p, radius: r3(p.radius) } : { ...p, length: r3(p.length), width: r3(p.width) }));
+// A built-in kind at p: a point (no symbol, named after the kind, its kind kept as the property preset)
+// and its shapes, facing north, the largest reaching d metres (a circle's radius, an outline's half
+// length; 0: its own size). Its own size: a circle of 1 km; rings at 1, 2 and 3 km (the first
+// filled); a sector of 1 km, aperture wide; an outline 100 × 50 m (a triangle equilateral, 100 m a
+// side), or size ([length, width]: a box's). Returns the point.
+export function build(doc, p, kind, d = 0, { aperture = 90, size = null } = {}) {
+  const pt = addPoint(doc, p, { symbol: 'none', name: nextName(doc, 'point', KIND_NAME[kind]), properties: [{ key: 'preset', value: KIND_NAME[kind] }] });
+  const r3 = (v) => Math.round(Math.max(v, 0.001) * 1000) / 1000, held = { groupId: pt.id };
+  if (OUTLINES.includes(kind)) {
+    const [l, w] = size ?? (kind === 'triangle' ? [50 * Math.sqrt(3), 100] : [100, 50]), k = d > 0 ? (2 * d) / l : 1;
+    addLine(doc, outlinePoints(p, 0, r3(l * k), r3(w * k), kind), { ...held, closed: true, name: nextName(doc, 'line', KIND_NAME[kind]) });
+  } else {
+    const radii = kind === 'rings' ? [1000, 2000, 3000] : [1000], k = d > 0 ? d / radii.at(-1) : 1;
+    radii.forEach((r, i) => addCircle(doc, p, { ...held, radius: r3(r * k), ...(kind === 'sector' ? { aperture, name: nextName(doc, 'circle', 'Sector') } : {}), ...(i ? { look: { fill: { opacity: 0 } } } : {}) }));
+  }
+  return pt;
 }
 
-// What the Point or the Shape tool places at p, by the tool's kind: a built-in preset (Shape), a preset
-// of the user's ('preset:<name>'), else a symbol (Point). Each remembers its preset in the property
-// preset, and faces north: its bearing is set afterwards (the stalk, the inspector), so
-// that a shape does not swing while it is sized. d (the Shape tool's second click, metres from the
-// centre): a built-in's largest part reaches it, every part scaled with it; 0: its own size. A
-// preset of the user's keeps its size.
+// A copy of the first point of tpl (a drawing: a preset's, or a rule's copy) and of its shapes, at p
+// facing bearing, in group groupId: moved there along the ellipsoid (each place keeps its distance and
+// bearing from the point), then turned. Returns the point.
+export function placeCopy(doc, tpl, p, bearing = 0, groupId = null) {
+  const src = tpl.points[0], from = src.position;
+  const made = paste(doc, clipOf(tpl, [src.id]), (q) => { const g = inverse(from, q); return g.s ? destination(p, g.azi, g.s) : [...p]; });
+  const pt = made[0].el;
+  pt.groupId = groupId;
+  carry(doc, pt, pt.position, bearing);
+  return pt;
+}
+
+// What the Point or the Shape tool places at p, by the tool's kind: a built-in kind (Shape), a preset
+// of the user's ('preset:<name>'), else a diamond (Point). Each remembers its preset in the property
+// preset, and faces north: its bearing is set afterwards (the stalk, the inspector), so that a shape
+// does not swing while it is sized. d (the Shape tool's second click, metres from the centre): a
+// built-in's largest shape reaches it; 0: its own size. A preset of the user's keeps its size.
 export function placeKind(doc, p, kind, presets, d = 0) {
-  const taken = idsOf(doc);
   const mine = kind?.startsWith('preset:') && presets.find((x) => x.name === kind.slice(7));
   if (mine) {
-    return addPoint(doc, p, { ...structuredClone(mine.point), bearing: 0, name: nextName(doc, 'point', mine.name.replace(/[^\p{L}\p{N} ]+/gu, '').trim() || 'Point'),
-      properties: [{ key: 'preset', value: mine.name }] }, taken);
+    const pt = placeCopy(doc, mine.doc, p);
+    Object.assign(pt, { name: nextName(doc, 'point', mine.name.replace(/[^\p{L}\p{N} ]+/gu, '').trim() || 'Point'), properties: [{ key: 'preset', value: mine.name }] });
+    return pt;
   }
-  const built = BUILT_IN[kind];
-  if (!built) return addPoint(doc, p, { parts: [] }, taken); // a symbol
-  const parts = structuredClone(d > 0 ? scaled(built.parts, d) : built.parts);
-  const el = addPoint(doc, p, { symbol: built.symbol, parts, bearing: 0, properties: [{ key: 'preset', value: builtInName(kind) }] }, taken);
-  el.name = nameByLook(doc, el);
-  return el;
+  return KIND_NAME[kind] ? build(doc, p, kind, d) : addPoint(doc, p); // a symbol
 }
 
 // The kinds drawn corner to corner (their box): the first click one corner, the second the opposite
@@ -59,8 +67,5 @@ export function placeBox(doc, a, b, kind, square = false) {
   const centre = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   let length = inverse([centre[0], a[1]], [centre[0], b[1]]).s, width = inverse([a[0], centre[1]], [b[0], centre[1]]).s; // north-south, east-west
   if (square) length = width = Math.max(length, width);
-  const el = placeKind(doc, centre, kind, []);
-  const r3 = (v) => Math.round(Math.max(v, 0.001) * 1000) / 1000;
-  Object.assign(el.parts[0], { length: r3(length), width: r3(width) });
-  return el;
+  return build(doc, centre, kind, 0, { size: [length, width] });
 }

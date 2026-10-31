@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
 const { OUTLINES } = await import('../../site/draw/document.js');
-const { OUTLINE_NAME, unitOutline, outlineOf } = await import('../../site/draw/outlines.js');
-const { OUTLINES: DOC_OUTLINES, makePart } = await import('../../site/draw/document.js');
-const { enlargement } = await import('../../site/draw/features.js');
-const { inverse, cornersOf, pathOf, areaOf, ccw } = await import('../../site/geodesy.js');
-const { CIRC } = await import('../../site/geo.js');
+const { OUTLINE_NAME, unitOutline, outlinePoints } = await import('../../site/draw/outlines.js');
+const { inverse, areaOf, densify, ccw } = await import('../../site/geodesy.js');
 
 const C = [12, 40], B = 30, L = 120, W = 40;
+// an outline's places as a closed ring, its legs geodesics (a closed line's, straight)
+const ringOf = (o) => { const ps = outlinePoints(C, B, L, W, o); return [...ps, ps[0]].flatMap((p, i, all) => (i ? densify(all[i - 1], p, 1000).slice(1) : [p])); };
 
 test('every outline: symmetric, clockwise, reaching the length and width exactly', () => {
   for (const o of OUTLINES) {
@@ -20,49 +19,34 @@ test('every outline: symmetric, clockwise, reaching the length and width exactly
     let a = 0; // the shoelace sum, x right and y forward: negative going clockwise
     for (let i = 0; i < u.length; i++) { const [x1, y1] = u[i], [x2, y2] = u[(i + 1) % u.length]; a += x1 * y2 - x2 * y1; }
     assert.ok(a < 0, `${o}: clockwise`);
-    // on the ellipsoid: the farthest points across and along at half the width and length
-    const { ring } = outlineOf(C, B, L, W, o);
-    const local = ring.map((p) => { const d = inverse(C, p), t = ((d.azi - B) * Math.PI) / 180; return [d.s * Math.sin(t), d.s * Math.cos(t)]; });
+    // on the ellipsoid: the farthest places across and along at half the width and length
+    const ps = outlinePoints(C, B, L, W, o);
+    const local = ps.map((p) => { const d = inverse(C, p), t = ((d.azi - B) * Math.PI) / 180; return [d.s * Math.sin(t), d.s * Math.cos(t)]; });
     near(Math.max(...local.map((p) => p[0])), W / 2, 0.001, `${o} right`);
     near(Math.min(...local.map((p) => p[0])), -W / 2, 0.001, `${o} left`);
     near(Math.max(...local.map((p) => p[1])), L / 2, 0.001, `${o} front`);
     near(Math.min(...local.map((p) => p[1])), -L / 2, 0.001, `${o} back`);
-    near(inverse(ring[0], ring.at(-1)).s, 0, 1e-6, `${o}: closed`);
-    assert.ok(areaOf(ccw(ring)) <= L * W * 1.0001, `${o}: within its rectangle`);
+    assert.ok(areaOf(ccw(ringOf(o))) <= L * W * 1.0001, `${o}: within its rectangle`);
   }
 });
 
-test('areas: the rectangle as before; the ellipse π/4 of it; the vehicles in between', () => {
-  assert.deepEqual(outlineOf(C, B, L, W).ring, pathOf(cornersOf(C, B, L, W), true, 1000));
-  near(areaOf(outlineOf(C, B, L, W, 'ellipse').ring), (Math.PI / 4) * L * W, 0.002 * L * W, 'ellipse');
-  for (const o of ['surface-vehicle', 'underwater-vehicle']) { const a = areaOf(outlineOf(C, B, L, W, o).ring); assert.ok(a > 0.75 * L * W && a < L * W, `${o}: ${a}`); }
-  const air = areaOf(outlineOf(C, B, L, W, 'aerial-vehicle').ring);
+test('the rectangle: its corners at the half diagonal (front right, back right, back left, front left), its sides the length and width', () => {
+  const cs = outlinePoints(C, B, L, W);
+  for (const p of cs) near(inverse(C, p).s, Math.hypot(L, W) / 2, 1e-6, 'half diagonal');
+  near(inverse(cs[0], cs[1]).s, L, 1e-3, 'right side');
+  near(inverse(cs[1], cs[2]).s, W, 1e-3, 'back');
+  near(inverse(cs[2], cs[3]).s, L, 1e-3, 'left side');
+  near(inverse(cs[3], cs[0]).s, W, 1e-3, 'front');
+});
+
+test('areas: the rectangle its length by its width; the ellipse π/4 of it; the vehicles in between', () => {
+  near(areaOf(ccw(ringOf('rectangle'))), L * W, 0.001 * L * W, 'rectangle');
+  near(areaOf(ccw(ringOf('ellipse'))), (Math.PI / 4) * L * W, 0.002 * L * W, 'ellipse');
+  for (const o of ['surface-vehicle', 'underwater-vehicle']) { const a = areaOf(ccw(ringOf(o))); assert.ok(a > 0.75 * L * W && a < L * W, `${o}: ${a}`); }
+  const air = areaOf(ccw(ringOf('aerial-vehicle')));
   assert.ok(air > 0.1 * L * W && air < 0.5 * L * W, `aerial: ${air}`);
 });
 
-test('a vehicle drawn small is enlarged as any outline, by its largest', () => {
-  const doc = (minSize) => ({ look: { minSize }, groups: [] }); // the drawing's look
-  const point = (kind) => ({ position: [0, 0], bearing: 0, parts: [makePart(kind, { length: 100, width: 20 })], groupId: null, look: {} });
-  // at zoom 10 on the equator, about 153 m a pixel: 100 m is 0.65 px
-  const k = enlargement(doc(12), point('rectangle'), 10);
-  near(k, 12 / (100 / (CIRC / (512 * 2 ** 10))), 1e-6, 'the long side drawn 12 px');
-  for (const kind of ['surface-vehicle', 'ellipse']) near(enlargement(doc(12), point(kind), 10), k, 1e-9, kind);
-  assert.equal(enlargement(doc(0), point('underwater-vehicle'), 10), 1);
-  const two = { ...point('rectangle'), parts: [makePart('surface-vehicle', { length: 50, width: 20 }), makePart('rectangle', { length: 100, width: 20 })] };
-  near(enlargement(doc(12), two, 10), k, 1e-9, 'by the largest');
-});
-
-test('enlargement: none for a point without an outline, one large enough on screen, or no zoom', () => {
-  const doc = { look: { minSize: 12 }, groups: [] };
-  const point = (...parts) => ({ position: [0, 0], parts, groupId: null, look: {} });
-  assert.equal(enlargement(doc, point(), 10), 1);
-  assert.equal(enlargement(doc, point(makePart('circle', { radius: 1 })), 10), 1); // round parts are never enlarged
-  assert.equal(enlargement(doc, point(makePart('rectangle', { length: 5000, width: 20 })), 10), 1);
-  assert.equal(enlargement(doc, point(makePart('rectangle', { length: 100, width: 20 }), makePart('rectangle', { length: 5000, width: 20 })), 10), 1); // its largest large enough
-  assert.equal(enlargement(doc, point(makePart('rectangle', { length: 100, width: 20 })), null), 1);
-});
-
-test('the outlines a point may have are the file\'s list, each with a name', () => {
-  assert.deepEqual(OUTLINES, DOC_OUTLINES);
+test('every outline the Shape tool offers has a name', () => {
   for (const o of OUTLINES) assert.ok(OUTLINE_NAME[o], o);
 });

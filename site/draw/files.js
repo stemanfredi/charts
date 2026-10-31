@@ -6,7 +6,7 @@
 import { h, COMPACT } from '../dom.js';
 import { popup, dialog, ask, note } from '../menu.js';
 import { parse } from './file.js';
-import { elements, isMeasurement, mainOutline } from './document.js';
+import { elements, isMeasurement } from './document.js';
 import { presetsFile, readPresets, savePresets } from './presets.js';
 import { plural, slug } from '../format.js';
 import { icon, UI_ICON } from '../icons.js';
@@ -89,7 +89,7 @@ export function fileGroup(drawing, ctx, presetsChanged) {
     }
     const { doc, view, report } = parse(text, drawing.known);
     const list = (items) => h('ul', {}, items.map((t) => h('li', {}, t)));
-    const counts = doc ? [['point', doc.points.filter((x) => !mainOutline(x))], ['shape', doc.points.filter((x) => mainOutline(x))], ['line', doc.lines.filter((x) => !x.closed)], ['area', doc.lines.filter((x) => x.closed)], ['label', doc.labels], ['group', doc.groups]]
+    const counts = doc ? [['point', doc.points], ['circle', doc.circles], ['line', doc.lines.filter((x) => !x.closed)], ['area', doc.lines.filter((x) => x.closed)], ['label', doc.labels], ['group', doc.groups]]
       .map(([k, xs]) => [k, xs.filter((x) => !isMeasurement(doc, x)).length]).filter(([, n]) => n).map(([k, n]) => plural(n, k)) : [];
     const measured = doc ? elements(doc).filter((x) => isMeasurement(doc, x.el)).length : 0;
     if (measured) counts.push(plural(measured, 'measurement'));

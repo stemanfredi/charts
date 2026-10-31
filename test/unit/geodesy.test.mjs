@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
-const { inverse, destination, circle, sector, cornersOf, reachesPole, pathOf } = await import('../../site/geodesy.js');
+const { inverse, destination, circle, sector, reachesPole } = await import('../../site/geodesy.js');
 
 const norm = (a) => ((a % 360) + 360) % 360;
 // the difference between two azimuths, the short way round
@@ -47,20 +47,6 @@ test('sector: from the centre, its edges at bearing ± aperture / 2, its arc at 
   nearAngle(inverse(c, w.at(-2)).azi, 20, 1e-9, 'edge after north');
 });
 
-test('cornersOf: a rectangle\'s corners at the half diagonal, sides at length and width', () => {
-  const c = [12.1, 40.2], L = 120, W = 40;
-  const corners = cornersOf(c, 30, L, W), ring = pathOf(corners, true, 1000);
-  for (const p of corners) near(inverse(c, p).s, Math.hypot(L, W) / 2, 1e-6, 'half diagonal');
-  near(inverse(corners[0], corners[1]).s, L, 1e-3, 'right side'); // front right → back right
-  near(inverse(corners[1], corners[2]).s, W, 1e-3, 'back');
-  near(inverse(corners[2], corners[3]).s, L, 1e-3, 'left side');
-  near(inverse(corners[3], corners[0]).s, W, 1e-3, 'front');
-  // the long axis points along the bearing: front midpoint is ahead of the centre
-  const front = [(corners[0][0] + corners[3][0]) / 2, (corners[0][1] + corners[3][1]) / 2];
-  nearAngle(inverse(c, front).azi, 30, 0.01, 'axis');
-  ring.at(-1).forEach((v, i) => near(v, ring[0][i], 1e-9, 'closed'));
-});
-
 test('reachesPole: a circle up to the pole and no further', () => {
   const c = [0, 80];
   const toPole = inverse(c, [0, 90]).s;
@@ -68,11 +54,6 @@ test('reachesPole: a circle up to the pole and no further', () => {
   assert.equal(reachesPole(c, toPole + 1), true);
   assert.equal(reachesPole([0, -80], toPole + 1), true);
   assert.equal(reachesPole([0, 0], 1e6), false);
-});
-
-test('pathOf: a step densifies, the default does not split short legs', () => {
-  assert.equal(pathOf([[0, 0], [0.01, 0]], false).length, 2);
-  assert.equal(pathOf([[0, 0], [0.1, 0]], false, 1000).length, 13); // 11.1 km in ≤ 1 km steps
 });
 
 test('localFrame: across ±180° the short way round', async () => {

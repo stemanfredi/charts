@@ -1,26 +1,26 @@
 // The drawing document (docs/drawing-format.md): its elements, and the operations on them. Pure:
 // no map, no DOM, so the tests run it in Node. The file is file.js's (GeoJSON).
 //
-// Three primitives and the group:
-//   point: one position; a symbol (screen size) and its parts about it, to scale (circles, sectors,
-//     outlines), one bearing for the outlines' front and the sectors' centre;
+// Four primitives and the group:
+//   point: one position, a symbol (screen size) and a bearing; it can hold shapes (its members, as a
+//     group holds its own), which move and turn with it (carry);
+//   circle: a centre and a radius; with an aperture, a sector centred on its bearing;
 //   line: places joined by legs; closed, a ring (its last place joined to its first): an area;
 //   label: text pointing at a place;
 //   group: members kept together, with no look of its own; a group can be in a group (its parent).
+// A shape is a circle or a line: free, or held by a point (its parent, as a group is a member's).
 // Any element can be a guide (supporting geometry: faint, left out of totals). How each is drawn is
 // its look (docs/drawing-ui.md §5): its own values, else the drawing's, else the defaults.
 // Elements hold positions only; what ties a place of one to another is in the drawing's links (one
 // table: { from: [id, index], to: a target, attach.js }), applied after each change.
 
+import { inverse, destination } from '../geodesy.js';
+import { norm360 } from '../geo.js';
 
 export const FORMAT = 'charts-drawing';
 export const VERSION = 1; // the drawing's version: this code writes and reads it, and no other
 
-// a shape whose long side is shorter than this on screen (px) is drawn enlarged (display only);
-// 0 turns it off. The drawing's setting.
-const MIN_DISPLAY_SIZE = 12;
 export const MAX_OFFSET = 50; // px: Offset's reach either side of a line
-export const MAX_MIN_SIZE = 200; // px: the largest minimum display size
 export const STROKE_WIDTH = [0.5, 20]; // px: a stroke's width, least and most
 export const DEFAULT_STYLE = Object.freeze({
   fill: Object.freeze({ color: '#e8590c', opacity: 0.15 }),
@@ -37,38 +37,17 @@ export const MEASURE_STYLE = Object.freeze({ fill: Object.freeze({ color: MEASUR
 // drawing's); the defaults fill it in. fill, stroke: as a style; text: its name on the map, its values
 // shown, and a label's size, colour (null: the default) and
 // background; offset: a line drawn this many px to the right of where it is (negative: left; 0: on
-// it; display only); minSize: a small outline drawn enlarged below it (px, 0: never).
+// it; display only).
 const LOOK_TEXT = Object.freeze({ name: false, values: false, size: 'medium', color: '#1f2c36', background: 'halo' }); // the colour: a label's text, the UI's ink (style.css --ink)
-export const DEFAULT_LOOK = Object.freeze({ fill: DEFAULT_STYLE.fill, stroke: DEFAULT_STYLE.stroke, text: LOOK_TEXT, offset: 0, minSize: MIN_DISPLAY_SIZE });
+export const DEFAULT_LOOK = Object.freeze({ fill: DEFAULT_STYLE.fill, stroke: DEFAULT_STYLE.stroke, text: LOOK_TEXT, offset: 0 });
 export const SYMBOLS = ['diamond', 'square', 'triangle', 'dot', 'none'];
 export const DASHES = ['solid', 'dashed', 'dotted'];
-export const OUTLINES = ['rectangle', 'triangle', 'ellipse', 'aerial-vehicle', 'surface-vehicle', 'underwater-vehicle']; // outlines.js draws them
-// A point's parts (docs/drawing-ui.md §5): round ones (a circle, its radius; a sector, its radius
-// and aperture, centred on the point's bearing) and outlines (a length along the bearing and a
-// width). Each has its own Fill and Shown switches and a name; its stroke is the point's.
-export const ROUND = ['circle', 'sector'];
-export const PART_KINDS = [...ROUND, ...OUTLINES];
-export const isRound = (part) => ROUND.includes(part.kind);
-export function makePart(kind, size = {}) {
-  const part = { kind, fill: true, shown: true, name: '' };
-  if (ROUND.includes(kind)) part.radius = size.radius ?? NEW_RADIUS; else { part.length = size.length ?? 100; part.width = size.width ?? 50; }
-  if (kind === 'sector') part.aperture = size.aperture ?? 90;
-  return part;
-}
-// a part's reach from the point: its radius, or half its length (along the bearing)
-export const reachOf = (part) => (isRound(part) ? part.radius : part.length / 2);
-// its round parts, its outline parts ({ part, i }: i its place in the list)
-export const roundParts = (p) => p.parts.map((part, i) => ({ part, i })).filter((x) => isRound(x.part));
-export const outlineParts = (p) => p.parts.map((part, i) => ({ part, i })).filter((x) => !isRound(x.part));
-// its largest outline ({ part, i }), or null: what its handles turn, what it is named by
-export const mainOutline = (p) => outlineParts(p).reduce((a, b) => (!a || reachOf(b.part) > reachOf(a.part) ? b : a), null);
-// the round part a distribution follows by default: the first filled, else the first; null: none
-export const followedPart = (p) => { const r = roundParts(p); return (r.find((x) => x.part.fill) ?? r[0])?.i ?? null; };
+export const OUTLINES = ['rectangle', 'triangle', 'ellipse', 'aerial-vehicle', 'surface-vehicle', 'underwater-vehicle']; // the Shape tool's outlines (outlines.js)
 // The kinds of element: the document's list each lives in, and its name in the panel. In this order
 // (the file's, and the list's). How each is drawn, exported and moved: features.js; edited: panel.js.
 export const KIND = {
-  group: { list: 'groups', name: 'Group' }, point: { list: 'points', name: 'Point' }, line: { list: 'lines', name: 'Line' },
-  label: { list: 'labels', name: 'Label' },
+  group: { list: 'groups', name: 'Group' }, point: { list: 'points', name: 'Point' }, circle: { list: 'circles', name: 'Circle' },
+  line: { list: 'lines', name: 'Line' }, label: { list: 'labels', name: 'Label' },
 };
 export const KINDS = Object.keys(KIND);
 // labels (docs/drawing-format.md §7.7): their leader's end, text size, background
@@ -76,7 +55,7 @@ export const LEADERS = ['arrow', 'none']; // a line to what it points at, an arr
 export const LABEL_SIZES = ['small', 'medium', 'large'];
 export const BACKGROUNDS = ['halo', 'box'];
 export const LABEL_OFFSET = Object.freeze([40, -40]); // px: a new label's text, up and to the right of what it points at
-const NEW_RADIUS = 1000; // a new point's one radius: a neutral starting value, not a preset
+const NEW_RADIUS = 1000; // a new circle's radius: a neutral starting value, not a preset
 export const MAX_RADIUS = 1e7;
 
 export const isoNow = (now) => new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -104,7 +83,7 @@ export const META_D = { title: '', description: '', author: '' };
 export function emptyDoc(now = Date.now()) {
   const t = isoNow(now);
   return { created: t, modified: t, meta: { ...META_D }, look: {},
-    groups: [], points: [], lines: [], labels: [], rules: [], links: [] };
+    groups: [], points: [], circles: [], lines: [], labels: [], rules: [], links: [] };
 }
 
 // ---- reading the document --------------------------------------------------------------------
@@ -119,8 +98,8 @@ export function find(doc, id) {
 }
 // the mean of a list of positions (a closed line's centre, for its name and labels)
 export const centroid = (pts) => [pts.reduce((a, q) => a + q[0], 0) / pts.length, pts.reduce((a, q) => a + q[1], 0) / pts.length];
-// where an element is: a point's position, a line's start
-export const placeOf = (kind, el) => (kind === 'point' ? el.position : kind === 'line' ? el.points[0] : null);
+// where an element is: a point's position, a circle's centre, a line's start
+export const placeOf = (kind, el) => (el.position && kind !== 'label' ? el.position : kind === 'line' ? el.points[0] : null);
 // what the panel calls an element: its name, or for an unnamed one its kind and where it is
 export function label(kind, el) {
   if (el.name?.trim()) return el.name;
@@ -135,19 +114,10 @@ export function nextName(doc, kind, base = KIND[kind].name) {
   const used = doc[KIND[kind].list].map((e) => re.exec(e.name)).filter(Boolean).map((m) => (m[1] ? +m[1] : 1));
   return `${base} ${used.length ? Math.max(...used) + 1 : 1}`;
 }
-// What kind of point it is, for its name and icon: its largest outline's kind; else, by its round
-// parts, 'sector' (one is), 'rings' (several) or 'circle'; else 'point' (a symbol). Every one is a
-// point in the file.
-export function pointKind(p) {
-  const o = mainOutline(p), r = roundParts(p);
-  if (o) return o.part.kind;
-  const has = (k) => r.some((x) => x.part.kind === k);
-  return !r.length ? 'point' : has('sector') ? 'sector' : r.length > 1 ? 'rings' : 'circle';
-}
-export const POINT_KIND_NAME = { point: 'Point', circle: 'Circle', rings: 'Rings', sector: 'Sector' };
-
-const groupOf = (doc, el) => (el.groupId ? doc.groups.find((g) => g.id === el.groupId) : null);
-// The groups an element (or a group) is in, the nearest first: its group, that group's, and so on
+// what holds an element: its group, or (a shape) its point
+const groupOf = (doc, el) => (el.groupId ? doc.groups.find((g) => g.id === el.groupId) ?? doc.points.find((p) => p.id === el.groupId) : null);
+// The groups an element (or a group) is in, the nearest first: its group (a shape: its point, then
+// the point's group), that group's, and so on
 export function groupsOf(doc, el) {
   const out = [];
   for (let g = groupOf(doc, el); g && g !== el && !out.includes(g); g = groupOf(doc, g)) out.push(g);
@@ -158,15 +128,15 @@ export function membersOf(doc, gid, deep = false) {
   return elements(doc).filter((x) => (deep ? groupsOf(doc, x.el).some((g) => g.id === gid) : x.el.groupId === gid));
 }
 // What the elements ids stand for, none twice, in the document's order: each itself, a group
-// everything in it (its subgroups' too; the groups themselves left out)
+// everything in it (its subgroups' too; the groups themselves left out), a point itself and its shapes
 export function leavesOf(doc, ids) {
   const want = new Set(ids);
   return elements(doc).filter((x) => x.kind !== 'group' && (want.has(x.el.id) || groupsOf(doc, x.el).some((g) => want.has(g.id))));
 }
 // every position an element has, as [object, key] pairs, in the order of its places (a link's from
-// index): a line's places, a label's where it points
+// index): a line's places, a label's where it points, a point's position, a circle's centre
 export function positionsIn(kind, el) {
-  if (kind === 'point' || kind === 'label') return [[el, 'position']];
+  if (el.position) return [[el, 'position']];
   if (kind === 'line') return el.points.map((_, i) => [el.points, i]);
   return [];
 }
@@ -176,14 +146,14 @@ const MEASURE_LOOK = Object.freeze({ ...MEASURE_STYLE, text: Object.freeze({ nam
 function layered(looks) {
   const part = (k) => Object.assign({}, ...looks.map((l) => l?.[k]));
   const last = (k) => looks.reduce((v, l) => (l?.[k] != null ? l[k] : v), null);
-  return { fill: part('fill'), stroke: part('stroke'), text: part('text'), offset: last('offset'), minSize: last('minSize') };
+  return { fill: part('fill'), stroke: part('stroke'), text: part('text'), offset: last('offset') };
 }
 // The look an element is drawn with, every field: its own, else a guide's (faint, dashed) or a
 // measurement's (a guide showing its values: as while it is measured), else the drawing's, else the
 // defaults.
 export function lookOf(doc, el) {
   const own = [el.look], under = [DEFAULT_LOOK, doc.look];
-  const role = !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE; // only points and lines are guides
+  const role = !el.guide ? null : layered([...under, ...own]).text.values ? MEASURE_LOOK : GUIDE_STYLE; // labels are never guides
   return layered([...under, role, ...own]);
 }
 // its fill and stroke
@@ -192,8 +162,6 @@ export const styleOf = (doc, el) => { const l = lookOf(doc, el); return { fill: 
 export const isMeasurement = (doc, el) => !!el.guide && lookOf(doc, el).text.values;
 // how far a line is drawn from where it is (Offset: px, positive to the right of its direction, 0: on it)
 export const offsetOf = (doc, el) => lookOf(doc, el).offset;
-// the drawing's minimum display size (px)
-export const minSizeOf = (doc) => doc.look.minSize ?? MIN_DISPLAY_SIZE;
 // Set one field of x's own look (path: 'offset', 'fill.color', 'text.name'…); undefined takes it back
 // (the value then comes from the drawing, or the defaults).
 export function setLook(x, path, v) {
@@ -214,15 +182,22 @@ export const isShown = (doc, el) => !!el.visible && groupsOf(doc, el).every((g) 
 export function touch(doc, now = Date.now()) { doc.modified = isoNow(now); }
 
 const base = (doc, kind, taken, name = nextName(doc, kind)) => ({ id: newId(doc, taken), name, properties: [], groupId: null, visible: true, ...(kind === 'group' ? {} : { look: {} }) }); // a group has no look: its members' own
-// A point at position: a diamond with one circle unless opts say otherwise; opts set its other fields
-// ({ symbol, parts, name, ... }).
+// A point at position: a diamond unless opts say otherwise; opts set its other fields ({ symbol,
+// name, ... }).
 export function addPoint(doc, position, opts = {}, taken = idsOf(doc)) {
-  const p = { ...base(doc, 'point', taken), position: [...position], bearing: 0, symbol: 'diamond', parts: [makePart('circle')], guide: false, ...opts };
+  const p = { ...base(doc, 'point', taken), position: [...position], bearing: 0, symbol: 'diamond', guide: false, ...opts };
   doc.points.push(p);
   return p;
 }
 // a small dot: where lines meet (a split), a hub
-export const addDot = (doc, position, taken = idsOf(doc)) => addPoint(doc, position, { symbol: 'dot', parts: [] }, taken);
+export const addDot = (doc, position, taken = idsOf(doc)) => addPoint(doc, position, { symbol: 'dot' }, taken);
+// A circle about position (aperture: a sector that wide, centred on its bearing), of the default
+// radius unless opts say otherwise
+export function addCircle(doc, position, opts = {}, taken = idsOf(doc)) {
+  const c = { ...base(doc, 'circle', taken, nextName(doc, 'circle', opts.aperture ? 'Sector' : 'Circle')), position: [...position], radius: NEW_RADIUS, aperture: null, bearing: 0, guide: false, ...opts };
+  doc.circles.push(c);
+  return c;
+}
 // A line through positions (two or more; closed, three or more), its legs straight (geodesics), each
 // place unnamed. Returns it.
 export function addLine(doc, positions, opts = {}) {
@@ -231,16 +206,22 @@ export function addLine(doc, positions, opts = {}) {
   return s;
 }
 export const fewestPlaces = (line) => (line.closed ? 3 : 2); // what a line keeps
-// a part added to a point: a round one twice the reach of the last round one (filled when it is the
-// first), an outline of the default size; one taken away (by its place)
-export function addPart(p, kind = 'circle') {
-  const last = ROUND.includes(kind) ? roundParts(p).at(-1)?.part : null;
-  const part = makePart(kind, last ? { radius: last.radius * 2, aperture: last.aperture } : {});
-  if (last) part.fill = false;
-  p.parts.push(part);
-  return part;
+// A point moved to position and turned to bearing, its shapes with it as one piece: each of their
+// places (a circle's centre) keeps its geodesic distance from the point and its bearing from it,
+// turned by as much as the point is, and a circle's own bearing turns as much
+export function carry(doc, p, position, bearing = p.bearing) {
+  const d = bearing - p.bearing, from = p.position;
+  if (!d && from[0] === position[0] && from[1] === position[1]) return;
+  const to = (q) => { const g = inverse(from, q); return g.s ? destination(position, g.azi + d, g.s) : [...position]; };
+  for (const { kind, el } of membersOf(doc, p.id)) {
+    for (const [o, k] of positionsIn(kind, el)) o[k] = to(o[k]);
+    if (kind === 'circle') el.bearing = +norm360(el.bearing + d).toFixed(4);
+  }
+  p.position = [...position];
+  p.bearing = bearing;
 }
-export function removePart(p, i) { p.parts = p.parts.filter((_, k) => k !== i); }
+// the point holding element el (its shapes'), or null
+export const holderOf = (doc, el) => (el?.groupId ? doc.points.find((p) => p.id === el.groupId) ?? null : null);
 // A label pointing at position, linked to `to` (a target, attach.js) when given: on an element its
 // name, and its text up and to the right with a leader; free, the text there, no leader.
 export function addLabel(doc, position, to = null) {
@@ -254,8 +235,8 @@ export function addLabel(doc, position, to = null) {
 // ---- links ---------------------------------------------------------------------------------------
 
 // What a link points at, nothing else (a snap's or refNear's distance and position left out):
-// { element, part?, vertex? | edge and at? } (attach.js resolve)
-export const targetOf = ({ element, part, vertex, edge, at }) => ({ element, ...(part != null ? { part } : {}), ...(vertex != null ? { vertex } : edge != null ? { edge, at: at ?? 0 } : {}) });
+// { element, vertex? | edge and at? } (attach.js resolve)
+export const targetOf = ({ element, vertex, edge, at }) => ({ element, ...(vertex != null ? { vertex } : edge != null ? { edge, at: at ?? 0 } : {}) });
 // the link from place index of element id, or undefined
 export const linkFrom = (doc, id, index = 0) => doc.links.find((l) => l.from[0] === id && l.from[1] === index);
 // place index of element id tied to `to` (a target), or free where it is (to null): one link a place
@@ -266,12 +247,12 @@ export function setLink(doc, id, index, to) {
 
 // ---- deleting -------------------------------------------------------------------------------------
 
-// What deleting the elements ids takes with it: everything in a group, when withMembers (otherwise
-// its members and subgroups go to the group above it). What is linked to an element deleted stays,
-// free where it was. A Set of IDs.
+// What deleting the elements ids takes with it: a point its shapes; everything in a group, when
+// withMembers (otherwise its members and subgroups go to the group above it). What is linked to an
+// element deleted stays, free where it was. A Set of IDs.
 export function dependents(doc, ids, withMembers = false) {
   const all = new Set(ids);
-  if (withMembers) for (const { el } of elements(doc)) if (groupsOf(doc, el).some((g) => all.has(g.id))) all.add(el.id);
+  for (const { el } of elements(doc)) if (groupsOf(doc, el).some((g) => all.has(g.id) && (withMembers || g.position))) all.add(el.id);
   return all;
 }
 // Delete ids and what goes with them (dependents); the members and subgroups of a deleted group go to
@@ -296,7 +277,7 @@ export function remove(doc, ids, withMembers = false) {
 
 // The nearest group all of xs ({ el }) are in, or null
 function commonGroup(doc, xs) {
-  const chains = xs.map((x) => groupsOf(doc, x.el));
+  const chains = xs.map((x) => groupsOf(doc, x.el).filter((g) => !g.position)); // groups, not points
   return chains[0]?.find((g) => chains.every((c) => c.includes(g))) ?? null;
 }
 // A group of the elements ids, in the nearest group they are all in (a subgroup of it). A group among
@@ -334,18 +315,23 @@ export function moveStep(doc, id, dir) {
   const i = list.indexOf(x.el), j = list.indexOf(y);
   [list[i], list[j]] = [y, x.el];
 }
-// whether group gid can take id: not itself, nor a group it is in
-export const canHold = (doc, gid, id) => !gid || (gid !== id && !groupsOf(doc, find(doc, gid)?.el ?? {}).some((g) => g.id === id));
+// whether group gid can take id: not itself, nor a group it is in; a point (gid) takes shapes only
+export function canHold(doc, gid, id) {
+  const h = gid && find(doc, gid);
+  if (h?.kind === 'point') return ['circle', 'line'].includes(find(doc, id)?.kind);
+  return !gid || (gid !== id && !groupsOf(doc, h?.el ?? {}).some((g) => g.id === id));
+}
 // The fields of a look each kind is drawn with
 const STYLE_FIELDS = ['fill.color', 'fill.opacity', 'stroke.color', 'stroke.opacity', 'stroke.width', 'stroke.dash'];
 export const LOOK_FIELDS = {
-  point: [...STYLE_FIELDS, 'text.name', 'text.values'],
+  point: ['stroke.color', 'stroke.opacity', 'text.name'], // its symbol's colour
+  circle: [...STYLE_FIELDS, 'text.name', 'text.values'],
   line: [...STYLE_FIELDS, 'text.name', 'text.values', 'offset'], // a fill drawn only while closed
   label: ['text.size', 'text.color', 'text.background'],
-  drawing: ['text.name', 'offset', 'minSize'], // the drawing's own look: what its Display sets, nothing else
+  drawing: ['text.name', 'offset'], // the drawing's own look: what its Display sets, nothing else
 };
-// Move an element (or a group) into the group gid, or out of any (null): only its membership changes,
-// never its look; never into itself or a group inside it.
+// Move an element (or a group) into the group gid (a shape: into the point gid), or out of any (null):
+// only its membership changes, never its look; never into itself or a group inside it.
 export function setGroup(doc, id, gid) {
   const x = find(doc, id);
   if (x && canHold(doc, gid, id)) x.el.groupId = gid;
@@ -354,7 +340,7 @@ export function setGroup(doc, id, gid) {
 // ---- the user's properties as columns -----------------------------------------------------------------
 
 // keys the GIS export uses itself: a property so keyed is written p_<key>
-const GIS_COLUMNS = ['kind', 'id', 'name', 'outline', 'group', 'guide', 'text', 'anchor', 'along_m', 'length_m', 'width_m', 'radius_m', 'area_m2', 'perimeter_m', 'bearing_deg', 'aperture_deg', 'part_name', 'filled'];
+const GIS_COLUMNS = ['kind', 'id', 'name', 'group', 'point', 'guide', 'text', 'anchor', 'along_m', 'length_m', 'radius_m', 'area_m2', 'perimeter_m', 'bearing_deg', 'aperture_deg'];
 // The user's properties ([{ key, value }]) as columns: one each, in order; a key the export uses (reserved)
 // prefixed p_, a repeated one numbered. { out, changed (a key had to be renamed) }
 export function columnsOf(props, reserved = GIS_COLUMNS) {

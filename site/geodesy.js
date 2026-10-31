@@ -3,7 +3,7 @@
 // and a measured one are the same number. Lines are densified geodesics, so what you see is the path the numbers
 // describe. Positions are [lon, lat], distances metres, azimuths degrees clockwise from true north.
 
-import { unrollTo, norm180, signedArea2 } from './geo.js';
+import { norm180, signedArea2 } from './geo.js';
 
 // GeographicLib is a classic script on the page (window.geodesic); tests set globalThis.geodesic
 export const G = globalThis.geodesic.Geodesic.WGS84;
@@ -14,9 +14,8 @@ export function inverse(p, q) {
   const g = G.Inverse(p[1], p[0], q[1], q[0]);
   return { s: g.s12, azi: g.azi1 };
 }
-// a polyline's geodesic length, m; perimeterOf: a ring's, closed back to its first point
+// a polyline's geodesic length, m
 export const lengthOf = (pts) => pts.reduce((t, p, i) => (i ? t + inverse(pts[i - 1], p).s : 0), 0);
-export const perimeterOf = (pts) => lengthOf([...pts, pts[0]]);
 // the point s metres from p at azimuth azi, its longitude continuous with p's
 export function destination(p, azi, s) {
   const d = G.Direct(p[1], p[0], azi, s, MASK);
@@ -41,17 +40,6 @@ export function densify(p, q, step = 20000) {
   }
   return out;
 }
-const unrollFrom = (ref, pts) => pts.map((p) => unrollTo(ref, p)); // longitudes continuous across the antimeridian
-// the densified geodesic polyline through pts (closed: back to the first)
-export function pathOf(pts, closed, step) {
-  const ring = closed ? [...pts, pts[0]] : pts;
-  const out = [];
-  for (let i = 0; i < ring.length - 1; i++) {
-    const seg = unrollFrom(out.length ? out[out.length - 1] : ring[i], densify(ring[i], ring[i + 1], step));
-    out.push(...(i ? seg.slice(1) : seg));
-  }
-  return out;
-}
 // the circle of radius r about c, as a closed ring of n + 1 points
 export function circle(c, r, n = 128) {
   const pts = [];
@@ -69,12 +57,6 @@ export function sector(c, r, bearing, aperture) {
   for (let i = 0; i <= n; i++) pts.push(destination(c, bearing - aperture / 2 + (aperture * i) / n, r));
   pts.push(c);
   return pts;
-}
-// A rectangle's corners, length × width about c, its length along azimuth bearing: at the half
-// diagonal from the centre (front right, back right, back left, front left)
-export function cornersOf(c, bearing, length, width) {
-  const half = Math.hypot(length, width) / 2, off = (Math.atan2(width, length) * 180) / Math.PI;
-  return [bearing + off, bearing + 180 - off, bearing + 180 + off, bearing - off].map((a) => destination(c, a, half));
 }
 // whether a circle of radius r about c reaches either pole (it cannot then be drawn as a polygon)
 export function reachesPole(c, r) {

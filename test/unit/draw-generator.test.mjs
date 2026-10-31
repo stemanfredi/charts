@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { near, lineFrom, placeIn } from './helpers.mjs';
 
 const { distribute, alongTrace, hubFor, plan, lines, planConnection, makeDistribution, editDistribution, connect, unconnect, reconnect, refreshGenerated, DISTRIBUTE_D,
-  distributions, connections, copyOf, giveBack, changedByHand, ruleOf, removePartOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
-const { emptyDoc, addPoint, addLine, makePart, find, remove } = await import('../../site/draw/document.js');
-const { BUILT_IN, scaled } = await import('../../site/draw/place.js');
+  distributions, connections, ruleOf, MAX_COPIES, MAX_TREE } = await import('../../site/draw/generator.js');
+const { emptyDoc, addPoint, addLine, addCircle, find, remove, carry } = await import('../../site/draw/document.js');
+const { presetOf } = await import('../../site/draw/presets.js');
+const { outlinePoints } = await import('../../site/draw/outlines.js');
 const { lineTrace, nearestAlong, pointsAlong, totals, madeLines } = await import('../../site/draw/lines.js');
 const { settleGeometry, DrawStore } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
-const { verticesOf } = await import('../../site/draw/attach.js');
 const { parse, serialise } = await import('../../site/draw/file.js');
 
 const R = (position, weight = 1) => ({ position, weight }); // a root for plan()
@@ -167,6 +167,8 @@ const scene = () => {
 };
 const ARRAY = { spacing: 3000, startMargin: 1000, endMargin: 1000, offset: 500, side: 'alternate', aperture: 180, groupId: null };
 const pointsOf = (doc, a) => a.points.map((x) => doc.points.find((n) => n.id === x.pointId));
+// the shapes a point holds
+const shapesOf = (doc, n) => [...doc.circles, ...doc.lines].filter((x) => x.groupId === n.id);
 // what a line's start (0) or end (-1) is linked to (its ID), or undefined
 const tie = (doc, s, i) => placeIn(doc, s, i).to?.element;
 // the points a chain from an root passes, in order (its lines linked end to end)
@@ -187,17 +189,16 @@ test('distribution: points along the line in a group of its own, its Copies, eac
   assert.deepEqual([group.name, group.groupId, array.groupId], ['Distribute along Line 1', null, group.id]);
   assert.deepEqual([circles.name, circles.groupId], ['Copies', group.id]);
   assert.equal(doc.groups.length, 2);
-  assert.ok(ns.every((n) => n.groupId === circles.id && n.symbol === 'diamond'));
-  assert.ok(ns.every((n) => n.parts.length === 1 && n.parts[0].radius === DISTRIBUTE_D.radius && n.parts[0].fill && n.parts[0].shown), 'each one part of its own: none given, the default radius');
-  assert.ok(!('parts' in group) && !('radii' in group) && !('aperture' in group), 'a new group: only a style');
-  assert.ok(ns.every((n) => n.parts[0].kind === 'sector' && n.parts[0].aperture === 180), 'each its own sector');
+  assert.ok(ns.every((n) => n.groupId === circles.id && n.symbol === 'none' && !n.properties.length));
+  assert.ok(ns.every((n) => shapesOf(doc, n).map((c) => [c.radius, c.aperture, c.bearing, c.position]).join() === [DISTRIBUTE_D.radius, 180, n.bearing, n.position].join()), 'each a point and its own sector, facing as it does: none given, the default radius');
+  assert.ok(!('radii' in group) && !('aperture' in group), 'a new group: only who is in it');
   near(Math.abs(((ns[0].bearing + 180) % 360) - 180), 0, 1, 'the first faces north, away from the line (left of east)');
   near(ns[1].bearing, 180, 1, 'the second south');
   // the rule: each point, its place along the line, its side, where it was put
   assert.deepEqual(doc.rules, [array]);
-  assert.deepEqual(Object.keys(array).sort(), ['along', 'aperture', 'copiesId', 'copy', 'count', 'endMargin', 'groupId', 'id', 'kind', 'offset', 'points', 'preset', 'radius', 'side', 'spacing', 'startMargin'].sort());
-  assert.deepEqual([array.kind, array.along, array.spacing, array.count, array.side, array.radius, array.preset, array.copy],
-    ['distribute', { element: guide.id, part: null }, 3000, null, 'alternate', DISTRIBUTE_D.radius, null, null]);
+  assert.deepEqual(Object.keys(array).sort(), ['along', 'aperture', 'copiesId', 'count', 'endMargin', 'groupId', 'id', 'kind', 'offset', 'points', 'preset', 'radius', 'side', 'spacing', 'startMargin'].sort());
+  assert.deepEqual([array.kind, array.along, array.spacing, array.count, array.side, array.radius, array.preset],
+    ['distribute', { element: guide.id }, 3000, null, 'alternate', DISTRIBUTE_D.radius, null]);
   array.points.forEach((x, k) => {
     assert.deepEqual(Object.keys(x).sort(), ['left', 'pointId', 'pos', 't']);
     near(x.t, places[k].t, 1e-12, `t ${k}`);
@@ -212,10 +213,10 @@ test('distribution: points along the line in a group of its own, its Copies, eac
   assert.equal(doc.groups.find((g) => g.id === again.distribution.copiesId).groupId, again.group.id);
   assert.equal(doc.groups.length, 4);
   assert.equal(again.distribution.radius, 800);
-  assert.ok(pointsOf(doc, again.distribution).every((n) => n.groupId === again.distribution.copiesId && n.parts.map((r) => r.radius).join() === '800'));
+  assert.ok(pointsOf(doc, again.distribution).every((n) => n.groupId === again.distribution.copiesId && shapesOf(doc, n).map((r) => r.radius).join() === '800'));
   // no aperture: circles
   const circled = makeDistribution(doc, { ...ARRAY, aperture: null, along: { element: guide.id }, groupId: group.id });
-  assert.ok(pointsOf(doc, circled.distribution).every((n) => n.parts.length === 1 && n.parts[0].kind === 'circle' && !('aperture' in n.parts[0])));
+  assert.ok(pointsOf(doc, circled.distribution).every((n) => shapesOf(doc, n).map((c) => c.aperture).join() === ''));
   // a group given that is not there: at the top
   assert.equal(makeDistribution(doc, { ...ARRAY, along: { element: guide.id }, groupId: 'nothing' }).group.groupId, null);
 });
@@ -230,7 +231,7 @@ test('tree: straight lines root → hub → points, attached at both ends, each 
   assert.equal(r.lines, made.length);
   assert.deepEqual([r.groupSize, r.unused], [3, []]);
   assert.ok(r.total > 0);
-  assert.ok(hubs.every((n) => n.symbol === 'dot' && !n.parts.length), 'a hub is a dot');
+  assert.ok(hubs.every((n) => n.symbol === 'dot' && !shapesOf(doc, n).length), 'a hub is a dot');
   assert.deepEqual(r.connection.hubs.map((h) => h.pointId).sort(), hubs.map((n) => n.id).sort());
   for (const h of r.connection.hubs) {
     assert.equal(h.rootId, o1.id);
@@ -255,8 +256,8 @@ test('tree: straight lines root → hub → points, attached at both ends, each 
   for (const id of r.connection.created) assert.equal(find(doc, id).el.groupId, cg.id, id);
   assert.deepEqual(doc.rules, [array, r.connection]);
   assert.deepEqual([r.connection.kind, r.connection.pattern, r.connection.groupSize, r.connection.roots, r.connection.pointIds], ['connect', 'tree', 3, roots(o1.id), ids]);
-  const gt = totals(doc).groups.get(group.id); // the distribution's group (what is in its subgroups too): its circles, told apart from its hubs
-  assert.deepEqual([gt.points, gt.ringed, gt.lines], [ids.length + hubs.length, ids.length, made.length]);
+  const gt = totals(doc).groups.get(group.id); // the distribution's group (what is in its subgroups too): its copies' circles, its hubs
+  assert.deepEqual([gt.points, gt.circles, gt.lines], [ids.length + hubs.length, ids.length, made.length]);
   // undone: what it made goes, its points and root stay
   assert.equal(unconnect(doc, r.connection.id), r.connection);
   assert.deepEqual([doc.lines.length, connections(doc).length], [1, 0]);
@@ -315,7 +316,7 @@ test('connect: new roots made as squares in its Connection group, weight 1; a fa
   const r = connect(doc, { pointIds: array.points.map((x) => x.pointId), roots: roots(far.id), newRoots: [[12.2, 39.9]], pattern: 'tree', groupSize: 'auto' });
   const made = doc.points.find((n) => n.position[0] === 12.2 && n.position[1] === 39.9);
   assert.ok(made);
-  assert.deepEqual([made.symbol, made.parts, made.groupId], ['square', [], r.connection.groupId]);
+  assert.deepEqual([made.symbol, shapesOf(doc, made), made.groupId], ['square', [], r.connection.groupId]);
   assert.equal(doc.groups.find((g) => g.id === r.connection.groupId).groupId, array.groupId, 'its group beside Copies, in the repetition\'s group');
   assert.deepEqual(r.connection.roots, [{ id: far.id, weight: 1 }, { id: made.id, weight: 1 }]);
   assert.deepEqual(r.unused, [far.id]);
@@ -365,20 +366,22 @@ test('a distribution follows its line; one moved by hand stops; Edit moves them,
   settleGeometry(doc);
   assert.deepEqual(hand.position, [12.2, 39.9]);
   array.points.forEach((x, k) => k === 2 || near(fromPlace(doc, guide, x), 0, 0.01, `${k} still follows`));
-  // Edit array with the same number: every point placed again, the one moved by hand too; each the
-  // rule's new copy, but those whose parts were changed by hand since: they keep their own
+  // each copy's sector turned with it, facing away from the line
+  assert.ok(ns.filter((n) => n !== hand).every((n) => Math.abs(shapesOf(doc, n)[0].bearing - n.bearing) < 1e-3 && inverse(n.position, shapesOf(doc, n)[0].position).s < 1e-6)); // the one moved by hand here: set, not carried
+  // Edit with the same number and the same copy: every point placed again, the one moved by hand too,
+  // each as it is (one changed by hand keeps its own)
   const n0 = array.points.length;
-  ns[1].parts.push({ ...makePart('circle', { radius: 2000 }), fill: false });
-  Object.assign(ns[0].parts[0], { fill: false, shown: false, name: 'kept' });
-  const own = [structuredClone(ns[0].parts), structuredClone(ns[1].parts)];
-  assert.deepEqual(editDistribution(doc, array.id, { offset: 200, aperture: 90, radius: 750 }), { distribution: array, remade: false });
+  shapesOf(doc, ns[1])[0].radius = 2000;
+  assert.deepEqual(editDistribution(doc, array.id, { offset: 200 }), { distribution: array, remade: false });
   assert.equal(array.points.length, n0);
   near(inverse(hand.position, distribute(doc, guide, array).points[2].position).s, 0, 0.01, 'back on its place');
-  array.points.forEach((x, k) => near(inverse(ns[k].position, distribute(doc, guide, array).points[k].position).s, 0, 0.01, `${k} moved, changed by hand or not`));
+  array.points.forEach((x, k) => near(inverse(ns[k].position, distribute(doc, guide, array).points[k].position).s, 0, 0.01, `${k} moved`));
+  assert.deepEqual([shapesOf(doc, ns[1])[0].radius, shapesOf(doc, ns[0])[0].radius], [2000, DISTRIBUTE_D.radius], 'changed by hand: its own');
+  assert.ok(ns.filter((n) => n !== hand).every((n) => inverse(n.position, shapesOf(doc, n)[0].position).s < 1e-6), 'its shapes carried with it');
+  // another copy (a sector of 90°, 750 m): the copies made anew
+  assert.equal(editDistribution(doc, array.id, { aperture: 90, radius: 750 }).remade, true);
   assert.equal(array.radius, 750);
-  for (const n of ns.slice(2)) assert.deepEqual([n.symbol, n.parts], ['diamond', [makePart('sector', { radius: 750, aperture: 90 })]], 'the new sector, the new radius');
-  assert.deepEqual([ns[0].parts, ns[1].parts], own, 'those changed by hand: their own');
-  assert.deepEqual(ns.map((n) => changedByHand(doc, n.id)), ns.map((_, k) => k < 2));
+  for (const n of pointsOf(doc, array)) assert.deepEqual(shapesOf(doc, n).map((c) => [c.radius, c.aperture]), [[750, 90]], 'the new sector, the new radius');
   // a connection on them, then another count: the points made anew, the connection made again on them
   const r = connect(doc, { pointIds: array.points.map((x) => x.pointId), roots: roots(o1.id), pattern: 'chain', groupSize: 'auto' });
   const old = new Set(array.points.map((x) => x.pointId));
@@ -393,6 +396,7 @@ test('a distribution follows its line; one moved by hand stops; Edit moves them,
   assert.ok(doc.groups.some((g) => g.id === c.groupId));
   assert.ok(c.created.every((id) => find(doc, id).el.groupId === c.groupId));
   assert.ok(array.points.every((x) => find(doc, x.pointId).el.groupId === array.copiesId), 'the new points in Copies');
+  assert.ok(pointsOf(doc, array).every((n) => shapesOf(doc, n).map((c) => `${c.radius} ${c.aperture}`).join() === '750 90'), 'each a copy of the first');
   assert.deepEqual(c.pointIds, array.points.map((x) => x.pointId));
   assert.deepEqual(chainFrom(doc, o1.id), c.pointIds);
   assert.equal(doc.lines.length, 5, 'the guide and the chain\'s four lines');
@@ -528,170 +532,83 @@ test('a distribution along a smooth line is back on it after a single change', (
   for (const n of pointsOf(doc, array)) assert.ok(offLine(doc, line, n.position) < 5, `${offLine(doc, line, n.position)} m off the line`);
 });
 
-test('points along a point\'s arc: a sector\'s from one end to the other clockwise; a whole circle from its bearing, evenly', () => {
+test('points along a circle: a sector\'s arc from one end to the other clockwise; a whole circle from its bearing, evenly', () => {
   const doc = emptyDoc(0);
   const c = [12, 40];
-  const sec = addPoint(doc, c, { parts: [makePart('sector', { radius: 1000, aperture: 90 })], bearing: 90 });
+  const sec = addCircle(doc, c, { radius: 1000, aperture: 90, bearing: 90 });
   const tr = alongTrace(doc, sec);
   near(tr.length, 1000 * Math.PI / 2, 0.5, 'a quarter of the circle');
+  assert.equal(tr.closed, false);
   const five = distribute(doc, sec, { count: 5 }).points;
   assert.equal(five.length, 5);
   near(inverse(c, five[0].position).azi, 45, 0.01, 'from the end anticlockwise of the bearing');
   near(inverse(c, five[4].position).azi, 135, 0.01, 'to the other');
   for (const p of five) near(inverse(c, p.position).s, 1000, 0.01, 'on the radius');
   near(five[2].facing, 90, 0.01, 'left of a clockwise arc: outwards');
-  const ring = addPoint(doc, c, { parts: [makePart('circle', { radius: 2000 })], bearing: 30 });
+  const ring = addCircle(doc, c, { radius: 2000, bearing: 30 });
   const four = distribute(doc, ring, { count: 4, startMargin: 500 }).points;
   assert.deepEqual(four.map((p) => Math.round(inverse(c, p.position).azi + 360) % 360), [30, 120, 210, 300], 'no ends, no margins');
   assert.equal(distribute(doc, ring, { spacing: 2000 * Math.PI / 2 + 1 }).points.length, 4, 'every spacing, no point twice');
-  assert.equal(distribute(doc, addPoint(doc, c, { parts: [] }), { count: 3 }).points.length, 0, 'no parts: nothing to go along');
-  assert.equal(alongTrace(doc, ring, 4), null, 'no such part');
 });
 
-test('points round a point\'s part: the first filled round part by default, or the one named; each sector its own aperture', () => {
+test('points round a point\'s closed line: its ring, from its first place clockwise; they follow it as the point turns', () => {
   const doc = emptyDoc(0);
   const c = [12, 40];
-  const p = addPoint(doc, c, { bearing: 90, parts: [{ ...makePart('circle', { radius: 500 }), fill: false }, makePart('sector', { radius: 1000, aperture: 60 }), makePart('sector', { radius: 2000, aperture: 120 })] });
-  const dflt = alongTrace(doc, p), first = alongTrace(doc, p, 0), wide = alongTrace(doc, p, 2);
-  assert.deepEqual(dflt, alongTrace(doc, p, 1), 'the first filled');
-  near(dflt.length, (1000 * Math.PI) / 3, 0.5, 'a sixth of its circle');
-  assert.equal(dflt.closed, false);
-  near(inverse(c, dflt.coords[0]).azi, 60, 1e-6, 'from its own end');
-  near(inverse(c, dflt.coords.at(-1)).azi, 120, 1e-6, 'to the other');
-  assert.deepEqual([first.closed, Math.round(first.length)], [true, Math.round(2 * Math.PI * 500)]);
-  near(inverse(c, wide.coords[0]).azi, 30, 1e-6, 'the wider one\'s end');
-  near(wide.length, (2000 * 2 * Math.PI) / 3, 1, 'a third of its circle');
-  p.parts[1].fill = false;
-  p.parts[2].fill = false;
-  assert.deepEqual(alongTrace(doc, p), first, 'none filled: the first round one');
-  const three = distribute(doc, p, { count: 3, part: 2 }).points;
-  assert.deepEqual(three.map((x) => Math.round(inverse(c, x.position).azi)), [30, 90, 150]);
-  // an array round the part named: its points follow that part
-  const { distribution: array } = makeDistribution(doc, { along: { element: p.id, part: 2 }, count: 3 });
-  assert.deepEqual(array.along, { element: p.id, part: 2 });
-  p.parts[2].aperture = 60;
-  settleGeometry(doc);
-  assert.deepEqual(pointsOf(doc, array).map((n) => Math.round(inverse(c, n.position).azi)), [60, 90, 120]);
-  assert.ok(pointsOf(doc, array).every((n) => Math.abs(inverse(c, n.position).s - 2000) < 0.01));
-});
-
-test('points round an outline part: its ring, closed, from its front right corner clockwise; they follow it turned', () => {
-  const doc = emptyDoc(0);
-  const c = [12, 40];
-  const p = addPoint(doc, c, { parts: [makePart('circle', { radius: 5000 }), makePart('rectangle', { length: 4000, width: 2000 })] });
-  const tr = alongTrace(doc, p, 1);
+  const p = addPoint(doc, c), r = addLine(doc, outlinePoints(c, 0, 4000, 2000), { groupId: p.id, closed: true });
+  const tr = alongTrace(doc, r);
   assert.equal(tr.closed, true);
   near(tr.length, 12000, 1, 'its perimeter');
-  near(inverse(tr.coords[0], tr.coords.at(-1)).s, 0, 1e-6, 'a ring: back where it started');
-  near(alongTrace(doc, p).length, 2 * Math.PI * 5000, 1, 'by default: the circle');
-  const corner = (k) => verticesOf({ kind: 'point', el: p }, 1)[k];
-  const six = distribute(doc, p, { count: 6, part: 1 }).points;
+  const six = distribute(doc, r, { count: 6 }).points;
   // every 2 km round it: the front right corner, the right side's middle, the back right corner, the back left, the left side's middle, the front left
-  for (const [k, v] of [[0, 0], [2, 1], [3, 2], [5, 3]]) near(inverse(six[k].position, corner(v)).s, 0, 1, `point ${k} on corner ${v}`);
-  near(inverse(c, six[1].position).s, 1000, 1, 'the right side\'s middle');
+  for (const [k, v] of [[0, 0], [2, 1], [3, 2], [5, 3]]) near(inverse(six[k].position, r.points[v]).s, 0, 1, `point ${k} on corner ${v}`);
   near(inverse(c, six[1].position).azi, 90, 0.01, 'east');
-  const { distribution: array } = makeDistribution(doc, { along: { element: p.id, part: 1 }, count: 6 });
-  assert.deepEqual(array.along, { element: p.id, part: 1 });
-  p.bearing = 90;
+  const { distribution: array } = makeDistribution(doc, { along: { element: r.id }, count: 6 });
+  carry(doc, p, c, 90); // the point turned: its ring with it, the copies round it
   settleGeometry(doc);
   const ns = pointsOf(doc, array);
-  near(inverse(ns[0].position, corner(0)).s, 0, 1, 'the turned outline\'s front right corner');
+  near(inverse(ns[0].position, r.points[0]).s, 0, 1, 'the turned ring\'s first place');
   near(inverse(c, ns[1].position).azi, 180, 0.01, 'its right side now south');
-  assert.ok(ns.every((n) => n.parts.length === 1 && n.parts[0].kind === 'circle' && n.parts[0].radius === DISTRIBUTE_D.radius));
 });
 
-test('a distribution along an arc follows its point: moved, turned, its radius changed', () => {
+test('a distribution along a circle follows it: moved, turned, its radius changed (as its point is carried); gone, the rule goes', () => {
   const doc = emptyDoc(0);
-  const sec = addPoint(doc, [12, 40], { parts: [makePart('sector', { radius: 1000, aperture: 180 })], bearing: 0 });
+  const p = addPoint(doc, [12, 40]), sec = addCircle(doc, [12, 40], { groupId: p.id, aperture: 180 });
   const { distribution: array } = makeDistribution(doc, { along: { element: sec.id }, count: 3 });
-  assert.deepEqual(array.along, { element: sec.id, part: 0 }, 'the part followed by default, kept by its place');
-  sec.position = [12.1, 40.1]; sec.bearing = 90; sec.parts[0].radius = 1500;
+  assert.deepEqual(array.along, { element: sec.id });
+  carry(doc, p, [12.1, 40.1], 90);
+  sec.radius = 1500;
   settleGeometry(doc);
   const azis = pointsOf(doc, array).map((n) => inverse(sec.position, n.position));
   assert.deepEqual(azis.map((d) => Math.round(d.s)), [1500, 1500, 1500]);
   assert.deepEqual(azis.map((d) => Math.round(d.azi + 360) % 360), [0, 90, 180]);
-  remove(doc, [sec.id]);
+  remove(doc, [p.id]); // its point deleted: the circle with it
   settleGeometry(doc);
-  assert.equal(distributions(doc).length, 0, 'its point gone: the array goes, its points stay');
+  assert.equal(distributions(doc).length, 0, 'its circle gone: the rule goes, its copies stay');
+  assert.equal(doc.points.length, 3);
 });
 
-test('a part taken away: a distribution round a later part keeps following it; one round that part is dropped, its copies kept', () => {
-  const doc = emptyDoc(0);
-  const p = addPoint(doc, [12, 40], { parts: [makePart('circle', { radius: 500 }), makePart('circle', { radius: 1000 }), makePart('circle', { radius: 2000 })], bearing: 0 });
-  const { distribution: round } = makeDistribution(doc, { along: { element: p.id, part: 2 }, count: 4 });
-  const { distribution: first } = makeDistribution(doc, { along: { element: p.id }, count: 3 });
-  assert.equal(first.along.part, 0, 'the followed part, by its place');
-  removePartOf(doc, p.id, 1);
-  settleGeometry(doc);
-  assert.equal(round.along.part, 1, 'the same part, one place earlier');
-  assert.ok(pointsOf(doc, round).every((n) => Math.round(inverse(p.position, n.position).s) === 2000), 'still round it');
-  const copies = first.points.map((x) => x.pointId);
-  removePartOf(doc, p.id, 0);
-  settleGeometry(doc);
-  assert.deepEqual(distributions(doc), [round], 'the one round the part taken away dropped');
-  assert.ok(copies.every((id) => find(doc, id)), 'its copies kept');
-  assert.equal(round.along.part, 0);
-  assert.deepEqual(p.parts.map((x) => x.radius), [2000]);
-});
-
-test('Edit from sectors to circles: each point\'s first part a circle, no aperture left on it; its file the same read back', () => {
-  const { doc, guide } = scene();
-  const { distribution: array } = makeDistribution(doc, { ...ARRAY, along: { element: guide.id } });
-  editDistribution(doc, array.id, { aperture: null });
-  const ns = pointsOf(doc, array);
-  assert.ok(ns.every((n) => n.parts[0].kind === 'circle'));
-  assert.deepEqual(ns[0].parts, [makePart('circle', { radius: DISTRIBUTE_D.radius })], 'a circle as any other');
-  const back = parse(serialise(doc), null, 0).doc;
-  assert.deepEqual(back.points.find((n) => n.id === ns[0].id).parts, ns[0].parts);
-});
-
-test('copyOf: a circle of the radius (a sector with an aperture), a diamond; a built-in kind scaled to the radius; a user\'s copy as it is', () => {
-  const rule = (o) => ({ radius: 300, aperture: null, preset: null, copy: null, ...o });
-  assert.deepEqual(copyOf(rule()), { symbol: 'diamond', parts: [makePart('circle', { radius: 300 })] });
-  assert.deepEqual(copyOf(rule({ preset: 'circle' })), copyOf(rule()));
-  assert.deepEqual(copyOf(rule({ aperture: 45 })), { symbol: 'diamond', parts: [makePart('sector', { radius: 300, aperture: 45 })] });
-  // rings: the largest reaching the radius, the others with it, each its own Fill
-  const rings = copyOf(rule({ preset: 'rings', radius: 1500 }));
-  assert.deepEqual([rings.symbol, rings.parts.map((p) => [p.kind, p.radius, p.fill])], ['none', [['circle', 500, true], ['circle', 1000, false], ['circle', 1500, false]]]);
-  const rect = copyOf(rule({ preset: 'rectangle', radius: 400, aperture: 90 }));
-  assert.deepEqual(rect, { symbol: BUILT_IN.rectangle.symbol, parts: scaled(BUILT_IN.rectangle.parts, 400) });
-  assert.deepEqual([rect.parts.length, rect.parts[0].kind, rect.parts[0].length / 2], [1, 'rectangle', 400], 'its half length the radius; no aperture on it');
-  const copy = { symbol: 'square', parts: [makePart('circle', { radius: 2000 })] };
-  assert.equal(copyOf(rule({ preset: 'preset:mine', copy, radius: 10 })), copy, 'its size its own');
-  assert.deepEqual(copyOf(rule({ preset: 'preset:gone' })), copyOf(rule()), 'a user\'s without its copy: a circle');
-  // made: each point the copy, a copy of its own
+test('copies: a built-in kind at the radius (its largest shape), a preset of the user\'s at its own size; each point with shapes of its own', () => {
   const { doc, guide } = scene();
   const ringed = makeDistribution(doc, { along: { element: guide.id }, count: 3, preset: 'rings', radius: 1500 }).distribution;
-  for (const n of pointsOf(doc, ringed)) assert.deepEqual([n.symbol, n.parts], ['none', rings.parts]);
-  const mine = makeDistribution(doc, { along: { element: guide.id }, count: 3, preset: 'preset:mine', copy }).distribution;
-  assert.deepEqual([mine.preset, mine.copy], ['preset:mine', copy]);
+  for (const n of pointsOf(doc, ringed)) assert.deepEqual(shapesOf(doc, n).map((c) => [c.radius, c.look.fill?.opacity ?? null]), [[500, null], [1000, 0], [1500, 0]]);
+  const rect = makeDistribution(doc, { along: { element: guide.id }, count: 2, preset: 'rectangle', radius: 400, aperture: 90 }).distribution;
+  for (const n of pointsOf(doc, rect)) {
+    const [r] = shapesOf(doc, n);
+    assert.deepEqual([r.closed, r.points.length], [true, 4]);
+    near(Math.max(...r.points.map((q) => inverse(n.position, q).s)), Math.hypot(400, 200), 1e-3, 'its half length the radius; no aperture on it');
+  }
+  // one of the user's: its point and shapes, as they are, each copy's own
+  const src = emptyDoc(0), q = addPoint(src, [5, 50], { symbol: 'square' });
+  addCircle(src, [5, 50], { groupId: q.id, radius: 2000, name: 'outer' });
+  const copy = presetOf(src, q.id, 'mine').doc;
+  const mine = makeDistribution(doc, { along: { element: guide.id }, count: 3, preset: 'preset:mine', copy, radius: 10 }).distribution;
+  assert.equal(mine.preset, 'preset:mine');
   const ns = pointsOf(doc, mine);
-  for (const n of ns) assert.deepEqual([n.symbol, n.parts], [copy.symbol, copy.parts]);
-  assert.ok(ns[0].parts !== copy.parts && ns[0].parts !== ns[1].parts, 'each its own parts');
-});
-
-test('a copy changed by hand keeps its own when the rule is edited; giveBack gives it the rule\'s; a part chosen anew', () => {
-  const doc = emptyDoc(0);
-  const p = addPoint(doc, [12, 40], { parts: [makePart('circle', { radius: 5000 }), makePart('circle', { radius: 8000 })] });
-  const { distribution: array } = makeDistribution(doc, { along: { element: p.id }, count: 4, radius: 500 });
-  const ns = pointsOf(doc, array);
-  assert.ok(ns.every((n) => !changedByHand(doc, n.id)));
-  ns[0].parts[0].radius = 900;
-  ns[1].symbol = 'square';
-  assert.deepEqual(ns.map((n) => changedByHand(doc, n.id)), [true, true, false, false], 'its parts or its symbol');
-  assert.equal(changedByHand(doc, p.id), false, 'not a copy');
-  editDistribution(doc, array.id, { radius: 700 });
-  assert.deepEqual(ns.map((n) => [n.symbol, n.parts[0].radius]), [['diamond', 900], ['square', 500], ['diamond', 700], ['diamond', 700]]);
-  giveBack(doc, ns[0].id);
-  giveBack(doc, ns[1].id);
-  for (const n of ns) assert.deepEqual([n.symbol, n.parts], ['diamond', [makePart('circle', { radius: 700 })]]);
-  assert.ok(ns.every((n) => !changedByHand(doc, n.id)));
-  giveBack(doc, p.id);
-  assert.equal(p.parts.length, 2, 'not a copy: as it was');
-  // the part it goes round chosen anew: the same number, moved onto it
-  assert.equal(editDistribution(doc, array.id, { along: { part: 1 } }).remade, false);
-  assert.deepEqual(array.along, { element: p.id, part: 1 });
-  for (const n of ns) near(inverse(p.position, n.position).s, 8000, 0.01, 'round the larger circle');
+  for (const n of ns) assert.deepEqual([n.symbol, shapesOf(doc, n).map((c) => [c.radius, c.position])], ['square', [[2000, n.position]]]);
+  assert.notEqual(shapesOf(doc, ns[0])[0], shapesOf(doc, ns[1])[0]);
+  // a copy deleted: its shapes with it
+  remove(doc, [ns[0].id]);
+  assert.equal(doc.circles.filter((c) => c.name.startsWith('outer')).length, 2);
 });
 
 test('rule groups: Connection in the points\' group (a distribution\'s copies: beside Copies) or one given; gone with unconnect when empty', () => {
@@ -751,20 +668,19 @@ test('hubFor: the median; with a shortest branch, at least that far from every p
   assert.equal(reconnect(doc, r.connection.id, { pattern: 'chain' }).connection.minBranch, 0, 'a chain has no hub');
 });
 
-test('rules read back from the file: a distribution with its part and a user\'s copy, a connection in its group', () => {
+test('rules read back from the file: a distribution round a circle, a connection in its group', () => {
   const doc = emptyDoc(0);
-  const p = addPoint(doc, [12, 40], { parts: [makePart('circle', { radius: 5000 }), makePart('sector', { radius: 8000, aperture: 120 })] });
-  const copy = { symbol: 'square', parts: [{ ...makePart('circle', { radius: 2000 }), fill: false, name: 'outer' }, makePart('rectangle', { length: 800, width: 400 })] };
-  const { distribution: array } = makeDistribution(doc, { along: { element: p.id, part: 1 }, count: 4, preset: 'preset:mine', copy });
+  const c = addCircle(doc, [12, 40], { radius: 8000, aperture: 120 });
+  const { distribution: array } = makeDistribution(doc, { along: { element: c.id }, count: 4, preset: 'rings', radius: 900 });
   const o = addPoint(doc, [12, 39.8]);
   connect(doc, { pointIds: array.points.map((x) => x.pointId), roots: roots(o.id), pattern: 'tree', groupSize: 2 });
   const back = parse(serialise(doc), null, 0).doc;
   const plain = (rules) => JSON.parse(JSON.stringify(rules, (k, v) => (typeof v === 'number' ? +v.toFixed(5) : v))); // positions written to 7 decimals
   assert.deepEqual(plain(back.rules), plain(doc.rules));
   assert.deepEqual(parse(serialise(back), null, 0).doc.rules, back.rules, 'stable');
-  assert.deepEqual(back.rules[0].along, { element: p.id, part: 1 });
-  assert.deepEqual(back.rules[0].copy, copy);
-  assert.deepEqual(back.groups.map((g) => g.name), ['Distribute along Point 1', 'Copies', 'Connection']);
+  assert.deepEqual(back.rules[0].along, { element: c.id });
+  assert.deepEqual(back.groups.map((g) => g.name), ['Distribute along Sector 1', 'Copies', 'Connection']);
+  assert.equal(back.circles.length, 1 + 4 * 3); // the copies' shapes, their points'
 });
 
 test('a distribution makes at most MAX_COPIES points, and says so', () => {

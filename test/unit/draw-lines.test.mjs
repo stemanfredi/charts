@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { near, addShape, lineFrom, addRing } from './helpers.mjs';
 
 const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals } = await import('../../site/draw/lines.js');
-const { emptyDoc, addPoint, addDot, makeGroup, remove, makePart, linkFrom } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, addCircle, makeGroup, remove, linkFrom } = await import('../../site/draw/document.js');
 const { splitLine } = await import('../../site/draw/attach.js');
 const { settleGeometry } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
@@ -114,22 +114,22 @@ test('nearest along: the distance from the start of the place nearest a position
 
 test('totals: per group and in all; guides left out; hidden elements flagged', () => {
   const doc = emptyDoc(0);
-  const ringedPoint = addPoint(doc, [12, 40]), dot = addDot(doc, [12.1, 40]);
+  const ringedPoint = addPoint(doc, [12, 40]), dot = addDot(doc, [12.1, 40]), c = addCircle(doc, [12, 40]);
   addPoint(doc, [12.2, 40], { guide: true });
   const inGroup = lineFrom(doc, ringedPoint.id, [], dot.id, { properties: [{ key: 'kind', value: 'x' }] });
   lineFrom(doc, [12, 40], [], [12.3, 40], { guide: true });
   const hidden = lineFrom(doc, [12, 41], [[12.1, 41.1]], [12.2, 41], { properties: [{ key: 'kind', value: 'x' }], visible: false });
   addRing(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
   addRing(doc, [[13, 42], [13.1, 42], [13.1, 42.1]], { guide: true });
-  const g = makeGroup(doc, [ringedPoint.id, dot.id, inGroup.id]);
+  const g = makeGroup(doc, [ringedPoint.id, dot.id, c.id, inGroup.id]);
   const t = totals(doc);
   const a = lineTrace(doc, inGroup).length, b = lineTrace(doc, hidden).length;
-  assert.deepEqual({ ...t.all, length: 0 }, { length: 0, lines: 2, points: 2, ringed: 1, areas: 1, hidden: true }, 'guides left out');
+  assert.deepEqual({ ...t.all, length: 0 }, { length: 0, lines: 2, points: 2, circles: 1, areas: 1, hidden: true }, 'guides left out');
   near(t.all.length, a + b, 1e-6, 'all');
-  // the group's points: one with a round part (the group's), a dot without
-  assert.deepEqual({ ...t.groups.get(g.id), length: 0 }, { length: 0, lines: 1, points: 2, ringed: 1, areas: 0, hidden: false });
+  // the group's: its two points and its circle
+  assert.deepEqual({ ...t.groups.get(g.id), length: 0 }, { length: 0, lines: 1, points: 2, circles: 1, areas: 0, hidden: false });
   near(t.groups.get(g.id).length, a, 1e-9, 'the group\'s line');
-  assert.deepEqual({ ...t.groups.get(''), length: 0 }, { length: 0, lines: 1, points: 0, ringed: 0, areas: 1, hidden: true });
+  assert.deepEqual({ ...t.groups.get(''), length: 0 }, { length: 0, lines: 1, points: 0, circles: 0, areas: 1, hidden: true });
   // a hidden group hides its members: its totals say so
   g.visible = false;
   assert.equal(totals(doc).groups.get(g.id).hidden, true);
@@ -172,14 +172,14 @@ test('an attached end follows its point; one whose point is deleted stays where 
   assert.deepEqual([line.points[2], linkFrom(doc, line.id, 2), doc.links.length], [[12.4, 40], undefined, 1]);
 });
 
-test('totals: a point with at least one round part counted as ringed, whatever else it has', () => {
+test('totals: circles (sectors too) counted apart from points; a point\'s shapes each its own', () => {
   const doc = emptyDoc(0);
-  addPoint(doc, [12, 40]); // a circle
-  addPoint(doc, [12, 40], { parts: [makePart('sector', { radius: 500, aperture: 40 })] });
-  addShape(doc, [12, 40]); // an outline only
-  addPoint(doc, [12, 40], { parts: [makePart('ellipse'), { ...makePart('circle'), fill: false, shown: false }] }); // hidden and not filled: still one
+  addPoint(doc, [12, 40]);
+  addCircle(doc, [12, 40], { aperture: 40 });
+  addShape(doc, [12, 40], 'rings'); // a point and three circles
+  addShape(doc, [12, 40]); // a point and its closed line
   addDot(doc, [12, 40]);
-  assert.deepEqual([totals(doc).all.points, totals(doc).all.ringed], [5, 3]);
+  assert.deepEqual([totals(doc).all.points, totals(doc).all.circles, totals(doc).all.areas], [4, 4, 1]);
 });
 
 test('split: a vertex becomes a dot both parts are attached to; lengths unchanged; the dot moved, both follow', () => {
@@ -189,7 +189,7 @@ test('split: a vertex becomes a dot both parts are attached to; lengths unchange
   s.names[2] = 'Mark';
   const whole = lineTrace(doc, s).length;
   const p = splitLine(doc, s.id, 2); // its place 2: 0 its start
-  assert.deepEqual([p.name, p.position, p.properties, p.symbol, p.parts], ['Mark', [12.2, 40.1], [], 'dot', []]);
+  assert.deepEqual([p.name, p.position, p.properties, p.symbol], ['Mark', [12.2, 40.1], [], 'dot']);
   const [first, rest] = doc.lines;
   const to = (l, i) => linkFrom(doc, l.id, i)?.to;
   assert.deepEqual([first.id, first.points.at(-1), to(first, 2), first.points.length, first.names], [s.id, [12.2, 40.1], { element: p.id }, 3, ['', '', '']]);
@@ -221,7 +221,7 @@ test('breakdown: lines by group with each listed, a connection\'s summed by what
   lineFrom(doc, [12, 40.4], [], [12.1, 40.4], { guide: true });
   const g = makeGroup(doc, [a.id]);
   addRing(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
-  addPoint(doc, [13, 40]); addPoint(doc, [13, 40], { parts: [makePart('circle', { radius: 100 })] }); addPoint(doc, [13, 40], { parts: [makePart('rectangle', { length: 10, width: 5 })] });
+  addPoint(doc, [13, 40]); addCircle(doc, [13, 40], { radius: 100 }); addCircle(doc, [13, 40], { aperture: 30 });
   // a tree of three points from one root, and a chain of two from another
   const pts = [[14, 40], [14.01, 40], [14.02, 40]].map((q) => addPoint(doc, q)), root = addPoint(doc, [14.01, 39.9]);
   connect(doc, { pointIds: pts.map((p) => p.id), roots: [{ id: root.id, weight: 1 }], pattern: 'tree', groupSize: 3 });
@@ -245,9 +245,9 @@ test('breakdown: lines by group with each listed, a connection\'s summed by what
   const byPart = breakdown(doc, 'part');
   assert.deepEqual(byPart.lines.rows.map((r) => [r.key, r.parts.map((p) => p.part)]), [['', ['trunk', 'branch', 'root link', 'link']]]);
   assert.ok(doc.lines.every((s) => !s.properties.length), 'a connection\'s lines carry no property of the app\'s');
-  // points by kind: the one rectangle; every point counted (the connections' hubs and roots too)
-  assert.equal(t.points.kinds.get('rectangle'), 1);
+  // points and circles by kind: the one circle, the one sector; every point counted (the connections' hubs and roots too)
+  assert.deepEqual([t.points.kinds.get('Circle'), t.points.kinds.get('Sector'), t.points.kinds.get('Point')], [1, 1, doc.points.length]);
   assert.equal([...t.points.kinds.values()].reduce((x, y) => x + y, 0), t.points.count);
   assert.deepEqual([...byPart.points.kinds.keys()], [''], 'by a property: points by its values');
-  assert.equal(t.points.count, doc.points.length);
+  assert.equal(t.points.count, doc.points.length + 2);
 });

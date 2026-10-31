@@ -14,14 +14,16 @@ const OVERLAYS = {
   search: '#search', controls: '#mapctl', legend: '#legends', touch: '.touchbar', note: '.dnote', status: '#status', bar: '#bar', dock: '#dock', side: '#side', props: '#props',
 };
 
-// a drawing as the app saves it (GeoJSON, version 1): a point with two sectors, a rectangle, a line
+// a drawing as the app saves it (GeoJSON, version 1): a point holding two sectors, one holding a rectangle, a line
 // from and back to the point, a label along the line
 const DRAWING = JSON.stringify({ type: 'FeatureCollection', charts: { format: 'charts-drawing', version: 1,
   links: [{ from: ['g1', 0], to: 'n1' }, { from: ['g1', 3], to: 'n1' }, { from: ['l1', 0], to: { element: 'g1', edge: 0, at: 0.4 } }] }, features: [
   { type: 'Feature', id: 'n1', geometry: { type: 'Point', coordinates: [14, 44.5] }, properties: { name: 'Point 1', key: 'value',
-    charts: { kind: 'point', bearing: 45, parts: [{ kind: 'sector', radius: 20000, aperture: 90 }, { kind: 'sector', radius: 40000, aperture: 90, fill: false }] } } },
-  { type: 'Feature', id: 's1', geometry: { type: 'Point', coordinates: [13, 44] }, properties: { name: 'Rectangle 1',
-    charts: { kind: 'point', bearing: 30, parts: [{ kind: 'rectangle', length: 30000, width: 10000 }] } } },
+    charts: { kind: 'point', bearing: 45 } } },
+  { type: 'Feature', id: 's1', geometry: { type: 'Point', coordinates: [13, 44] }, properties: { name: 'Rectangle 1', charts: { kind: 'point' } } },
+  { type: 'Feature', id: 'c1', geometry: { type: 'Point', coordinates: [14, 44.5] }, properties: { name: 'Sector 1', charts: { kind: 'circle', group: 'n1', radius: 20000, aperture: 90, bearing: 45 } } },
+  { type: 'Feature', id: 'c2', geometry: { type: 'Point', coordinates: [14, 44.5] }, properties: { name: 'Sector 2', 'fill-opacity': 0, charts: { kind: 'circle', group: 'n1', radius: 40000, aperture: 90, bearing: 45 } } },
+  { type: 'Feature', id: 'r1', geometry: { type: 'Polygon', coordinates: [[[12.9, 43.95], [13.1, 43.95], [13.1, 44.05], [12.9, 44.05], [12.9, 43.95]]] }, properties: { name: 'Rectangle 1', charts: { kind: 'line', group: 's1' } } },
   { type: 'Feature', id: 'g1', geometry: { type: 'LineString', coordinates: [[14, 44.5], [14.5, 44.2], [14.2, 43.9], [14, 44.5]] }, properties: { name: 'Line 1',
     charts: { kind: 'line', names: ['', 'a point', '', ''] } } },
   { type: 'Feature', id: 'l1', geometry: { type: 'Point', coordinates: [14.2, 44.4] }, properties: { name: 'Label 1',
@@ -35,7 +37,7 @@ for (const [name, width, height, touch] of VIEWPORTS) {
   for (const menu of [0, 1, 'drawing', 'draw', 'line', 'label']) { // the Draw view four times: the drawing's inspector, a node's, a line's, a label's
     await section(`${name} ${width}px, ${menu}`, async () => {
       const page = await browser.newPage({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
-      // the Draw view with a drawing: a node with two parts (its inspector shown) and a shape
+      // the Draw view with a drawing: a point with two sectors (its inspector shown) and a shape
       if (typeof menu === 'string') await page.addInitScript(SEED, DRAWING);
       await page.addInitScript(() => localStorage.setItem('charts.groups.open', '["base","sea","data"]')); // the Layers groups open
       // a zoomed-out view (scale note shown), four stacked legends (they once ran over the

@@ -121,10 +121,10 @@ test('adopt: another document, its display settings, nothing selected, undo afre
   s.change((doc) => { addPoint(doc, [14, 44]); });
   s.select([s.doc.points[0].id]);
   const other = new DrawStore().doc;
-  other.look = { minSize: 20 }; // the drawing's look: with its document
+  other.look = { offset: 20 }; // the drawing's look: with its document
   s.adopt(other);
   assert.equal(s.doc, other);
-  assert.equal(lookOf(s.doc, s.doc).minSize, 20);
+  assert.equal(lookOf(s.doc, s.doc).offset, 20);
   assert.equal(s.sel.size, 0);
   assert.equal(s.undos.length, 0);
   assert.ok(s.isEmpty());

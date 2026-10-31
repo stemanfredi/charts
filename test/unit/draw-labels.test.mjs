@@ -1,18 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near, addShape, drawFeatures, lineFrom, placeIn, addRing } from './helpers.mjs';
+import { near, drawFeatures, lineFrom, placeIn, addRing } from './helpers.mjs';
 
 const { labelText, labelValues, TOKENS, leaderFrom, labelFeatures } = await import('../../site/draw/labels.js');
 const { resolve: anchorAt } = await import('../../site/draw/attach.js');
 const { lineRef, targetPosition, refreshAttached, splitLine } = await import('../../site/draw/attach.js');
-const { emptyDoc, addPoint, addLabel, makeGroup, centroid, lookOf, LOOK_FIELDS, makePart, remove, linkFrom, setLink } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addLine, addCircle, addLabel, makeGroup, centroid, lookOf, LOOK_FIELDS, remove, linkFrom, setLink, carry } = await import('../../site/draw/document.js');
+const { outlinePoints } = await import('../../site/draw/outlines.js');
 const { exportFeatures } = await import('../../site/draw/features.js');
 const { lineTrace, nearestAlong } = await import('../../site/draw/lines.js');
 const { inverse, destination } = await import('../../site/geodesy.js');
 const { mercator, unmercator } = await import('../../site/geo.js');
 
-// a line east from 12° E along 40° N, with a bend, from a named point to an unnamed one; a shape; a
-// closed line (an area)
+// a line east from 12° E along 40° N, with a bend, from a named point to an unnamed one; a closed
+// line (an area); a point holding a rectangle (a closed line, 100 m by 50 m)
 const B = destination([12, 40], 90, 10000), E = destination(B, 90, 10000);
 const AREA = [[13, 41], [13.1, 41], [13.1, 41.1]];
 function base() {
@@ -20,8 +21,9 @@ function base() {
   addPoint(doc, [12, 40], { id: 'a', name: 'Start' });
   addPoint(doc, E, { id: 'e', name: '' });
   lineFrom(doc, 'a', [B], 'e', { id: 's', name: 'Line' });
-  addShape(doc, [12.5, 40.5]).id = 'h';
   addRing(doc, AREA, { id: 'q', name: 'Area' });
+  addPoint(doc, [12.5, 40.5], { id: 'h', symbol: 'none' });
+  addLine(doc, outlinePoints([12.5, 40.5], 0, 100, 50), { id: 'hr', groupId: 'h', closed: true });
   return doc;
 }
 // the target d metres along the line s (with its position)
@@ -39,7 +41,7 @@ const textOn = (doc, text, to, units) => { const a = addLabel(doc, [0, 0]); a.te
 const K = 0.01;
 const view = { project: (p) => { const m = mercator(p); return [m[0] * K, -m[1] * K]; }, unproject: (q) => unmercator([q[0] / K, -q[1] / K]), measure: (t, px) => [t.length * px * 0.5, px * 1.2] };
 
-test('anchors: a point, an outline\'s centre, an area\'s centroid, a distance along a line (clamped), a free position', () => {
+test('anchors: a point, a shape\'s point, an area\'s centroid, a distance along a line (clamped), a free position', () => {
   const doc = base();
   assert.deepEqual(anchorAt(doc, { element: 'a' }).position, [12, 40]);
   assert.equal(anchorAt(doc, { element: 'a' }).element.kind, 'point');
@@ -189,7 +191,7 @@ test('new labels: on an element, its name with an arrow; free, text where clicke
   assert.equal(LOOK_FIELDS.label.includes('text.name'), false);
 });
 
-test('names on the map: by its own switch; named vertices with their line; outlines and closed lines at their centre', () => {
+test('names on the map: by its own switch; named vertices with their line; closed lines at their centre', () => {
   const doc = base();
   makeGroup(doc, ['a']);
   doc.points.find((p) => p.id === 'a').look.text = { name: true };
@@ -199,7 +201,7 @@ test('names on the map: by its own switch; named vertices with their line; outli
   Object.assign(doc.points.find((p) => p.id === 'h'), { name: 'Box', look: { text: { name: true } } });
   doc.lines[1].look.text = { name: true };
   const names = drawFeatures(doc, new Set(), null, { zoom: 10 }).features.filter((x) => x.properties.kind === 'name');
-  assert.deepEqual(names.map((x) => [x.properties.nm, x.geometry.type, x.properties.ctr ?? 0]).sort(), [['Area', 'Point', 1], ['Bend', 'Point', 0], ['Box', 'Point', 1], ['Line', 'LineString', 0], ['Start', 'Point', 0]]);
+  assert.deepEqual(names.map((x) => [x.properties.nm, x.geometry.type, x.properties.ctr ?? 0]).sort(), [['Area', 'Point', 1], ['Bend', 'Point', 0], ['Box', 'Point', 0], ['Line', 'LineString', 0], ['Start', 'Point', 0]]);
 });
 
 test('labels in the GIS export: a point where each points, its text with live values', () => {
@@ -219,17 +221,16 @@ test('labels in the GIS export: a point where each points, its text with live va
   assert.equal(exportFeatures(doc, 'nm').find((x) => x.properties.id === 'l1').properties.text, 'Line at 1.35 NM');
 });
 
-test('live values on a vertex and a side: a side\'s length and bearing; a closed line\'s and an outline\'s area and perimeter; a point\'s radius', () => {
+test('live values on a vertex and a leg: a leg\'s bearing; a closed line\'s area and perimeter (a point\'s shape is one); a circle\'s radius and area', () => {
   const doc = base();
-  const h = doc.points.find((p) => p.id === 'h'); // a rectangle 100 m by 50 m
-  h.bearing = 30;
+  carry(doc, doc.points.find((p) => p.id === 'h'), [12.5, 40.5], 30); // its rectangle turned with it
   const t = (text, to, units) => textOn(doc, text, to, units);
   assert.deepEqual(TOKENS, ['name', 'length', 'along', 'bearing', 'radius', 'area', 'perimeter']);
-  // on a shape's sides: each side's own length and bearing; its outline's area and perimeter
-  assert.equal(t('{length} {bearing}', { element: 'h', edge: 0, at: 0.5 }), '100 m 210.0°T');
-  assert.equal(t('{length} {bearing}', { element: 'h', edge: 1, at: 0.5 }), '50 m 300.0°T');
-  assert.equal(t('{area} {perimeter}|{radius}', { element: 'h', edge: 1, at: 0.5 }), '0.50 ha 300 m|');
-  assert.equal(t('{area} {perimeter}', { element: 'h' }, 'nm'), '0.001 NM² 0.162 NM');
+  // on a shape's legs: each leg's bearing; its length (the perimeter), area and perimeter as any closed line's
+  assert.equal(t('{length} {bearing}', { element: 'hr', edge: 0, at: 0.5 }), '300 m 210.0°T');
+  assert.equal(t('{bearing}', { element: 'hr', edge: 1, at: 0.5 }), '300.0°T');
+  assert.equal(t('{area} {perimeter}|{radius}', { element: 'hr', edge: 1, at: 0.5 }), '0.50 ha 300 m|');
+  assert.equal(t('{area} {perimeter}', { element: 'hr' }, 'nm'), '0.001 NM² 0.162 NM');
   // on a closed line's place: its name, area and perimeter; as on any line, its length (the
   // perimeter) and the distance along it; no leg, so no bearing
   assert.equal(t('{name} {area} {perimeter}|{length}|{bearing}|{along}', { element: 'q', vertex: 1 }), 'Area 46.72 km² 33.45 km|33.45 km||8.41 km');
@@ -242,30 +243,12 @@ test('live values on a vertex and a side: a side\'s length and bearing; a closed
   assert.equal(t('{bearing}', { element: 'q', edge: 0, at: 0.2 }, 'nm'), '090.0°T');
   // on a line's leg: the line's length, the distance along it, the leg's bearing
   assert.equal(t('{length} {along} {bearing}|{area}', on(doc, 15000)), '20.00 km 15.00 km 090.0°T|');
-  // a point: the radius of its first filled round part, else its first round part; none without one
-  assert.equal(t('{radius}|{area}|{bearing}', { element: 'a' }), '1.00 km||');
-  assert.equal(t('{radius}', { element: 'a' }, 'nm'), '0.540 NM');
-  doc.points[0].parts = [makePart('rectangle'), { ...makePart('circle', { radius: 500 }), fill: false }, makePart('sector', { radius: 2000, aperture: 30 }), makePart('circle', { radius: 3000 })];
-  assert.equal(t('{radius}', { element: 'a' }), '2.00 km');
-  doc.points[0].parts[2].fill = false;
-  assert.equal(t('{radius}', { element: 'a' }), '3.00 km');
-  doc.points[0].parts[3].fill = false;
-  assert.equal(t('{radius}', { element: 'a' }), '500 m');
-  doc.points[0].parts = [makePart('rectangle')];
-  assert.equal(t('{radius}|', { element: 'a' }), '|');
-  doc.points[0].parts = [];
+  // a circle: its radius and area (a sector's its own); a point: neither
+  addCircle(doc, [12, 40], { id: 'c' });
+  assert.equal(t('{radius}|{area}|{perimeter}|{bearing}', { element: 'c' }), '1.00 km|3.14 km²||');
+  assert.equal(t('{radius}', { element: 'c' }, 'nm'), '0.540 NM');
+  addCircle(doc, [12, 40], { id: 'sc', aperture: 90 });
+  assert.equal(t('{area}', { element: 'sc' }), '78.51 ha'); // a quarter of it
   assert.equal(t('{radius}|{area}', { element: 'a' }), '|');
   assert.deepEqual(labelValues(doc, null), {});
-});
-
-test('live values on a point with several outlines: the area and perimeter of the outline the anchor names, else of the largest', () => {
-  const doc = emptyDoc(0);
-  addPoint(doc, [12, 40], { id: 'h', symbol: 'none', parts: [makePart('rectangle', { length: 100, width: 50 }), makePart('circle', { radius: 1000 }), makePart('rectangle', { length: 200, width: 20 })] });
-  const t = (text, to) => textOn(doc, text, to);
-  assert.equal(t('{area} {perimeter}', { element: 'h', part: 0, edge: 1, at: 0.5 }), '0.50 ha 300 m');
-  assert.equal(t('{length}', { element: 'h', part: 0, edge: 1, at: 0.5 }), '50 m'); // that outline's side
-  assert.equal(t('{area} {perimeter}', { element: 'h', part: 2, vertex: 0 }), '0.40 ha 440 m');
-  assert.equal(t('{area} {perimeter}', { element: 'h' }), '0.40 ha 440 m'); // its centre: the largest (by length)
-  assert.equal(t('{length}', { element: 'h', part: 2, edge: 0, at: 0.5 }), '200 m');
-  assert.equal(t('{radius}', { element: 'h' }), '1.00 km');
 });

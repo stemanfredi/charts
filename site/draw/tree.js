@@ -1,25 +1,23 @@
 // The tree (docs/drawing-ui.md §4): its first row the drawing, then every element, groups first,
-// what is in each one level further in; a filter past FILTER_FROM elements; rows selected by a click
+// what is in each (a group's members, a point's shapes) one level further in; a filter past FILTER_FROM elements; rows selected by a click
 // (Shift: a range; Ctrl/⌘: add or remove), hovered on the map, renamed (a double-click, F2), dragged
 // into a group or before one of their kind, shown or hidden by their eye.
 
 import { h, editInPlace } from '../dom.js';
-import { find, elements, groupsOf, membersOf, label, KIND, pointKind, mainOutline, followedPart, setGroup, moveBefore, isShown } from './document.js';
+import { find, elements, groupsOf, membersOf, label, KIND, setGroup, moveBefore, isShown, canHold, holderOf } from './document.js';
 import { labelText } from './labels.js';
-import { builtInName } from './place.js';
 import { lineTrace } from './lines.js';
 import { MOD } from '../keys.js';
 import { fmtArea, fmtDist, plural } from '../format.js';
 import { icon, KIND_ICON, UI_ICON, POINT_ICON } from '../icons.js';
 
 const FILTER_FROM = 30; // the filter field appears past this many elements
-// what a total counts: "15 points, 10 with radii · 3 lines, 12.4 km · 2 areas" (closed lines)
-const countOf = (b, u) => [b.points ? `${plural(b.points, 'point')}${b.ringed && b.ringed < b.points ? `, ${b.ringed} with radii` : ''}` : '',
+// what a total counts: "15 points · 10 circles · 3 lines, 12.4 km · 2 areas" (closed lines)
+const countOf = (b, u) => [b.points ? plural(b.points, 'point') : '', b.circles ? plural(b.circles, 'circle') : '',
   b.lines ? `${plural(b.lines, 'line')}, ${fmtDist(b.length, u)}` : '', b.areas ? plural(b.areas, 'area') : '', b.hidden ? 'incl. hidden' : ''].filter(Boolean).join(' · ');
-// an element's icon and what the panel calls its kind: a point by what it looks like (a circle, a
-// rectangle…); a closed line a polygon
-const iconOf = (kind, el) => (kind === 'point' ? POINT_ICON[pointKind(el)] : KIND_ICON[el.closed ? 'polygon' : kind]);
-export const kindTitle = (kind, el) => (kind === 'point' ? builtInName(pointKind(el)) : KIND[kind].name);
+// an element's icon and what the panel calls its kind: a circle or a sector; a closed line a polygon
+const iconOf = (kind, el) => (kind === 'circle' ? POINT_ICON[el.aperture ? 'sector' : 'circle'] : KIND_ICON[el.closed ? 'polygon' : kind]);
+export const kindTitle = (kind, el) => (kind === 'circle' && el.aperture ? 'Sector' : KIND[kind].name);
 // an element's name as shown: its own, else a label's text as it reads on the map (its first line)
 export const shownName = (doc, kind, el, units) => (kind === 'label' && !el.name?.trim() ? labelText(doc, el, units).split('\n')[0].trim() || 'Label' : label(kind, el));
 // a group's name with the groups it is in: "A › B"
@@ -48,7 +46,7 @@ export function eyeFor(drawing, xs, what) {
 export function createTree(drawing, { facts }) {
   let anchor = null; // the row a Shift-click range starts from
   let filter = '';
-  const folded = new Set(); // groups folded (this session)
+  const folded = new Set(); // groups and points folded (this session)
   const filterInput = h('input', { type: 'search', placeholder: 'Filter by name or value', 'aria-label': 'Filter the list', oninput: (e) => { filter = e.target.value; render(); } });
   const selectShown = h('button', { type: 'button', class: 'small', title: 'Select every element the filter leaves in the list (Shift: add to the selection)',
     onclick: (e) => drawing.select(shown().map((x) => x.el.id), e.shiftKey ? 'add' : 'replace') }, 'Select all shown');
@@ -69,7 +67,8 @@ export function createTree(drawing, { facts }) {
   // the drawing's elements this view lists: all of them, measurements too
   const drawElements = () => elements(drawing.doc);
   // the elements in list order, as a tree: each group, then what is in it (its subgroups, then its
-  // members), one level further in; at the top, the groups, then the rest. depth: how far in.
+  // members; a point, then its shapes), one level further in; at the top, the groups, then the rest.
+  // depth: how far in.
   function ordered() {
     const all = drawElements(), out = [], seen = new Set();
     const under = (gid, depth) => {
@@ -78,7 +77,10 @@ export function createTree(drawing, { facts }) {
         out.push({ kind: 'group', el: g, depth });
         if (!folded.has(g.id) || filter) under(g.id, depth + 1);
       }
-      out.push(...all.filter((x) => x.kind !== 'group' && (x.el.groupId ?? null) === gid).map((x) => ({ ...x, depth })));
+      for (const x of all.filter((y) => y.kind !== 'group' && (y.el.groupId ?? null) === gid)) {
+        out.push({ ...x, depth });
+        if (x.kind === 'point' && (!folded.has(x.el.id) || filter)) under(x.el.id, depth + 1); // its shapes
+      }
     };
     under(null, 0);
     return out;
@@ -89,12 +91,8 @@ export function createTree(drawing, { facts }) {
   }
   function value(kind, el) {
     const u = drawing.units();
-    if (kind === 'point') {
-      // its largest outline's size, its first filled round part's radius (its kind: its icon and name)
-      const o = mainOutline(el)?.part, r = el.parts[followedPart(el)];
-      const shape = o ? [`${fmtDist(o.length, u)} × ${fmtDist(o.width, u)}`] : [];
-      return [...shape, r ? `${r.kind === 'sector' ? `${+r.aperture.toFixed(1)}° ` : ''}r ${fmtDist(r.radius, u)}` : ''].filter(Boolean).join(' · ');
-    }
+    if (kind === 'point') return held.get(el.id) ? plural(held.get(el.id), 'shape') : '';
+    if (kind === 'circle') return `${el.aperture ? `${+el.aperture.toFixed(1)}° ` : ''}r ${fmtDist(el.radius, u)}`;
     const offset = el.look?.offset ? '⇉' : ''; // Offset set here: found again in the list
     if (kind === 'line') { const tr = lineTrace(drawing.doc, el); return [el.guide ? 'guide' : '', el.closed ? fmtArea(tr.area, u) : fmtDist(tr.length, u), offset].filter(Boolean).join(' · '); }
     if (kind === 'label') return el.name?.trim() ? labelText(drawing.doc, el, u).split('\n')[0] : ''; // unnamed: its text is its name already
@@ -117,18 +115,21 @@ export function createTree(drawing, { facts }) {
   }
   function rowOf({ kind, el, depth = 0 }) {
     const id = el.id;
-    const fold = kind === 'group' ? h('button', { type: 'button', class: 'dfold', 'aria-expanded': String(!folded.has(id)), 'aria-label': `Show the members of ${label(kind, el)}`,
+    const fold = kind === 'group' || held.get(id) ? h('button', { type: 'button', class: 'dfold', 'aria-expanded': String(!folded.has(id)), 'aria-label': `Show the members of ${label(kind, el)}`,
       onclick: () => { if (folded.has(id)) folded.delete(id); else folded.add(id); render(); } }) : null;
     const t = kind === 'group' && facts().totals.groups.get(id);
     return elementRow({ id, kindIcon: iconOf(kind, el), title: kindTitle(kind, el), name: shownName(drawing.doc, kind, el, drawing.units()), value: value(kind, el), valueTitle: t ? countOf(t, drawing.units()) : undefined,
-      visible: el.visible, drawn: isShown(drawing.doc, el), selected: drawing.sel.has(id) }, {
+      visible: el.visible, drawn: isShown(drawing.doc, el), selected: chosen(el) }, {
       select: (e) => clickRow(id, e), hover: (x) => drawing.setHover(x),
       visible: (v) => drawing.change((doc) => { find(doc, id).el.visible = v; }),
     }, { fold, classes: [depth ? `d${Math.min(depth, 5)}` : '', kind === 'group' ? 'dgroup' : ''].filter(Boolean).join(' '),
       name: { title: `Select (Shift: range, ${MOD}: add or remove). Double-click to rename.`, ondblclick: () => rename(id) } });
   }
 
+  let held = new Map(); // how many shapes each point holds, counted at each rendering
   function render() {
+    held = new Map();
+    for (const c of [...drawing.doc.circles, ...drawing.doc.lines]) if (c.groupId) held.set(c.groupId, (held.get(c.groupId) ?? 0) + 1);
     const rows = shown();
     filterRow.hidden = drawElements().length <= FILTER_FROM && !filter; // nothing to show above the list: no room taken
     list.replaceChildren(...rows.map(rowOf));
@@ -153,7 +154,7 @@ export function createTree(drawing, { facts }) {
     e.preventDefault();
     const id = dragged, t = find(drawing.doc, r.dataset.id), x = find(drawing.doc, id);
     drawing.change((doc) => {
-      if (t.kind === 'group') setGroup(doc, id, t.el.id);
+      if (t.kind === 'group' || (t.kind === 'point' && canHold(doc, t.el.id, id))) setGroup(doc, id, t.el.id); // into a group; a shape into a point
       else if (t.kind === x.kind) moveBefore(doc, id, t.el.id);
       else setGroup(doc, id, t.el.groupId ?? null);
     });
@@ -188,8 +189,10 @@ export function createTree(drawing, { facts }) {
     });
   }
 
+  // a row selected: its element, or a shape with its point
+  const chosen = (el) => drawing.sel.has(el.id) || !!holderOf(drawing.doc, el) && drawing.sel.has(el.groupId);
   function mark() {
-    for (const row of list.querySelectorAll('.drow[data-id]')) row.classList.toggle('sel', drawing.sel.has(row.dataset.id));
+    for (const row of list.querySelectorAll('.drow[data-id]')) row.classList.toggle('sel', chosen(find(drawing.doc, row.dataset.id)?.el ?? {}));
     if (drawing.sel.size) list.querySelector(`[data-id="${CSS.escape([...drawing.sel].at(-1))}"]`)?.scrollIntoView({ block: 'nearest' });
   }
   function step(dir) {

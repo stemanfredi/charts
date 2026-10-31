@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { near } from './helpers.mjs';
 
-const { radiusTo, bearingTo, sectorEdgeTo, resizeRect, moved, rotateHandle } = await import('../../site/draw/drag.js');
-const { inverse, destination, cornersOf } = await import('../../site/geodesy.js');
+const { radiusTo, bearingTo, sectorEdgeTo, moved } = await import('../../site/draw/drag.js');
+const { destination } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');
 
 const C = [12, 40];
@@ -28,47 +28,9 @@ test('an end of a sector\'s arc dragged: the other end stays; across north; at l
   assert.equal(sectorEdgeTo(C, 0, 90, 0.5, destination(C, 97, 500), 15).aperture, 135, 'Shift: the end on 15° steps');
 });
 
-test('resize a rectangle from each corner: the opposite corner stays put; Shift keeps proportions; Alt the centre', () => {
-  const shape = { center: C, bearing: 30, length: 120, width: 40 };
-  const corners = cornersOf(C, 30, 120, 40);
-  for (let i = 0; i < 4; i++) {
-    const p = destination(corners[i], 30 + i * 25, 15); // the corner dragged somewhere near
-    const r = resizeRect(shape, corners, i, p);
-    const after = cornersOf(r.center, 30, r.length, r.width);
-    near(inverse(after[(i + 2) % 4], corners[(i + 2) % 4]).s, 0, 0.005, `corner ${(i + 2) % 4} fixed`);
-    near(inverse(after[i], p).s, 0, 0.05, `corner ${i} under the pointer`);
-  }
-  const k = resizeRect(shape, corners, 0, destination(corners[0], 30, 60), { keep: true });
-  near(k.length / k.width, 3, 1e-9, 'proportions');
-  const c = resizeRect(shape, corners, 0, destination(C, 30, 100), { aboutCentre: true });
-  assert.deepEqual(c.center, C);
-  near(c.length, 200, 0.5, 'about the centre');
-});
-
-test('moving by the pointer; the rotate stalk', () => {
+test('moving by the pointer', () => {
   const p = moved([12.5, 40.5], [12, 40], [12.1, 40.05]);
   const d = [mercator(p)[0] - mercator([12.5, 40.5])[0], mercator(p)[1] - mercator([12.5, 40.5])[1]];
   near(d[0], mercator([12.1, 40.05])[0] - mercator([12, 40])[0], 1e-6, 'x');
   near(d[1], mercator([12.1, 40.05])[1] - mercator([12, 40])[1], 1e-6, 'y');
-  const r = rotateHandle({ center: C, bearing: 30, length: 120 }, 20);
-  near(inverse(C, r).s, 80, 1e-6, 'beyond the front edge');
-  near(inverse(C, r).azi, 30, 1e-6, 'along the bearing');
-});
-
-test('resizeSide: a side dragged moves that side alone; with the centre kept, both', async () => {
-  const { resizeSide } = await import('../../site/draw/drag.js');
-  const { destination, inverse } = await import('../../site/geodesy.js');
-  const s = { center: [12, 40], bearing: 90, length: 1000, width: 400, outline: 'rectangle' };
-  // the front (side 3) pulled 200 m further ahead (east, the bearing): 1200 long, the centre 100 m east, the width kept
-  let r = resizeSide(s, 3, destination(s.center, 90, 700));
-  near(r.length, 1200, 1e-3, 'length'); near(r.width, 400, 1e-9, 'width kept');
-  near(inverse(s.center, r.center).s, 100, 1e-3, 'the centre half-way'); near(inverse(s.center, r.center).azi, 90, 1e-3, 'eastward');
-  // the left side (2) pulled 100 m out: 500 wide, the centre 50 m to the left (north)
-  r = resizeSide(s, 2, destination(s.center, 0, 300));
-  near(r.width, 500, 1e-3, 'width'); near(r.length, 1000, 1e-9, 'length kept'); near(inverse(s.center, r.center).azi, 0, 1e-3, 'northward');
-  // about the centre: the back (1) pulled to 700 m behind doubles to 1400, the centre stays
-  r = resizeSide(s, 1, destination(s.center, 270, 700), { aboutCentre: true });
-  near(r.length, 1400, 1e-3, 'length about the centre'); assert.deepEqual(r.center, s.center);
-  // never under a metre
-  assert.ok(resizeSide(s, 0, destination(s.center, 0, 1000)).width >= 1);
 });

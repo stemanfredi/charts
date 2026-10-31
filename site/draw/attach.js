@@ -1,31 +1,16 @@
 // Links (docs/drawing-ui.md §2.2): a place of an element (a line's place, a label's point) tied to a
 // place on another, following it. The drawing's links are [{ from: [id, index], to }]; to, a target,
-// is { element, part?, vertex? | edge and at? }: element alone, its centre (a point's position, a
-// closed line's centroid, an open line's middle); vertex k, its vertex k (a line's place k, a point's
-// outline part's corner k (part: its place in the point's parts; none: its largest outline)); edge k
-// and at, the side from vertex k to the next (a line's leg k, a closed line's last back to its first;
-// an outline's, closed), at (0–1) along it. Every place keeps its position: refreshAttached moves
+// is { element, vertex? | edge and at? }: element alone, its centre (a point's position, a circle's
+// centre, a closed line's centroid, an open line's middle); vertex k, a line's place k; edge k and
+// at, its leg k (a closed line's last: back to its first), at (0–1) along it. Every place keeps its position: refreshAttached moves
 // the linked ones where their targets are, after each change; a link whose place or target is gone
 // goes, its place free where it was. Pure: no map, no DOM.
 
 import { inverse, destination } from '../geodesy.js';
-import { mercator, nearestOnSegment } from '../geo.js';
-import { find, addDot, addPoint, centroid, mainOutline, outlineParts, positionsIn, targetOf, setLink, idsOf, newId, nextName, fewestPlaces } from './document.js';
-import { outlinePoints } from './outlines.js';
+import { mercator } from '../geo.js';
+import { find, addDot, addPoint, centroid, positionsIn, targetOf, setLink, idsOf, newId, nextName, fewestPlaces } from './document.js';
 import { lineTrace, pointsAlong, nearestAlong } from './lines.js';
 
-// the vertices of an element: a line's places, the corners of a point's outline part (part: its place
-// in the point's parts; null: its largest outline); null for anything else
-export function verticesOf(x, part = null) {
-  if (x?.kind === 'point') {
-    const o = part == null ? mainOutline(x.el)?.part : x.el.parts[part];
-    return o && o.length ? outlinePoints(x.el.position, x.el.bearing, o.length, o.width, o.kind) : null;
-  }
-  if (x?.kind === 'line') return x.el.points;
-  return null;
-}
-// a line's edges are its legs (a closed one's close); an outline's sides close
-const edgeCount = (x, vs) => (x.kind === 'line' && !x.el.closed ? vs.length - 1 : vs.length);
 // the position f (0–1) along the geodesic a → b
 export const along = (a, b, f) => { const d = inverse(a, b); return destination(a, d.azi, d.s * f); };
 
@@ -35,23 +20,14 @@ export const along = (a, b, f) => { const d = inverse(a, b); return destination(
 export function resolve(doc, ref) {
   const x = find(doc, ref.element);
   if (!x || x.kind === 'group' || x.kind === 'label') return null;
-  const tr = x.kind === 'line' ? lineTrace(doc, x.el) : null, line = tr ? { length: tr.length } : {};
+  if (x.kind !== 'line') return ref.vertex == null && ref.edge == null ? { position: x.el.position, element: x } : null; // a point, a circle: its centre
+  const tr = lineTrace(doc, x.el), line = { length: tr.length }, vs = x.el.points;
   const at = (d) => ({ ...line, along: d, position: pointsAlong(tr.coords, [d])[0].position });
-  if (ref.vertex == null && ref.edge == null) {
-    if (x.kind === 'point') return { position: x.el.position, element: x };
-    return x.el.closed ? { ...line, position: centroid(x.el.points), element: x } : { ...at(tr.length / 2), element: x };
-  }
-  const vs = verticesOf(x, ref.part);
-  if (!vs) return null;
-  if (ref.vertex != null) {
-    if (ref.vertex >= vs.length) return null;
-    return { position: vs[ref.vertex], element: x, ...(tr ? { ...line, along: tr.at[ref.vertex] } : {}) };
-  }
-  if (ref.edge >= edgeCount(x, vs)) return null;
-  const a = vs[ref.edge], b = vs[(ref.edge + 1) % vs.length], f = ref.at ?? 0, g = inverse(a, b);
-  const edge = { length: tr ? tr.legs[ref.edge] : g.s, bearing: g.azi };
-  if (tr) return { ...at(tr.at[ref.edge] + f * tr.legs[ref.edge]), element: x, edge };
-  return { position: along(a, b, f), element: x, edge };
+  if (ref.vertex == null && ref.edge == null) return x.el.closed ? { ...line, position: centroid(vs), element: x } : { ...at(tr.length / 2), element: x };
+  if (ref.vertex != null) return ref.vertex < vs.length ? { position: vs[ref.vertex], element: x, ...line, along: tr.at[ref.vertex] } : null;
+  if (ref.edge >= tr.legs.length) return null;
+  const edge = { length: tr.legs[ref.edge], bearing: inverse(vs[ref.edge], vs[(ref.edge + 1) % vs.length]).azi };
+  return { ...at(tr.at[ref.edge] + (ref.at ?? 0) * tr.legs[ref.edge]), element: x, edge };
 }
 export const targetPosition = (doc, ref) => resolve(doc, ref)?.position ?? null;
 // the [object, key] of place [id, index] (positionsIn), or null when it is not there
@@ -74,17 +50,6 @@ export function refreshAttached(doc) {
   }
 }
 
-// The edge of a closed ring of corners nearest to p (as on screen: in the projection), and how far
-// along it: { edge, at, d (Mercator metres) }.
-function nearestEdge(cs, p) {
-  const P = mercator(p);
-  let best = null;
-  for (let i = 0; i < cs.length; i++) {
-    const { t, d } = nearestOnSegment(mercator(cs[i]), mercator(cs[(i + 1) % cs.length]), P);
-    if (!best || d < best.d) best = { edge: i, at: t, d };
-  }
-  return best;
-}
 // the vertex of vs nearest to p (in the projection)
 function nearestVertex(vs, p) {
   const P = mercator(p);
@@ -92,27 +57,14 @@ function nearestVertex(vs, p) {
   vs.forEach((c, i) => { const C = mercator(c), d = Math.hypot(C[0] - P[0], C[1] - P[1]); if (d < best) { best = d; k = i; } });
   return { vertex: k, d: best };
 }
-// A target on element x at p, with its position and its distance d from p: on its edge nearest p (a line's: along its legs as drawn, curves
-// included; a point's: of its outline parts, the nearest), or (vertex) on its vertex nearest p. null:
-// x has no vertices.
+// A target on element x at p, with its position and its distance d from p: on a line's leg nearest p
+// (along its legs as drawn, curves included), or (vertex) on its place nearest p. null: x is no line.
 export function refNear(doc, x, p, vertex = false) {
-  if (x.kind === 'line') {
-    const vs = verticesOf(x);
-    if (vertex) { const v = nearestVertex(vs, p); return { position: [...vs[v.vertex]], element: x.el.id, vertex: v.vertex, d: v.d }; }
-    const r = lineRef(doc, x.el, nearestAlong(lineTrace(doc, x.el).coords, p)), P = mercator(p), Q = mercator(r.position);
-    return { ...r, d: Math.hypot(Q[0] - P[0], Q[1] - P[1]) };
-  }
-  if (x.kind !== 'point') return null;
-  // a point: on the nearest of its outline parts, named by its place (its shown ones, if any is)
-  const outs = outlineParts(x.el), shown = outs.filter(({ part }) => part.shown);
-  const each = (shown.length ? shown : outs).map(({ i }) => ({ ...nearOn(verticesOf(x, i), x.el.id, p, vertex), part: i }));
-  return each.length ? each.reduce((a, b) => (b.d < a.d ? b : a)) : null;
-}
-// on a closed ring of vertices vs of element id at p: its nearest vertex, or place on an edge
-function nearOn(vs, id, p, vertex) {
-  if (vertex) { const v = nearestVertex(vs, p); return { position: [...vs[v.vertex]], element: id, vertex: v.vertex, d: v.d }; }
-  const e = nearestEdge(vs, p);
-  return { position: along(vs[e.edge], vs[(e.edge + 1) % vs.length], e.at), element: id, edge: e.edge, at: +e.at.toFixed(6), d: e.d };
+  if (x.kind !== 'line') return null;
+  const vs = x.el.points;
+  if (vertex) { const v = nearestVertex(vs, p); return { position: [...vs[v.vertex]], element: x.el.id, vertex: v.vertex, d: v.d }; }
+  const r = lineRef(doc, x.el, nearestAlong(lineTrace(doc, x.el).coords, p)), P = mercator(p), Q = mercator(r.position);
+  return { ...r, d: Math.hypot(Q[0] - P[0], Q[1] - P[1]) };
 }
 // the target d metres along a line from its start (with its position): on the leg there
 export function lineRef(doc, line, d) {
@@ -124,7 +76,7 @@ export function lineRef(doc, line, d) {
 }
 
 // The links to the vertices and edges of element id placed again where their places are: after its
-// vertices changed in number (one added or removed, another outline), each goes to the nearest vertex,
+// vertices changed in number (one added or removed, closed or opened), each goes to the nearest vertex,
 // or the nearest place along an edge. One with nothing left to point at goes.
 export function reattach(doc, id) {
   const x = find(doc, id);
@@ -171,7 +123,7 @@ export function splitLine(doc, lineId, index) {
     reattach(doc, lineId);
     return null;
   }
-  const taken = idsOf(doc), p = addPoint(doc, s.points[index], { name: s.names[index] || nextName(doc, 'point'), symbol: 'dot', parts: [] }, taken);
+  const taken = idsOf(doc), p = addPoint(doc, s.points[index], { name: s.names[index] || nextName(doc, 'point'), symbol: 'dot' }, taken);
   const rest = { ...structuredClone(s), id: newId(doc, taken), name: nextName(doc, 'line'), points: s.points.slice(index), names: ['', ...s.names.slice(index + 1)] };
   s.points = s.points.slice(0, index + 1);
   s.names = [...s.names.slice(0, index), ''];
@@ -190,9 +142,8 @@ export function splitLine(doc, lineId, index) {
   return p;
 }
 
-// where on what it is attached to, as the tables number it: a line's point or leg, an outline's
-// corner or edge
-export const partName = (r, kind) => (r.vertex != null ? `${kind === 'line' ? 'point' : 'corner'} ${r.vertex + 1}` : r.edge != null ? `${kind === 'line' ? 'leg' : 'edge'} ${r.edge + 1}` : '');
+// where on a line it is attached, as its table numbers it: its point or leg
+export const partName = (r) => (r.vertex != null ? `point ${r.vertex + 1}` : r.edge != null ? `leg ${r.edge + 1}` : '');
 
 // What a place is linked to on a snap target (snap.js): a target, or null (nothing to attach to). On
 // another line's free end, a point is made there and that end linked to it too (doc is changed).

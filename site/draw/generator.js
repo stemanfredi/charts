@@ -3,11 +3,11 @@
 // rule makes is in a group of its own: Distribute along's, "Distribute along X", holds a subgroup
 // "Copies" and Connect's subgroup "Connection" (its lines, hubs and new roots); Connect alone makes
 // its "Connection" in the points' group. Pure: no map, no DOM.
-//   Distribute along: copies along a line, or round a point's part (a circle: the whole of it from its
-//     bearing, or its sector's arc from one end to the other, clockwise): points every `spacing` (or
-//     `count` of them) between the margins, offset to one side or alternating, each a copy facing
-//     away from the line (on an arc, left is outwards). They follow the line or the point when it is
-//     edited (moved, turned, its radius or arc changed); one moved by hand stops following.
+//   Distribute along: copies along a line, or round a circle (the whole of it from its bearing, or a
+//     sector's arc from one end to the other, clockwise): points (each with its shapes) every
+//     `spacing` (or `count` of them) between the margins, offset to one side or alternating, each a
+//     copy facing away from the line (on an arc, left is outwards). They follow the line or the circle
+//     when it is edited (moved, turned, its radius or arc changed); one moved by hand stops following.
 //   Connect: points joined to roots. The points in order (a distribution's along its line, otherwise
 //     as given) are cut into groups of consecutive points, at most `groupSize` each ('auto': any
 //     size), each joined to one root: the cut and the roots chosen together as the cheapest (plan:
@@ -23,9 +23,9 @@
 import { inverse, destination, localFrame, lengthOf } from '../geodesy.js';
 import { norm360, samePosition } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
-import { addPoint, addDot, addLine, addGroup, elements, newId, idsOf, makePart, followedPart, label, remove, removePart, setLink } from './document.js';
-import { outlineOf } from './outlines.js';
-import { BUILT_IN, scaled } from './place.js';
+import { addPoint, addDot, addLine, addGroup, elements, newId, idsOf, label, remove, setLink, carry, emptyDoc } from './document.js';
+import { BUILT_IN, build, placeCopy } from './place.js';
+import { clipOf, paste } from './clipboard.js';
 
 // a drawing's rules of each kind
 export const distributions = (doc) => doc.rules.filter((r) => r.kind === 'distribute');
@@ -33,35 +33,28 @@ export const connections = (doc) => doc.rules.filter((r) => r.kind === 'connect'
 
 // ---- placing points along a line ---------------------------------------------------------------------
 
-// What points go along: a line as drawn (a closed one round its ring, from its first place); a point's part (part: its place; null: the round part it
-// follows by default), clockwise: a circle's whole round from its bearing, closed; a sector's arc, from
-// one end to the other, sampled every half degree; an outline's ring, closed. { coords, length,
-// closed }, or null (a point with no such part).
-export function alongTrace(doc, el, part = null) {
+// What points go along: a line as drawn (a closed one round its ring, from its first place); a
+// circle, clockwise: its whole round from its bearing, closed, or a sector's arc from one end to the
+// other, sampled every half degree. { coords, length, closed }
+export function alongTrace(doc, el) {
   if (!el.position) { const tr = lineTrace(doc, el); return { coords: tr.coords, length: tr.length, closed: el.closed }; }
-  const o = el.parts[part ?? followedPart(el)];
-  if (!o) return null;
-  let coords;
-  if (o.radius) {
-    const ap = o.kind === 'sector' ? o.aperture : 360, from = ap < 360 ? el.bearing - ap / 2 : el.bearing, n = Math.max(8, Math.ceil(ap * 2));
-    coords = Array.from({ length: n + 1 }, (_, i) => destination(el.position, from + (ap * i) / n, o.radius));
-  } else coords = outlineOf(el.position, el.bearing, o.length, o.width, o.kind).ring;
-  return { coords, length: lengthOf(coords), closed: o.kind !== 'sector' };
+  const ap = el.aperture ?? 360, from = el.aperture ? el.bearing - ap / 2 : el.bearing, n = Math.max(8, Math.ceil(ap * 2));
+  const coords = Array.from({ length: n + 1 }, (_, i) => destination(el.position, from + (ap * i) / n, el.radius));
+  return { coords, length: lengthOf(coords), closed: !el.aperture };
 }
-// the element points go along (a line or a point), or null
-export const alongOf = (doc, id) => doc.lines.find((s) => s.id === id) ?? doc.points.find((n) => n.id === id) ?? null;
+// the element points go along (a line or a circle), or null
+export const alongOf = (doc, id) => doc.lines.find((s) => s.id === id) ?? doc.circles.find((c) => c.id === id) ?? null;
 
 // the most copies one distribution makes: more would hang the page (each is a point, drawn and followed)
 export const MAX_COPIES = 2000;
-// The points' places along el (a line, or a point's arc): { points: [{ position, facing, t, left }],
+// The points' places along el (a line, or a circle's arc): { points: [{ position, facing, t, left }],
 // length, capped (more than MAX_COPIES asked for: the first of them) }. facing: the azimuth away from
 // the line on the side the point is offset to (a sector's bearing); t: where along it (0 to 1). count
 // (instead of spacing): that many points, evenly from one margin to the other. A ring (a whole
 // circle, a closed line) has no ends: no margins, the points evenly round it (count), or every
 // spacing from its start (a circle's bearing).
-export function distribute(doc, el, { spacing, count = null, startMargin = 0, endMargin = 0, offset = 0, side = 'left', part = null }) {
-  const tr = alongTrace(doc, el, part);
-  if (!tr) return { points: [], length: 0, capped: false };
+export function distribute(doc, el, { spacing, count = null, startMargin = 0, endMargin = 0, offset = 0, side = 'left' }) {
+  const tr = alongTrace(doc, el);
   const L = tr.length, ds = [], n = Math.min(count ?? 0, MAX_COPIES);
   if (tr.closed) {
     if (n > 0) for (let i = 0; i < n; i++) ds.push((L * i) / n);
@@ -244,124 +237,96 @@ export function planConnection(doc, { pointIds, roots = [], newRoots = [], patte
 // ---- making ----------------------------------------------------------------------------------------
 
 // the rules' fields when nothing says otherwise (the file leaves these out: file.js); radius in m
-export const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: 500, aperture: null, preset: null, copy: null, points: [] };
+export const DISTRIBUTE_D = { groupId: null, copiesId: null, spacing: null, count: null, startMargin: 0, endMargin: 0, offset: 0, side: 'left', radius: 500, aperture: null, preset: null, points: [] };
 export const CONNECT_D = { groupId: null, pattern: 'tree', groupSize: 'auto', minBranch: 0, roots: [], pointIds: [], hubs: [], created: [] };
 export const patternOf = (v) => (v === 'chain' ? 'chain' : 'tree');
-const DISTRIBUTE_KEYS = ['spacing', 'count', 'startMargin', 'endMargin', 'offset', 'side', 'radius', 'aperture', 'preset', 'copy'];
+const DISTRIBUTE_KEYS = ['spacing', 'count', 'startMargin', 'endMargin', 'offset', 'side', 'radius', 'aperture', 'preset'];
 const D = DISTRIBUTE_D, SIDES = ['left', 'right', 'alternate'];
 // A distribution's settings as taken, from the form or a file: each value of its kind and range,
-// else its default (a count: the spacing goes; a copy without parts: none).
+// else its default (a count: the spacing goes).
 export function settings(p) {
   const fin = Number.isFinite, count = Number.isInteger(p.count) && p.count > 0 ? p.count : D.count, m = (k) => (fin(p[k]) && p[k] >= 0 ? p[k] : D[k]);
   return { spacing: !count && fin(p.spacing) && p.spacing > 0 ? p.spacing : D.spacing, count, startMargin: m('startMargin'), endMargin: m('endMargin'), offset: m('offset'),
     side: SIDES.includes(p.side) ? p.side : D.side, radius: fin(p.radius) && p.radius > 0 ? p.radius : D.radius,
     aperture: fin(p.aperture) && p.aperture > 0 && p.aperture < 360 ? p.aperture : D.aperture,
-    preset: typeof p.preset === 'string' ? p.preset : D.preset, copy: p.copy?.parts?.length ? p.copy : D.copy };
+    preset: typeof p.preset === 'string' ? p.preset : D.preset };
 }
-// What a distribution's copies are: { symbol, parts }. Its preset: null or 'circle', a circle of its
-// radius (a sector, with its aperture), a diamond; another built-in kind scaled to its radius (its
-// largest part reaching it); one of the user's ('preset:<name>'): copy, kept as it was chosen, its size
-// its own.
-export function copyOf(a) {
-  if (a.copy) return a.copy;
-  const kind = a.preset && BUILT_IN[a.preset] ? a.preset : 'circle';
-  if (kind === 'circle') return { symbol: 'diamond', parts: [a.aperture ? makePart('sector', { radius: a.radius, aperture: a.aperture }) : makePart('circle', { radius: a.radius })] };
-  return { symbol: BUILT_IN[kind].symbol, parts: scaled(BUILT_IN[kind].parts, a.radius) };
+// What a distribution's copies are: a drawing whose first point (with its shapes) each copies. copy:
+// one of the user's presets, as chosen (its drawing); else its preset, a built-in kind (null:
+// 'circle', a sector with its aperture) its largest shape reaching its radius
+function templateOf(a, copy = null) {
+  if (copy) return copy;
+  const doc = emptyDoc(0), kind = BUILT_IN.includes(a.preset) ? a.preset : 'circle';
+  build(doc, [0, 0], kind === 'circle' && a.aperture ? 'sector' : kind, a.radius, { aperture: a.aperture }).properties = []; // a copy is the rule's, not a preset's
+  return doc;
 }
-// whether a point is the copy given (its symbol and parts as the rule gives them; else changed by hand)
-const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
-const isCopy = (n, copy) => canon({ symbol: n.symbol, parts: n.parts }) === canon({ symbol: copy.symbol, parts: copy.parts });
-// the distribution's copies made at places, into its Copies group (or the group given): each facing
-// away from what it follows
-function place(doc, a, points, groupId = a.copiesId) {
-  const taken = idsOf(doc), copy = copyOf(a);
+// a point and its shapes as a drawing of their own (a copy already made, as a template)
+function alone(doc, p) {
+  const d = emptyDoc(0);
+  paste(d, clipOf(doc, [p.id]), (q) => q);
+  return d;
+}
+// the distribution's copies of tpl made at places, into its Copies group (or the group given): each
+// facing away from what it follows
+function place(doc, a, points, tpl, groupId = a.copiesId) {
   a.points = points.map((pt) => {
-    const n = addPoint(doc, pt.position, { groupId, ...structuredClone(copy), bearing: +pt.facing.toFixed(4) }, taken);
+    const n = placeCopy(doc, tpl, pt.position, +pt.facing.toFixed(4), groupId);
     return { pointId: n.id, t: pt.t, left: pt.left, pos: [...n.position] };
   });
 }
 
-// the part a distribution round a point follows, by its place: the one given, else the point's
-// followed part (kept as a place, so that it stays that part when another is added or taken away)
-const partOf = (along, part) => (along.position ? part ?? followedPart(along) : null);
-// A point's part i taken away: a distribution round a later part keeps following it (its place one
-// less); one round that part is dropped, its copies kept, as when what it follows is deleted.
-export function removePartOf(doc, id, i) {
-  const p = doc.points.find((n) => n.id === id);
-  if (!p?.parts[i]) return;
-  doc.rules = doc.rules.filter((a) => {
-    if (a.kind !== 'distribute' || a.along.element !== id) return true;
-    const k = a.along.part ?? followedPart(p);
-    if (k === i) return false;
-    a.along = { ...a.along, part: k > i ? k - 1 : k };
-    return true;
-  });
-  removePart(p, i);
-}
-
-// Distribute along: copies along a line or round a point's part (doc is changed: one undo step for the
-// caller). params: along ({ element, part }: the line, or the point and the place of its part), spacing
-// or count, startMargin, endMargin, offset, side ('left', 'right', 'alternate'), radius (the copies',
-// apart from the spacing), aperture (the circle's as a sector, facing away from what it follows; null:
-// circles), preset and copy (copyOf), groupId (the group its own group goes in; null: at the top).
+// Distribute along: copies along a line or round a circle (doc is changed: one undo step for the
+// caller). params: along ({ element }: the line or the circle), spacing or count, startMargin,
+// endMargin, offset, side ('left', 'right', 'alternate'), radius (the copies', apart from the
+// spacing), aperture (the circle's as a sector, facing away from what it follows; null: circles),
+// preset and copy (templateOf; copy is not kept), groupId (the group its own group goes in; null: at
+// the top).
 // Returns { distribution (its rule), group (its own: "Distribute along X", with "Copies" in it) }.
 export function makeDistribution(doc, params) {
   const along = alongOf(doc, params.along.element);
-  const set = settings(params), part = partOf(along, params.along.part);
-  const { points } = distribute(doc, along, { ...set, part });
+  const set = settings(params);
+  const { points } = distribute(doc, along, set);
   const parent = doc.groups.some((g) => g.id === params.groupId) ? params.groupId : null;
-  const group = addGroup(doc, `Distribute along ${label(along.position ? 'point' : 'line', along)}`, parent);
+  const group = addGroup(doc, `Distribute along ${label(along.position ? 'circle' : 'line', along)}`, parent);
   const copies = addGroup(doc, 'Copies', group.id);
-  const distribution = { id: newId(doc), kind: 'distribute', groupId: group.id, copiesId: copies.id, along: { element: along.id, part }, ...set, points: [] };
+  const distribution = { id: newId(doc), kind: 'distribute', groupId: group.id, copiesId: copies.id, along: { element: along.id }, ...set, points: [] };
   doc.rules.push(distribution);
-  place(doc, distribution, points);
+  place(doc, distribution, points, templateOf(set, params.copy));
   return { distribution, group };
 }
 
-// A distribution with new settings. The same number of copies: they move (one moved by hand too), each
-// made the rule's copy again unless changed by hand since (its symbol or parts: then its own stay);
-// another number: they are made anew, and each connection built on them is made again with its
+// A distribution with new settings. The same copy (preset, radius, aperture) and number of them: they
+// move (one moved by hand too), as they are; else they are made anew (another copy: from it; another
+// number: as the first copy left is), and each connection built on them is made again with its
 // settings. Returns { distribution, remade }, or null (the rule or what it follows gone).
 export function editDistribution(doc, id, params) {
   const a = doc.rules.find((x) => x.id === id), along = a && alongOf(doc, a.along.element);
   if (!along) return null;
-  const was = copyOf(a); // the copy before: a point that is still it takes the new one
+  const was = JSON.stringify([a.preset, a.radius, a.aperture]);
   Object.assign(a, settings({ ...Object.fromEntries(DISTRIBUTE_KEYS.map((k) => [k, a[k]])), ...params }));
-  if (params.along) a.along = { element: a.along.element, part: partOf(along, params.along.part) };
-  const { points } = distribute(doc, along, { ...a, part: a.along.part });
-  const byId = new Map(doc.points.map((n) => [n.id, n])), copy = copyOf(a);
-  if (points.length === a.points.length && a.points.every((x) => byId.has(x.pointId))) {
+  const same = was === JSON.stringify([a.preset, a.radius, a.aperture]);
+  const { points } = distribute(doc, along, a);
+  const byId = new Map(doc.points.map((n) => [n.id, n]));
+  if (same && points.length === a.points.length && a.points.every((x) => byId.has(x.pointId))) {
     a.points.forEach((x, k) => {
       const n = byId.get(x.pointId), pt = points[k];
-      n.position = pt.position;
-      n.bearing = +pt.facing.toFixed(4);
-      if (isCopy(n, was)) Object.assign(n, structuredClone(copy)); // not changed by hand: the rule's
+      carry(doc, n, pt.position, +pt.facing.toFixed(4));
       Object.assign(x, { t: pt.t, left: pt.left, pos: [...pt.position] });
     });
     return { distribution: a, remade: false };
   }
+  const first = byId.get(a.points.find((x) => byId.has(x.pointId))?.pointId);
+  const tpl = same && first ? alone(doc, first) : templateOf(a, params.copy);
   const old = new Set(a.points.map((x) => x.pointId));
   const built = connections(doc).filter((c) => c.pointIds.some((n) => old.has(n))).map((c) => unconnect(doc, c.id, true));
   // its Copies deleted: the new copies go where the old ones were
   const at = a.copiesId ?? byId.get([...old].find((n) => byId.has(n)))?.groupId ?? null;
   remove(doc, [...old].filter((n) => byId.has(n)));
-  place(doc, a, points, at);
+  place(doc, a, points, tpl, at);
   const made = a.points.map((x) => x.pointId);
   for (const c of built) connect(doc, { ...c, pointIds: [...c.pointIds.filter((n) => !old.has(n)), ...made] });
   return { distribution: a, remade: true };
 }
-// the rule's copy given back to a copy changed by hand (its inspector's ↺)
-export function giveBack(doc, pointId) {
-  const a = distributions(doc).find((r) => r.points.some((x) => x.pointId === pointId)), n = doc.points.find((x) => x.id === pointId);
-  if (!a || !n) return;
-  Object.assign(n, structuredClone(copyOf(a)));
-}
-// whether a copy has been changed by hand (its symbol or parts no longer the rule's)
-export const changedByHand = (doc, pointId) => {
-  const a = distributions(doc).find((r) => r.points.some((x) => x.pointId === pointId)), n = doc.points.find((x) => x.id === pointId);
-  return !!a && !!n && !isCopy(n, copyOf(a));
-};
-
 // Connect points to roots (doc is changed: one undo step for the caller). params: pointIds, roots
 // ([{ id (a point), weight }]), newRoots (positions where a root point is made: square, weight 1),
 // pattern ('tree' or 'chain'), groupSize (a number, or 'auto'), minBranch (a tree's shortest branch,
@@ -380,7 +345,7 @@ export function connect(doc, params) {
     : addGroup(doc, 'Connection', around).id;
   const inGroup = (el) => { el.groupId = groupId; return el; };
   const before = idsOf(doc);
-  const made = (params.newRoots || []).map((pos) => inGroup(addPoint(doc, pos, { symbol: 'square', parts: [] })));
+  const made = (params.newRoots || []).map((pos) => inGroup(addPoint(doc, pos, { symbol: 'square' })));
   const roots = [...(params.roots || []).filter((r) => byId.has(r.id)).map((r) => ({ id: r.id, weight: r.weight > 0 ? r.weight : 1 })), ...made.map((n) => ({ id: n.id, weight: 1 }))];
   const { nodes, plan: p } = planConnection(doc, { ...params, roots, newRoots: [], pattern });
   const rootPoints = roots.map((r) => doc.points.find((n) => n.id === r.id));
@@ -455,7 +420,7 @@ export function ruleOf(doc, id) {
 // Each distribution's points re-placed along its line or arc as it is now (at the same place along it,
 // the same offset and side), each facing away from it again; each hub at the median of its points and
 // root again (its branches at least the connection's shortest). One moved by hand since (not where it
-// was last put) stops following. A distribution whose line or point (or its radius) or points are gone,
+// was last put) stops following. A distribution whose line or circle or points are gone,
 // a connection whose points are gone, is dropped. A rule's group deleted (its members kept) is no
 // longer its: what it makes again goes where its own were.
 export function refreshGenerated(doc) {
@@ -467,15 +432,14 @@ export function refreshGenerated(doc) {
   doc.rules = doc.rules.filter((a) => {
     if (a.kind !== 'distribute') return true;
     a.points = a.points.filter((x) => byId.has(x.pointId)).sort((x, y) => x.t - y.t);
-    const along = alongOf(doc, a.along.element), tr = along && alongTrace(doc, along, a.along.part);
+    const along = alongOf(doc, a.along.element), tr = along && alongTrace(doc, along);
     if (!tr || !a.points.length) return false;
     const at = pointsAlong(tr.coords, a.points.map((x) => x.t * tr.length));
     a.points.forEach((x, k) => {
       const n = byId.get(x.pointId);
       if (!samePosition(n.position, x.pos)) return; // moved by hand
       const facing = facingOf(along, at[k].position, at[k].azi, x.left);
-      n.position = a.offset ? destination(at[k].position, facing, a.offset) : at[k].position;
-      n.bearing = +facing.toFixed(4);
+      carry(doc, n, a.offset ? destination(at[k].position, facing, a.offset) : at[k].position, +facing.toFixed(4));
       x.pos = [...n.position];
     });
     return true;
@@ -485,7 +449,7 @@ export function refreshGenerated(doc) {
     c.hubs = c.hubs.filter((b) => {
       const n = byId.get(b.pointId), o = byId.get(b.rootId), members = b.pointIds.map((id) => byId.get(id)).filter(Boolean);
       if (!n || !o || !members.length || !samePosition(n.position, b.pos)) return false;
-      n.position = hubFor(members.map((x) => x.position), o.position, c.minBranch);
+      carry(doc, n, hubFor(members.map((x) => x.position), o.position, c.minBranch));
       b.pos = [...n.position];
       return true;
     });

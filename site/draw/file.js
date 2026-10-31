@@ -7,9 +7,9 @@
 // Legs are geodesics, or a smooth curve through the places (other tools draw them straight in
 // longitude and latitude: the geometry holds the places, "smooth" is the app's). Drawings of another format version are not read. Pure: no map, no DOM.
 
-import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET, META_D,
-  emptyDoc, newId, columnsOf, find, linkFrom, targetOf } from './document.js';
-import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, pointSpec, parts, readView, VIEW_D, VIEW_DATA_D } from './check.js';
+import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET, META_D, MAX_RADIUS,
+  emptyDoc, newId, columnsOf, find, linkFrom, targetOf, elements, canHold } from './document.js';
+import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, aperture, readView, VIEW_D, VIEW_DATA_D } from './check.js';
 import { targetPosition, refreshAttached, placeAt } from './attach.js';
 import { groupSizeOf, patternOf, settings, DISTRIBUTE_D, CONNECT_D } from './generator.js';
 import { norm180, samePosition, signedArea2 } from '../geo.js';
@@ -101,13 +101,6 @@ function read(raw, app, known, now, report) {
       if (up) { c.warn('in a group inside itself; now at the top'); g.groupId = null; }
     }
   }
-  const groups = new Set(doc.groups.map((g) => g.id));
-  const groupOf = (v, c) => {
-    if (v == null) return null;
-    if (groups.has(v)) return v;
-    c.warn(`group ${String(v).slice(0, 64)} not found; now standalone`);
-    return null;
-  };
 
   // the features, each part of a Multi geometry an element of its own
   const features = raw.type === 'FeatureCollection' ? (Array.isArray(raw.features) ? raw.features : (report.warnings.push('features: not a list, ignored'), []))
@@ -128,12 +121,12 @@ function read(raw, app, known, now, report) {
       : [g];
     if (!parts) { skip('a geometry collection: not read'); return; }
     parts.forEach((part, k) => {
-      if (doc.points.length + doc.lines.length + doc.labels.length >= MAX_FEATURES) { over++; return; } // a Multi geometry: each part an element
-      const kind = mine?.kind === 'label' && part.type === 'Point' ? 'label' : { Point: 'point', LineString: 'line', Polygon: 'line' }[part.type];
+      if (doc.points.length + doc.circles.length + doc.lines.length + doc.labels.length >= MAX_FEATURES) { over++; return; } // a Multi geometry: each part an element
+      const kind = (mine?.kind === 'label' || mine?.kind === 'circle') && part.type === 'Point' ? mine.kind : { Point: 'point', LineString: 'line', Polygon: 'line' }[part.type];
       if (!kind) { skip(`geometry ${String(part.type).slice(0, 20)}: not read`); return; }
       const el = attempt(kind, fid, (c) => {
         const id = idOf(k ? null : f.id, c);
-        const x = { ...commonOf({ ...propertiesFrom(props, mine, c), visible: mine?.visible }, c), id, groupId: groupOf(mine?.group, c) };
+        const x = { ...commonOf({ ...propertiesFrom(props, mine, c), visible: mine?.visible }, c), id, groupId: typeof mine?.group === 'string' ? mine.group : null }; // checked once all are read
         x.look = look(mine?.look, c, kind);
         if (kind !== 'label') { // its colours, opacities and width: the common style names
           const st = styleFrom(props, c);
@@ -149,6 +142,12 @@ function read(raw, app, known, now, report) {
   }); } catch (e) { if (!(e instanceof Refused)) throw e; report.refused = e.message; return { doc: null, view: null }; }
 
   if (over) report.warnings.push(`${over} past the first ${MAX_FEATURES} elements: skipped`);
+  // what holds each: one of the drawing's groups, or (a shape: a circle, a line) one of its points
+  for (const { kind, el } of elements(doc)) {
+    if (kind === 'group' || el.groupId == null || (find(doc, el.groupId) && ['group', 'point'].includes(find(doc, el.groupId).kind) && canHold(doc, el.groupId, el.id))) continue;
+    report.warnings.push(`${kind} ${el.id}: group ${el.groupId.slice(0, 64)} not found; now standalone`);
+    el.groupId = null;
+  }
   // links, once every element is in: the link wins, its place goes where its target is (a line's
   // place on another line's place where that one goes, in any order). One from a place that is not
   // here, or to what is not (or to its own element), is dropped: the place stays free where the
@@ -181,8 +180,7 @@ function read(raw, app, known, now, report) {
         const along = isObj(x.along) ? ref(x.along.element) : null;
         if (!along) c.skip('nothing it is along');
         taken.add(x.id);
-        return { id: x.id, kind: 'distribute', groupId: ref(x.groupId), copiesId: ref(x.copiesId), along: { element: along, part: Number.isInteger(x.along.part) && x.along.part >= 0 ? x.along.part : null },
-          ...settings({ ...x, copy: isObj(x.copy) ? pointSpec(x.copy, c) : null }),
+        return { id: x.id, kind: 'distribute', groupId: ref(x.groupId), copiesId: ref(x.copiesId), along: { element: along }, ...settings(x),
           points: Array.isArray(x.points) ? x.points.filter((f) => isObj(f) && ref(f.pointId) && fin(f.t) && pair(f.pos)).map((f) => ({ pointId: f.pointId, t: f.t, left: f.left === true, pos: [f.pos[0], f.pos[1]] })) : [] };
       }
       taken.add(x.id);
@@ -226,23 +224,28 @@ function styleFrom(props, c) {
 }
 const coord = (p, c, what) => position(Array.isArray(p) ? p.slice(0, 2) : p, c, what);
 
-// a link's target as the file says it ({ element, part?, vertex | edge and at }; a bare ID: an
-// element's centre), or null
+// a link's target as the file says it ({ element, vertex | edge and at }; a bare ID: an element's
+// centre), or null
 function refIn(v) {
   if (typeof v === 'string') return { element: v };
   if (!isObj(v) || typeof v.element !== 'string') return null;
   const n = (k) => (Number.isInteger(v[k]) && v[k] >= 0 ? v[k] : undefined);
   return n('vertex') === undefined && n('edge') === undefined ? { element: v.element }
-    : targetOf({ element: v.element, part: n('part'), vertex: n('vertex'), edge: n('edge'), at: fin(v.at) ? Math.min(1, Math.max(0, v.at)) : 0 });
+    : targetOf({ element: v.element, vertex: n('vertex'), edge: n('edge'), at: fin(v.at) ? Math.min(1, Math.max(0, v.at)) : 0 });
 }
 // each kind's reader: (coordinates, properties, the app's own, the element so far, ctx, state) → element
 const READ = {
   point(coords, props, mine, x, c, { foreign }) {
-    const p = { ...x, position: coord(coords, c, 'position'), bearing: mine.bearing === undefined ? 0 : angle(mine.bearing, c, 'bearing') };
-    p.parts = parts(mine.parts, c);
+    const p = { ...x, position: coord(coords, c, 'position'), bearing: angle(mine.bearing, c, 'bearing') };
     const dflt = foreign ? 'diamond' : 'none'; // a point from another tool: a diamond, to be seen
     p.symbol = SYMBOLS.includes(mine.symbol) ? mine.symbol : (mine.symbol !== undefined && c.warn(`unknown symbol "${String(mine.symbol).slice(0, 20)}", default used`), dflt);
     return p;
+  },
+  // a circle (a sector with an aperture): its radius above 0 and below 10 000 km, or it is skipped
+  circle(coords, props, mine, x, c) {
+    if (!fin(mine.radius) || mine.radius <= 0 || mine.radius >= MAX_RADIUS) c.skip('radius not between 0 and 10 000 km');
+    const a = aperture(mine.aperture, c);
+    return { ...x, position: coord(coords, c, 'position'), radius: mine.radius, aperture: a, bearing: angle(mine.bearing, c, 'bearing') };
   },
   // a LineString, or a Polygon's outer ring (closed): its first place not repeated at its end
   line(coords, props, mine, x, c, { closed }) {
@@ -285,10 +288,6 @@ function lean(o, d) {
   }
   return out;
 }
-const partOut = (r) => lean({ kind: r.kind, radius: r.radius && r3(r.radius), aperture: r.aperture && r4(r.aperture), length: r.length && r3(r.length), width: r.width && r3(r.width),
-  fill: r.fill, shown: r.shown, name: r.name },
-{ radius: undefined, aperture: undefined, length: undefined, width: undefined, fill: true, shown: true, name: '' });
-
 // the user's properties as GIS columns (features.js), their keys checked against the file's own
 const columns = (list) => columnsOf(list, FILE_PROPERTIES);
 // A look as the file has it: what it sets, numbers rounded. simple: an element's, whose colours,
@@ -301,7 +300,6 @@ function lookOut(l, simple = false) {
   }
   if (l.text && Object.keys(l.text).length) out.text = { ...l.text };
   if (l.offset != null) out.offset = r3(l.offset);
-  if (l.minSize != null) out.minSize = r3(l.minSize);
   return out;
 }
 // an element's own colours, opacities and stroke width as the common style names
@@ -326,7 +324,9 @@ function feature(kind, el) {
   if (kind === 'point') {
     geometry = { type: 'Point', coordinates: pos(el.position) };
     Object.assign(mine, lean({ symbol: el.symbol, bearing: r4(el.bearing) }, { symbol: 'none', bearing: 0 }));
-    if (el.parts.length) mine.parts = el.parts.map(partOut);
+  } else if (kind === 'circle') {
+    geometry = { type: 'Point', coordinates: pos(el.position) };
+    Object.assign(mine, { radius: r3(el.radius) }, lean({ aperture: el.aperture && r4(el.aperture), bearing: r4(el.bearing) }, { aperture: null, bearing: 0 }));
   } else if (kind === 'line') {
     // closed: a Polygon, counter-clockwise as RFC 7946 asks; a ring stored clockwise is written
     // reversed, and says so (its names stay in its own order)
@@ -354,9 +354,8 @@ export function toFile(doc, v = null) {
     groups: doc.groups.map((g) => lean({ id: g.id, groupId: g.groupId, name: g.name, properties: g.properties.map((p) => ({ ...p })), visible: g.visible },
       { groupId: null, name: '', properties: [], visible: true })),
     rules: doc.rules.map((a) => (a.kind === 'distribute'
-      ? lean({ ...a, along: { element: a.along.element, ...(a.along.part != null ? { part: a.along.part } : {}) }, spacing: a.spacing == null ? null : r3(a.spacing), radius: a.radius == null ? null : r3(a.radius),
+      ? lean({ ...a, along: { element: a.along.element }, spacing: a.spacing == null ? null : r3(a.spacing), radius: a.radius == null ? null : r3(a.radius),
         aperture: a.aperture == null ? null : r4(a.aperture), startMargin: r3(a.startMargin), endMargin: r3(a.endMargin), offset: r3(a.offset),
-        copy: a.copy && lean({ symbol: a.copy.symbol, parts: a.copy.parts.map(partOut), look: lookOut(a.copy.look ?? {}) }, { look: {} }),
         points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
       : lean({ ...a, roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: +r.weight.toPrecision(6) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECT_D))),
     links: doc.links.map((l) => ({ from: [...l.from], to: l.to.edge != null ? { ...l.to, at: +l.to.at.toFixed(6) } : { ...l.to } })),
