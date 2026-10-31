@@ -4,10 +4,11 @@
 //   CHROME=/path/to/chrome npm run smoke     (default: /usr/bin/google-chrome)
 // Network-dependent by design: it is also what tells us a provider changed or went down.
 import { readFile } from 'node:fs/promises';
-import { inflateRawSync } from 'node:zlib';
 import { start } from './browser.mjs';
 import { setSwVersion } from './serve.mjs';
 import { tileBounds } from '../site/geo.js';
+import { OFFLINE_PREFIXES } from '../site/hosts.js';
+import { unzip as readZip } from '../site/zip.js';
 
 const { browser, base, check, section, finish } = await start();
 // the service worker blocked, but in its own section at the end: here the network as it is, routes included
@@ -45,17 +46,12 @@ const exportItem = async (page, id) => {
 const findOpen = async (page) => page.click((await page.isVisible('#b-find')) ? '#b-find' : '#q');
 
 
-// name → bytes, every entry of a zip (central directory: name and local header offset), and its item.json
-function files(zz) {
-  const out = {};
-  for (let p = zz.readUInt32LE(zz.length - 6); zz.readUInt32LE(p) === 0x02014b50; p += 46 + zz.readUInt16LE(p + 28)) {
-    const name = zz.toString('utf8', p + 46, p + 46 + zz.readUInt16LE(p + 28)), at = zz.readUInt32LE(p + 42), size = zz.readUInt32LE(p + 20);
-    const body = zz.subarray(at + 30 + zz.readUInt16LE(at + 26), at + 30 + zz.readUInt16LE(at + 26) + size);
-    out[name] = zz.readUInt16LE(p + 10) ? inflateRawSync(body) : body;
-  }
-  return out;
-}
-const unzip = (zz) => { const f = files(zz); return { files: f, names: Object.keys(f), item: JSON.parse(f['item.json']) }; };
+// a zip's entries (name → bytes), their names, and its item.json
+const unzip = async (zz) => {
+  const files = {};
+  for (const [name, get] of await readZip(new Blob([zz]))) files[name] = Buffer.from(await get());
+  return { files, names: Object.keys(files), item: files['item.json'] && JSON.parse(files['item.json']) };
+};
 // a PNG's size and iTXt text fields
 function pngFields(b) {
   const f = { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
@@ -398,7 +394,7 @@ await section('the PNG and GIS exports', async () => {
   const names = ['item.json', 'map.png', 'map.pgw', 'map.png.aux.xml', 'chart.png', 'vector/coastline.geojson', 'vector/isobaths.geojson', 'raster/depth.tif'];
   check(z.readUInt32LE(0) === 0x04034b50 && names.every((n) => z.includes(n)) && dz.suggestedFilename().endsWith('.zip'), `GIS export holds ${names.join(', ')} (${Math.round(z.length / 1024)} KB)`);
   // item.json lists every file in the zip, once
-  const { names: entries, item } = unzip(z);
+  const { names: entries, item } = await unzip(z);
   const listed = Object.values(item.assets).map((a) => a.href.replace(/^\.\//, '')).sort().join();
   check(listed === entries.filter((n) => n !== 'item.json').sort().join(), `item.json lists every file in the zip (${Object.keys(item.assets).length} assets)`);
   // GEBCO's own values under the depth shading: its grid over the view, in metres, at a level that fits
@@ -413,7 +409,7 @@ await section('the values of a Copernicus layer in the GIS export', async () => 
   const cv = await open('#v=7/39.5/14/0&col=waves:height&on=chart,coastline', ctx, 'elements');
   await cv.waitForTimeout(3000);
   const [dv] = await Promise.all([cv.waitForEvent('download', { timeout: 120000 }), exportItem(cv, 'zip')]);
-  const { names: ve, item: vi } = unzip(await readFile(await dv.path()));
+  const { names: ve, item: vi } = await unzip(await readFile(await dv.path()));
   const wave = (k) => vi.assets[k]?.bands?.[0];
   check(['raster/waves-global.tif', 'raster/waves-mediterranean.tif'].every((n) => ve.includes(n)) && wave('raster/waves-mediterranean')?.name === 'VHM0' && wave('raster/waves-mediterranean')?.unit === 'm'
     && vi.assets['raster/waves-mediterranean']['proj:code'] === 'EPSG:4326' && cv.errors.length === 0,
@@ -446,7 +442,7 @@ await section('export parity', async () => {
         hourly: /\d:\d\d/.test(document.querySelector('#shown').textContent), canvas: [map.getCanvas().width, map.getCanvas().height] };
     });
     const [dl] = await Promise.all([pp.waitForEvent('download', { timeout: 120000 }), exportItem(pp, 'zip')]);
-    const zf = files(await readFile(await dl.path())), item = JSON.parse(zf['item.json']), pr = item.properties, layers = pr['chart:layers'];
+    const zf = (await unzip(await readFile(await dl.path()))).files, item = JSON.parse(zf['item.json']), pr = item.properties, layers = pr['chart:layers'];
     const chart = pngFields(zf['chart.png']), timed = !!seen.t;
     const expect = !timed ? pr.created : seen.hourly ? `${seen.t}:00:00.000Z` : `${seen.t.slice(0, 10)}T00:00:00Z`;
     const dataText = !timed ? null : seen.hourly ? `data at ${seen.t.replace('T', ' ')}:00 UTC` : `data of ${seen.t.slice(0, 10)}`;
@@ -473,7 +469,7 @@ await section('EMODnet and the depth sources', async () => {
   const [emBroken, emClasses] = await em.evaluate(() => [[...document.querySelectorAll('.item.error, .item.partial')].map((r) => `${r.querySelector('.name').textContent} (${r.title})`),
     document.querySelector('#legends canvas[data-legend=substrate]')?.getAttribute('aria-label') || '']);
   const [de] = await Promise.all([em.waitForEvent('download', { timeout: 120000 }), exportItem(em, 'zip')]);
-  const emFiles = files(await readFile(await de.path())), emItem = JSON.parse(emFiles['item.json']);
+  const emFiles = (await unzip(await readFile(await de.path()))).files, emItem = JSON.parse(emFiles['item.json']);
   check(!emBroken.length && !em.errors.length && /Sand/.test(emClasses) && emFiles['raster/emodnet-depth.tif'] && emItem.assets['raster/emodnet-depth']?.bands?.[0]?.unit === 'm',
     `EMODnet and World Bank layers load; substrate classes (${emClasses.slice(0, 60)}…); the depth values in the GIS export ${emBroken.join(', ')} ${em.errors.join(' | ')}`, true);
   // where GEBCO's depths come from: its layer draws, its codes go in the GIS export
@@ -685,7 +681,7 @@ await section('the drawing\'s files: imported again, dropped on the map, the lis
   const [dpng] = await Promise.all([dw.waitForEvent('download', { timeout: 120000 }), exportItem(dw, 'png')]);
   const [dzip] = await Promise.all([dw.waitForEvent('download', { timeout: 120000 }), exportItem(dw, 'zip')]);
   await dw.keyboard.press('Escape'); // the ☰ menu closed (it stays open while an export runs)
-  const dfiles = files(await readFile(await dzip.path()));
+  const dfiles = (await unzip(await readFile(await dzip.path()))).files;
   const dgj = JSON.parse(dfiles['vector/drawings.geojson'] || '{}'), ditem = JSON.parse(dfiles['item.json']), dfile = JSON.parse(dfiles['drawing.geojson'] || '{}');
   check(dpng && dgj.features?.map((f) => f.properties.kind).join() === 'point,sector' && dgj.features[1].properties.radius_m === 2778
     && featuresOf(dfile, 'point').length === 1 && !measuredOf(dfile).length && ditem.assets['vector/drawings'] && ditem.assets.drawing,
@@ -1283,7 +1279,7 @@ await section('a saved area: served from it, online and without a connection; Es
   // for, put in a pack-… cache under its own address, as a saved area keeps them
   setSwVersion('c');
   const actx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  const savedHosts = (await readFile(new URL('../site/sw.js', import.meta.url), 'utf8')).match(/hosts:start[^\n]*\n([\s\S]*?)\s*\/\/ hosts:end/)[1].match(/'[^']+'/g).map((h) => h.slice(1, -1));
+  const savedHosts = Object.values(OFFLINE_PREFIXES);
   const isSaved = (u) => savedHosts.some((h) => u.startsWith(h));
   const asked = new Set(), failed = [];
   actx.on('request', (r) => { if (isSaved(r.url())) asked.add(r.url()); });
@@ -1335,7 +1331,7 @@ await section('a saved area: served from it, online and without a connection; Es
 await section('Offline areas: the view saved from the dialog, drawn without a connection, deleted', async () => {
   setSwVersion('d');
   const octx = await browser.newContext({ viewport: { width: 1280, height: 800 }, acceptDownloads: true });
-  const savedHosts = (await readFile(new URL('../site/sw.js', import.meta.url), 'utf8')).match(/hosts:start[^\n]*\n([\s\S]*?)\s*\/\/ hosts:end/)[1].match(/'[^']+'/g).map((x) => x.slice(1, -1));
+  const savedHosts = Object.values(OFFLINE_PREFIXES);
   // the page's requests that failed (not the service worker's own tries of the network) for a saved
   // host, in the saved area: a tile beyond it, which a wide window shows, is not in it, nor a tile
   // below the area's lowest zoom (MapLibre asks for a failed tile's parents, coarser and coarser,
@@ -1415,7 +1411,7 @@ await section('Offline areas: the view saved from the dialog, drawn without a co
   const left = await op.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('pack-')).length);
   check(left === 0, `offline areas: deleted (${left} left)`);
   // as a file: written before the delete above (its File button), opened again, drawn offline from it
-  const az = files(fileBytes);
+  const az = (await unzip(fileBytes)).files;
   const head = JSON.parse(az['area.json']);
   check(head.format === 'charts-offline-area' && head.files.length > 100 && head.files.every((f) => az[f.name]) && !head.files.some((f) => f.url.includes('openseamap')) && /OpenStreetMap/.test(String(az['README.txt'])),
     `offline areas, file: ${head.files.length} files with their addresses, the credits, no seamarks (${Math.round(fileBytes.length / 1e6)} MB)`);

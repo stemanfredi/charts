@@ -14,7 +14,8 @@
     "ui": "node test/ui.mjs",
     "tiles-check": "node test/tiles-check.mjs",
     "perf": "node test/perf.mjs",
-    "deps": "node tools/deps.mjs",
+    "data-check": "node tools/deps.mjs",
+    "vendor": "node tools/deps.mjs --write",
     "serve": "node test/serve.mjs"
   },
   "engines": {

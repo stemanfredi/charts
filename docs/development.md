@@ -17,7 +17,8 @@ npm run smoke       # end-to-end in headless Chrome, against the live providers
 npm run ui          # layout at phone, tablet and desktop widths
 npm run tiles-check # elevation tiles of known trouble spots: seams, zooms, lakes
 npm run perf        # how long the depth layers take to draw
-npm run deps        # newer density data periods (newer libraries: npm outdated)
+npm run data-check  # newer density data periods (newer libraries: npm outdated)
+npm run vendor      # site/vendor/, the security policy and sw.js's lists written anew
 ```
 
 The browser tests use `/usr/bin/google-chrome` by default; set
@@ -50,11 +51,11 @@ rule in the code are in a comment next to it, not here.
 
 MapLibre GL JS, maplibre-contour, GeographicLib and polygon-clipping are the
 page's own files in `site/vendor/`, copied from npm at the versions in
-`package.json`, with their licences, by `node tools/deps.mjs --write`. No CDN
+`package.json`, with their licences, by `npm run vendor`. No CDN
 is involved. polygon-clipping loads only on the first GIS export.
 
 To upgrade one: change its version in `package.json`, run `npm install` and
-`node tools/deps.mjs --write` (until then a unit test says `site/vendor/` is
+`npm run vendor` (until then a unit test says `site/vendor/` is
 out of date), and test the page.
 
 ## The service worker
@@ -64,7 +65,7 @@ connection, and answers the saved hosts (`OFFLINE` in `site/hosts.js`, never
 Esri's) from the finished offline areas (`pack-…` caches with their
 `pack.json`); it stores nothing of them: the page saving an area fetches into
 its cache itself (`site/offline.js`, `fetchInto` in `site/net.js`). Its lists
-of files and hosts are written by `node tools/deps.mjs --write`, its version by
+of files and hosts are written by `npm run vendor`, its version by
 the deploy; `dev`, on a development copy, is network first. The details are
 in its comments.
 
@@ -103,7 +104,7 @@ need replacing in a copy:
 
 The security policy in `site/index.html` is generated from `site/hosts.js`, and the
 module preloads beside it from the imports of `site/app.js`,
-so a copy that adds a host adds it there and runs `node tools/deps.mjs --write`.
+so a copy that adds a host adds it there and runs `npm run vendor`.
 
 ## Providers
 
@@ -135,4 +136,4 @@ is a summary only.
 
 Vessel and route density cover European and neighbouring seas only. The
 density periods offered in the menu are listed in `site/catalog.js`; when
-`npm run deps` reports newer data, extend the list there.
+`npm run data-check` reports newer data, extend the list there.
