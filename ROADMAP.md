@@ -67,8 +67,8 @@ would say which.
     routes, hiking trails; free with attribution) and basemap.at (CC BY 4.0);
     IGN France once the licence of its own layers is read; Kartverket (CC BY
     4.0, zooms 12–20 for display only).
-  - A line's profile on land: ascent, descent and a walking time, from the
-    elevation the relief shading draws, beside the depth profile.
+  - A line's ascent, descent and a walking time, from its elevation profile
+    (which reads the land's heights too).
   - GPX in and out: routes and tracks read as lines, the drawing's lines
     written as GPX.
 - **To research before deciding**

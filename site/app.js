@@ -1123,18 +1123,26 @@ search(map, maplibregl.Marker, free); // the search box (find a place)
 // Caspian from its own surface), rounded towards shallower (16.6 m reads 16 m), the place beside it; while the depth
 // shading or the isobaths are on, and not while measuring (a click there adds a point)
 const depthPopup = new maplibregl.Popup({ className: 'depthpop', maxWidth: '240px', focusAfterOpen: false });
-// The depth profiles read (a line's Depth profile pressed), by trace: the GIS export's seabed lengths
-// come from these only, so that an export reads no depth tiles along lines nobody asked about
+// The elevation profiles read (a line's Elevation profile pressed), by trace: the GIS export's surface
+// lengths come from these only, so that an export reads no tiles along lines nobody asked about
 const profiled = lru(64); // JSON of the trace's coordinates → promise of its profile
-const profileFor = (trace) => profiled(JSON.stringify(trace.coords), () => profileOf(trace, depthAt, DEM_SEA_MAX));
-// The depth at p ([lng, lat]) as the depth shading has it, read at zoom z: metres, negative below the
-// sea surface; NaN on land, lakes, no data. A profile reads many places of few tiles: each tile once.
-const depthTiles = lru(64);
-async function depthAt([lng, lat], z) {
-  const { x: X, y: Y } = tileXY(lng, lat, z), tx = Math.floor(X), ty = Math.floor(Y);
-  const m = await depthTiles(`${z}/${tx}/${ty}`, () => seaClip.metres(z, tx, ty));
-  return m[Math.floor((Y % 1) * TILE) * TILE + Math.floor((X % 1) * TILE)];
+const profileFor = (trace) => profiled(JSON.stringify(trace.coords), () => profileOf(trace, elevationAt, Math.max(DEM_SEA_MAX, DEM_LAND_MAX)));
+// What a clipper's tiles say at p ([lng, lat]), read at zoom z (at most its last, maxZoom): metres;
+// NaN where its shading shows nothing of its own. Many places of few tiles: each tile read once.
+function metresOf(clip, maxZoom) {
+  const tiles = lru(64);
+  return async ([lng, lat], zoom) => {
+    const z = Math.min(zoom, maxZoom), { x: X, y: Y } = tileXY(lng, lat, z), tx = Math.floor(X), ty = Math.floor(Y);
+    const m = await tiles(`${z}/${tx}/${ty}`, () => clip.metres(z, tx, ty));
+    return m[Math.floor((Y % 1) * TILE) * TILE + Math.floor((X % 1) * TILE)];
+  };
 }
+// the depth as the depth shading has it: negative below the sea surface; NaN on land, lakes, no data
+const depthAt = metresOf(seaClip, DEM_SEA_MAX);
+// the land's height as the relief shading has it (lakes their surface); NaN at sea
+const heightAt = metresOf(landClip, DEM_LAND_MAX);
+// the elevation at p: the sea's depth, else the land's height
+const elevationAt = async (p, z) => { const d = await depthAt(p, z); return Number.isFinite(d) ? d : heightAt(p, z); };
 map.on('click', async (e) => {
   if (drawing.tool || drawing.picking || drawing.repointing || !(state.on.has('depth') || state.on.has('isobaths'))) return;
   if (e.cleared || drawing.hitAt(e.point).length) return; // a click on a drawing selects it; one that cleared the selection does only that

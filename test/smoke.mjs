@@ -1093,14 +1093,22 @@ await section('legs typed, list grids', async () => {
   check(/^#\tLat\tLon/.test(copied) && /\n1\t/.test(copied) && copied.trim().split('\n').length === 3, `a list's Copy gives its rows, numbered from 1 (${copied.split('\n')[1]})`);
 });
 
-await section('the depth profile, paging, Properties in place', async () => {
-  // a line's depth profile: read when asked, the chart drawn, its length along the seabed longer
+await section('the elevation profile, paging, Properties in place', async () => {
+  // a line's elevation profile: read when asked, the chart drawn, its length along the surface longer
   const deepLine = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.2], [], [12.3, 40.2]); }); drawing.select([l.id]); return l.id; });
-  await dw.click('.dinspect button:has-text("Depth profile")');
+  await dw.click('.dinspect button:has-text("Elevation profile")');
   await dw.waitForSelector('svg.profile polyline', { timeout: 60000 }).catch(() => null);
   const prof = await dw.evaluate(() => [document.querySelectorAll('svg.profile polyline').length, document.querySelector('.dinspect .fblock .fvalue[title*="lower bound"]')?.textContent || '']);
   const deepLength = await dw.evaluate(async (id) => { const { lineTrace } = await import('./draw/lines.js'); return lineTrace(drawing.doc, drawing.doc.lines.find((x) => x.id === id)).length; }, deepLine);
-  check(prof[0] > 0 && /along the seabed/.test(prof[1]) && deepLength > 25000, `a line's depth profile: the chart and the length along the seabed (${prof[1]})`);
+  check(prof[0] > 0 && /along the surface/.test(prof[1]) && deepLength > 25000, `a line's elevation profile: the chart and the length along the surface (${prof[1]})`);
+  // on land: the heights, above sea level (across the Matterhorn, 4,478 m)
+  await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [7.62, 45.97], [], [7.70, 45.98]); }); drawing.select([l.id]); });
+  await dw.click('.dinspect button:has-text("Elevation profile")');
+  await dw.waitForSelector('svg.profile polyline', { timeout: 60000 }).catch(() => null);
+  const land = await dw.evaluate(() => document.querySelector('svg.profile')?.getAttribute('aria-label') || '');
+  const [low, high] = (land.match(/([−\d,]+) m to ([−\d,]+) m/) || []).slice(1).map((x) => +x.replace(/,/g, '').replace('−', '-'));
+  check(low > 2000 && high > 4000 && high < 4500, `a line's elevation profile on land: its heights (${land})`);
+  await dw.evaluate((id) => drawing.select([id]), deepLine);
   // the line pointed at on the map: its place marked; off the line, and with the section closed, no mark left
   await dw.evaluate(() => map.jumpTo({ center: [12.15, 40.2], zoom: 9 }));
   await dw.waitForTimeout(300);
@@ -1111,9 +1119,9 @@ await section('the depth profile, paging, Properties in place', async () => {
   await dw.mouse.move(onLine[0], onLine[1] + 60);
   const markedOff = await marks();
   await dw.mouse.move(onLine[0], onLine[1]);
-  await dw.click('.dinspect button:has-text("Depth profile")'); // closed
+  await dw.click('.dinspect button:has-text("Elevation profile")'); // closed
   const markedClosed = await marks();
-  check(markedOn === 1 && markedOff === 0 && markedClosed === 0, `a line's depth profile: its place marked while the line is pointed at (${markedOn}), not off it (${markedOff}), nor once the section is closed (${markedClosed})`);
+  check(markedOn === 1 && markedOff === 0 && markedClosed === 0, `a line's elevation profile: its place marked while the line is pointed at (${markedOn}), not off it (${markedOff}), nor once the section is closed (${markedClosed})`);
   // a long line's table a page at a time: 100 rows built, not 502; ‹ › move by a page. A row clicked
   // ringed on the map; a point pressed on the map: its row picked, on its page
   const longId = await dw.evaluate(async () => {

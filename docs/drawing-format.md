@@ -518,8 +518,9 @@ beside it `vector/drawings.geojson`: the drawing **as drawn**, for tools that kn
   `"circle"` or `"sector"`, with `radius_m`, `area_m2`, and a sector's `bearing_deg` and
   `aperture_deg`. A circle reaching a pole is left out.
 - A line: a `LineString` along its legs as drawn (geodesics and curves densified), with `length_m` and
-  `seabed_length_m` (its length along the seabed, from the depths the depth shading draws: a lower
-  bound; only for a line whose depth profile was opened as it is now drawn: an export reads no depths).
+  `surface_length_m` (its length along the surface, seabed and ground, from the depths and heights the
+  shadings draw: a lower bound; only for a line whose elevation profile was opened as it is now drawn:
+  an export reads no elevation).
 - An area: a `Polygon`, counter-clockwise, densified, with `area_m2` and `perimeter_m`.
 - A label: a `Point` where it points, with `text` (values filled in, in the display units), `anchor`
   (the element's ID, or empty) and `along_m` on a line.

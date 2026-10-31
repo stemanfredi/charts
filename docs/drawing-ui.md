@@ -184,7 +184,7 @@ takes one unit by its largest value.
   degrees to 6 (a decimetre), distances in the column's unit (in its head) to the metre, bearings
   to 1.
 - **Sections** have the heads of Layers' groups, the arrow at the right where one folds: **Data**, open while it has properties of the user's;
-  **Depth profile**, read when opened; **Totals**, open to start with.
+  **Elevation profile**, read when opened; **Totals**, open to start with.
 - **A line's points**, 1 (its start) to N (its end): Lat, Lon; the **leg** from the point before,
   its length and bearing (typed: that point alone moves, the legs either side of it change). The row
   current says how far **along** the line its point is and holds a vertex's name. An end attached
@@ -206,8 +206,9 @@ takes one unit by its largest value.
   A hidden group hides everything in it. **Min. size** is the drawing's only: shapes shorter than it
   on screen are drawn enlarged, dotted.
 - A line's **Path**: straight, or smooth (a curve through the vertices, following them).
-  **Depth profile**: the depth along it from the depth shading's grid (at most 1,000 places), its
-  extremes, a chart linked to the map both ways, its length along the seabed, CSV.
+  **Elevation profile**: the elevation along it, as the shadings draw it (the sea's depths below sea
+  level, the land's heights above; every 30 m, at most 1,000 places), its lowest and highest, a chart
+  linked to the map both ways, its length along the surface, CSV.
 - A point's **Parts** are its own: circles, sectors, outlines; a table of Kind, **Size** (a radius, an
   outline's length), **Across** (a sector's aperture in °, an outline's width), and Fill; the row
   current has its name and **Shown** in the bar. One way to add one: the table's empty last row. A

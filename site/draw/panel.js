@@ -22,7 +22,7 @@ import { fields, choice, select, check } from '../fields.js';
 import { mac, MOD } from '../keys.js';
 import { loadPresets, savePresets, presetOf, presetTool } from './presets.js';
 import { listGrid, setCurrent, currentOf } from './grid.js';
-import { fmtArea, fmtDist, fmtDepth, rowsText, plural, distText, UNIT_TEXT, inUnit } from '../format.js';
+import { fmtArea, fmtDist, fmtElevation, rowsText, plural, distText, UNIT_TEXT, inUnit } from '../format.js';
 import { fileGroup } from './files.js';
 import { createTools } from './tools.js';
 import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
@@ -171,7 +171,7 @@ export function drawView(root, ctx) {
   // category: properties like any other)
   // Data, folded while it has nothing of the user's: the preset a point was placed from is said under
   // its heading (it is a property all the same, in the list once open)
-  // A folding section's head (drawing-ui.md §5: Data, Depth profile, Totals), as a group's in Layers:
+  // A folding section's head (drawing-ui.md §5: Data, Elevation profile, Totals), as a group's in Layers:
   // the whole head folds it (its title a button, for keys), the arrow at its right; extras: buttons
   // after the title (Copy, +)
   const foldHead = (title, open, toggle, ...extras) => h('h3', { class: open ? 'folds open' : 'folds', onclick: (e) => { if (!e.target.closest('.hbtns, .hfold')) toggle(); } },
@@ -440,7 +440,7 @@ export function drawView(root, ctx) {
     navigator.clipboard?.writeText(rowsText(head, body)).then(() => note(`${plural(body.length, 'row')} copied`), () => note('This browser did not let them be copied'));
   } }, 'Copy');
 
-  // ---- a line's depth profile (profile.js): a folding section, read when opened, read again as
+  // ---- a line's elevation profile (profile.js): a folding section, read when opened, read again as
   // the line changes; pointing at the chart shows the place on the map, pointing at the line on the
   // map shows it on the chart
   const profiles = new Map(); // line id → { key (its trace), prof (null while being read), failed }
@@ -450,11 +450,10 @@ export function drawView(root, ctx) {
   const dropProfileCursor = () => { profileCursor?.(null); profileCursor = null; };
   let profileBuilt = 0;
   const W = 360, H = 110;
-  // depths as said: metres below the surface, positive
   function profileBlock(id) {
     const el = now(id), u = ctx.units();
     const open = profileShown.has(id);
-    const head = foldHead('Depth profile', open, () => { if (open) profileShown.delete(id); else profileShown.add(id); renderInspector(); });
+    const head = foldHead('Elevation profile', open, () => { if (open) profileShown.delete(id); else profileShown.add(id); renderInspector(); });
     if (!open) return h('div', { class: 'fblock' }, head);
     const tr = lineTrace(drawing.doc, el), key = JSON.stringify(tr.coords);
     let p = profiles.get(id);
@@ -464,18 +463,21 @@ export function drawView(root, ctx) {
       ctx.profile(tr).then((prof) => { mine.prof = prof; }, () => { mine.failed = true; })
         .then(() => { if (profiles.get(id) === mine && drawing.sel.size === 1 && drawing.sel.has(id)) renderInspector(); });
     }
-    if (!p.prof) return h('div', { class: 'fblock' }, head, h('p', { class: 'note' }, p.failed ? 'The depths could not be read.' : 'Reading the depths…'));
-    const { pts, seabed, length, shallowest, deepest } = p.prof;
-    if (!deepest) return h('div', { class: 'fblock' }, head, h('p', { class: 'note' }, 'No depth along this line (land, lakes, or no data).'));
-    // the chart: depth down from the surface (0) to the deepest, along the line
-    const bottom = Math.min(deepest.z, -1), X = (d) => (length ? (d / length) * W : 0), Y = (z) => (z / bottom) * (H - 14) + 4;
-    const chart = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'profile', role: 'img', 'aria-label': `Depth along the line, ${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}` });
-    chart.append(svg('line', { x1: 0, x2: W, y1: Y(0), y2: Y(0), class: 'psurface' }));
+    if (!p.prof) return h('div', { class: 'fblock' }, head, h('p', { class: 'note' }, p.failed ? 'The elevation could not be read.' : 'Reading the elevation…'));
+    const { pts, surface, length, lowest, highest } = p.prof;
+    if (!lowest) return h('div', { class: 'fblock' }, head, h('p', { class: 'note' }, 'No elevation along this line (no data).'));
+    // the chart: from the lowest to the highest, along the line; sea level in it (and its line) where the
+    // line goes below it
+    const sea = lowest.z < 0, top = sea ? Math.max(highest.z, 0) : highest.z, bottom = Math.min(lowest.z, top - 1);
+    const X = (d) => (length ? (d / length) * W : 0), Y = (z) => ((top - z) / (top - bottom)) * (H - 14) + 4;
+    const range = `${fmtElevation(lowest.z)} to ${fmtElevation(highest.z)}`;
+    const chart = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'profile', role: 'img', 'aria-label': `Elevation along the line, ${range}` });
+    if (sea) chart.append(svg('line', { x1: 0, x2: W, y1: Y(0), y2: Y(0), class: 'psurface' }));
     let run = [];
-    const flush = () => { if (run.length > 1) chart.append(svg('polyline', { points: run.join(' '), class: 'pdepth' })); run = []; };
+    const flush = () => { if (run.length > 1) chart.append(svg('polyline', { points: run.join(' '), class: 'pline' })); run = []; };
     for (const x of pts) { if (Number.isFinite(x.z)) run.push(`${X(x.d).toFixed(1)},${Y(x.z).toFixed(1)}`); else flush(); }
     flush();
-    for (const [x, cls] of [[deepest, 'pmax'], [shallowest, 'pmin']]) chart.append(svg('circle', { cx: X(x.d), cy: Y(x.z), r: 2.5, class: cls }));
+    for (const x of [lowest, highest]) chart.append(svg('circle', { cx: X(x.d), cy: Y(x.z), r: 2.5, class: 'pend' }));
     const cursor = svg('line', { y1: 0, y2: H, class: 'pcursor', visibility: 'hidden' });
     chart.append(cursor);
     const at = fvalue('');
@@ -488,15 +490,15 @@ export function drawView(root, ctx) {
       marked = true;
       const x = nearest(d);
       cursor.setAttribute('x1', X(x.d)); cursor.setAttribute('x2', X(x.d)); cursor.setAttribute('visibility', 'visible');
-      at.textContent = `${fmtDist(x.d, u)} · ${Number.isFinite(x.z) ? fmtDepth(x.z) : 'no depth'}`;
+      at.textContent = `${fmtDist(x.d, u)} · ${Number.isFinite(x.z) ? fmtElevation(x.z) : 'no data'}`;
       drawing.setPreview([x.p]);
     };
     chart.addEventListener('pointermove', (e) => { const r = chart.getBoundingClientRect(); profileCursor(((e.clientX - r.left) / r.width) * length); });
     chart.addEventListener('pointerleave', () => profileCursor(null));
     return h('div', { class: 'fblock', 'data-key': `profile ${++profileBuilt}` }, head, // profileCursor is this one's: never kept by morph
-      row('Depth', fvalue(`${fmtDepth(shallowest.z)} to ${fmtDepth(deepest.z)}`), at),
+      row('Elevation', fvalue(range), at),
       chart,
-      row('Seabed', fvalue(`${fmtDist(seabed, u)} along the seabed · ${fmtDist(length, u)} on the surface`, { title: 'A lower bound' }),
+      row('Length', fvalue(`${fmtDist(surface, u)} along the surface · ${fmtDist(length, u)} on the map`, { title: 'Along the surface, seabed and ground: a lower bound (relief finer than the data is not in it)' }),
       h('button', { type: 'button', class: 'small', title: 'The profile as a file', onclick: () => ctx.download(profileCsv(p.prof), `${(el.name || 'line').replace(/[^\p{L}\p{N}-]+/gu, '-')}-profile.csv`, 'text/csv') }, 'CSV')));
   }
   // a double-click on an element, with no tool on, turns Properties on (the map does not zoom)

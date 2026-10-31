@@ -22,7 +22,7 @@ in the browser to open it without a connection: the base map, relief and
 contours, depths and isobaths, and seamarks. Draw points,
 shapes of real size, lines, areas and labels; keep them in groups; attach
 lines to what they touch; place copies along a line and connect them to
-roots. Read a line's depth profile. Export the view as a picture, as GIS data
+roots. Read a line's elevation profile, at sea and on land. Export the view as a picture, as GIS data
 that QGIS opens, or your drawing as GeoJSON. Install the page as an app on a
 phone.
 

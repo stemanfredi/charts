@@ -135,6 +135,8 @@ export const UNIT_TEXT = { m: 'm', km: 'km', nm: 'NM' };
 export const inUnit = (m, unit) => (m / UNIT_M[unit]).toFixed(unit === 'm' ? 0 : 3);
 // a depth (a negative elevation, m) in words; −1: shallower than 1 m, or sea the data calls dry (clip.js)
 export const fmtDepth = (z) => (z >= -1 ? 'under 1 m' : `${Math.floor(-z)} m`);
+// an elevation, metres signed (below sea level: −), towards sea level (a depth shallower, a height lower)
+export const fmtElevation = (z) => { const m = Math.trunc(z) || 0; return `${m < 0 ? '−' : ''}${Math.abs(m).toLocaleString('en')} m`; };
 export function parseDist(text, bare) {
   const r = /^\s*(\d+(?:[.,]\d+)?|[.,]\d+)\s*(m|km|nm)?\s*$/i.exec(text);
   return r ? +r[1].replace(',', '.') * UNIT_M[(r[2] || bare).toLowerCase()] : null;

@@ -371,11 +371,11 @@ dialog .action { display: flex; align-items: center; justify-content: center; wi
   .touchbar:not([hidden]) { align-self: stretch; display: flex; flex-wrap: wrap; gap: 6px; }
   .touchbar button { min-height: 44px; padding: 0 14px; font-size: 13px; box-shadow: var(--shadow); } /* over the map, as its controls */
 }
-/* a line's depth profile (draw/panel.js profileBlock) */
+/* a line's elevation profile (draw/panel.js profileBlock) */
 svg.profile { width: 100%; height: auto; display: block; background: var(--bg2); border-radius: 6px; touch-action: none; }
 svg.profile .psurface { stroke: var(--soft); stroke-dasharray: 3 3; stroke-width: 1; }
-svg.profile .pdepth { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
-svg.profile .pmax, svg.profile .pmin { fill: var(--accent); }
+svg.profile .pline { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
+svg.profile .pend { fill: var(--accent); }
 svg.profile .pcursor { stroke: var(--magenta); stroke-width: 1; }
 
 /* ---- the bar (drawing-ui.md §1): the file group, Layers and Elements, Undo and Redo, the tools; at its
