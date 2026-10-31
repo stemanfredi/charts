@@ -64,3 +64,13 @@ test('presets: a point\'s own look kept under a name; stored; a file of them rea
   assert.deepEqual(loadPresets().map((x) => x.name), ['Mine']);
   delete globalThis.localStorage;
 });
+
+test('a large import: Zoom to, Duplicate and Paste take hundreds of thousands of positions', async () => {
+  const { boundsOf } = await import('../../site/draw/features.js');
+  const { addArea } = await import('../../site/draw/document.js');
+  const doc = emptyDoc(0);
+  const pts = Array.from({ length: 300000 }, (_, i) => [10 + (i % 1000) / 1000, 40 + i / 1e6]);
+  const g = addArea(doc, pts);
+  assert.deepEqual(boundsOf(doc, new Set([g.id])), [10, 40, 10.999, 40.299999]);
+  assert.deepEqual(centreOf(copyOf(doc, [g.id])).map((v) => +v.toFixed(7)), [10.4995, 40.1499995]);
+});

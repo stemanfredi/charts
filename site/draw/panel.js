@@ -408,7 +408,7 @@ export function drawView(root, ctx) {
   const PLACE_COLUMNS = [{ head: '#', width: 28, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
   // a table's distances: one unit for the column (its head says it), by the rule a field's value
   // follows (format.js distText): metres while its largest is under 1 km, else km; NM in NM
-  const unitOf = (ms) => (ctx.units() === 'nm' ? 'nm' : Math.max(0, ...ms.filter(Number.isFinite)) < 1000 ? 'm' : 'km');
+  const unitOf = (ms) => (ctx.units() === 'nm' ? 'nm' : ms.every((m) => !(Number.isFinite(m) && m >= 1000)) ? 'm' : 'km'); // every: a long line's legs are more than Math.max(...) takes
   // a table of places (a line's points, an area's corners, a point's parts): its row k made current
   // (k: the place's index), the table at its page; from the map (a place pressed: drawing.currentPlace)
   function pickPlace(table, k, paged = true) {

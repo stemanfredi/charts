@@ -370,11 +370,16 @@ export const GEOMETRY = {
   },
 };
 
-// for the map's Zoom to: [west, south, east, north] of the elements ids, or null
-export function boundsOf(doc, ids) {
-  const pts = elements(doc).filter((x) => ids.has(x.el.id)).flatMap((x) => GEOMETRY[x.kind].bounds(doc, x.el));
+// [west, south, east, north] of positions, or null: longitudes continuous from the first (an element
+// across the antimeridian). A loop: an imported line's positions are more than Math.min(...) takes
+export function extentOf(pts) {
   if (!pts.length) return null;
-  // longitudes continuous from the first point (an element across the antimeridian)
-  const lons = pts.map((p) => unrollTo(pts[0], p)[0]), lats = pts.map((p) => p[1]);
-  return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+  const b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const p of pts) {
+    const x = unrollTo(pts[0], p)[0];
+    b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], p[1]); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], p[1]);
+  }
+  return b;
 }
+// for the map's Zoom to: the extent of the elements ids, or null
+export const boundsOf = (doc, ids) => extentOf(elements(doc).filter((x) => ids.has(x.el.id)).flatMap((x) => GEOMETRY[x.kind].bounds(doc, x.el)));

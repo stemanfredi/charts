@@ -6,7 +6,7 @@
 // Pure.
 
 import { find, elements, membersOf, newId, idsOf, KIND, nextName } from './document.js';
-import { unrollTo } from '../geo.js';
+import { extentOf } from './features.js';
 
 const clone = (x) => structuredClone(x);
 
@@ -33,10 +33,8 @@ function places(kind, el) {
 }
 // the middle of what a clipboard holds (its bounding box's centre), or null
 export function centreOf(clip) {
-  const pts = clip.items.flatMap(({ kind, el }) => places(kind, el).map(([o, k]) => o[k]));
-  if (!pts.length) return null;
-  const xs = pts.map((p) => unrollTo(pts[0], p)[0]), ys = pts.map((p) => p[1]);
-  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  const b = extentOf(clip.items.flatMap(({ kind, el }) => places(kind, el).map(([o, k]) => o[k])));
+  return b && [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
 }
 // "Point 4" → "Point"; a name with no number of its own is its own base
 const baseOf = (name) => /^(.*\S) \d+$/.exec(name)?.[1] ?? name;
