@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { lineFrom, placeIn } from './helpers.mjs';
 
-const { emptyDoc, addPoint, addLine, addLabel, makeGroup, makePart } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addLabel, makeGroup, makePart } = await import('../../site/draw/document.js');
 const { clipOf, paste, centreOf } = await import('../../site/draw/clipboard.js');
 const { refreshAttached } = await import('../../site/draw/attach.js');
 const { loadPresets, savePresets, presetOf, presetsFile, readPresets } = await import('../../site/draw/presets.js');
@@ -13,8 +14,8 @@ test('a copy pasted: new IDs and numbered names, moved, its group kept; attachme
   const a = addPoint(doc, [10, 40], { id: 'a', name: 'Point 1' });
   const b = addPoint(doc, [10.1, 40], { id: 'b', name: 'Mark' });
   const g = makeGroup(doc, ['a']);
-  addLine(doc, 'a', [[10.05, 40.05]], 'b', { id: 'l', name: 'Line 1' });
-  const lab = addLabel(doc, { position: [10.1, 40], element: 'b' });
+  lineFrom(doc, 'a', [[10.05, 40.05]], 'b', { id: 'l', name: 'Line 1' });
+  const lab = addLabel(doc, [10.1, 40], { element: 'b' });
   const clip = clipOf(doc, [g.id, 'l', lab.id]); // the group: its member
   assert.deepEqual(clip.items.map((x) => x.el.id), ['a', 'l', lab.id]);
   assert.deepEqual(centreOf(clip), [10.05, 40.025]);
@@ -26,18 +27,19 @@ test('a copy pasted: new IDs and numbered names, moved, its group kept; attachme
   assert.equal(a2.groupId, g.id);
   assert.deepEqual(a2.parts, a.parts); // its parts copied, not shared
   assert.notEqual(a2.parts[0], a.parts[0]);
-  assert.deepEqual(l2.start, { position: [11, 40], element: a2.id }); // attached to the copy
-  assert.deepEqual(l2.end, { position: [11.1, 40], element: null }); // b was not copied: free
-  assert.deepEqual(l2.vertices[0].position, [11.05, 40.05]);
-  assert.equal(lab2.anchor.element, 'b'); // b is in the drawing: still pointing at it
+  assert.deepEqual(placeIn(doc, l2, 0), { position: [11, 40], to: { element: a2.id } }); // linked to the copy
+  assert.deepEqual(placeIn(doc, l2, -1), { position: [11.1, 40], to: null }); // b was not copied: free
+  assert.deepEqual(l2.points[1], [11.05, 40.05]);
+  assert.equal(placeIn(doc, lab2).to.element, 'b'); // b is in the drawing: still pointing at it
   refreshAttached(doc);
-  assert.deepEqual(lab2.anchor, { position: [10.1, 40], element: 'b' }); // where b is
+  assert.deepEqual(placeIn(doc, lab2), { position: [10.1, 40], to: { element: 'b' } }); // where b is
   assert.equal(b.name, 'Mark');
   // into another drawing: the group and what was left behind are not there
   const other = emptyDoc(0);
   const [a3, , lab3] = paste(other, clip, shift).map((x) => x.el);
   assert.deepEqual([a3.groupId, a3.name], [null, 'Point 1']);
-  assert.deepEqual(lab3.anchor, { position: [11.1, 40], element: null }); // free, where it pointed (moved with the copy)
+  assert.deepEqual(placeIn(other, lab3), { position: [11.1, 40], to: null }); // free, where it pointed (moved with the copy)
+  assert.deepEqual(other.links, [{ from: [other.lines[0].id, 0], to: { element: a3.id } }]); // only the one between the copied
   const twice = paste(doc, clipOf(doc, ['b']), shift)[0].el;
   assert.equal(twice.name, 'Mark 2');
 });

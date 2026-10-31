@@ -1,8 +1,8 @@
 // Snapping (docs/drawing-ui.md §2.2): where a click or a drag lands when it is near something
 // drawn, on screen. Targets, nearest kind first: a vertex (a point's centre, a corner of an outline
-// or an area, a line's vertex or free end); the crossing of two edges or legs; an edge or a leg. Each
-// within RADIUS px; the nearest of the first kind found wins. What a target can attach a line's end
-// to (attach.js) comes with it. Shift instead turns the leg being drawn in 15° steps. Pure: the map
+// or an area, a line's place); the crossing of two edges or legs; an edge or a leg. Each within RADIUS
+// px; the nearest of the first kind found wins. What a target can link a place to (attach.js) comes
+// with it. Shift instead turns the leg being drawn in 15° steps. Pure: the map
 // gives the projection (view.project, view.unproject).
 
 import { inverse, destination } from '../geodesy.js';
@@ -23,10 +23,10 @@ function crossing(a, b, c, d) {
 }
 
 // What snapping at the screen point p ([x, y]) finds: { position, kind ('vertex' | 'crossing' |
-// 'edge'), to (what a line's end would attach to, or null: a crossing) } or null. to: a reference's
-// target (attach.js: { element } a point's centre, { element, vertex }, { element, edge, at }: an
-// area's or an outline's, or a line's, its legs as drawn), or { end: { lineId, key } } (a line's free
-// end: a point is made there to join them). ids: the elements whose edges to
+// 'edge'), to (what a place would be linked to, or null: a crossing) } or null. to: a target
+// (attach.js: { element } a point's centre, { element, vertex }, { element, edge, at }: an area's or
+// an outline's, or a line's, its legs as drawn), or { end: [lineId, index] } (a line's free end: a
+// point is made there to join them). ids: the elements whose edges to
 // look at (the map's hits near p, which may lag a change by a frame; null: all; vertices are looked at
 // in every element); exclude: elements never snapped to (the one drawn or dragged).
 export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius = RADIUS } = {}) {
@@ -54,8 +54,9 @@ export function snapAt(doc, p, view, { ids = null, exclude = new Set(), radius =
         });
       }
       if (kind !== 'line') continue;
-      el.vertices.forEach((v, i) => vertex(v.position, { element: el.id, vertex: i + 1 })); // its places: 0 its start
-      for (const key of ['start', 'end']) if (!el[key].element) vertex(el[key].position, { end: { lineId: el.id, key } });
+      // its places not linked (one linked is on what it is linked to); a free end, to be joined at a point
+      const last = el.points.length - 1, linked = new Set(doc.links.filter((l) => l.from[0] === el.id).map((l) => l.from[1]));
+      el.points.forEach((q, i) => { if (!linked.has(i)) vertex(q, i === 0 || i === last ? { end: [el.id, i] } : { element: el.id, vertex: i }); });
       // its legs, as drawn (a curve's samples), each sample segment knowing its leg and how far along it
       if (!edgesOf(el)) continue;
       const tr = lineTrace(doc, el), { from } = steps(tr.coords);
@@ -105,8 +106,8 @@ export function stepped(from, p, prev = null) {
   return destination(from, a, d.s);
 }
 
-// where a line's end would be, for the vertex at index k of anchors (positions): the one before it
-// and the one before that (for Shift), as a vertex dragged sees them
+// for the place at index k of positions, the one before it and the one before that (for Shift); for
+// the first, the ones after it
 export function neighbours(positions, k) {
   if (k > 0) return { from: positions[k - 1], prev: positions[k - 2] ?? null };
   return { from: positions[1] ?? null, prev: positions[2] ?? null };

@@ -1,5 +1,5 @@
-// The lines of a drawing (docs/drawing-format.md §7): a line runs from its start through its
-// vertices to its end, one leg between each two of these anchors. A straight line's legs are
+// The lines of a drawing (docs/drawing-format.md §7): a line runs through its places, one leg
+// between each two of these anchors. A straight line's legs are
 // geodesics (as the ruler draws them); a smooth one's are cubic Béziers in the map's projection (Web
 // Mercator) through its anchors, their handles computed from the anchors (Catmull-Rom), ground metres
 // [east, north] at their anchor. Lengths are always geodesic: a curve's, the sum over close samples
@@ -7,7 +7,7 @@
 
 import { densify, inverse, destination, areaOf, pathOf, perimeterOf, lengthOf } from '../geodesy.js';
 import { mercator, unmercator, D2R, nearestOnSegment, unrollTo } from '../geo.js';
-import { isShown, groupsOf, roundParts, pointKind } from './document.js';
+import { isShown, groupsOf, roundParts, pointKind, linkFrom } from './document.js';
 
 const TOL = 1e-4; // a curve is sampled finer until its length changes by less than this, relative
 const MAX_SAMPLES = 4096;
@@ -15,14 +15,10 @@ const MAX_SAMPLES = 4096;
 // the projection's scale (Mercator metres per ground metre) at a latitude
 const scale = (lat) => 1 / Math.cos(lat * D2R);
 
-// a line's positions, start to end (its anchors')
-export const positionsOf = (line) => [line.start.position, ...line.vertices.map((v) => v.position), line.end.position];
-
-// The anchors of a line: [{ position, hIn, hOut }], from its start to its end (an attached end where
-// what it is attached to is: attach.js refreshAttached keeps it there); handles only on a smooth line
-// with a vertex (without one it stays straight, a geodesic).
+// The anchors of a line: [{ position, hIn, hOut }], one a place, from its start to its end; handles
+// only on a smooth line of three places or more (with two it stays straight, a geodesic).
 export function anchorsOf(line) {
-  const ps = positionsOf(line), hs = line.smooth && ps.length > 2 ? smoothHandles(ps) : null;
+  const ps = line.points, hs = line.smooth && ps.length > 2 ? smoothHandles(ps) : null;
   return ps.map((position, i) => ({ position, hIn: hs?.[i].hIn ?? null, hOut: hs?.[i].hOut ?? null }));
 }
 // Catmull-Rom tangents in the projection: at a vertex, parallel to the line from the anchor before to
@@ -162,7 +158,7 @@ export function totals(doc) {
   return { groups, all };
 }
 
-// The lines a connection made, by what each is, from its ends: 'trunk' (a tree's, root → hub),
+// The lines a connection made, by what each is, from what its ends are linked to: 'trunk' (a tree's, root → hub),
 // 'branch' (hub → point), 'root link' (a chain's, root → its first point), 'link' (point → point); by
 // line ID
 export function madeLines(doc) {
@@ -173,7 +169,7 @@ export function madeLines(doc) {
     for (const id of c.created) {
       const s = byId.get(id);
       if (!s) continue;
-      const atRoot = roots.has(s.start.element) || roots.has(s.end.element);
+      const atRoot = [0, s.points.length - 1].some((i) => roots.has(linkFrom(doc, id, i)?.to.element));
       out.set(id, { connection: c, part: tree ? (atRoot ? 'trunk' : 'branch') : (atRoot ? 'root link' : 'link') });
     }
   }

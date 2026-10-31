@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near, addShape, drawFeatures } from './helpers.mjs';
+import { near, addShape, drawFeatures, lineFrom, placeIn } from './helpers.mjs';
 
 const { labelText, labelValues, TOKENS, leaderFrom, labelFeatures } = await import('../../site/draw/labels.js');
 const { resolve: anchorAt } = await import('../../site/draw/attach.js');
-const { lineRef, targetPosition, refreshAttached, splitKeeping } = await import('../../site/draw/attach.js');
-const { emptyDoc, addPoint, addArea, addLine, addLabel, makeGroup, centroid, lookOf, LOOK_FIELDS, makePart, remove } = await import('../../site/draw/document.js');
+const { lineRef, targetPosition, refreshAttached, splitLine } = await import('../../site/draw/attach.js');
+const { emptyDoc, addPoint, addArea, addLabel, makeGroup, centroid, lookOf, LOOK_FIELDS, makePart, remove, linkFrom, setLink } = await import('../../site/draw/document.js');
 const { exportFeatures } = await import('../../site/draw/features.js');
 const { lineTrace, nearestAlong } = await import('../../site/draw/lines.js');
 const { inverse, destination } = await import('../../site/geodesy.js');
@@ -18,19 +18,22 @@ function base() {
   const doc = emptyDoc(0);
   addPoint(doc, [12, 40], { id: 'a', name: 'Start' });
   addPoint(doc, E, { id: 'e', name: '' });
-  addLine(doc, 'a', [B], 'e', { id: 's', name: 'Line' });
+  lineFrom(doc, 'a', [B], 'e', { id: 's', name: 'Line' });
   addShape(doc, [12.5, 40.5]).id = 'h';
   addArea(doc, AREA, { id: 'q', name: 'Area' });
   return doc;
 }
-// the reference d metres along the line s
+// the target d metres along the line s (with its position)
 const on = (doc, d) => lineRef(doc, doc.lines[0], d);
-// a label as stored, its fields given; its anchor's position where it points
+// a label as stored, its fields given, pointing at anchor (a target, or { position } free)
 const withLabel = (doc, id, anchor, more = {}) => {
-  const a = addLabel(doc, anchor.position ? anchor : { ...anchor, position: targetPosition(doc, anchor) });
+  const a = addLabel(doc, anchor.position ?? targetPosition(doc, anchor), anchor.element ? anchor : null), l = linkFrom(doc, a.id);
   Object.assign(a, { id, ...more, look: { ...a.look, ...more.look } });
+  if (l) l.from = [id, 0];
   return a;
 };
+// the text of a label pointing at `to` (a target, or none)
+const textOn = (doc, text, to, units) => { const a = addLabel(doc, [0, 0]); a.text = text; setLink(doc, a.id, 0, to?.element ? to : null); return labelText(doc, a, units); };
 // a screen: Web Mercator at a scale (px per Mercator metre), y down
 const K = 0.01;
 const view = { project: (p) => { const m = mercator(p); return [m[0] * K, -m[1] * K]; }, unproject: (q) => unmercator([q[0] / K, -q[1] / K]), measure: (t, px) => [t.length * px * 0.5, px * 1.2] };
@@ -53,16 +56,15 @@ test('anchors: a point, an outline\'s centre, an area\'s centroid, a distance al
   assert.equal(anchorAt(doc, on(doc, -5)).along, 0);
   near(inverse([12, 40], anchorAt(doc, { element: 's', vertex: 0 }).position).s, 0, 1e-6, 'its first vertex: its start');
   near(anchorAt(doc, { element: 's' }).along, 10000, 1e-6, 'the line alone: its middle');
-  assert.deepEqual(anchorAt(doc, { position: [1, 2], element: null }), { position: [1, 2], element: null });
   assert.equal(anchorAt(doc, { element: 'gone' }), null);
   assert.equal(anchorAt(doc, { element: makeGroup(doc, ['a']).id }), null); // a group is nowhere
   // the anchor moves with the line: a bend moved, a label on it stays on it; one half way along a leg,
   // half way along it still
   const bend = withLabel(doc, 'l1', on(doc, 10000)), half = withLabel(doc, 'l2', on(doc, 5000));
-  doc.lines[0].vertices[0].position = destination([12, 40], 45, 10000);
+  doc.lines[0].points[1] = destination([12, 40], 45, 10000);
   refreshAttached(doc);
-  near(inverse(doc.lines[0].vertices[0].position, bend.anchor.position).s, 0, 0.01, 'at the moved bend');
-  near(inverse(destination([12, 40], 45, 5000), half.anchor.position).s, 0, 0.01, 'half way along the moved leg');
+  near(inverse(doc.lines[0].points[1], bend.position).s, 0, 0.01, 'at the moved bend');
+  near(inverse(destination([12, 40], 45, 5000), half.position).s, 0, 0.01, 'half way along the moved leg');
 });
 
 test('nearest distance along a line, from a point beside it', () => {
@@ -75,14 +77,13 @@ test('nearest distance along a line, from a point beside it', () => {
 
 test('live values: name, length, distance along, in the display units; empty where they do not apply', () => {
   const doc = base();
-  const a = { text: '{name}: {along} of {length}', anchor: on(doc, 12500) };
-  assert.equal(labelText(doc, a), 'Line: 12.50 km of 20.00 km');
-  assert.equal(labelText(doc, a, 'nm'), 'Line: 6.75 NM of 10.80 NM');
-  assert.equal(labelText(doc, { text: '{name} {length}|', anchor: { element: 'a' } }), 'Start |');
-  assert.equal(labelText(doc, { text: '{name} {along}|', anchor: { element: 'q' } }), 'Area |');
-  assert.equal(labelText(doc, { text: '{name}|{along}', anchor: { position: [0, 0], element: null } }), '|');
-  assert.equal(labelText(doc, { text: '{name}|{other}', anchor: { element: 'gone' } }), '|{other}');
-  assert.equal(labelText(doc, { text: '{name}', anchor: { element: 'e' } }), `Point · ${E[1].toFixed(4)}, ${E[0].toFixed(4)}`);
+  assert.equal(textOn(doc, '{name}: {along} of {length}', on(doc, 12500)), 'Line: 12.50 km of 20.00 km');
+  assert.equal(textOn(doc, '{name}: {along} of {length}', on(doc, 12500), 'nm'), 'Line: 6.75 NM of 10.80 NM');
+  assert.equal(textOn(doc, '{name} {length}|', { element: 'a' }), 'Start |');
+  assert.equal(textOn(doc, '{name} {along}|', { element: 'q' }), 'Area |');
+  assert.equal(textOn(doc, '{name}|{along}', null), '|');
+  assert.equal(textOn(doc, '{name}|{other}', { element: 'gone' }), '|{other}');
+  assert.equal(textOn(doc, '{name}', { element: 'e' }), `Point · ${E[1].toFixed(4)}, ${E[0].toFixed(4)}`);
 });
 
 test('the leader leaves the text at its box, towards the anchor; none when the anchor is inside', () => {
@@ -144,18 +145,18 @@ test('deleting what a label points at leaves the label free, where it pointed; a
   withLabel(doc, 'l3', on(doc, 4000));
   remove(doc, ['a']);
   refreshAttached(doc); // after every change
-  assert.deepEqual(doc.labels[0].anchor, { position: [12, 40], element: null });
-  assert.deepEqual(doc.lines[0].start, { position: [12, 40], element: null }); // the line stays, its end free
-  const was = anchorAt(doc, doc.labels[1].anchor).position;
-  const point = splitKeeping(doc, 's', 0);
+  assert.deepEqual(placeIn(doc, doc.labels[0]), { position: [12, 40], to: null });
+  assert.deepEqual(placeIn(doc, doc.lines[0], 0), { position: [12, 40], to: null }); // the line stays, its start free
+  const was = doc.labels[1].position, to = (i) => placeIn(doc, doc.labels[i]).to;
+  const point = splitLine(doc, 's', 1);
   assert.deepEqual([point.position, point.symbol], [B, 'dot']);
   const rest = doc.lines[1];
-  assert.equal(rest.start.element, point.id);
-  assert.equal(doc.lines[0].end.element, point.id);
-  near(anchorAt(doc, doc.labels[1].anchor).along, 5000, 0.01, 'on the second part');
-  assert.deepEqual([doc.labels[1].anchor.element, doc.labels[1].anchor.edge], [rest.id, 0]);
-  near(inverse(anchorAt(doc, doc.labels[1].anchor).position, was).s, 0, 0.01, 'the same place');
-  const l3 = doc.labels[2].anchor;
+  assert.equal(placeIn(doc, rest, 0).to.element, point.id);
+  assert.equal(placeIn(doc, doc.lines[0], -1).to.element, point.id);
+  near(anchorAt(doc, to(1)).along, 5000, 0.01, 'on the second part');
+  assert.deepEqual([to(1).element, to(1).edge], [rest.id, 0]);
+  near(inverse(anchorAt(doc, to(1)).position, was).s, 0, 0.01, 'the same place');
+  const l3 = to(2);
   assert.deepEqual([l3.element, l3.edge], ['s', 0]);
   near(l3.at, 0.4, 1e-6, 'on the first part, where it was');
   near(anchorAt(doc, l3).along, 4000, 0.01, 'from its start');
@@ -170,18 +171,18 @@ test('deleting a group: with its members, their labels are left free; without, t
   const g = makeGroup(doc, ['q']), g2 = makeGroup(doc, ['h']);
   remove(doc, [g.id]);
   assert.ok(doc.areas.some((x) => x.id === 'q'));
-  assert.deepEqual(doc.labels[0].anchor, { position: centroid(AREA), element: 'q' });
+  assert.deepEqual(placeIn(doc, doc.labels[0]), { position: centroid(AREA), to: { element: 'q' } });
   remove(doc, [g2.id], true);
   refreshAttached(doc);
   assert.ok(!doc.points.some((x) => x.id === 'h'));
-  assert.deepEqual(doc.labels[1].anchor, { position: [12.5, 40.5], element: null });
+  assert.deepEqual(placeIn(doc, doc.labels[1]), { position: [12.5, 40.5], to: null });
 });
 
 test('new labels: on an element, its name with an arrow; free, text where clicked', () => {
   const doc = base();
-  const a = addLabel(doc, { element: 'a' }), b = addLabel(doc, { position: [1, 2] });
-  assert.deepEqual([a.name, a.text, a.leader, a.offset, a.anchor], ['', '{name}', 'arrow', [40, -40], { element: 'a' }]);
-  assert.deepEqual([b.name, b.text, b.leader, b.offset, b.anchor], ['', 'Text', 'none', [0, 0], { position: [1, 2], element: null }]);
+  const a = addLabel(doc, [12, 40], { element: 'a', d: 3 }), b = addLabel(doc, [1, 2]);
+  assert.deepEqual([a.name, a.text, a.leader, a.offset, placeIn(doc, a)], ['', '{name}', 'arrow', [40, -40], { position: [12, 40], to: { element: 'a' } }]); // the target alone kept
+  assert.deepEqual([b.name, b.text, b.leader, b.offset, placeIn(doc, b)], ['', 'Text', 'none', [0, 0], { position: [1, 2], to: null }]);
   assert.deepEqual(a.look, {}); // its colour: the group's, or the default
   assert.equal(lookOf(doc, a).text.color, '#1f2c36');
   assert.equal(LOOK_FIELDS.label.includes('text.name'), false);
@@ -193,7 +194,7 @@ test('names on the map: by its own switch; named vertices with their line; outli
   doc.points.find((p) => p.id === 'a').look.text = { name: true };
   doc.points[1].name = 'End'; // its switch off
   doc.lines[0].look.text = { name: true };
-  doc.lines[0].vertices[0].name = 'Bend';
+  doc.lines[0].names[1] = 'Bend';
   Object.assign(doc.points.find((p) => p.id === 'h'), { name: 'Box', look: { text: { name: true } } });
   doc.areas[0].look.text = { name: true };
   const names = drawFeatures(doc, new Set(), null, { zoom: 10 }).features.filter((x) => x.properties.kind === 'name');
@@ -221,7 +222,7 @@ test('live values on a vertex and a side: a side\'s length and bearing; an area\
   const doc = base();
   const h = doc.points.find((p) => p.id === 'h'); // a rectangle 100 m by 50 m
   h.bearing = 30;
-  const t = (text, anchor, units) => labelText(doc, { text, anchor }, units);
+  const t = (text, to, units) => textOn(doc, text, to, units);
   assert.deepEqual(TOKENS, ['name', 'length', 'along', 'bearing', 'radius', 'area', 'perimeter']);
   // on a shape's sides: each side's own length and bearing; its outline's area and perimeter
   assert.equal(t('{length} {bearing}', { element: 'h', edge: 0, at: 0.5 }), '100 m 210.0°T');
@@ -231,7 +232,7 @@ test('live values on a vertex and a side: a side\'s length and bearing; an area\
   // on an area's corner: its name, area and perimeter; no side, so no length or bearing
   assert.equal(t('{name} {area} {perimeter}|{length}|{bearing}|{along}', { element: 'q', vertex: 1 }), 'Area 46.72 km² 33.45 km|||');
   const corner = withLabel(doc, 'l1', { element: 'q', vertex: 1 });
-  assert.deepEqual(corner.anchor.position, AREA[1]);
+  assert.deepEqual(corner.position, AREA[1]);
   assert.deepEqual(labelFeatures(doc, view).find((x) => x.properties.id === 'l1' && x.properties.kind === 'leader').geometry.coordinates[1], AREA[1]);
   // on an area's side: that side's length and bearing
   assert.equal(t('{length} {bearing}', { element: 'q', edge: 1, at: 0.2 }), '11.11 km 000.0°T');
@@ -251,13 +252,13 @@ test('live values on a vertex and a side: a side\'s length and bearing; an area\
   assert.equal(t('{radius}|', { element: 'a' }), '|');
   doc.points[0].parts = [];
   assert.equal(t('{radius}|{area}', { element: 'a' }), '|');
-  assert.deepEqual(labelValues(doc, { position: [0, 0], element: null }), {});
+  assert.deepEqual(labelValues(doc, null), {});
 });
 
 test('live values on a point with several outlines: the area and perimeter of the outline the anchor names, else of the largest', () => {
   const doc = emptyDoc(0);
   addPoint(doc, [12, 40], { id: 'h', symbol: 'none', parts: [makePart('rectangle', { length: 100, width: 50 }), makePart('circle', { radius: 1000 }), makePart('rectangle', { length: 200, width: 20 })] });
-  const t = (text, anchor) => labelText(doc, { text, anchor });
+  const t = (text, to) => textOn(doc, text, to);
   assert.equal(t('{area} {perimeter}', { element: 'h', part: 0, edge: 1, at: 0.5 }), '0.50 ha 300 m');
   assert.equal(t('{length}', { element: 'h', part: 0, edge: 1, at: 0.5 }), '50 m'); // that outline's side
   assert.equal(t('{area} {perimeter}', { element: 'h', part: 2, vertex: 0 }), '0.40 ha 440 m');

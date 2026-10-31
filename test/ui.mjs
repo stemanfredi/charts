@@ -16,15 +16,16 @@ const OVERLAYS = {
 
 // a drawing as the app saves it (GeoJSON, version 1): a point with two sectors, a rectangle, a line
 // from and back to the point, a label along the line
-const DRAWING = JSON.stringify({ type: 'FeatureCollection', charts: { format: 'charts-drawing', version: 1 }, features: [
+const DRAWING = JSON.stringify({ type: 'FeatureCollection', charts: { format: 'charts-drawing', version: 1,
+  links: [{ from: ['g1', 0], to: 'n1' }, { from: ['g1', 3], to: 'n1' }, { from: ['l1', 0], to: { element: 'g1', edge: 0, at: 0.4 } }] }, features: [
   { type: 'Feature', id: 'n1', geometry: { type: 'Point', coordinates: [14, 44.5] }, properties: { name: 'Point 1', key: 'value',
     charts: { kind: 'point', bearing: 45, parts: [{ kind: 'sector', radius: 20000, aperture: 90 }, { kind: 'sector', radius: 40000, aperture: 90, fill: false }] } } },
   { type: 'Feature', id: 's1', geometry: { type: 'Point', coordinates: [13, 44] }, properties: { name: 'Rectangle 1',
     charts: { kind: 'point', bearing: 30, parts: [{ kind: 'rectangle', length: 30000, width: 10000 }] } } },
   { type: 'Feature', id: 'g1', geometry: { type: 'LineString', coordinates: [[14, 44.5], [14.5, 44.2], [14.2, 43.9], [14, 44.5]] }, properties: { name: 'Line 1',
-    charts: { kind: 'line', start: 'n1', end: 'n1', vertices: [{ name: 'a point' }, {}] } } },
+    charts: { kind: 'line', names: ['', 'a point', '', ''] } } },
   { type: 'Feature', id: 'l1', geometry: { type: 'Point', coordinates: [14.2, 44.4] }, properties: { name: 'Label 1',
-    charts: { kind: 'label', text: '{name}\n{along}', anchor: { element: 'g1', edge: 0, at: 0.4 }, look: { text: { background: 'box' } } } } }] });
+    charts: { kind: 'label', text: '{name}\n{along}', look: { text: { background: 'box' } } } } }] });
 // put where the app keeps its drawings (draw/saving.js): the list, the one open, its text
 const SEED = (d) => { localStorage.setItem('charts.drawings', JSON.stringify([{ id: 'ui', title: '', modified: '2026-10-24T00:00:00Z', size: d.length }])); localStorage.setItem('charts.drawings.current', 'ui'); localStorage.setItem('charts.drawing.ui', d); };
 
@@ -45,7 +46,7 @@ for (const [name, width, height, touch] of VIEWPORTS) {
       const onLayers = await page.locator('#bar .ptab[data-tab=layers]').getAttribute('aria-pressed') === 'true';
       if (menu === 1 && !onLayers) await page.click('#bar .ptab[data-tab=layers]');
       if (menu !== 1 && onLayers) await page.click('#bar .ptab[data-tab=elements]');
-      await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 44], [], [13, 44.5], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
+      await page.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [[12, 44], [13, 44.5]], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
       // the left panel (on a phone closed to start with): open on Elements; an element (or the drawing)
       // selected, its properties shown (on a phone in place of the tree)
       if (typeof menu === 'string' && await page.locator('#bar .ptab[data-tab=elements]').getAttribute('aria-pressed') !== 'true') await page.click('#bar .ptab[data-tab=elements]');

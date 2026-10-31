@@ -504,14 +504,14 @@ await section('the elevation profile', async () => {
   await dw.setViewportSize({ width: 1600, height: 800 });
   await dw.evaluate(() => { if (document.querySelector('#bar .pright').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .pright').click(); }); // Properties on
   // a line's elevation profile: read when asked, the chart drawn, its length along the surface longer
-  const deepLine = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.2], [], [12.3, 40.2]); }); drawing.select([l.id]); return l.id; });
+  const deepLine = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [[12.0, 40.2], [12.3, 40.2]]); }); drawing.select([l.id]); return l.id; });
   await dw.click('.dinspect button:has-text("Elevation profile")');
   await dw.waitForSelector('svg.profile polyline', { timeout: 60000 }).catch(() => null);
   const prof = await dw.evaluate(() => [document.querySelectorAll('svg.profile polyline').length, document.querySelector('.dinspect .fblock .fvalue[title*="lower bound"]')?.textContent || '']);
   const deepLength = await dw.evaluate(async (id) => { const { lineTrace } = await import('./draw/lines.js'); return lineTrace(drawing.doc, drawing.doc.lines.find((x) => x.id === id)).length; }, deepLine);
   check(prof[0] > 0 && /along the surface/.test(prof[1]) && deepLength > 25000, `a line's elevation profile: the chart and the length along the surface (${prof[1]})`);
   // on land: the heights, above sea level (across the Matterhorn, 4,478 m)
-  await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [7.62, 45.97], [], [7.70, 45.98]); }); drawing.select([l.id]); });
+  await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [[7.62, 45.97], [7.70, 45.98]]); }); drawing.select([l.id]); });
   await dw.click('.dinspect button:has-text("Elevation profile")');
   await dw.waitForSelector('svg.profile polyline', { timeout: 60000 }).catch(() => null);
   const land = await dw.evaluate(() => document.querySelector('svg.profile')?.getAttribute('aria-label') || '');

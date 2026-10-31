@@ -6,7 +6,7 @@ const { profileOf, samplesOf, zoomFor, profileCsv, STEP_MIN, MAX_SAMPLES } = awa
 const { emptyDoc, addLine } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');
 
-const traceOf = (pts) => { const doc = emptyDoc(0); return lineTrace(doc, addLine(doc, pts[0], pts.slice(1, -1), pts.at(-1))); };
+const traceOf = (pts) => { const doc = emptyDoc(0); return lineTrace(doc, addLine(doc, pts)); };
 
 test('samples: every STEP_MIN along a short line, both ends; at most MAX_SAMPLES along a long one', () => {
   const short = traceOf([[12, 40], [12.01, 40]]), s = samplesOf(short);

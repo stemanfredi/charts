@@ -23,7 +23,7 @@
 import { inverse, destination, localFrame, lengthOf } from '../geodesy.js';
 import { norm360, samePosition } from '../geo.js';
 import { lineTrace, pointsAlong } from './lines.js';
-import { addPoint, addDot, addLine, addGroup, elements, newId, idsOf, makePart, followedPart, label, remove, removePart } from './document.js';
+import { addPoint, addDot, addLine, addGroup, elements, newId, idsOf, makePart, followedPart, label, remove, removePart, setLink } from './document.js';
 import { outlineOf } from './outlines.js';
 import { BUILT_IN, scaled } from './place.js';
 
@@ -383,8 +383,8 @@ export function connect(doc, params) {
   const roots = [...(params.roots || []).filter((r) => byId.has(r.id)).map((r) => ({ id: r.id, weight: r.weight > 0 ? r.weight : 1 })), ...made.map((n) => ({ id: n.id, weight: 1 }))];
   const { nodes, plan: p } = planConnection(doc, { ...params, roots, newRoots: [], pattern });
   const rootPoints = roots.map((r) => doc.points.find((n) => n.id === r.id));
-  // a straight line from a to b, attached to both (what it is, a trunk or a branch: lines.js madeLines)
-  const line = (a, b) => inGroup(addLine(doc, a.id, [], b.id));
+  // a straight line from a to b, its ends linked to both (what it is, a trunk or a branch: lines.js madeLines)
+  const line = (a, b) => { const s = inGroup(addLine(doc, [a.position, b.position])); setLink(doc, s.id, 0, { element: a.id }); setLink(doc, s.id, 1, { element: b.id }); };
   const hubs = [];
   for (const g of p.groups) {
     const o = rootPoints[g.root], ns = g.nodes.map((i) => nodes[i]);

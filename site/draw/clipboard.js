@@ -1,7 +1,7 @@
 // Copy, paste, duplicate (docs/drawing-ui.md §8). A copy keeps its group (when the drawing has
-// it), its look and properties; it gets new IDs and numbered names, and keeps the attachments between
-// the elements copied together (ends attached to an element left behind are free; a label on one keeps
-// pointing at it, if it is in the drawing, else is free where it pointed). The clipboard holds the
+// it), its look and properties; it gets new IDs and numbered names, and keeps the links between the
+// elements copied together (a line's place linked to an element left behind is free; a label on one
+// keeps pointing at it, if it is in the drawing, else is free where it pointed). The clipboard holds the
 // elements as the document does, in this page, so they paste into another drawing opened in it too.
 // Pure.
 
@@ -10,9 +10,12 @@ import { extentOf } from './features.js';
 
 const clone = (x) => structuredClone(x);
 
-// The elements ids as a clipboard: { items: [{ kind, el }] } (for a group, everything in it; the
-// groups themselves are not copied); a label's anchor holds where it points.
-export const clipOf = (doc, ids) => ({ items: leavesOf(doc, ids).map(({ kind, el }) => ({ kind, el: clone(el) })) });
+// The elements ids as a clipboard: { items: [{ kind, el }], links: the links from their places } (for
+// a group, everything in it; the groups themselves are not copied).
+export function clipOf(doc, ids) {
+  const items = leavesOf(doc, ids).map(({ kind, el }) => ({ kind, el: clone(el) })), mine = new Set(items.map((x) => x.el.id));
+  return { items, links: clone(doc.links.filter((l) => mine.has(l.from[0]))) };
+}
 
 // the middle of what a clipboard holds (its bounding box's centre), or null
 export function centreOf(clip) {
@@ -35,19 +38,12 @@ export function paste(doc, clip, mv) {
     el.name = nameOn(doc, kind, baseOf(src.name));
     if (el.groupId && !groups.has(el.groupId)) el.groupId = null;
     for (const [o, k] of positionsIn(kind, el)) o[k] = mv(o[k]);
-    if (kind === 'line') {
-      for (const key of ['start', 'end']) {
-        const e = el[key];
-        if (e.element && ids.has(e.element)) e.element = ids.get(e.element);
-        else if (e.element) el[key] = { position: e.position, element: null };
-      }
-    }
-    if (kind === 'label' && el.anchor.element) {
-      if (ids.has(el.anchor.element)) el.anchor.element = ids.get(el.anchor.element);
-      else if (!find(doc, el.anchor.element)) el.anchor = { position: el.anchor.position, element: null };
-    }
     doc[KIND[kind].list].push(el);
     made.push({ kind, el });
+  }
+  for (const { from, to } of clip.links) {
+    const keep = ids.has(to.element) || (doc.labels.some((a) => a.id === ids.get(from[0])) && find(doc, to.element));
+    if (keep) doc.links.push({ from: [ids.get(from[0]), from[1]], to: { ...to, element: ids.get(to.element) ?? to.element } });
   }
   return made;
 }

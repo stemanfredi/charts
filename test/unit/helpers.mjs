@@ -13,3 +13,18 @@ export function drawFeatures(doc, sel = new Set(), hover = null, display = {}) {
   const p = drawParts(doc, sel, hover, display);
   return { type: 'FeatureCollection', features: [...p.base, ...p.zoom, ...p.marks] };
 }
+const { addLine, setLink } = await import('../../site/draw/document.js');
+// a line from a through mids to b, each end a position, a point's ID (linked to its centre) or a
+// target with its position ({ element, vertex…, position }: linked there)
+export function lineFrom(doc, a, mids, b, opts = {}) {
+  const at = (x) => (typeof x === 'string' ? doc.points.find((p) => p.id === x).position : Array.isArray(x) ? x : x.position);
+  const s = addLine(doc, [at(a), ...mids, at(b)], opts);
+  [a, b].forEach((x, k) => { if (!Array.isArray(x)) setLink(doc, s.id, k ? s.points.length - 1 : 0, typeof x === 'string' ? { element: x } : x); });
+  return s;
+}
+const { linkFrom } = await import('../../site/draw/document.js');
+// place i of element el (negative: from its end, -1 its last) as { position, to (its link's target, or null) }
+export function placeIn(doc, el, i = 0) {
+  const ps = el.points ?? [el.position], k = i < 0 ? ps.length + i : i;
+  return { position: ps[k], to: linkFrom(doc, el.id, k)?.to ?? null };
+}

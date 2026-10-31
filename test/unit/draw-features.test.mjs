@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near, addShape, drawFeatures } from './helpers.mjs';
+import { near, addShape, drawFeatures, lineFrom } from './helpers.mjs';
 
 const drawgeo = await import('../../site/draw/features.js');
 const { drawParts, exportFeatures, valueFeatures, flatten, boundsOf, enlargement, shapeOf, zoomDependent, GEOMETRY } = drawgeo;
-const { emptyDoc, addPoint, addDot, addArea, addLine, addLabel, makeGroup, makePart, styleOf, leavesOf, positionsIn } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, addArea, addLabel, makeGroup, makePart, styleOf, leavesOf, positionsIn } = await import('../../site/draw/document.js');
 const { lineTrace } = await import('../../site/draw/lines.js');
 const { inverse, destination, areaOf, pathOf, perimeterOf } = await import('../../site/geodesy.js');
 const { fmtArea, fmtDist } = await import('../../site/format.js');
@@ -62,8 +62,8 @@ test('hidden elements and parts are not drawn, nor a hidden group\'s members; a 
   addPoint(doc, [0, 84], { id: 'polar', parts: [C(1e6)] });
   addShape(doc, [12, 40]).visible = false;
   addArea(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { visible: false });
-  addLine(doc, [12, 40], [], [12.1, 40], { visible: false });
-  const m = addPoint(doc, [13, 41], { id: 'm' }), l = addLine(doc, [13, 40], [], [13.1, 40], { id: 'l' });
+  lineFrom(doc, [12, 40], [], [12.1, 40], { visible: false });
+  const m = addPoint(doc, [13, 41], { id: 'm' }), l = lineFrom(doc, [13, 40], [], [13.1, 40], { id: 'l' });
   makeGroup(doc, [m.id, l.id]).visible = false;
   assert.deepEqual(kindsOf(drawFeatures(doc).features), [['polar', 'symbol']]);
 });
@@ -259,8 +259,8 @@ test('export: a point, its round parts and its outline, values in metres, counte
 test('export: lines with their length, areas with area and perimeter, guides marked, groups by name', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 41], { id: 'a' });
-  addLine(doc, 'a', [[12.1, 41.05]], [12.2, 41], { id: 's', properties: [{ key: 'length_m', value: 'x' }] });
-  addLine(doc, [12, 40.9], [], [12.4, 40.9], { id: 'g', guide: true });
+  lineFrom(doc, 'a', [[12.1, 41.05]], [12.2, 41], { id: 's', properties: [{ key: 'length_m', value: 'x' }] });
+  lineFrom(doc, [12, 40.9], [], [12.4, 40.9], { id: 'g', guide: true });
   const q = addArea(doc, [[12, 40], [12.1, 40], [12.1, 40.1]], { id: 'q' });
   makeGroup(doc, [a.id, q.id]).name = 'G';
   const f = exportFeatures(doc);
@@ -289,7 +289,7 @@ test('boundsOf: a point to its largest shown round part, an outline by its corne
   const hb = boundsOf(doc, new Set([h.id]));
   near(inverse([12, 40], [12, hb[3]]).s, 1000, 1, 'its front');
   near(inverse([12, 40], [hb[2], 40]).s, 500, 1, 'its side');
-  const l = addLine(doc, [179.9, 0], [], [-179.9, 0]);
+  const l = lineFrom(doc, [179.9, 0], [], [-179.9, 0]);
   assert.deepEqual(boundsOf(doc, new Set([l.id])).map((v) => +v.toFixed(6)), [179.9, 0, 180.1, 0]);
 });
 
@@ -297,10 +297,10 @@ test('geometry by kind: a group is bounded by its members; inside a box; what a 
   const doc = emptyDoc(0);
   addPoint(doc, [12, 41], { id: 'a', parts: [] });
   addPoint(doc, [12.2, 41.1], { id: 'b', parts: [] });
-  addLine(doc, 'a', [[12.1, 41.2]], 'b', { id: 's' });
+  lineFrom(doc, 'a', [[12.1, 41.2]], 'b', { id: 's' });
   addShape(doc, [13, 42]).id = 'h';
   addArea(doc, [[11, 40], [11.1, 40], [11.1, 40.1]], { id: 'q' });
-  addLabel(doc, { element: 'a' }).id = 'l';
+  addLabel(doc, [12, 41], { element: 'a' }).id = 'l';
   const g = makeGroup(doc, ['a', 'b', 's', 'h', 'q', 'l']);
   const b = boundsOf(doc, new Set([g.id]));
   assert.ok(b[0] <= 11 && b[2] >= 13 && b[1] <= 40 && b[3] >= 42, JSON.stringify(b));
@@ -314,7 +314,7 @@ test('geometry by kind: a group is bounded by its members; inside a box; what a 
   assert.deepEqual([1, 1000].map((k) => GEOMETRY.point.inside(doc, el('h'), hb, () => k)), [true, false]);
   // what moves: everything in the group, each once though selected as well; each position of each
   assert.deepEqual(leavesOf(doc, [g.id, 'q']).map((x) => x.el.id), ['a', 'b', 'h', 's', 'q', 'l']);
-  assert.deepEqual(positionsIn('line', el('s')).map(([o, k]) => o[k]), [[12, 41], [12.2, 41.1], [12.1, 41.2]]);
+  assert.deepEqual(positionsIn('line', el('s')).map(([o, k]) => o[k]), [[12, 41], [12.1, 41.2], [12.2, 41.1]]); // in the order of its places
   assert.deepEqual(positionsIn('area', el('q')).map(([o, k]) => o[k]), el('q').points);
 });
 
@@ -359,9 +359,9 @@ test('lines: guides and the others drawn, a click target each, halos, handles by
   const doc = emptyDoc(0);
   addPoint(doc, [12, 41], { id: 'a' });
   addPoint(doc, [12.2, 41], { id: 'b' });
-  addLine(doc, 'a', [[12.1, 41.05]], 'b', { id: 's1' });
-  addLine(doc, 'b', [], [12.4, 41.1], { id: 's2' });
-  addLine(doc, [12, 40.9], [], [12.4, 40.9], { id: 'g', guide: true, look: { stroke: { width: 3 } } });
+  lineFrom(doc, 'a', [[12.1, 41.05]], 'b', { id: 's1' });
+  lineFrom(doc, 'b', [], [12.4, 41.1], { id: 's2' });
+  lineFrom(doc, [12, 40.9], [], [12.4, 40.9], { id: 'g', guide: true, look: { stroke: { width: 3 } } });
   const f = drawFeatures(doc, new Set(['s1', 's2'])).features;
   const kinds = (k) => f.filter((x) => x.properties.kind === k).map((x) => x.properties.id);
   assert.deepEqual(kinds('linehit'), ['s1', 's2', 'g']);
@@ -375,12 +375,12 @@ test('lines: guides and the others drawn, a click target each, halos, handles by
   assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'sel' && x.geometry.type === 'LineString')), [], 'two selected: no bands');
   assert.deepEqual(kindsOf(f.filter((x) => x.properties.kind === 'dot')), [['s1', 'dot'], ['s1', 'dot'], ['s1', 'dot'], ['s2', 'dot'], ['s2', 'dot']], 'dots at their ends and vertices');
   assert.deepEqual(kindsOf(drawFeatures(doc, new Set(), 's1').features.filter((x) => x.properties.kind === 'hover' && x.geometry.type === 'LineString')), [['s1', 'hover']], 'hovered: the band');
-  // handles: an attached end moves its point, a free end itself, a vertex itself
+  // handles: a place linked to a point's centre moves its point, another itself
   const handles = (fs, id, kind = 'handle') => fs.filter((x) => x.properties.kind === kind && x.properties.id === id).map((x) => [x.properties.role, x.properties.ref]);
   const one = (id) => drawFeatures(doc, new Set([id])).features; // handles: one selected
   assert.deepEqual(handles(f, 's1'), [], 'two selected: no handles');
-  assert.deepEqual(handles(one('s1'), 's1'), [['point', 'a'], ['vertex', 0], ['point', 'b']]);
-  assert.deepEqual(handles(one('s2'), 's2'), [['point', 'b'], ['end', 1]]);
+  assert.deepEqual(handles(one('s1'), 's1'), [['point', 'a'], ['vertex', 1], ['point', 'b']]); // by its place, 0 its start
+  assert.deepEqual(handles(one('s2'), 's2'), [['point', 'b'], ['vertex', 1]]);
   assert.deepEqual(handles(f, 'g'), []); // not selected: none
   // thinned at a zoom where they would crowd: the first and the last kept
   const far = drawFeatures(doc, new Set(['s1']), null, { zoom: 3 }).features.filter((x) => x.properties.kind === 'handle');
@@ -395,8 +395,8 @@ test('lines with an Offset: drawn on their real geometry, the offset carried for
   const doc = emptyDoc(0);
   addPoint(doc, [12, 40], { id: 'a' });
   addPoint(doc, [12.2, 40], { id: 'b' });
-  addLine(doc, 'a', [], 'b', { id: 's1', look: { offset: -3 } });
-  addLine(doc, 'a', [], 'b', { id: 's2' });
+  lineFrom(doc, 'a', [], 'b', { id: 's1', look: { offset: -3 } });
+  lineFrom(doc, 'a', [], 'b', { id: 's2' });
   const f = drawFeatures(doc, new Set(['s1']), null, { zoom: 12 }).features;
   const of = (id, kind) => f.filter((x) => x.properties.id === id && x.properties.kind === kind);
   assert.deepEqual(of('s1', 'path').map((x) => x.properties.off), [-3]);
@@ -424,7 +424,7 @@ test('the parts: what never depends on the zoom, what may, the marks; only those
   const doc = emptyDoc(0);
   addPoint(doc, [12, 41], { id: 'n' });
   addShape(doc, [12, 40]).id = 'h';
-  addLine(doc, [12, 39], [], [12.1, 39], { id: 's' });
+  lineFrom(doc, [12, 39], [], [12.1, 39], { id: 's' });
   addArea(doc, [[12, 38], [12.1, 38], [12.1, 38.1]], { id: 'q' });
   const p = drawParts(doc, new Set(['n']), null, { zoom: 10 });
   assert.deepEqual(kindsOf(p.base), [['n', 'ring'], ['q', 'polygon'], ['n', 'symbol']]);
@@ -438,7 +438,7 @@ test('the parts: what never depends on the zoom, what may, the marks; only those
 test('zoomDependent: an outline that may be drawn enlarged', () => {
   const doc = emptyDoc(0);
   addPoint(doc, [12, 41]);
-  addLine(doc, [12, 40], [], [12.1, 40]);
+  lineFrom(doc, [12, 40], [], [12.1, 40]);
   doc.look.minSize = 12;
   assert.equal(zoomDependent(doc), false);
   const h = addShape(doc, [12, 40]);
@@ -455,12 +455,12 @@ test('values shown: each leg\'s length and bearing, the total; an area\'s area a
   const B = destination([12, 40], 90, 10000), E = destination(B, 90, 10000);
   // what Measure keeps: guides showing their values
   const m = () => ({ guide: true, look: { text: { values: true } } });
-  const ruler = addLine(doc, [12, 40], [B], E, m());
+  const ruler = lineFrom(doc, [12, 40], [B], E, m());
   const area = addArea(doc, [[12, 41], [12.1, 41], [12.1, 41.1]], m());
   const ring = addPoint(doc, [13, 40], { ...m(), symbol: 'none', parts: [C(2000)] });
-  assert.deepEqual([ruler.guide, ruler.look.text.values, ruler.vertices.length, area.guide, ring.symbol, ring.parts.map((r) => r.radius)], [true, true, 1, true, 'none', [2000]]);
-  addLine(doc, [12, 39], [], [12.1, 39]); // not showing its values
-  addLine(doc, [12, 38], [], [12.1, 38], { ...m(), visible: false }); // hidden
+  assert.deepEqual([ruler.guide, ruler.look.text.values, ruler.points.length, area.guide, ring.symbol, ring.parts.map((r) => r.radius)], [true, true, 3, true, 'none', [2000]]);
+  lineFrom(doc, [12, 39], [], [12.1, 39]); // not showing its values
+  lineFrom(doc, [12, 38], [], [12.1, 38], { ...m(), visible: false }); // hidden
   const v = valueFeatures(doc);
   assert.deepEqual(v.map((x) => [x.properties.id, x.properties.label, x.properties.anchor]), [
     [ruler.id, '10.00 km', 'center'], [ruler.id, '10.00 km', 'center'], [ruler.id, 'Σ 20.00 km', 'top'],
@@ -481,13 +481,13 @@ test('values shown: each leg\'s length and bearing, the total; an area\'s area a
   ring.bearing = 135;
   near(inverse([13, 40], valueFeatures(doc).at(-1).geometry.coordinates).azi, 135, 1e-6, 'at the bearing');
   // a single leg: no total
-  ruler.vertices = [];
+  ruler.points.splice(1, 1);
   assert.equal(valueFeatures(doc).filter((x) => x.properties.id === ruler.id).length, 1);
 });
 
 test('measured elements are drawn as guides, in the style they are measured with; their values are not drawn with the drawing', () => {
   const doc = emptyDoc(0);
-  addLine(doc, [12, 40], [], [12.1, 40], { guide: true, look: { text: { values: true } } });
+  lineFrom(doc, [12, 40], [], [12.1, 40], { guide: true, look: { text: { values: true } } });
   addArea(doc, [[12, 41], [12.1, 41], [12.1, 41.1]], { guide: true, look: { text: { values: true } } });
   const f = drawFeatures(doc).features;
   assert.deepEqual(f.map((x) => x.properties.kind).sort(), ['guide', 'linehit', 'polygon']);

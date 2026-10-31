@@ -43,7 +43,7 @@ await section('the drawing: the bar, the tools, the kinds, the inspector, its fi
     if (document.querySelector('#bar .pright').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .pright').click();
     if (document.querySelector('#bar .ptab[data-tab=elements]').getAttribute('aria-pressed') !== 'true') document.querySelector('#bar .ptab[data-tab=elements]').click();
   });
-  await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [12, 40.1], [], [12.05, 40.12], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
+  await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); drawing.change((doc) => addLine(doc, [[12, 40.1], [12.05, 40.12]], { name: 'Distance 1', guide: true, look: { text: { values: true } } })); });
   await dw.keyboard.press('s'); // the Shape tool, a circle (its first kind), its kinds a row under its button
   const sub = await dw.locator('#bar .kinds:not([hidden]) button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')));
   check(sub.join() === 'Circle,Rings,Sector,Rectangle,Ellipse,Triangle,Aerial vehicle,Surface vehicle,Underwater vehicle',
@@ -143,7 +143,7 @@ await section('the drawing\'s files: imported again, dropped on the map, the lis
   ruler.geometry.coordinates = [[12.2, 40.3], [12.25, 40.31]];
   savedFile.features = [...savedFile.features.filter((f) => !measuredOf(savedFile).includes(f)), ruler];
   const exported = JSON.stringify(savedFile);
-  const measuredNow = () => dw.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).map((x) => x.el.start?.position ?? x.el.position ?? x.el.points[0]); });
+  const measuredNow = () => dw.evaluate(async () => { const { elements, isMeasurement } = await import('./draw/document.js'); return elements(drawing.doc).filter((x) => isMeasurement(drawing.doc, x.el)).map((x) => x.el.position ?? x.el.points[0]); });
   await dw.click('#bar .filebtn'); await dw.click('.dmenu .dnew'); // a new drawing, from the bar's Open, nothing asked
   await dw.waitForFunction(() => !drawing.doc.points.length && !drawing.doc.lines.length);
   await dw.evaluate(() => map.jumpTo({ center: [0, 0], zoom: 3 }));
@@ -205,8 +205,8 @@ await section('lines, groups and the box', async () => {
   await dw.mouse.click(DX + 420, 400); // starts on that point
   await dw.mouse.dblclick(DX + 620, 520);
   await dw.keyboard.press('Escape');
-  const segs = await dw.evaluate(() => drawing.doc.lines.map((s) => [s.start.element, s.end.element, s.vertices.length]));
-  check(segs.length === 3 && segs[0][1] && segs[1][0] === segs[0][1] && segs[2][0] === segs[0][1] && segs[0][2] === 1,
+  const segs = await dw.evaluate(async () => { const { linkFrom } = await import('./draw/document.js'), tie = (s, i) => linkFrom(drawing.doc, s.id, i < 0 ? s.points.length + i : i)?.to.element ?? null; return drawing.doc.lines.map((s) => [tie(s, 0), tie(s, -1), s.points.length]); });
+  check(segs.length === 3 && segs[0][1] && segs[1][0] === segs[0][1] && segs[2][0] === segs[0][1] && segs[0][2] === 3,
     `drawing: three lines drawn with the Line tool, the two later ones attached where the first ends (${JSON.stringify(segs)})`);
   const net = await dw.evaluate(async () => {
     const { totals, lineTrace } = await import('./draw/lines.js');
@@ -215,16 +215,20 @@ await section('lines, groups and the box', async () => {
   });
   check(Math.abs(net.all - net.want) < 1e-6, `drawing: the total, each line once (${(net.all / 1000).toFixed(2)} km)`);
   // the point moved: the lines attached to it follow
-  const follows = await dw.evaluate(() => {
+  const follows = await dw.evaluate(async () => {
+    const { linkFrom } = await import('./draw/document.js'), tie = (s, i) => linkFrom(drawing.doc, s.id, i < 0 ? s.points.length + i : i)?.to.element ?? null;
     const p = drawing.doc.points[0];
     drawing.change((doc) => { doc.points[0].position = [p.position[0] + 0.01, p.position[1]]; });
     const at = drawing.doc.points[0].position;
-    return drawing.doc.lines.every((s) => [s.start, s.end].every((e) => !e.element || (e.position[0] === at[0] && e.position[1] === at[1])));
+    return drawing.doc.lines.every((s) => [0, -1].every((i) => !tie(s, i) || s.points.at(i).join() === at.join()));
   });
   check(follows, 'drawing: a point moved, the lines attached to it follow');
   // Offset: a line drawn beside its geometry by MapLibre, set in pixels; its length stays real. A copy
   // of the first line, the two selected: the field sets both
-  await dw.evaluate(() => drawing.change((doc) => { doc.lines.push({ ...structuredClone(doc.lines[0]), id: 'copy1', name: 'Line 4' }); }));
+  await dw.evaluate(() => drawing.change((doc) => { // its links too
+    doc.lines.push({ ...structuredClone(doc.lines[0]), id: 'copy1', name: 'Line 4' });
+    doc.links.push(...doc.links.filter((l) => l.from[0] === doc.lines[0].id).map((l) => ({ from: ['copy1', l.from[1]], to: { ...l.to } })));
+  }));
   const before = await dw.evaluate(() => drawing.offset().length);
   await dw.evaluate(() => drawing.select([drawing.doc.lines[0].id, 'copy1']));
   const offField = dw.locator('.dinspect input[aria-label="Offset (px)"]');
@@ -272,7 +276,7 @@ await section('lines, groups and the box', async () => {
   check(await dw.evaluate((t) => drawing.doc.groups.length === 1 && drawing.doc.lines.every((s) => s.groupId === t), top), 'drawing: a subgroup deleted alone: its lines back in the group above');
   const [dnet] = await Promise.all([dw.waitForEvent('download'), (async () => { await dw.keyboard.press('Escape'); await exportDrawing(); })()]);
   const back = JSON.parse(await readFile(await dnet.path(), 'utf8'));
-  check(featuresOf(back, 'line').length === 4 && featuresOf(back, 'point').length === 1 && back.charts.groups.length === 1 && featuresOf(back, 'line').filter((f) => own(f).start || own(f).end).length === 4,
+  check(featuresOf(back, 'line').length === 4 && featuresOf(back, 'point').length === 1 && back.charts.groups.length === 1 && new Set(back.charts.links.map((l) => l.from[0])).size === 4 && back.charts.links.every((l) => l.to.element === featuresOf(back, 'point')[0].id),
     'drawing: exported whole, the lines\' ends attached to the point');
 });
 
@@ -305,17 +309,18 @@ await section('the rules: Distribute along, Connect', async () => {
   await mb.press('Enter');
   previewed.push(await dw.evaluate(() => drawing.previewLines?.length ?? 0));
   await dw.click('.dinspect button.done:has-text("Connect")');
-  const gen = await dw.evaluate(() => {
+  const gen = await dw.evaluate(async () => {
+    const { linkFrom } = await import('./draw/document.js'), tie = (s, i) => linkFrom(drawing.doc, s.id, i < 0 ? s.points.length + i : i)?.to.element ?? null;
     const rules = (k) => drawing.doc.rules.filter((r) => r.kind === k), a = rules('distribute')[0], c = rules('connect')[0];
     // what each line the connection made is, from its ends: a trunk at a root, else a branch
     const roots = new Set(c?.roots.map((r) => r.id)), made = drawing.doc.lines.filter((s) => c?.created.includes(s.id));
-    const ofPart = (v) => made.filter((s) => (roots.has(s.start.element) || roots.has(s.end.element)) === (v === 'trunk')), part = (v) => ofPart(v).length;
+    const ofPart = (v) => made.filter((s) => (roots.has(tie(s, 0)) || roots.has(tie(s, -1))) === (v === 'trunk')), part = (v) => ofPart(v).length;
     const names = (gid) => drawing.doc.groups.filter((g) => g.groupId === gid).map((g) => g.name).sort().join();
     return { a: rules('distribute').length, n: a?.points.length, c: rules('connect').length, subgroups: a && names(a.groupId), inCircles: a && a.points.every((x) => drawing.doc.points.find((q) => q.id === x.pointId).groupId === a.copiesId), trunks: part('trunk'), branches: part('branch'),
-      attached: drawing.doc.lines.filter((s) => s.start.element && s.end.element).length, undos: drawing.undos.length, group: drawing.selected()[0]?.kind,
+      attached: drawing.doc.lines.filter((s) => tie(s, 0) && tie(s, -1)).length, undos: drawing.undos.length, group: drawing.selected()[0]?.kind,
       // the branches' shortest (m, near enough at this scale), the hubs: one of its own per trunk
       shortest: Math.min(...ofPart('branch').map((s) => {
-        const [a, b] = [s.start.position, s.end.position], k = Math.cos((a[1] * Math.PI) / 180);
+        const [a, b] = [s.points[0], s.points.at(-1)], k = Math.cos((a[1] * Math.PI) / 180);
         return 111320 * Math.hypot((b[0] - a[0]) * k, b[1] - a[1]);
       })), hubs: c?.hubs.length, minBranch: c?.minBranch };
   });
@@ -446,11 +451,11 @@ await section('dragging, parts, shapes, attaching', async () => {
   await dw.mouse.click(sc.x + 3, sc.y + 2); // within the snapping radius of the corner: snapped there
   await dw.keyboard.press('Enter'); // ended there, attached
   await dw.keyboard.press('Escape');
-  const att = await dw.evaluate((id) => {
-    const s = drawing.doc.lines.at(-1), before = [...s.end.position];
+  const att = await dw.evaluate(async (id) => {
+    const { linkFrom } = await import('./draw/document.js'), s = drawing.doc.lines.at(-1), before = [...s.points[1]];
     drawing.change((d) => { d.points.find((p) => p.id === id).bearing = 30; });
-    const after = drawing.doc.lines.at(-1).end;
-    return [after.element, after.vertex, before.join() !== after.position.join()];
+    const to = linkFrom(drawing.doc, s.id, 1)?.to;
+    return [to?.element, to?.vertex, before.join() !== drawing.doc.lines.at(-1).points[1].join()];
   }, sc.id);
   check(att[0] === sc.id && att[1] === 0 && att[2], `attaching: a line drawn to a shape's corner is attached to it, and follows it when the shape turns (${JSON.stringify(att)})`);
   // a line drawn onto another line's leg: its end attached along the leg (an edge, no vertex added);
@@ -458,8 +463,8 @@ await section('dragging, parts, shapes, attaching', async () => {
   const host = await dw.evaluate(async () => {
     const { addLine } = await import('./draw/document.js'), at = (x, y) => { const c = map.unproject([x, y]); return [c.lng, c.lat]; };
     let s;
-    drawing.change((d) => { s = addLine(d, at(250, 200), [], at(550, 200)); });
-    return { id: s.id, n: s.vertices.length, x: 400, y: 200 };
+    drawing.change((d) => { s = addLine(d, [at(250, 200), at(550, 200)]); });
+    return { id: s.id, n: s.points.length, x: 400, y: 200 };
   });
   await settled(dw); // drawn: what snapping looks for is on the map
   await dw.keyboard.press('g');
@@ -467,18 +472,42 @@ await section('dragging, parts, shapes, attaching', async () => {
   await dw.mouse.click(host.x, host.y);
   await dw.keyboard.press('Enter');
   await dw.keyboard.press('Escape');
-  const onLeg = await dw.evaluate((h) => { const s = drawing.doc.lines.at(-1); return { end: s.end, n: drawing.doc.lines.find((x) => x.id === h.id).vertices.length, id: s.id }; }, host);
+  const onLeg = await dw.evaluate(async (h) => { const { linkFrom } = await import('./draw/document.js'), s = drawing.doc.lines.at(-1); return { end: linkFrom(drawing.doc, s.id, 1)?.to ?? {}, n: drawing.doc.lines.find((x) => x.id === h.id).points.length, id: s.id }; }, host);
   check(onLeg.end.element === host.id && onLeg.end.edge === 0 && onLeg.end.at > 0.2 && onLeg.end.at < 0.8 && onLeg.n === host.n,
     `attaching: a line's end on another line's leg, along it, no vertex added (${JSON.stringify(onLeg.end)})`);
   await dw.evaluate((id) => drawing.select([id]), onLeg.id);
   await dw.click('.dinspect [data-grid*=":points"] tbody tr[data-r]:last-child td:first-child'); // its end's row: Attach to… over the table
-  await dw.click('.dinspect .lbar button[aria-label="Attach end to…"]');
+  await dw.click('.dinspect .lbar button[aria-label="Attach point 2 to…"]');
   const corner = await dw.evaluate(async (id) => { const { verticesOf } = await import('./draw/attach.js'); const q = map.project(verticesOf({ kind: 'point', el: drawing.doc.points.find((x) => x.id === id) })[2]); return [q.x, q.y]; }, sc.id);
   await dw.mouse.click(corner[0] + 2, corner[1] + 2);
-  const moved2 = await dw.evaluate((id) => drawing.doc.lines.find((s) => s.id === id).end, onLeg.id);
+  const moved2 = await dw.evaluate(async (id) => { const { linkFrom } = await import('./draw/document.js'); return linkFrom(drawing.doc, id, 1)?.to ?? {}; }, onLeg.id);
   check(moved2.element === sc.id && moved2.vertex === 2, `attaching: Attach to… moves a line's end onto a shape's corner (${JSON.stringify(moved2)})`);
+  // any place of a line: its middle one attached to a point by its row's Attach to…, then following
+  // the point dragged on the map
+  const mid = await dw.evaluate(async () => {
+    const { addLine, addPoint } = await import('./draw/document.js'), at = (x, y) => { const c = map.unproject([x, y]); return [c.lng, c.lat]; };
+    let s, p;
+    drawing.change((d) => { s = addLine(d, [at(250, 300), at(350, 320), at(450, 300)]); p = addPoint(d, at(350, 420), { symbol: 'square', parts: [] }); });
+    drawing.select([s.id]);
+    const q = map.project(p.position), r = map.getCanvasContainer().getBoundingClientRect();
+    return { id: s.id, pid: p.id, x: r.left + q.x, y: r.top + q.y };
+  });
+  await settled(dw);
+  await dw.click('.dinspect [data-grid*=":points"] tbody tr[data-r="1"] td:first-child');
+  await dw.click('.dinspect .lbar button[aria-label="Attach point 2 to…"]');
+  await dw.mouse.click(mid.x, mid.y);
+  const tiedMid = await dw.evaluate(async (m) => { const { linkFrom } = await import('./draw/document.js'); return linkFrom(drawing.doc, m.id, 1)?.to.element === m.pid && drawing.doc.lines.find((x) => x.id === m.id).points[1].join() === drawing.doc.points.find((x) => x.id === m.pid).position.join(); }, mid);
+  await dw.evaluate((id) => drawing.select([id]), mid.pid);
+  await settled(dw);
+  await dw.mouse.move(mid.x, mid.y);
+  await dw.mouse.down();
+  await dw.mouse.move(mid.x + 80, mid.y + 30, { steps: 5 });
+  await frames(dw);
+  await dw.mouse.up();
+  const followed = await dw.evaluate((m) => { const p = drawing.doc.points.find((x) => x.id === m.pid).position, s = drawing.doc.lines.find((x) => x.id === m.id); const q = map.project(p); return [s.points[1].join() === p.join(), Math.round(q.x), s.points[0].join() !== p.join()]; }, mid);
+  check(tiedMid && followed[0] && followed[2], `attaching: a line's middle place attached to a point by its row's Attach to…, following the point dragged (${tiedMid}, ${followed})`);
   await dw.keyboard.press('Escape');
-  await dw.evaluate((id) => drawing.remove([id]), sc.id);
+  await dw.evaluate((ids) => drawing.remove(ids), [sc.id, mid.id, mid.pid]);
 });
 
 await section('labels, names, data and totals', async () => {
@@ -493,7 +522,8 @@ await section('labels, names, data and totals', async () => {
   // drawn once its glyphs have loaded and it has been placed: a fixed wait was sometimes too short
   await dw.waitForFunction(() => map.queryRenderedFeatures({ layers: ['draw-label-text'] }).length > 0, null, { timeout: 5000 }).catch(() => {});
   const lab = await dw.evaluate((id) => { const a = drawing.doc.labels[0], p = drawing.doc.points.find((x) => x.id === id); const q = map.project(p.position); return { a, point: p.position, x: q.x + a.offset[0], y: q.y + a.offset[1], undos: drawing.undos.length, drawn: map.queryRenderedFeatures({ layers: ['draw-label-text'] }).map((f) => f.properties.text), leader: map.queryRenderedFeatures({ layers: ['draw-leader'] }).length }; }, nid);
-  check(lab.a?.anchor.element === nid && lab.a.text === 'Hi {name}' && lab.drawn.some((t) => /^Hi Circle \d+$/.test(t)) && lab.leader === 1,
+  const labTo = await dw.evaluate(async () => { const { linkFrom } = await import('./draw/document.js'); return linkFrom(drawing.doc, drawing.doc.labels[0].id)?.to.element; });
+  check(labTo === nid && lab.a.text === 'Hi {name}' && lab.drawn.some((t) => /^Hi Circle \d+$/.test(t)) && lab.leader === 1,
     `labels: placed on a point with the Label tool, its text typed, drawn with its name and a leader (${lab.drawn.join(', ')})`);
   await dw.mouse.move(lab.x, lab.y);
   await dw.mouse.down();
@@ -533,10 +563,10 @@ await section('labels, names, data and totals', async () => {
   await dw.selectOption('.dinspect select[aria-label="Totals by"]', 'kind');
   const byKind = await dw.evaluate(() => [...document.querySelectorAll('.dinspect .lgrid.plain td:first-child')].map((td) => td.textContent));
   check(byKind.some((t) => t.endsWith('“x”')) && byKind.some((t) => t.endsWith('No kind')), `drawing: a property added in Data, the totals by its key (${byKind.join(', ')})`);
-  const pointed = await dw.evaluate(async () => { const { resolve } = await import('./draw/attach.js'); return resolve(drawing.doc, drawing.doc.labels[0].anchor).position; });
+  const pointed = await dw.evaluate(() => drawing.doc.labels[0].position);
   await dw.evaluate((id) => drawing.remove([id]), nid);
-  const freed = await dw.evaluate(() => drawing.doc.labels[0]?.anchor);
-  check(!freed?.element && freed?.position?.[0] === pointed[0] && freed.position[1] === pointed[1], 'labels: the point deleted, its label stays, free, where it pointed');
+  const freed = await dw.evaluate(() => [drawing.doc.links.some((l) => l.from[0] === drawing.doc.labels[0]?.id), drawing.doc.labels[0]?.position]);
+  check(!freed[0] && freed[1]?.[0] === pointed[0] && freed[1][1] === pointed[1], 'labels: the point deleted, its label stays, free, where it pointed');
 });
 
 await section('legs typed, list grids', async () => {
@@ -545,16 +575,16 @@ await section('legs typed, list grids', async () => {
   const legIds = await dw.evaluate(async () => {
     const { addLine, addArea } = await import('./draw/document.js');
     let l, a;
-    drawing.change((d) => { l = addLine(d, [13, 41], [[13.02, 41.01]], [13.04, 41]); a = addArea(d, [[13, 40.5], [13.01, 40.5], [13.01, 40.51]]); });
+    drawing.change((d) => { l = addLine(d, [[13, 41], [13.02, 41.01], [13.04, 41]]); a = addArea(d, [[13, 40.5], [13.01, 40.5], [13.01, 40.51]]); });
     return [l.id, a.id];
   });
   await dw.evaluate((id) => drawing.select([id]), legIds[0]);
   const typeIn = async (aria, v) => { const f = dw.locator(`.dinspect input[aria-label="${aria}"]`); await f.fill(v); await f.press('Enter'); };
-  const endAt = () => dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).end.position.join(), legIds[0]);
+  const endAt = () => dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).points.at(-1).join(), legIds[0]);
   const endBefore = await endAt();
   await typeIn('Point 2 leg length', '1 km');
   await typeIn('Point 2 leg bearing (degrees true)', '90');
-  const leg1 = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const l = drawing.doc.lines.find((x) => x.id === id); const g = inverse(l.start.position, l.vertices[0].position); return [Math.round(g.s), Math.round(g.azi)]; }, legIds[0]);
+  const leg1 = await dw.evaluate(async (id) => { const { inverse } = await import('./geodesy.js'); const l = drawing.doc.lines.find((x) => x.id === id); const g = inverse(l.points[0], l.points[1]); return [Math.round(g.s), Math.round(g.azi)]; }, legIds[0]);
   const endAfter = await endAt();
   await dw.evaluate((id) => drawing.select([id]), legIds[1]);
   await typeIn('Corner 2 leg length', '500 m');
@@ -570,7 +600,7 @@ await section('legs typed, list grids', async () => {
   const movedTo = await dw.evaluate(() => document.activeElement?.getAttribute('aria-label'));
   await dw.locator('.dinspect input[aria-label="Point 2 latitude"]').focus();
   await dw.click('.dinspect .lbar button:has-text("Delete")');
-  const vertsLeft = await dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).vertices.length, legIds[0]);
+  const vertsLeft = await dw.evaluate((id) => drawing.doc.lines.find((x) => x.id === id).points.length - 2, legIds[0]);
   const pid = await dw.evaluate(async () => { const { addPoint } = await import('./draw/document.js'); let n; drawing.change((d) => { const c = map.getCenter(); n = addPoint(d, [c.lng, c.lat]); }); drawing.select([n.id]); return n.id; });
   await dw.selectOption('.dinspect [data-grid$=":parts"] select[aria-label="Add a part"]', 'rectangle');
   const partsNow = await dw.evaluate((id) => drawing.doc.points.find((x) => x.id === id).parts.map((q) => q.kind).join(), pid);
@@ -601,7 +631,7 @@ await section('paging, Properties in place', async () => {
   const longId = await dw.evaluate(async () => {
     const { addLine } = await import('./draw/document.js');
     let s;
-    drawing.change((doc) => { s = addLine(doc, [12, 40], Array.from({ length: 500 }, (_, i) => [12 + (i + 1) / 600, 40 + Math.sin(i / 9) / 200]), [12.9, 40]); });
+    drawing.change((doc) => { s = addLine(doc, [[12, 40], ...Array.from({ length: 500 }, (_, i) => [12 + (i + 1) / 600, 40 + Math.sin(i / 9) / 200]), [12.9, 40]]); });
     drawing.select([s.id]);
     return s.id;
   });
@@ -615,8 +645,8 @@ await section('paging, Properties in place', async () => {
   await dw.click('.dinspect .lpager button[aria-label="Next rows"]'); // › again: the next page (a button kept by morph acts as it says)
   const pageThree = await dw.evaluate(() => document.querySelector('.dinspect .lpager .funit').textContent);
   await dw.click('.dinspect [data-grid*=":points"] tr[data-r="4"] td:first-child'); // point 205
-  const ringed = await dw.evaluate((id) => drawing.placeAt()?.join() === drawing.doc.lines.find((x) => x.id === id).vertices[203].position.join(), longId);
-  const vAt = await dw.evaluate((id) => { const v = drawing.doc.lines.find((x) => x.id === id).vertices[349].position; map.jumpTo({ center: v, zoom: 15 }); return v; }, longId);
+  const ringed = await dw.evaluate((id) => drawing.placeAt()?.join() === drawing.doc.lines.find((x) => x.id === id).points[204].join(), longId);
+  const vAt = await dw.evaluate((id) => { const v = drawing.doc.lines.find((x) => x.id === id).points[350]; map.jumpTo({ center: v, zoom: 15 }); return v; }, longId);
   await settled(dw);
   const vPx = await dw.evaluate((v) => { const q = map.project(v), r = map.getCanvasContainer().getBoundingClientRect(); return [r.left + q.x, r.top + q.y]; }, vAt);
   await dw.mouse.move(vPx[0], vPx[1]);
@@ -625,13 +655,13 @@ await section('paging, Properties in place', async () => {
   await until(() => document.querySelector('.dinspect .lbar .funit')?.textContent === 'Point 351:');
   const pickedRow = await dw.evaluate(() => [document.querySelector('.dinspect .lbar .funit')?.textContent, document.querySelector('.dinspect .lpager .funit').textContent, document.querySelector('.dinspect tr.cur td')?.textContent]);
   await dw.click('.dinspect .lbar button:has-text("Delete")'); // the row picked from the map, not the one current before
-  const deleted = await dw.evaluate(([id, v]) => { const x = drawing.doc.lines.find((l) => l.id === id); return [x.vertices.length, x.vertices.some((q) => q.position.join() === v.join())]; }, [longId, vAt]);
+  const deleted = await dw.evaluate(([id, v]) => { const x = drawing.doc.lines.find((l) => l.id === id); return [x.points.length - 2, x.points.some((q) => q.join() === v.join())]; }, [longId, vAt]);
   check(pageThree === '201–300 of 502' && ringed && pickedRow.join() === 'Point 351:,301–400 of 502,351' && deleted.join() === '499,false',
     `points: › twice (${pageThree}); a row clicked is ringed on the map (${ringed}); a point pressed on the map picks its row, on its page (${pickedRow}); its bar's Delete takes that point (${deleted})`);
   await dw.evaluate((id) => drawing.remove([id]), longId);
   // Properties updated in place (dom.js morph): Tab, or a click into another field, from a field just
   // applied lands there; the same in a list
-  const fl = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [12.0, 40.3], [[12.05, 40.32]], [12.1, 40.3]); }); drawing.select([l.id]); return l.id; });
+  const fl = await dw.evaluate(async () => { const { addLine } = await import('./draw/document.js'); let l; drawing.change((d) => { l = addLine(d, [[12.0, 40.3], [12.05, 40.32], [12.1, 40.3]]); }); drawing.select([l.id]); return l.id; });
   const focused = () => dw.evaluate(() => document.activeElement?.closest('[aria-label]')?.getAttribute('aria-label'));
   await dw.click('.dinspect input[aria-label="Name"]');
   await dw.keyboard.type('Q');

@@ -6,11 +6,11 @@
 import { h, svg, typing, morph, animate, NARROW } from '../dom.js';
 import { ask, askText, note } from '../menu.js';
 import { FINGER } from './layers.js';
-import { find, elements, groupsOf, membersOf, leavesOf, canHold, label, KIND, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, addPart, makePart, followedPart, mainOutline, roundParts, PART_KINDS, ROUND, SYMBOLS, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH } from './document.js';
-import { insertCorner, removeCorner, reattach, partName, addVertex, removeVertex, splitKeeping, lineRef, freeRef, resolve, along } from './attach.js';
+import { find, elements, groupsOf, membersOf, leavesOf, canHold, label, KIND, POINT_KIND_NAME, lookOf, lookField, setLook, LOOK_FIELDS, addPart, makePart, followedPart, mainOutline, roundParts, PART_KINDS, ROUND, SYMBOLS, LABEL_OFFSET, makeGroup, setGroup, moveStep, MAX_RADIUS, MAX_OFFSET, MAX_MIN_SIZE, STROKE_WIDTH, linkFrom, setLink } from './document.js';
+import { insertPlace, deletePlace, reattach, partName, splitLine, lineRef, resolve, along } from './attach.js';
 import { labelValues, labelText, TOKENS } from './labels.js';
 import { OUTLINE_NAME } from './outlines.js';
-import { lineTrace, totals, breakdown, nearestAlong, positionsOf } from './lines.js';
+import { lineTrace, totals, breakdown, nearestAlong } from './lines.js';
 import { profileCsv } from './profile.js';
 import { DISTRIBUTE_D, distribute, lines, planConnection, makeDistribution, editDistribution, connect, reconnect, alongTrace, alongOf,
   distributions, connections, ruleOf, changedByHand, giveBack, removePartOf, MAX_COPIES, MAX_TREE } from './generator.js';
@@ -80,14 +80,14 @@ export function drawView(root, ctx) {
       if (!a) return;
       withMembers = a === 'all';
     }
-    drawing.remove(ids, withMembers); // lines attached to a point deleted stay, their ends free where they were
+    drawing.remove(ids, withMembers); // lines attached to a point deleted stay, their places free where they were
   }
 
   // ---- inspector: fields ----------------------------------------------------------------------
   const inspector = h('div', { class: 'dinspect' });
   // the element id as it is now (a field's closure keeps the id, never a stale object)
   const now = (id) => find(drawing.doc, id)?.el;
-  const set = (id, fn) => drawing.change((doc) => fn(find(doc, id).el));
+  const set = (id, fn) => drawing.change((doc) => fn(find(doc, id).el, doc));
   // A value grid's row (docs/drawing-ui.md §5): its label, its cell (one value or a pair, at most
   // one small button after it: never wrapping) and its last column, kept for a trailing × or ↺ so
   // nothing shifts when one appears. Without a label and with buttons only: an action row, which may
@@ -309,8 +309,7 @@ export function drawView(root, ctx) {
     const el = now(id), u = drawing.units(), n = el.points.length;
     const corner = (i, axis) => F.coord(axis, () => now(id).points[i][axis === 'lat' ? 1 : 0],
       (v) => set(id, (x) => { const q = x.points[i]; x.points[i] = axis === 'lat' ? [q[0], v] : [v, q[1]]; }), `Corner ${i + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
-    const insertAt = (i) => drawing.change((doc) => { const x = find(doc, id).el, q = x.points[i], r = x.points[(i + 1) % x.points.length]; insertCorner(doc, x, i + 1, along(q, r, 0.5)); });
-    const drop = (i) => { if (n > 3) drawing.change((doc) => removeCorner(doc, find(doc, id).el, i)); };
+
     // its corners as rows, 1 to n: Lat, Lon; the edge from the corner before (corner 1's from the
     // last; typed: this corner moves)
     const lu = unitOf(el.points.map((_, i) => legOf(el.points, i).s));
@@ -319,25 +318,26 @@ export function drawView(root, ctx) {
       row('Area', valued(fmtArea(areaOf(pathOf(el.points, true)), u))),
       row('Perimeter', distValue(perimeterOf(el.points))),
       placesTable(id, 'corners', n, { name: 'Corners', leg: ['Edge', 'From the corner before'], unit: lu, copy: cornerRows,
-        rowAt: (i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...legFields(id, (x) => x.points, i, setAreaEdge, 'Corner', lu)] }),
-        actions: (i) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAt(i)), act('Delete', `${MOD} Delete; three are kept`, () => drop(i), n <= 3)] }),
-        insert: insertAt, remove: drop }),
+        rowAt: (i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...legFields(id, i, 'Corner', lu)] }),
+        actions: (i) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAfter(id, i)), act('Delete', `${MOD} Delete; three are kept`, () => removeAt(id, i), n <= 3)] }),
+        insert: (i) => insertAfter(id, i), remove: (i) => removeAt(id, i) }),
       actionsRow(ruleActs(id)), lookBlock([item(id)]), ...commonBottom('area', id)];
   }
 
-  // What a line's end or a label's anchor (key) points at (a reference, attach.js): attached, a link
-  // to it and where on it, Attach to… (the next click on the map chooses again) and Detach (free where
-  // it is); free, its position typed, and Attach to…
-  function refRow(text, id, key) {
-    const r = now(id)[key], on = r.element && find(drawing.doc, r.element);
-    // one row: free, its position; attached, what to (and where on it) and the broken link that
-    // detaches it (it stays where it is); at its end Attach to…, pressed while it waits for a click
-    const attach = h('button', { type: 'button', class: 'x', 'aria-pressed': String(drawing.repointing?.id === id && drawing.repointing.key === key), 'aria-label': `Attach ${text.toLowerCase()} to…`,
-      title: 'Then click where to attach it',
-      onclick: () => { if (drawing.repointing?.id === id && drawing.repointing.key === key) drawing.cancelRepoint(); else drawing.startRepoint(id, key); renderInspector(); } }, icon(...UI_ICON.attach));
-    if (!on) { const [, lat, , lon] = F.position(() => now(id)[key].position, (q) => set(id, (x) => { x[key] = { position: q, element: null }; })); return row(text, pair(lat, '·', lon), attach); }
-    return row(text, link(on.el.id), partName(r, on.kind) ? h('span', { class: 'funit' }, partName(r, on.kind)) : null,
-      h('button', { type: 'button', class: 'x', title: 'Free, where it is', 'aria-label': `Detach ${text.toLowerCase()}`, onclick: () => set(id, (x) => { x[key] = freeRef(x[key]); }) }, icon(...UI_ICON.detach)), attach);
+  // a place's Attach to… (the next click on the map chooses what to link it to), pressed while it
+  // waits for a click
+  const waiting = (id, k) => drawing.repointing?.id === id && drawing.repointing.index === k;
+  const attachBtn = (id, k, attrs, ...content) => h('button', { type: 'button', ...attrs, 'aria-pressed': String(waiting(id, k)), title: 'Then click where to attach it',
+    onclick: () => { if (waiting(id, k)) drawing.cancelRepoint(); else drawing.startRepoint(id, k); renderInspector(); } }, ...content);
+  const detach = (id, k) => set(id, (x, d) => setLink(d, id, k, null)); // free where it is
+  // What a label points at: linked, a link to it and where on it, Detach (the broken link) and Attach
+  // to…; free, its position typed, and Attach to…
+  function refRow(text, id) {
+    const to = linkFrom(drawing.doc, id)?.to, on = to && find(drawing.doc, to.element);
+    const attach = attachBtn(id, 0, { class: 'x', 'aria-label': `Attach ${text.toLowerCase()} to…` }, icon(...UI_ICON.attach));
+    if (!on) { const [, lat, , lon] = F.position(() => now(id).position, (q) => set(id, (x) => { x.position = q; })); return row(text, pair(lat, '·', lon), attach); }
+    return row(text, link(on.el.id), partName(to, on.kind) ? h('span', { class: 'funit' }, partName(to, on.kind)) : null,
+      h('button', { type: 'button', class: 'x', title: 'Free, where it is', 'aria-label': `Detach ${text.toLowerCase()}`, onclick: () => detach(id, 0) }, icon(...UI_ICON.detach)), attach);
   }
 
   // a label: its text (with live values), what it points at, its leader and its look
@@ -345,8 +345,8 @@ export function drawView(root, ctx) {
     along: ['distance along', 'The distance along the line to where it points'], bearing: ['bearing', 'The bearing of the side or leg it points at'],
     radius: ['radius', 'The point\'s filled radius'], area: ['area', 'The area of the area or shape'], perimeter: ['perimeter', 'The perimeter of the area or shape'] };
   function labelInspector(id) {
-    const doc = drawing.doc, el = now(id), u = drawing.units();
-    const at = resolve(doc, el.anchor), values = labelValues(doc, el.anchor, u);
+    const doc = drawing.doc, el = now(id), u = drawing.units(), to = linkFrom(doc, id)?.to;
+    const at = to && resolve(doc, to), values = labelValues(doc, to, u);
     const text = h('textarea', { rows: 3, 'aria-label': 'Text', class: 'ltext' }, el.text);
     text.addEventListener('input', () => drawing.previewLabels((d) => { find(d, id).el.text = text.value; })); // seen on the map as it is typed
     text.addEventListener('change', () => set(id, (x) => { x.text = text.value; }));
@@ -358,19 +358,19 @@ export function drawView(root, ctx) {
     const tokens = TOKENS.filter((k) => values[k] !== undefined);
     // on a line: how far along it, typed (the leg there, and where on it)
     const onLine = at?.element?.kind === 'line' && at.along !== undefined;
-    const alongRow = onLine ? row('Along', withUnit(F.dist(() => at.along, (m) => drawing.change((d) => { const a = find(d, id).el; a.anchor = lineRef(d, find(d, a.anchor.element).el, m); }), 'Distance along', { zero: true,
+    const alongRow = onLine ? row('Along', withUnit(F.dist(() => at.along, (m) => drawing.change((d) => setLink(d, id, 0, lineRef(d, find(d, to.element).el, m))), 'Distance along', { zero: true,
       title: `Of ${fmtDist(at.length, u)}` }))) : null;
     // what it reads on the map, under its text, while a value fills it in
     const reads = /\{\w+\}/.test(el.text) ? h('p', { class: 'note' }, `Reads: ${labelText(doc, el, u).split('\n').map((t) => t.trim()).filter(Boolean).join(' · ') || '(nothing)'}`) : null;
     // its place: where it points (free: a position), along a line, and its text moved from there
-    const moved = el.offset[0] !== (el.anchor.element ? LABEL_OFFSET[0] : 0) || el.offset[1] !== (el.anchor.element ? LABEL_OFFSET[1] : 0);
+    const moved = el.offset[0] !== (to ? LABEL_OFFSET[0] : 0) || el.offset[1] !== (to ? LABEL_OFFSET[1] : 0);
     return [...commonTop('label', id),
       row('Text', text), reads,
       tokens.length ? row('', ...tokens.map((k) => h('button', { type: 'button', class: 'small', title: `A live ${TOKEN_TEXT[k][0]}`, onclick: () => insert(`{${k}}`) }, `+ ${TOKEN_TEXT[k][0]}`))) : null,
-      ...[refRow(el.anchor.element ? 'Attached to' : 'Position', id, 'anchor')].flat(), alongRow,
+      refRow(to ? 'Attached to' : 'Position', id), alongRow,
       row('Text offset', fvalue(`${el.offset[0]}, ${el.offset[1]}`.replace(/-/g, '−'), { title: 'Drag its text on the map' }), funit('px'),
-        moved ? h('button', { type: 'button', class: 'x', title: 'Back to the default', 'aria-label': 'Text offset back to where a new label puts it', onclick: () => set(id, (x) => { x.offset = x.anchor.element ? [...LABEL_OFFSET] : [0, 0]; }) }, '↺') : null),
-      el.anchor.element ? leaderRow([item(id)]) : null, // a free label points at nothing
+        moved ? h('button', { type: 'button', class: 'x', title: 'Back to the default', 'aria-label': 'Text offset back to where a new label puts it', onclick: () => set(id, (x) => { x.offset = to ? [...LABEL_OFFSET] : [0, 0]; }) }, '↺') : null),
+      to ? leaderRow([item(id)]) : null, // a free label points at nothing
       actionsRow(ruleActs(id)), lookBlock([item(id)]),
       ...commonBottom('label', id)];
   }
@@ -382,26 +382,23 @@ export function drawView(root, ctx) {
       { 'aria-label': 'Leader', title: 'A line from the text to its point' }));
   }
 
-  // a line: its ends (each attached to a point, or free), length, curve, the table of its vertices
-  // (lat, lon, leg, name, distance from its start)
   // Legs typed (the line's table of points, the area's of corners): the straight leg arriving at a
   // place from the one before, its length and its bearing. A value typed moves that place alone (the
-  // leg after it changes with it); a line's end attached is where it is attached, its leg not typed.
+  // leg after it changes with it); a line's place linked is where it is linked, its leg not typed.
   const legOf = (ps, k) => { const g = inverse(ps.at(k - 1), ps[k]); return { s: g.s, azi: norm360(g.azi) }; };
   const legTo = (ps, k, { s: len, azi }) => { const g = legOf(ps, k); return destination(ps.at(k - 1), azi ?? g.azi, len ?? g.s); }; // an area's corner 1: from its last
-  function setLineLeg(x, k, v) {
-    const to = legTo(positionsOf(x), k, v);
-    if (k <= x.vertices.length) x.vertices[k - 1].position = to; else if (!x.end.element) x.end.position = to;
-  }
-  function setAreaEdge(x, k, v) { x.points[k] = legTo(x.points, k, v); }
-  // a leg's two fields (get(): the places now; put(x, value): set on the element)
+  const setLeg = (id, k, v) => set(id, (x) => { x.points[k] = legTo(x.points, k, v); });
   // an element's places, read once per rendering of the inspector (each row's leg reads them)
   const placesRead = new Map();
-  const placesNow = (id, places) => { if (!placesRead.has(id)) placesRead.set(id, places(now(id))); return placesRead.get(id); };
-  // in a table: the length in the column's unit (a number to the metre), the bearing to a tenth
-  const legFields = (id, places, k, put, what, unit) => [
-    F.dist(() => legOf(placesNow(id, places), k).s, (m) => set(id, (x) => put(x, k, { s: m })), `${what} ${k + 1} leg length`, { in: unit }),
-    F.angle(() => legOf(placesNow(id, places), k).azi, (a) => set(id, (x) => put(x, k, { azi: a })), `${what} ${k + 1} leg bearing (degrees true)`, { fixed: 1 })];
+  const placesNow = (id) => { if (!placesRead.has(id)) placesRead.set(id, now(id).points); return placesRead.get(id); };
+  // a leg's two fields in a table: the length in the column's unit (a number to the metre), the bearing to a tenth
+  const legFields = (id, k, what, unit) => [
+    F.dist(() => legOf(placesNow(id), k).s, (m) => setLeg(id, k, { s: m }), `${what} ${k + 1} leg length`, { in: unit }),
+    F.angle(() => legOf(placesNow(id), k).azi, (a) => setLeg(id, k, { azi: a }), `${what} ${k + 1} leg bearing (degrees true)`, { fixed: 1 })];
+  // a place of a line or an area added halfway to the next (an area's last: to its first), one taken
+  // away (attach.js: while it keeps enough)
+  const insertAfter = (id, k) => drawing.change((doc) => { const ps = find(doc, id).el.points; insertPlace(doc, id, k + 1, along(ps[k], ps[(k + 1) % ps.length], 0.5)); });
+  const removeAt = (id, k) => drawing.change((doc) => deletePlace(doc, id, k));
   // a table of places' first columns; with its leg and bearing 304 px, inside Properties' 320
   // with a scroll bar: degrees in 6 decimals, distances to the metre (up to 999 km), bearings to a tenth
   const PLACE_COLUMNS = [{ head: '#', width: 28, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
@@ -526,55 +523,33 @@ export function drawView(root, ctx) {
     const doc = drawing.doc, el = now(id);
     const line = lineTrace(doc, el);
     const at = line.at;
-    const insertAfter = (i) => drawing.change((doc) => {
-      const x = find(doc, id).el, ps = positionsOf(x), a = ps[i + 1], b = ps[i + 2];
-      addVertex(doc, x, i + 1, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]); // what points at its vertices and edges stays where it is
-    });
-    const removeAt = (i) => drawing.change((doc) => removeVertex(doc, find(doc, id).el, i));
-    const splitAt = (i) => drawing.change((d) => splitKeeping(d, id, i));
-    // Its points as rows, numbered 1 (its start) to N (its end), the vertices between: a page of them
-    // shown. Lat, Lon; the leg from the point before (typed: this point moves); along, from the start;
-    // a vertex's name. An end attached: what to, its leg as it is.
-    const n = el.vertices.length, N = n + 2, ps = positionsOf(el);
-    const coord = (k, axis, get, put) => F.coord(axis, get, put, `Point ${k + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
-    const vcoord = (k, axis) => coord(k, axis, () => now(id).vertices[k - 1].position[axis === 'lat' ? 1 : 0],
-      (v) => set(id, (x) => { const p = x.vertices[k - 1].position; x.vertices[k - 1].position = axis === 'lat' ? [p[0], v] : [v, p[1]]; }));
-    const endKey = (k) => (k === 0 ? 'start' : 'end');
-    const endCells = (k) => {
-      const key = endKey(k);
-      if (el[key].element) return [link(el[key].element), null];
-      const at = (axis) => coord(k, axis, () => now(id)[key].position[axis === 'lat' ? 1 : 0],
-        (v) => set(id, (x) => { const q = x[key].position; x[key] = { position: axis === 'lat' ? [q[0], v] : [v, q[1]], element: null }; }));
-      return [at('lat'), at('lon')];
-    };
+    const splitAt = (k) => drawing.change((d) => splitLine(d, id, k));
+    // Its places as rows, numbered 1 (its start) to N (its end): a page of them shown. Lat, Lon (one
+    // linked: what to); the leg from the place before (typed: this place moves; a linked one's as it
+    // is); along, from the start; its name.
+    const ps = el.points, N = ps.length, tied = (k) => linkFrom(doc, id, k)?.to;
+    const coord = (k, axis) => F.coord(axis, () => now(id).points[k][axis === 'lat' ? 1 : 0],
+      (v) => set(id, (x) => { const p = x.points[k]; x.points[k] = axis === 'lat' ? [p[0], v] : [v, p[1]]; }), `Point ${k + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
     const lu = unitOf(ps.slice(1).map((_, k) => legOf(ps, k + 1).s));
-    const legCells = (k) => (k === N - 1 && el.end.element ? [fvalue(inUnit(legOf(ps, k).s, lu)), fvalue(legOf(ps, k).azi.toFixed(1))] : legFields(id, positionsOf, k, setLineLeg, 'Point', lu));
-    const name = (k) => field(() => now(id).vertices[k - 1].name, (t) => t, (nv) => set(id, (x) => { x.vertices[k - 1].name = nv; }), { 'aria-label': `Point ${k + 1} name`, placeholder: 'name' });
+    const legCells = (k) => (tied(k) ? [fvalue(inUnit(legOf(ps, k).s, lu)), fvalue(legOf(ps, k).azi.toFixed(1))] : legFields(id, k, 'Point', lu));
+    const name = (k) => field(() => now(id).names[k], (t) => t, (nv) => set(id, (x) => { x.names[k] = nv; }), { 'aria-label': `Point ${k + 1} name`, placeholder: 'name' });
     // the grid fits the panel's 320 px: #, Lat, Lon, the leg and its bearing; the row current says
-    // how far along the line its point is, and holds a vertex's name, in the bar over the grid
-    const along = (k) => funit(`${distText(at[k] || 0, drawing.units()).text} along`);
+    // how far along the line its point is, and holds its name, in the bar over the grid
+    const alongText = (k) => funit(`${distText(at[k] || 0, drawing.units()).text} along`);
     const rowAt = (k) => ({ cells: [k === 0 || k === N - 1 ? h('span', { title: k ? 'Its end' : 'Its start' }, `${k + 1}`) : `${k + 1}`,
-        ...(k === 0 || k === N - 1 ? endCells(k) : [vcoord(k, 'lat'), vcoord(k, 'lon')]),
+        ...(tied(k) ? [link(tied(k).element), null] : [coord(k, 'lat'), coord(k, 'lon')]),
         ...(k ? legCells(k) : [null, null])] });
-    // an end's Attach to… (the next click on the map chooses what to) and Detach (free where it is)
-    const endActs = (key) => {
-      const waiting = drawing.repointing?.id === id && drawing.repointing.key === key;
-      const attach = h('button', { type: 'button', class: 'small', 'aria-pressed': String(waiting), 'aria-label': `Attach ${key} to…`,
-        title: 'Then click where to attach it',
-        onclick: () => { if (waiting) drawing.cancelRepoint(); else drawing.startRepoint(id, key); renderInspector(); } }, 'Attach to…');
-      return [attach, el[key].element ? act('Detach', 'Free, where it is', () => set(id, (x) => { x[key] = freeRef(x[key]); })) : null].filter(Boolean);
-    };
-    const pointRows = () => { const x = now(id), qs = positionsOf(x), t = lineTrace(drawing.doc, x).at;
-      return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Along m', 'Name'], qs.map((q, k) => { const g = k ? legOf(qs, k) : null; return [k + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', +(t[k] || 0).toFixed(3), x.vertices[k - 1]?.name ?? '']; })]; };
+    const pointRows = () => { const x = now(id), qs = x.points, t = lineTrace(drawing.doc, x).at;
+      return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Along m', 'Name'], qs.map((q, k) => { const g = k ? legOf(qs, k) : null; return [k + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', +(t[k] || 0).toFixed(3), x.names[k]]; })]; };
     return [...commonTop('line', id),
       row('Length', distValue(line.length)),
       row('Path', segOf('Path', [[false, 'Straight', 'Geodesics'], [true, 'Smooth', 'A curve through its bends']], !!el.smooth, (v) => set(id, (x) => { x.smooth = v; }))),
       placesTable(id, 'points', N, { name: 'Points', leg: ['Leg', 'From the point before'], unit: lu, copy: pointRows, rowAt,
-        actions: (k) => (k === 0 ? { label: 'Point 1, its start', buttons: [act('Insert after', 'Insert', () => insertAfter(-1)), ...endActs('start')] }
-          : k === N - 1 ? { label: `Point ${N}, its end`, buttons: [along(k), ...endActs('end')] }
-            : { label: `Point ${k + 1}`, buttons: [along(k), name(k), act('Insert after', 'Insert', () => insertAfter(k - 1)),
-              act('Delete', `${MOD} Delete`, () => removeAt(k - 1)), act('Split', 'Two lines, attached here', () => splitAt(k - 1))] }),
-        insert: (k) => { if (k < N - 1) insertAfter(k - 1); }, remove: (k) => { if (k >= 1 && k <= n) removeAt(k - 1); } }),
+        actions: (k) => ({ label: k === 0 ? 'Point 1, its start' : k === N - 1 ? `Point ${N}, its end` : `Point ${k + 1}`,
+          buttons: [k ? alongText(k) : null, name(k), k < N - 1 ? act('Insert after', 'Insert', () => insertAfter(id, k)) : null,
+            act('Delete', `${MOD} Delete; two are kept`, () => removeAt(id, k), N <= 2), k && k < N - 1 ? act('Split', 'Two lines, attached here', () => splitAt(k)) : null,
+            attachBtn(id, k, { class: 'small', 'aria-label': `Attach point ${k + 1} to…` }, 'Attach to…'), tied(k) ? act('Detach', 'Free, where it is', () => detach(id, k)) : null].filter(Boolean) }),
+        insert: (k) => { if (k < N - 1) insertAfter(id, k); }, remove: (k) => removeAt(id, k) }),
       profileBlock(id),
       actionsRow(ruleActs(id), h('button', { type: 'button', class: 'small', title: 'Copies along this line', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…')),
       lookBlock([item(id)]), ...commonBottom('line', id)];

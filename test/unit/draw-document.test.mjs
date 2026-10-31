@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addShape } from './helpers.mjs';
+import { addShape, lineFrom, placeIn } from './helpers.mjs';
 
 const d = await import('../../site/draw/document.js');
 const { parse, serialise, toFile } = await import('../../site/draw/file.js');
-const { refreshAttached, lineRef, resolve } = await import('../../site/draw/attach.js');
+const { refreshAttached, lineRef, resolve, splitLine, insertPlace, deletePlace } = await import('../../site/draw/attach.js');
 const { distributions, connections } = await import('../../site/draw/generator.js');
-const { emptyDoc, addPoint, addDot, addLine, addArea, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
-  label, styleOf, offsetOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, splitLine,
+const { emptyDoc, addPoint, addDot, addArea, addLabel, addPart, removePart, makePart, dependents, remove, idsOf, newId, nextName,
+  label, styleOf, offsetOf, isShown, isMeasurement, placeOf, makeGroup, setGroup, linkFrom,
   DEFAULT_STYLE, GUIDE_STYLE, FORMAT, VERSION } = d;
 
 const NOW = Date.parse('2026-10-22T10:00:00Z');
@@ -19,6 +19,8 @@ const collection = (features, charts = { format: FORMAT, version: VERSION }) => 
 const read = (o, known = null) => parse(typeof o === 'string' ? o : JSON.stringify(o), known, NOW);
 const VIEW = { center: [12.5, 41.9], zoom: 7.25, bearing: 10, layers: [{ id: 'chart' }], data: null, units: 'nm', bearings: true }; // a view the scene's file carries
 const again = (doc, known = null) => parse(serialise(doc, VIEW), known, NOW);
+// a label pointing at r: a target (with its position, else where the target is), or { position } free
+const labelAt = (doc, r) => addLabel(doc, r.position ?? resolve(doc, r).position, r.element ? r : null);
 
 // a document as the file holds it: values rounded as the writer rounds them (positions 7 decimals,
 // metres and pixels 3, angles 4)
@@ -41,25 +43,26 @@ function sample() {
   addPart(b, 'triangle');
   addShape(doc, [12.1, 41], 'ellipse').bearing = 45;
   addDot(doc, [12.3, 41]);
-  const l = addLine(doc, a.id, [[12.1, 41.2]], b.id);
+  const l = lineFrom(doc, a.id, [[12.1, 41.2]], b.id);
   l.look.stroke = { ...d.GUIDE_STROKE }; // its own, though as a guide's
   l.properties = [{ key: 'name', value: 'x' }, { key: 'k', value: 'v' }, { key: 'k', value: 'w' }];
-  const free = addLine(doc, [13, 40], [], [13.5, 40.5]);
+  d.setLink(doc, l.id, 1, { element: doc.points[3].id }); // a middle place linked too
+  const free = lineFrom(doc, [13, 40], [], [13.5, 40.5]);
   free.smooth = true;
   free.look.offset = 4;
   addArea(doc, [[12, 40], [12, 40.5], [12.5, 40.5]]).look = { fill: { color: '#123456', opacity: 0.5 }, stroke: { dash: 'dotted' } };
   addArea(doc, [[12, 40], [12.5, 40], [12.5, 40.5]]);
-  addLabel(doc, lineRef(doc, l, 10));
-  addLabel(doc, { position: [12, 40] });
-  addLabel(doc, { position: [12, 41], element: a.id });
-  addLabel(doc, { position: [12, 40], element: doc.areas[0].id, vertex: 1 });
-  addLabel(doc, { position: [12, 40], element: doc.points[2].id, edge: 2, at: 0.25 });
-  addLabel(doc, { position: [12, 40], element: b.id, part: 2, vertex: 1 }); // on an outline part's corner
+  labelAt(doc, lineRef(doc, l, 10));
+  labelAt(doc, { position: [12, 40] });
+  labelAt(doc, { position: [12, 41], element: a.id });
+  labelAt(doc, { position: [12, 40], element: doc.areas[0].id, vertex: 1 });
+  labelAt(doc, { position: [12, 40], element: doc.points[2].id, edge: 2, at: 0.25 });
+  labelAt(doc, { position: [12, 40], element: b.id, part: 2, vertex: 1 }); // on an outline part's corner
   makeGroup(doc, [b.id]);
   // measurements: guides showing their values
   const m = () => ({ guide: true, look: { text: { values: true } } });
   addPoint(doc, [12, 41], { name: 'Ring 1', symbol: 'none', parts: [makePart('circle', { radius: 500 })], ...m() });
-  addLine(doc, [12, 41], [[12.5, 41]], [13, 41], { name: 'Distance 1', ...m() });
+  lineFrom(doc, [12, 41], [[12.5, 41]], [13, 41], { name: 'Distance 1', ...m() });
   addArea(doc, [[12, 41], [12.5, 41], [13, 42]], m());
   doc.look = { minSize: 20 }; // the drawing's
   refreshAttached(doc); // each reference where it points
@@ -104,8 +107,8 @@ test('round trip: values come back rounded as the file writes them', () => {
   const doc = emptyDoc(NOW);
   const p = addPoint(doc, [12.123456789, 41.987654321], { bearing: 45.123456, parts: [makePart('sector', { radius: 1000.12345, aperture: 90.000049 })] });
   p.look = { fill: { opacity: 0.123456 }, stroke: { width: 2.00049 } };
-  const s = addLine(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { look: { offset: 3.33333 } });
-  addLabel(doc, lineRef(doc, s, 1500.12345)).offset = [10.12345, -20.98765];
+  const s = lineFrom(doc, [1.000000049, 2], [[1.5, 2.12345678]], p.id, { look: { offset: 3.33333 } });
+  labelAt(doc, lineRef(doc, s, 1500.12345)).offset = [10.12345, -20.98765];
   addArea(doc, [[0, 0], [1.123456789, 0], [1, 1]]);
   Object.assign(addShape(doc, [3, 3]).parts[0], { length: 120.12345, width: 40.98765 });
   const f = toFile(doc);
@@ -115,13 +118,13 @@ test('round trip: values come back rounded as the file writes them', () => {
   assert.equal(f.features[0].properties['fill-opacity'], 0.123);
   assert.equal(f.features[0].properties.charts.bearing, 45.1235);
   const { doc: back } = again(doc);
-  // a label's anchor: where it points in the drawing read (the file holds what, not where)
-  const want = rounded(doc), at = back.labels[0].anchor.position;
-  assert.deepEqual(at, resolve(back, back.labels[0].anchor).position);
-  assert.ok(Math.abs(at[0] - doc.labels[0].anchor.position[0]) < 1e-6 && Math.abs(at[1] - doc.labels[0].anchor.position[1]) < 1e-6);
-  want.labels[0].anchor.position = at;
+  // a label linked: where its target is in the drawing read (the link wins over the geometry)
+  const want = rounded(doc), at = back.labels[0].position;
+  assert.deepEqual(at, resolve(back, linkFrom(back, back.labels[0].id).to).position);
+  assert.ok(Math.abs(at[0] - doc.labels[0].position[0]) < 1e-6 && Math.abs(at[1] - doc.labels[0].position[1]) < 1e-6);
+  want.labels[0].position = at;
   assert.deepEqual(back, want);
-  assert.equal(back.lines[0].end.position[0], back.points[0].position[0]); // the attached end where its point is
+  assert.equal(back.lines[0].points.at(-1)[0], back.points[0].position[0]); // the linked end where its point is
 });
 
 test('defaults are left out of the file; positions on one line', () => {
@@ -129,21 +132,22 @@ test('defaults are left out of the file; positions on one line', () => {
   const a = addPoint(doc, [12, 41]);
   addDot(doc, [12.5, 41]);
   addShape(doc, [13, 41]);
-  addLine(doc, a.id, [], [14, 41]);
+  lineFrom(doc, a.id, [], [14, 41]);
   addArea(doc, [[0, 0], [1, 0], [1, 1]]);
-  addLabel(doc, { position: [12, 41], element: a.id });
+  const lb = labelAt(doc, { position: [12, 41], element: a.id });
   const text = serialise(doc), f = JSON.parse(text);
   assert.deepEqual(Object.keys(f), ['type', 'charts', 'features']);
-  assert.deepEqual(f.charts, { format: FORMAT, version: VERSION, created: '2026-10-22T10:00:00Z', modified: '2026-10-22T10:00:00Z' });
+  assert.deepEqual(f.charts, { format: FORMAT, version: VERSION, created: '2026-10-22T10:00:00Z', modified: '2026-10-22T10:00:00Z',
+    links: [{ from: [doc.lines[0].id, 0], to: { element: a.id } }, { from: [lb.id, 0], to: { element: a.id } }] }); // the ties, in one table
   const [pt, dot, shape, line, area, lab] = f.features;
   assert.deepEqual(pt, { type: 'Feature', id: a.id, geometry: { type: 'Point', coordinates: [12, 41] },
     properties: { name: 'Point 1', charts: { kind: 'point', symbol: 'diamond', parts: [{ kind: 'circle', radius: 1000 }] } } }); // its symbol: written (the default is none); a part's Fill and Shown: on
   assert.deepEqual(dot.properties.charts, { kind: 'point', symbol: 'dot' }); // no parts: none written
   assert.deepEqual(shape.properties.charts, { kind: 'point', parts: [{ kind: 'rectangle', length: 100, width: 50 }] }); // no symbol: the default
-  assert.deepEqual(line.properties.charts, { kind: 'line', start: { element: a.id } });
+  assert.deepEqual(line.properties.charts, { kind: 'line' }); // no names: none written
   assert.deepEqual(line.geometry, { type: 'LineString', coordinates: [[12, 41], [14, 41]] });
   assert.deepEqual(area.properties.charts, { kind: 'area' });
-  assert.deepEqual(lab.properties.charts, { kind: 'label', text: '{name}', anchor: { element: a.id } });
+  assert.deepEqual(lab.properties.charts, { kind: 'label', text: '{name}' });
   assert.deepEqual(lab.geometry.coordinates, [12, 41]); // where it points
   assert.match(text, /"coordinates": \[12, 41\]/);
 });
@@ -302,14 +306,15 @@ test('any GeoJSON: Multi geometries split, holes dropped, foreign points diamond
   assert.deepEqual([a.position, b.position], [[1, 1], [2, 2]]); // the altitude dropped
   assert.deepEqual([a.symbol, a.parts, a.name], ['diamond', [], 'Twin']);
   assert.deepEqual(a.properties, [{ key: 'depth', value: '12' }, { key: 'flag', value: 'true' }, { key: 'nested', value: '{"a":1}' }, { key: 'Description', value: 'two of them' }]); // a description: a property like any other
-  assert.deepEqual(doc.lines.map((s) => [s.name, s.vertices.length, s.start.element, s.look]), [['Pair', 0, null, { stroke: { color: '#00aa00', width: 3 } }], ['Pair', 1, null, { stroke: { color: '#00aa00', width: 3 } }]]);
+  assert.deepEqual(doc.lines.map((s) => [s.name, s.points.length, s.names, s.look]), [['Pair', 2, ['', ''], { stroke: { color: '#00aa00', width: 3 } }], ['Pair', 3, ['', '', ''], { stroke: { color: '#00aa00', width: 3 } }]]);
+  assert.deepEqual(doc.links, []);
   assert.equal(doc.areas.length, 3);
   assert.deepEqual(doc.areas[0].points, [[0, 0], [2, 0], [2, 2], [0, 2]]); // the ring open, its outer edge only
   assert.deepEqual(doc.areas[2].look, { fill: { color: '#0000ff', opacity: 0.4 } });
   assert.ok(doc.areas.every((x) => !x.guide && !d.lookOf(doc, x).text.values));
   // a bare Feature, and a bare geometry
   assert.deepEqual(read(F('one', 'Point', [3, 4])).doc.points.map((p) => [p.id, p.position]), [['one', [3, 4]]]);
-  assert.deepEqual(read({ type: 'LineString', coordinates: [[0, 0], [1, 1]] }).doc.lines[0].end.position, [1, 1]);
+  assert.deepEqual(read({ type: 'LineString', coordinates: [[0, 0], [1, 1]] }).doc.lines[0].points, [[0, 0], [1, 1]]);
 });
 
 test('the app\'s own written back as text by another tool is read again', () => {
@@ -321,79 +326,88 @@ test('the app\'s own written back as text by another tool is read again', () => 
   assert.deepEqual(back, doc);
 });
 
-test('attached ends: one that disagrees with what it is on moves to it (counted); one on what is not there (or no such vertex), or on its own line, is free', () => {
+test('links read: a place that disagrees with its target moves to it (counted); one from or to what is not there (or no such vertex), to its own element, or from a place already linked, is dropped', () => {
+  const L = (from, to) => ({ from, to });
   const { doc, report } = read(collection([
     F('a', 'Point', [0, 0], { kind: 'point' }), F('b', 'Point', [1, 0], { kind: 'point' }), F('ar', 'Polygon', [[[0, 0], [1, 0], [1, 1], [0, 0]]], { kind: 'area' }),
-    F('s1', 'LineString', [[0.001, 0], [0.5, 0.5], [1.002, 0]], { kind: 'line', start: { element: 'a' }, end: 'b' }), // a bare ID: read as its centre
-    F('s2', 'LineString', [[0, 0], [2, 2]], { kind: 'line', start: 'a', end: { element: 'ar' } }), // an area's centre: its centroid
-    F('s3', 'LineString', [[3, 3], [2, 2]], { kind: 'line', start: 'gone' }),
-    F('s4', 'LineString', [[3, 3], [2, 2]], { kind: 'line', end: { element: 'ar', vertex: 3 } }),
-    F('s5', 'LineString', [[4, 4], [5, 5]], { kind: 'line', start: { element: 's5', vertex: 1 } }),
-  ]));
+    F('s1', 'LineString', [[0.001, 0], [0.5, 0.5], [1.002, 0]], { kind: 'line' }),
+    F('s2', 'LineString', [[0, 0], [2, 2]], { kind: 'line' }),
+    F('s3', 'LineString', [[3, 3], [2, 2]], { kind: 'line' }),
+    F('s4', 'LineString', [[3, 3], [2, 2]], { kind: 'line' }),
+    F('s5', 'LineString', [[4, 4], [5, 5]], { kind: 'line' }),
+  ], { links: [L(['s1', 0], { element: 'a' }), L(['s1', 2], 'b'), L(['s1', 1], { element: 'ar', vertex: 2 }), // a bare ID: its centre; a middle place as an end
+    L(['s2', 0], 'a'), L(['s2', 1], { element: 'ar' }), L(['s3', 0], 'gone'), L(['s4', 1], { element: 'ar', vertex: 3 }),
+    L(['s5', 0], { element: 's5', vertex: 1 }), L(['s5', 2], 'a'), L(['s1', 0], 'b'), L(['ar', 0], 'a'), 'junk'] }));
   const [s1, s2, s3, s4, s5] = doc.lines;
-  assert.deepEqual([s1.start, s1.end], [{ position: [0, 0], element: 'a' }, { position: [1, 0], element: 'b' }]);
-  assert.deepEqual(s1.vertices[0].position, [0.5, 0.5]); // the vertices stay
-  assert.deepEqual([s2.start.element, s2.end], ['a', { position: d.centroid(doc.areas[0].points), element: 'ar' }]);
-  assert.deepEqual(s3.start, { position: [3, 3], element: null });
-  assert.deepEqual(s4.end, { position: [2, 2], element: null });
-  assert.deepEqual(s5.start, { position: [4, 4], element: null });
-  warned(report, /^3 line ends moved to what they are attached to/);
-  warned(report, /line s4: its end is attached to ar, which is not here \(or has no such vertex or edge\); free/);
-  warned(report, /line s3: its start is attached to gone/);
-  warned(report, /line s5: its start is attached to its own line; free/);
+  assert.deepEqual([0, 1, 2].map((i) => placeIn(doc, s1, i)), [{ position: [0, 0], to: { element: 'a' } }, { position: [1, 1], to: { element: 'ar', vertex: 2 } }, { position: [1, 0], to: { element: 'b' } }]);
+  assert.deepEqual([placeIn(doc, s2, 0).to, placeIn(doc, s2, 1)], [{ element: 'a' }, { position: d.centroid(doc.areas[0].points), to: { element: 'ar' } }]);
+  assert.deepEqual([placeIn(doc, s3, 0), placeIn(doc, s4, 1), placeIn(doc, s5, 0)], [{ position: [3, 3], to: null }, { position: [2, 2], to: null }, { position: [4, 4], to: null }]);
+  assert.equal(doc.links.length, 5);
+  warned(report, /^4 places moved to what they are linked to/);
+  warned(report, /link to ar, which is not here \(or has no such vertex or edge\): dropped/);
+  warned(report, /link to gone, which is not here/);
+  warned(report, /link to its own element: dropped/);
+  warned(report, /link from s5 2, which is not a line's or a label's place here: dropped/);
+  warned(report, /link from ar 0, which is not/);
+  warned(report, /link from a place already linked: dropped/);
 });
 
-test('attached ends in a chain, listed last to first: each end where the one it is on is, however long the chain', () => {
+test('links in a chain, listed last to first: each place where the one it is on is, however long the chain', () => {
   // s4's end on s3's last point, s3's on s2's, s2's on s1's: the file's ends all elsewhere
-  const on = (id) => ({ kind: 'line', end: { element: id, vertex: 1 } });
+  const on = (id, to) => ({ from: [id, 1], to: { element: to, vertex: 1 } });
   const { doc, report } = read(collection([
-    F('s4', 'LineString', [[4, 0], [9, 9]], on('s3')), F('s3', 'LineString', [[3, 0], [8, 8]], on('s2')),
-    F('s2', 'LineString', [[2, 0], [7, 7]], on('s1')), F('s1', 'LineString', [[1, 0], [1, 1]], { kind: 'line' }),
-    F('a', 'Point', [0, 5], { kind: 'label', anchor: { element: 'a' } }),
-  ]));
-  assert.deepEqual(doc.lines.map((s) => s.end.position), [[1, 1], [1, 1], [1, 1], [1, 1]]);
-  warned(report, /^3 line ends moved/);
-  warned(report, /label a: it points at itself; free/);
-  assert.deepEqual(doc.labels[0].anchor, { position: [0, 5], element: null });
+    F('s4', 'LineString', [[4, 0], [9, 9]], { kind: 'line' }), F('s3', 'LineString', [[3, 0], [8, 8]], { kind: 'line' }),
+    F('s2', 'LineString', [[2, 0], [7, 7]], { kind: 'line' }), F('s1', 'LineString', [[1, 0], [1, 1]], { kind: 'line' }),
+    F('a', 'Point', [0, 5], { kind: 'label' }),
+  ], { links: [on('s4', 's3'), on('s3', 's2'), on('s2', 's1'), { from: ['a', 0], to: 'a' }] }));
+  assert.deepEqual(doc.lines.map((s) => s.points[1]), [[1, 1], [1, 1], [1, 1], [1, 1]]);
+  warned(report, /^3 places moved/);
+  warned(report, /link to its own element: dropped/);
+  assert.deepEqual(placeIn(doc, doc.labels[0]), { position: [0, 5], to: null });
 });
 
 test('labels: on an element, along a line, on a vertex, or free; checked; written back', () => {
+  const to = (id, t) => ({ from: [id, 0], to: t });
   const { doc, report } = read(collection([
     F('a', 'Point', [12, 40], { kind: 'point', look: { text: { name: true } } }), F('s', 'LineString', [[12, 40], [13, 40]], { kind: 'line' }),
     F('ar', 'Polygon', [[[12, 41], [13, 41], [13, 42], [12, 41]]], { kind: 'area' }),
-    F('l1', 'Point', [0, 0], { kind: 'label', text: '{name}', anchor: { element: 'a' }, offset: [10, -20], leader: 'none', look: { text: { size: 'large', color: '#AA0000', background: 'box' } } }),
-    F('l2', 'Point', [0, 0], { kind: 'label', anchor: { element: 's', edge: 0, at: 0.123456789 } }),
+    F('l1', 'Point', [0, 0], { kind: 'label', text: '{name}', offset: [10, -20], leader: 'none', look: { text: { size: 'large', color: '#AA0000', background: 'box' } } }),
+    F('l2', 'Point', [0, 0], { kind: 'label' }),
     F('l3', 'Point', [12, 41], { kind: 'label', leader: 'zigzag', offset: 'far', look: { text: { size: 'huge' } } }),
-    F('l4', 'Point', [12, 42], { kind: 'label', anchor: { element: 'gone' } }),
-    F('l5', 'Point', [0, 0], { kind: 'label', anchor: { element: 's', edge: 0, at: -3 } }),
-    F('l6', 'Point', [0, 0], { kind: 'label', anchor: { element: 'a', along: 10 } }), // no distance along a point
+    F('l4', 'Point', [12, 42], { kind: 'label' }),
+    F('l5', 'Point', [0, 0], { kind: 'label' }),
+    F('l6', 'Point', [0, 0], { kind: 'label' }),
     F('l7', 'Point', [12, 99], { kind: 'label' }),
-    F('l8', 'Point', [12, 43], { kind: 'label', anchor: { element: 'a', vertex: 0 } }), // a point without an outline: no vertices
-    F('l9', 'Point', [0, 0], { kind: 'label', anchor: 'ar' }), // a bare ID: its centre
-    F('l10', 'Point', [0, 0], { kind: 'label', anchor: { element: 'ar', vertex: 2 } }),
-  ]));
+    F('l8', 'Point', [12, 43], { kind: 'label' }),
+    F('l9', 'Point', [0, 0], { kind: 'label' }),
+    F('l10', 'Point', [0, 0], { kind: 'label' }),
+  ], { links: [to('l1', { element: 'a' }), to('l2', { element: 's', edge: 0, at: 0.123456789 }), to('l4', { element: 'gone' }), to('l5', { element: 's', edge: 0, at: -3 }),
+    to('l6', { element: 'a', along: 10 }), // no distance along a point
+    to('l7', 'a'), // skipped: not here
+    to('l8', { element: 'a', vertex: 0 }), // a point without an outline: no vertices
+    to('l9', 'ar'), // a bare ID: its centre
+    to('l10', { element: 'ar', vertex: 2 })] }));
   assert.deepEqual(doc.labels.map((x) => x.id), ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l8', 'l9', 'l10']);
   assert.deepEqual(skippedIds(report), ['l7']);
   const [l1, l2, l3, l4, l5, l6, l8, l9, l10] = doc.labels;
-  const text = (a) => d.lookOf(doc, a).text;
-  assert.deepEqual([l1.leader, l1.offset, l1.look, l1.anchor], ['none', [10, -20], { text: { size: 'large', color: '#aa0000', background: 'box' } }, { position: [12, 40], element: 'a' }]);
-  assert.deepEqual([l2.anchor.element, l2.anchor.edge, l2.anchor.at, l2.text, l2.leader, l2.look, text(l2).background], ['s', 0, 0.123456789, '', 'arrow', {}, 'halo']);
-  assert.deepEqual(l2.anchor.position, resolve(doc, l2.anchor).position); // where it points
-  assert.ok(Math.abs(resolve(doc, l2.anchor).along - 0.123456789 * resolve(doc, l2.anchor).length) < 1e-6);
-  assert.deepEqual([l3.anchor, l3.leader, l3.offset, l3.look, text(l3).size], [{ position: [12, 41], element: null }, 'arrow', [40, -40], {}, 'medium']);
-  assert.deepEqual([l4.anchor, l5.anchor, l6.anchor], [{ position: [12, 42], element: null }, { position: [12, 40], element: 's', edge: 0, at: 0 }, { position: [12, 40], element: 'a' }]);
-  assert.deepEqual([l8.anchor, l9.anchor, l10.anchor], [{ position: [12, 43], element: null }, { position: d.centroid(doc.areas[0].points), element: 'ar' }, { position: [13, 42], element: 'ar', vertex: 2 }]);
+  const text = (a) => d.lookOf(doc, a).text, at = (a) => placeIn(doc, a);
+  assert.deepEqual([l1.leader, l1.offset, l1.look, at(l1)], ['none', [10, -20], { text: { size: 'large', color: '#aa0000', background: 'box' } }, { position: [12, 40], to: { element: 'a' } }]);
+  assert.deepEqual([at(l2).to, l2.text, l2.leader, l2.look, text(l2).background], [{ element: 's', edge: 0, at: 0.123456789 }, '', 'arrow', {}, 'halo']);
+  assert.deepEqual(l2.position, resolve(doc, at(l2).to).position); // where it points
+  assert.ok(Math.abs(resolve(doc, at(l2).to).along - 0.123456789 * resolve(doc, at(l2).to).length) < 1e-6);
+  assert.deepEqual([at(l3), l3.leader, l3.offset, l3.look, text(l3).size], [{ position: [12, 41], to: null }, 'arrow', [40, -40], {}, 'medium']);
+  assert.deepEqual([at(l4), at(l5), at(l6)], [{ position: [12, 42], to: null }, { position: [12, 40], to: { element: 's', edge: 0, at: 0 } }, { position: [12, 40], to: { element: 'a' } }]);
+  assert.deepEqual([at(l8), at(l9), at(l10)], [{ position: [12, 43], to: null }, { position: d.centroid(doc.areas[0].points), to: { element: 'ar' } }, { position: [13, 42], to: { element: 'ar', vertex: 2 } }]);
   assert.ok(!('name' in l1.look.text));
-  for (const re of [/leader: unknown "zigzag"/, /offset: not \[x, y\]/, /size "huge" unknown/, /label l4: it points at gone, which is not here; free/, /label l8: it points at a, which is not here; free/]) warned(report, re);
+  for (const re of [/leader: unknown "zigzag"/, /offset: not \[x, y\]/, /size "huge" unknown/, /link to gone, which is not here/, /link to a, which is not here \(or has no such vertex/, /link from l7 0, which is not/]) warned(report, re);
   assert.deepEqual(doc.points[0].look, { text: { name: true } });
-  const f = toFile(doc), out = (id) => f.features.find((x) => x.id === id);
-  assert.deepEqual(out('l2').properties.charts.anchor, { element: 's', edge: 0, at: 0.123457 });
-  assert.deepEqual([out('l1').properties.charts.anchor, out('l9').properties.charts.anchor, out('l10').properties.charts.anchor], [{ element: 'a' }, { element: 'ar' }, { element: 'ar', vertex: 2 }]);
-  assert.ok(!('anchor' in out('l4').properties.charts)); // free: none
+  const f = toFile(doc), out = (id) => f.features.find((x) => x.id === id), linked = (id) => f.charts.links.find((l) => l.from[0] === id)?.to;
+  assert.deepEqual(linked('l2'), { element: 's', edge: 0, at: 0.123457 });
+  assert.deepEqual([linked('l1'), linked('l9'), linked('l10'), linked('l4')], [{ element: 'a' }, { element: 'ar' }, { element: 'ar', vertex: 2 }, undefined]); // free: none
   assert.deepEqual(out('l1').geometry.coordinates, [12, 40]); // where it points
   assert.deepEqual(out('l10').geometry.coordinates, [13, 42]);
-  l2.anchor.at = 0.123457; // as the file writes it
-  l2.anchor.position = resolve(doc, l2.anchor).position;
+  at(l2).to.at = 0.123457; // as the file writes it
+  refreshAttached(doc);
   assert.deepEqual(again(doc).doc, doc);
 });
 
@@ -568,55 +582,80 @@ test('parts: round and outline ones by place, each one\'s reach, the largest out
   assert.deepEqual([d.followedPart(p), d.pointKind(p)], [null, 'ellipse']);
 });
 
-test('lines: ends attached to points or free; vertices inserted and deleted', () => {
+test('lines: positions and names only, ties in the links; places inserted and deleted, the links from them numbered again', () => {
   const doc = emptyDoc(NOW);
-  const a = addPoint(doc, [12, 41]);
-  const s = addLine(doc, a.id, [[12.1, 41.1]], [12.2, 41]);
-  assert.deepEqual([s.name, s.start, s.end, s.smooth, s.guide], ['Line 1', { position: [12, 41], element: a.id }, { position: [12.2, 41], element: null }, false, false]);
-  assert.equal(doc.points.length, 1); // no point made for a free end
+  const a = addPoint(doc, [12, 41]), b = addPoint(doc, [12.3, 41.2]);
+  const s = d.addLine(doc, [[12, 41], [12.1, 41.1], [12.2, 41]]);
+  assert.deepEqual([s.name, s.points, s.names, s.smooth, s.guide], ['Line 1', [[12, 41], [12.1, 41.1], [12.2, 41]], ['', '', ''], false, false]);
   assert.deepEqual(placeOf('line', s), [12, 41]);
-  d.insertVertex(s, 1, [12.15, 41.05]);
-  assert.deepEqual(s.vertices.map((v) => v.position), [[12.1, 41.1], [12.15, 41.05]]);
-  d.deleteVertex(s, 0);
+  d.setLink(doc, s.id, 0, { element: a.id, d: 2, position: [0, 0] }); // the target alone kept
+  d.setLink(doc, s.id, 2, { element: b.id });
+  assert.deepEqual(doc.links, [{ from: [s.id, 0], to: { element: a.id } }, { from: [s.id, 2], to: { element: b.id } }]);
+  s.names[1] = 'bend';
+  insertPlace(doc, s.id, 1, [12.05, 41.05]);
+  assert.deepEqual([s.points.length, s.names, doc.links.map((l) => l.from[1])], [4, ['', '', 'bend', ''], [0, 3]]);
+  deletePlace(doc, s.id, 0); // the start: the link from it goes, the others move down
+  assert.deepEqual([s.points[0], s.names, doc.links], [[12.05, 41.05], ['', 'bend', ''], [{ from: [s.id, 2], to: { element: b.id } }]]);
+  deletePlace(doc, s.id, 1);
+  deletePlace(doc, s.id, 0); // two are kept
+  assert.deepEqual([s.points.length, doc.links.map((l) => l.from[1])], [2, [1]]);
+  d.setLink(doc, s.id, 1, null); // free where it is
+  assert.deepEqual([doc.links, s.points[1]], [[], [12.2, 41]]);
   assert.deepEqual(again(doc).doc, doc);
+});
+
+test('a middle place linked follows its target; deleting the target frees it, where it was', () => {
+  const doc = emptyDoc(NOW);
+  const a = addPoint(doc, [0, 0.5]);
+  const s = d.addLine(doc, [[0, 0], [1, 0], [2, 0]]);
+  d.setLink(doc, s.id, 1, { element: a.id });
+  refreshAttached(doc);
+  assert.deepEqual(s.points, [[0, 0], [0, 0.5], [2, 0]]);
+  a.position = [1, 1];
+  refreshAttached(doc);
+  assert.deepEqual(s.points[1], [1, 1]);
+  remove(doc, [a.id]);
+  refreshAttached(doc);
+  assert.deepEqual([s.points[1], doc.links], [[1, 1], []]);
 });
 
 test('attached ends follow their point; a point gone leaves them free where they were', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]);
-  const s = addLine(doc, a.id, [], b.id), t = addLine(doc, b.id, [], [2, 0]);
+  const s = lineFrom(doc, a.id, [], b.id), t = lineFrom(doc, b.id, [], [2, 0]);
   a.position = [0, 0.5];
   refreshAttached(doc);
-  assert.deepEqual(s.start, { position: [0, 0.5], element: a.id });
+  assert.deepEqual(placeIn(doc, s, 0), { position: [0, 0.5], to: { element: a.id } });
   assert.deepEqual(dependents(doc, [b.id]), new Set([b.id])); // lines do not go with a point
   assert.deepEqual([...remove(doc, [b.id])], [b.id]);
   refreshAttached(doc); // after every change
   assert.deepEqual(doc.lines.map((x) => x.id), [s.id, t.id]);
-  assert.deepEqual([s.end, t.start], [{ position: [1, 0], element: null }, { position: [1, 0], element: null }]);
+  assert.deepEqual([placeIn(doc, s, -1), placeIn(doc, t, 0)], [{ position: [1, 0], to: null }, { position: [1, 0], to: null }]);
   doc.points = []; // gone some other way
   refreshAttached(doc);
-  assert.equal(s.start.element, null);
-  assert.deepEqual(s.start.position, [0, 0.5]);
+  assert.deepEqual([placeIn(doc, s, 0), doc.links], [{ position: [0, 0.5], to: null }, []]);
 });
 
-test('split a line at a vertex: a dot carrying the vertex\'s name, both lines attached to it', () => {
+test('split a line at a place: a dot carrying the place\'s name, both lines linked to it; the links of the second half go with it', () => {
   const doc = emptyDoc(NOW);
-  const a = addPoint(doc, [0, 0]);
-  const s = addLine(doc, a.id, [[1, 0], [2, 0], [3, 0]], [4, 0], { name: 'Main' });
-  Object.assign(s.vertices[1], { name: 'bend' });
-  const p = splitLine(doc, s.id, 1);
+  const a = addPoint(doc, [0, 0]), b = addPoint(doc, [3, 1]);
+  const s = lineFrom(doc, a.id, [[1, 0], [2, 0], [3, 0]], [4, 0], { name: 'Main' });
+  s.names[2] = 'bend';
+  d.setLink(doc, s.id, 3, { element: b.id });
+  d.setLink(doc, s.id, 2, { element: b.id }); // the place split at: its link goes, the point is there
+  const p = splitLine(doc, s.id, 2);
   const rest = doc.lines[1];
   assert.deepEqual([p.symbol, p.parts, p.name, p.properties, p.position], ['dot', [], 'bend', [], [2, 0]]);
-  assert.deepEqual([s.end, s.vertices.map((v) => v.position)], [{ position: [2, 0], element: p.id }, [[1, 0]]]);
-  assert.deepEqual([rest.start, rest.end, rest.vertices.map((v) => v.position), rest.name],
-    [{ position: [2, 0], element: p.id }, { position: [4, 0], element: null }, [[3, 0]], 'Line 1']);
+  assert.deepEqual([s.points, s.names, placeIn(doc, s, -1).to], [[[0, 0], [1, 0], [2, 0]], ['', '', ''], { element: p.id }]);
+  assert.deepEqual([rest.points, rest.names, rest.name], [[[2, 0], [3, 0], [4, 0]], ['', '', ''], 'Line 1']);
+  assert.deepEqual(doc.links.map((l) => [l.from, l.to.element]), [[[s.id, 0], a.id], [[rest.id, 1], b.id], [[s.id, 2], p.id], [[rest.id, 0], p.id]]);
   assert.notEqual(rest.id, s.id);
-  assert.equal(splitLine(doc, s.id, 0).name, 'Point 2'); // an unnamed vertex: the next point's name
+  assert.equal(splitLine(doc, s.id, 1).name, 'Point 3'); // an unnamed place: the next point's name
 });
 
 test('measurements: guides showing their values (a line, an area, a point with its radius), drawn as while measured', () => {
   const doc = emptyDoc(NOW), m = () => ({ guide: true, look: { text: { values: true } } });
-  const r1 = addLine(doc, [12, 44], [[12.5, 44.2]], [13, 44], { ...m(), name: 'Distance 1' });
+  const r1 = lineFrom(doc, [12, 44], [[12.5, 44.2]], [13, 44], { ...m(), name: 'Distance 1' });
   const c = addPoint(doc, [14, 40], { ...m(), symbol: 'none', parts: [makePart('circle', { radius: 5000 })] });
   const a = addArea(doc, [[12, 44], [13, 44], [12.5, 45]], m());
   assert.ok([r1, c, a].every((x) => isMeasurement(doc, x)));
@@ -645,7 +684,7 @@ test('shown: hidden itself, or in a hidden group', () => {
 test('groups: made from a selection, only who is in it changes: members keep their own look and parts, joining or leaving', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [12, 41]), b = addPoint(doc, [12.1, 41]), h = addShape(doc, [12, 40]), j = addDot(doc, [13, 40]);
-  const s = addLine(doc, a.id, [], b.id, { look: { offset: 6 } });
+  const s = lineFrom(doc, a.id, [], b.id, { look: { offset: 6 } });
   a.parts[0].radius = 750;
   a.look.fill = { color: '#123456' };
   b.look.fill = { color: '#654321' };
@@ -683,7 +722,7 @@ test('a sector is the point\'s own: joining or leaving a group keeps it as it wa
 test('a label in a group keeps its own colour; else the default', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]);
-  const l = addLabel(doc, { element: a.id }), m = addLabel(doc, { element: a.id });
+  const l = labelAt(doc, { element: a.id }), m = labelAt(doc, { element: a.id });
   l.look.text = { color: '#111111' };
   makeGroup(doc, [l.id, m.id]);
   assert.deepEqual([d.lookOf(doc, l).text.color, d.lookOf(doc, m).text.color], ['#111111', '#1f2c36']);
@@ -692,7 +731,7 @@ test('a label in a group keeps its own colour; else the default', () => {
 test('delete a group: members ungrouped, keeping their own parts, or deleted with it; ends attached to them freed', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]), c = addPoint(doc, [2, 0]);
-  const s = addLine(doc, a.id, [], c.id);
+  const s = lineFrom(doc, a.id, [], c.id);
   const g = makeGroup(doc, [c.id, b.id]);
   Object.assign(c.parts[0], { kind: 'sector', radius: 50, aperture: 30 });
   assert.deepEqual(dependents(doc, [g.id]), new Set([g.id]));
@@ -702,20 +741,20 @@ test('delete a group: members ungrouped, keeping their own parts, or deleted wit
   const [kb, kc] = [b.id, c.id].map((id) => kept.points.find((p) => p.id === id));
   assert.deepEqual([kc.groupId, kc.parts.map((x) => [x.kind, x.radius, x.aperture]), kept.groups], [null, [['sector', 50, 30]], []]);
   assert.deepEqual(kb.parts.map((x) => [x.kind, x.radius, x.aperture]), [['circle', 1000, undefined]]);
-  assert.equal(kept.lines[0].end.element, c.id);
+  assert.equal(placeIn(kept, kept.lines[0], -1).to.element, c.id);
   const gone = structuredClone(doc);
   remove(gone, [g.id], true);
   refreshAttached(gone); // after every change
   assert.deepEqual(gone.points.map((p) => p.id), [a.id]);
-  assert.deepEqual(gone.lines[0].end, { position: [2, 0], element: null }); // the line stays, its end free
-  assert.equal(s.end.element, c.id); // the original untouched
+  assert.deepEqual(placeIn(gone, gone.lines[0], -1), { position: [2, 0], to: null }); // the line stays, its end free
+  assert.equal(placeIn(doc, s, -1).to.element, c.id); // the original untouched
 });
 
 test('delete a group: members ungrouped keep the group\'s style and colour as their own', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]);
-  const s = addLine(doc, a.id, [], [1, 0]);
-  const l = addLabel(doc, { element: a.id });
+  const s = lineFrom(doc, a.id, [], [1, 0]);
+  const l = labelAt(doc, { element: a.id });
   const g = makeGroup(doc, [a.id, s.id, l.id]);
   g.look = { fill: { color: '#abcdef' }, stroke: { color: '#123456' } };
   const before = [styleOf(doc, a), styleOf(doc, s).stroke, d.lookOf(doc, l).text.color];
@@ -726,7 +765,7 @@ test('delete a group: members ungrouped keep the group\'s style and colour as th
 test('nested groups: a group of members of a group is a subgroup of it; visibility comes down the chain', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]), c = addPoint(doc, [2, 0]);
-  const s = addLine(doc, a.id, [], b.id);
+  const s = lineFrom(doc, a.id, [], b.id);
   const top = makeGroup(doc, [a.id, b.id, c.id, s.id]);
   const sub = makeGroup(doc, [a.id, s.id]);
   assert.equal(sub.groupId, top.id, 'in the group its members were in');
@@ -784,8 +823,8 @@ test('nested groups in the file: the parent kept; one missing or making a loop p
 test('the look: the drawing\'s defaults, then its own (a group adds nothing); a measurement keeps its name off; written where each belongs', () => {
   const doc = emptyDoc(NOW);
   const a = addPoint(doc, [0, 0]), b = addPoint(doc, [1, 0]);
-  const m = addLine(doc, [0, 0], [], [1, 1], { guide: true, look: { text: { values: true } } });
-  const s = addLine(doc, a.id, [], b.id);
+  const m = lineFrom(doc, [0, 0], [], [1, 1], { guide: true, look: { text: { values: true } } });
+  const s = lineFrom(doc, a.id, [], b.id);
   doc.look = { text: { name: true }, offset: 4, minSize: 20 };
   assert.deepEqual([d.lookOf(doc, a).text.name, d.lookOf(doc, m).text.name, offsetOf(doc, s), d.minSizeOf(doc)], [true, false, 4, 20]);
   makeGroup(doc, [a.id, s.id]);

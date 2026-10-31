@@ -1,15 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { near, addShape } from './helpers.mjs';
+import { near, addShape, lineFrom } from './helpers.mjs';
 
 const { anchorsOf, lineTrace, leg, pointsAlong, nearestAlong, totals } = await import('../../site/draw/lines.js');
-const { emptyDoc, addPoint, addDot, addLine, addArea, makeGroup, splitLine, remove, makePart } = await import('../../site/draw/document.js');
+const { emptyDoc, addPoint, addDot, addArea, makeGroup, remove, makePart, linkFrom } = await import('../../site/draw/document.js');
+const { splitLine } = await import('../../site/draw/attach.js');
 const { settleGeometry } = await import('../../site/draw/store.js');
 const { inverse } = await import('../../site/geodesy.js');
 const { mercator } = await import('../../site/geo.js');
 
 // a line from start to end (positions or point IDs) through vertices, in a new document unless one is given
-const lineOf = (start, vertices, end, opts = {}, doc = emptyDoc(0)) => ({ doc, line: addLine(doc, start, vertices, end, opts) });
+const lineOf = (start, vertices, end, opts = {}, doc = emptyDoc(0)) => ({ doc, line: lineFrom(doc, start, vertices, end, opts) });
 
 test('straight legs: the same length as the ruler over the same points', () => {
   const pts = [[9.5245389, 37.2913083], [9.5179611, 37.2983056], [9.4870056, 37.5712417], [10.62, 42.8]];
@@ -71,8 +72,8 @@ test('a handle of [100, 0] at 60° N is 200 m of Mercator x', () => {
 
 test('across the antimeridian: continuous longitudes', () => {
   const doc = emptyDoc(0);
-  addLine(doc, [179.5, -17], [[179.9, -16.6]], [-179.5, -16]);
-  addLine(doc, [179.5, -17], [[179.9, -16.6]], [-179.5, -16], { smooth: true });
+  lineFrom(doc, [179.5, -17], [[179.9, -16.6]], [-179.5, -16]);
+  lineFrom(doc, [179.5, -17], [[179.9, -16.6]], [-179.5, -16], { smooth: true });
   for (const s of doc.lines) {
     const { coords } = lineTrace(doc, s);
     for (let i = 1; i < coords.length; i++) assert.ok(Math.abs(coords[i][0] - coords[i - 1][0]) < 1, `${s.name}: jump at ${i}`);
@@ -84,7 +85,7 @@ test('a trace is computed again when an anchor moves, and not otherwise', () => 
   const { doc, line } = lineOf([12, 40], [[12.1, 40]], [12.2, 40]);
   const first = lineTrace(doc, line);
   assert.equal(lineTrace(doc, line), first, 'unchanged: the same trace');
-  line.vertices[0].position = [12.1, 40.1];
+  line.points[1] = [12.1, 40.1];
   const moved = lineTrace(doc, line);
   assert.notEqual(moved, first);
   assert.ok(moved.length > first.length, 'a bent line is longer');
@@ -115,9 +116,9 @@ test('totals: per group and in all; guides left out; hidden elements flagged', (
   const doc = emptyDoc(0);
   const ringedPoint = addPoint(doc, [12, 40]), dot = addDot(doc, [12.1, 40]);
   addPoint(doc, [12.2, 40], { guide: true });
-  const inGroup = addLine(doc, ringedPoint.id, [], dot.id, { properties: [{ key: 'kind', value: 'x' }] });
-  addLine(doc, [12, 40], [], [12.3, 40], { guide: true });
-  const hidden = addLine(doc, [12, 41], [[12.1, 41.1]], [12.2, 41], { properties: [{ key: 'kind', value: 'x' }], visible: false });
+  const inGroup = lineFrom(doc, ringedPoint.id, [], dot.id, { properties: [{ key: 'kind', value: 'x' }] });
+  lineFrom(doc, [12, 40], [], [12.3, 40], { guide: true });
+  const hidden = lineFrom(doc, [12, 41], [[12.1, 41.1]], [12.2, 41], { properties: [{ key: 'kind', value: 'x' }], visible: false });
   addArea(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
   addArea(doc, [[13, 42], [13.1, 42], [13.1, 42.1]], { guide: true });
   const g = makeGroup(doc, [ringedPoint.id, dot.id, inGroup.id]);
@@ -152,23 +153,23 @@ test('a smooth line follows its vertices: longer than straight, its curve again 
   line.smooth = true;
   const curved = lineTrace(doc, line);
   assert.ok(curved.length > straight, 'a curve through the vertex is longer than its two legs');
-  line.vertices[0].position = [12.1, 40.1];
+  line.points[1] = [12.1, 40.1];
   assert.notEqual(lineTrace(doc, line), curved, 'computed again');
 });
 
 test('an attached end follows its point; one whose point is deleted stays where it was, free', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.2, 40]);
-  const line = addLine(doc, a.id, [[12.1, 40.05]], b.id);
-  assert.deepEqual([line.start, line.end], [{ position: [12, 40], element: a.id }, { position: [12.2, 40], element: b.id }]);
+  const line = lineFrom(doc, a.id, [[12.1, 40.05]], b.id);
+  assert.deepEqual([line.points[0], line.points[2], linkFrom(doc, line.id, 0).to, linkFrom(doc, line.id, 2).to], [[12, 40], [12.2, 40], { element: a.id }, { element: b.id }]);
   const before = lineTrace(doc, line).length;
   b.position = [12.4, 40];
   settleGeometry(doc);
-  assert.deepEqual(line.end.position, [12.4, 40]);
+  assert.deepEqual(line.points[2], [12.4, 40]);
   assert.ok(lineTrace(doc, line).length > before, 'longer');
   remove(doc, [b.id]);
   settleGeometry(doc);
-  assert.deepEqual(line.end, { position: [12.4, 40], element: null });
+  assert.deepEqual([line.points[2], linkFrom(doc, line.id, 2), doc.links.length], [[12.4, 40], undefined, 1]);
 });
 
 test('totals: a point with at least one round part counted as ringed, whatever else it has', () => {
@@ -184,25 +185,26 @@ test('totals: a point with at least one round part counted as ringed, whatever e
 test('split: a vertex becomes a dot both parts are attached to; lengths unchanged; the dot moved, both follow', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.4, 40]);
-  const s = addLine(doc, a.id, [[12.1, 40.05], [12.2, 40.1], [12.3, 40.05]], b.id, { name: 'Main' });
-  Object.assign(s.vertices[1], { name: 'Mark' });
+  const s = lineFrom(doc, a.id, [[12.1, 40.05], [12.2, 40.1], [12.3, 40.05]], b.id, { name: 'Main' });
+  s.names[2] = 'Mark';
   const whole = lineTrace(doc, s).length;
-  const p = splitLine(doc, s.id, 1);
+  const p = splitLine(doc, s.id, 2); // its place 2: 0 its start
   assert.deepEqual([p.name, p.position, p.properties, p.symbol, p.parts], ['Mark', [12.2, 40.1], [], 'dot', []]);
   const [first, rest] = doc.lines;
-  assert.deepEqual([first.id, first.end, first.vertices.length], [s.id, { position: [12.2, 40.1], element: p.id }, 1]);
-  assert.deepEqual([rest.start, rest.end, rest.vertices.length], [{ position: [12.2, 40.1], element: p.id }, { position: [12.4, 40], element: b.id }, 1]);
+  const to = (l, i) => linkFrom(doc, l.id, i)?.to;
+  assert.deepEqual([first.id, first.points.at(-1), to(first, 2), first.points.length, first.names], [s.id, [12.2, 40.1], { element: p.id }, 3, ['', '', '']]);
+  assert.deepEqual([rest.points[0], to(rest, 0), rest.points.at(-1), to(rest, 2), rest.points.length], [[12.2, 40.1], { element: p.id }, [12.4, 40], { element: b.id }, 3]);
   assert.notEqual(rest.id, first.id);
   near(lineTrace(doc, first).length + lineTrace(doc, rest).length, whole, 1e-6, 'length');
   p.position = [12.2, 40.2];
   settleGeometry(doc);
-  assert.deepEqual([first.end.position, rest.start.position], [[12.2, 40.2], [12.2, 40.2]]);
+  assert.deepEqual([first.points.at(-1), rest.points[0]], [[12.2, 40.2], [12.2, 40.2]]);
 });
 
 test('totals: a group counts everything in it, its subgroups\' too', () => {
   const doc = emptyDoc(0);
   const a = addPoint(doc, [12, 40]), b = addPoint(doc, [12.1, 40]), c = addPoint(doc, [12.2, 40]);
-  const s = addLine(doc, a.id, [], b.id);
+  const s = lineFrom(doc, a.id, [], b.id);
   const top = makeGroup(doc, [a.id, b.id, c.id, s.id]), sub = makeGroup(doc, [a.id, s.id]);
   const t = totals(doc);
   assert.deepEqual([t.groups.get(top.id).points, t.groups.get(top.id).lines, t.groups.get(sub.id).points, t.groups.get(sub.id).lines], [3, 1, 1, 1]);
@@ -214,9 +216,9 @@ test('breakdown: lines by group with each listed, a connection\'s summed by what
   const { breakdown } = await import('../../site/draw/lines.js');
   const { connect } = await import('../../site/draw/generator.js');
   const doc = emptyDoc(0);
-  const a = addLine(doc, [12, 40], [], [12.1, 40], { name: 'A' });
-  addLine(doc, [12, 40.2], [], [12.1, 40.2], { visible: false });
-  addLine(doc, [12, 40.4], [], [12.1, 40.4], { guide: true });
+  const a = lineFrom(doc, [12, 40], [], [12.1, 40], { name: 'A' });
+  lineFrom(doc, [12, 40.2], [], [12.1, 40.2], { visible: false });
+  lineFrom(doc, [12, 40.4], [], [12.1, 40.4], { guide: true });
   const g = makeGroup(doc, [a.id]);
   addArea(doc, [[12, 42], [12.1, 42], [12.1, 42.1]]);
   addPoint(doc, [13, 40]); addPoint(doc, [13, 40], { parts: [makePart('circle', { radius: 100 })] }); addPoint(doc, [13, 40], { parts: [makePart('rectangle', { length: 10, width: 5 })] });

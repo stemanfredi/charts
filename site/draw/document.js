@@ -4,12 +4,14 @@
 // Four primitives and the group:
 //   point: one position; a symbol (screen size) and its parts about it, to scale (circles, sectors,
 //     outlines), one bearing for the outlines' front and the sectors' centre;
-//   line: vertices joined by legs, its two ends free positions or attached to a point (following it);
+//   line: places joined by legs;
 //   area: a free polygon;
-//   label: text pointing at an element, or free;
+//   label: text pointing at a place;
 //   group: members kept together, with no look of its own; a group can be in a group (its parent).
 // Any element can be a guide (supporting geometry: faint, left out of totals). How each is drawn is
 // its look (docs/drawing-ui.md §5): its own values, else the drawing's, else the defaults.
+// Elements hold positions only; what ties a place of one to another is in the drawing's links (one
+// table: { from: [id, index], to: a target, attach.js }), applied after each change.
 
 
 export const FORMAT = 'charts-drawing';
@@ -78,7 +80,6 @@ export const LABEL_OFFSET = Object.freeze([40, -40]); // px: a new label's text,
 const NEW_RADIUS = 1000; // a new point's one radius: a neutral starting value, not a preset
 export const MAX_RADIUS = 1e7;
 
-const clone = (x) => structuredClone(x);
 export const isoNow = (now) => new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 // ---- IDs -----------------------------------------------------------------------------------
@@ -104,7 +105,7 @@ export const META_D = { title: '', description: '', author: '' };
 export function emptyDoc(now = Date.now()) {
   const t = isoNow(now);
   return { created: t, modified: t, meta: { ...META_D }, look: {},
-    groups: [], points: [], lines: [], areas: [], labels: [], rules: [] };
+    groups: [], points: [], lines: [], areas: [], labels: [], rules: [], links: [] };
 }
 
 // ---- reading the document --------------------------------------------------------------------
@@ -120,7 +121,7 @@ export function find(doc, id) {
 // the mean of a list of positions (an area's place, for its name and labels)
 export const centroid = (pts) => [pts.reduce((a, q) => a + q[0], 0) / pts.length, pts.reduce((a, q) => a + q[1], 0) / pts.length];
 // where an element is: a point's position, an area's centroid, a line's start
-export const placeOf = (kind, el) => (kind === 'point' ? el.position : kind === 'area' ? centroid(el.points) : kind === 'line' ? el.start.position : null);
+export const placeOf = (kind, el) => (kind === 'point' ? el.position : kind === 'area' ? centroid(el.points) : kind === 'line' ? el.points[0] : null);
 // what the panel calls an element: its name, or for an unnamed one its kind and where it is
 export function label(kind, el) {
   if (el.name?.trim()) return el.name;
@@ -163,13 +164,11 @@ export function leavesOf(doc, ids) {
   const want = new Set(ids);
   return elements(doc).filter((x) => x.kind !== 'group' && (want.has(x.el.id) || groupsOf(doc, x.el).some((g) => want.has(g.id))));
 }
-// every position an element has (to move it), as [object, key] pairs: a line's ends as references (an
-// attached one's follows what it is on), a label's where it points
+// every position an element has, as [object, key] pairs, in the order of its places (a link's from
+// index): a line's places, an area's corners, a label's where it points
 export function positionsIn(kind, el) {
-  if (kind === 'point') return [[el, 'position']];
-  if (kind === 'area') return el.points.map((_, i) => [el.points, i]);
-  if (kind === 'line') return [[el.start, 'position'], [el.end, 'position'], ...el.vertices.map((v) => [v, 'position'])];
-  if (kind === 'label') return [[el.anchor, 'position']];
+  if (kind === 'point' || kind === 'label') return [[el, 'position']];
+  if (kind === 'area' || kind === 'line') return el.points.map((_, i) => [el.points, i]);
   return [];
 }
 // a measurement: its name not on the map, whatever the drawing's names
@@ -231,20 +230,13 @@ export function addArea(doc, points, opts = {}) {
   doc.areas.push(g);
   return g;
 }
-// a line's end: at a point (its ID: attached to its centre, following it), attached otherwise (an end
-// { position, element, corner | edge and at | vertex }: attach.js), or a free position
-const endOf = (doc, x) => (typeof x === 'string' ? { position: [...doc.points.find((p) => p.id === x).position], element: x }
-  : Array.isArray(x) ? { position: [...x], element: null } : { element: null, ...structuredClone(x), position: [...x.position] }); // free: element null, the one shape
-// A line from start to end (each a point's ID, an attached end, or a position) through positions, its
-// legs straight (geodesics). Returns it.
-export function addLine(doc, start, positions, end, opts = {}) {
-  const taken = idsOf(doc);
-  const s = { ...base(doc, 'line', taken), start: endOf(doc, start), end: endOf(doc, end), smooth: false,
-    guide: false, vertices: positions.map((p) => vertex(p)), ...opts };
+// A line through positions (two or more), its legs straight (geodesics), each place unnamed. Returns it.
+export function addLine(doc, positions, opts = {}) {
+  const s = { ...base(doc, 'line'), points: positions.map((p) => [...p]), names: positions.map(() => ''), smooth: false, guide: false, ...opts };
   doc.lines.push(s);
   return s;
 }
-const vertex = (p) => ({ position: [...p], name: '' });
+export const MIN_PLACES = { line: 2, area: 3 }; // the fewest places each keeps
 // a part added to a point: a round one twice the reach of the last round one (filled when it is the
 // first), an outline of the default size; one taken away (by its place)
 export function addPart(p, kind = 'circle') {
@@ -255,30 +247,43 @@ export function addPart(p, kind = 'circle') {
   return part;
 }
 export function removePart(p, i) { p.parts = p.parts.filter((_, k) => k !== i); }
-// A label anchored as anchor (a reference, attach.js): on an element its name, and its text
-// up and to the right with a leader; at a free position, the text there, no leader.
-export function addLabel(doc, anchor) {
-  const free = !anchor.element;
+// A label pointing at position, linked to `to` (a target, attach.js) when given: on an element its
+// name, and its text up and to the right with a leader; free, the text there, no leader.
+export function addLabel(doc, position, to = null) {
   // no name: it goes by its text (tree.js shownName)
-  const a = { ...base(doc, 'label', undefined, ''), text: free ? 'Text' : '{name}', anchor: { element: null, ...clone(anchor) }, offset: free ? [0, 0] : [...LABEL_OFFSET], leader: free ? 'none' : 'arrow' };
+  const a = { ...base(doc, 'label', undefined, ''), text: to ? '{name}' : 'Text', position: [...position], offset: to ? [...LABEL_OFFSET] : [0, 0], leader: to ? 'arrow' : 'none' };
   doc.labels.push(a);
+  setLink(doc, a.id, 0, to);
   return a;
+}
+
+// ---- links ---------------------------------------------------------------------------------------
+
+// What a link points at, nothing else (a snap's or refNear's distance and position left out):
+// { element, part?, vertex? | edge and at? } (attach.js resolve)
+export const targetOf = ({ element, part, vertex, edge, at }) => ({ element, ...(part != null ? { part } : {}), ...(vertex != null ? { vertex } : edge != null ? { edge, at: at ?? 0 } : {}) });
+// the link from place index of element id, or undefined
+export const linkFrom = (doc, id, index = 0) => doc.links.find((l) => l.from[0] === id && l.from[1] === index);
+// place index of element id tied to `to` (a target), or free where it is (to null): one link a place
+export function setLink(doc, id, index, to) {
+  doc.links = doc.links.filter((l) => l.from[0] !== id || l.from[1] !== index);
+  if (to) doc.links.push({ from: [id, index], to: targetOf(to) });
 }
 
 // ---- deleting -------------------------------------------------------------------------------------
 
 // What deleting the elements ids takes with it: everything in a group, when withMembers (otherwise
-// its members and subgroups go to the group above it). Lines attached to a point deleted stay, their
-// ends free where they were; labels on it too. A Set of IDs.
+// its members and subgroups go to the group above it). What is linked to an element deleted stays,
+// free where it was. A Set of IDs.
 export function dependents(doc, ids, withMembers = false) {
   const all = new Set(ids);
   if (withMembers) for (const { el } of elements(doc)) if (groupsOf(doc, el).some((g) => all.has(g.id))) all.add(el.id);
   return all;
 }
 // Delete ids and what goes with them (dependents); the members and subgroups of a deleted group go to
-// the group above it (or none), unless withMembers, keeping their look. Ends attached to what goes,
-// and labels pointing at it, become free where they were at the next refresh (attach.js
-// refreshAttached, after every change).
+// the group above it (or none), unless withMembers, keeping their look. The links from and to what
+// goes are dropped at the next refresh (attach.js refreshAttached, after every change): what was
+// linked to it is free where it was.
 export function remove(doc, ids, withMembers = false) {
   const all = dependents(doc, ids, withMembers);
   // where each one staying in a deleted group goes: the nearest group above it that stays, read while
@@ -291,27 +296,6 @@ export function remove(doc, ids, withMembers = false) {
   for (const kind of KINDS) doc[KIND[kind].list] = doc[KIND[kind].list].filter((el) => !all.has(el.id));
   for (const [el, gid] of moves) el.groupId = gid;
   return all;
-}
-
-// ---- lines, vertices --------------------------------------------------------------------------------
-
-// a vertex added at index, one taken away (what points at the line's vertices and edges: attach.js
-// addVertex, removeVertex)
-export function insertVertex(line, index, position) { line.vertices.splice(index, 0, vertex(position)); }
-export function deleteVertex(line, index) { line.vertices.splice(index, 1); }
-// Split a line at its vertex index: the vertex becomes a point (a dot, with the vertex's name), the
-// line ends there, and a new line carries on from it with the rest, both attached
-// to it (what points at the line: attach.js splitKeeping). Returns the new point.
-export function splitLine(doc, lineId, index) {
-  const s = doc.lines.find((x) => x.id === lineId), v = s.vertices[index];
-  const taken = idsOf(doc);
-  const p = addPoint(doc, v.position, { name: v.name || nextName(doc, 'point'), symbol: 'dot', parts: [] }, taken);
-  const rest = { ...clone(s), id: newId(doc, taken), name: nextName(doc, 'line'), start: { position: [...v.position], element: p.id }, end: clone(s.end),
-    vertices: clone(s.vertices.slice(index + 1)) };
-  s.end = { position: [...v.position], element: p.id };
-  s.vertices = s.vertices.slice(0, index);
-  doc.lines.splice(doc.lines.indexOf(s) + 1, 0, rest);
-  return p;
 }
 
 // ---- groups ----------------------------------------------------------------------------------------

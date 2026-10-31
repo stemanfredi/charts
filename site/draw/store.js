@@ -9,8 +9,8 @@ import { refreshGenerated, reconnectWithout } from './generator.js';
 
 const UNDO_STEPS = 100, UNDO_BYTES = 20e6;
 
-// after any change: attached ends follow their points, a distribution's copies follow their line and
-// a hub its points; then the lines attached to those follow again
+// after any change: linked places follow their targets, a distribution's copies follow their line and
+// a hub its points; then the places linked to those follow again
 export function settleGeometry(doc) {
   refreshAttached(doc);
   refreshGenerated(doc);

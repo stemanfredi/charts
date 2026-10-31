@@ -2,16 +2,15 @@
 // reads it as it is, and this app reads any GeoJSON (what is not its own becomes plain points, lines
 // and areas). Each element is a Feature with its real geometry; the user's properties and the common
 // style names (stroke, fill…) are its properties; what is the app's own is under one key, "charts";
-// the drawing's view, look, groups and rules are a member "charts" of the collection.
-// Legs are geodesics, or a smooth curve through the vertices (other tools draw them straight in
-// longitude and latitude: the geometry holds the vertices, "smooth" is the app's). Drawings of another format version are not read. Pure: no map, no DOM.
+// the drawing's view, look, groups, rules and links are a member "charts" of the collection.
+// Legs are geodesics, or a smooth curve through the places (other tools draw them straight in
+// longitude and latitude: the geometry holds the places, "smooth" is the app's). Drawings of another format version are not read. Pure: no map, no DOM.
 
 import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET, META_D,
-  emptyDoc, newId, columnsOf } from './document.js';
+  emptyDoc, newId, columnsOf, find, linkFrom, targetOf } from './document.js';
 import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, pointSpec, parts, readView, VIEW_D, VIEW_DATA_D } from './check.js';
-import { resolve, targetPosition, refreshAttached } from './attach.js';
+import { targetPosition, refreshAttached, placeAt } from './attach.js';
 import { groupSizeOf, patternOf, settings, DISTRIBUTE_D, CONNECT_D } from './generator.js';
-import { positionsOf } from './lines.js';
 import { norm180, samePosition, signedArea2 } from '../geo.js';
 
 const MAX_LABEL_OFFSET = 2000; // px: a label's text from its anchor
@@ -112,8 +111,6 @@ function read(raw, app, known, now, report) {
   // the features, each part of a Multi geometry an element of its own
   const features = raw.type === 'FeatureCollection' ? (Array.isArray(raw.features) ? raw.features : (report.warnings.push('features: not a list, ignored'), []))
     : raw.type === 'Feature' ? [raw] : [{ type: 'Feature', properties: {}, geometry: raw }];
-  const ends = []; // lines' attached ends, resolved once every point is read
-  const anchored = []; // labels on an element, resolved once every element is read
   let over = 0, positions = 0;
   try { features.forEach((f, i) => {
     const fid = isObj(f) && (typeof f.id === 'string' || typeof f.id === 'number') ? String(f.id) : null;
@@ -142,34 +139,33 @@ function read(raw, app, known, now, report) {
           for (const part of ['fill', 'stroke']) if (st[part]) x.look[part] = { ...x.look[part], ...st[part] };
           x.guide = flag(mine?.guide, c, 'guide');
         }
-        return READ[kind](part.coordinates, props, mine || {}, x, c, { ends, anchored, taken, doc, foreign: !mine });
+        return READ[kind](part.coordinates, props, mine || {}, x, c, { foreign: !mine });
       });
-      positions += el?.vertices ? el.vertices.length + 2 : el?.points?.length ?? 0; // a line's, an area's
+      positions += el?.points?.length ?? 0; // a line's, an area's
       if (positions > MAX_TOTAL_POSITIONS) throw new Refused(`This file holds more than ${MAX_TOTAL_POSITIONS.toLocaleString('en')} positions in its lines and areas: it would stall the page at every change.`);
       if (el) doc[KIND[kind].list].push(el);
     });
   }); } catch (e) { if (!(e instanceof Refused)) throw e; report.refused = e.message; return { doc: null, view: null }; }
 
-  // a line's end attached: the attachment wins, the end goes where what it is attached to is (once
-  // every reference is in: a line's end on another line's end follows that one's, in any order)
   if (over) report.warnings.push(`${over} past the first ${MAX_FEATURES} elements: skipped`);
-  const attached = []; // [line, end, its position in the file]
-  for (const { line, end, to } of ends) {
-    const what = to.element === line.id ? 'its own line' : !targetPosition(doc, to) && `${String(to.element).slice(0, 64)}, which is not here (or has no such vertex or edge)`;
-    if (what) { report.warnings.push(`line ${line.id}: its ${end} is attached to ${what}; free`); continue; }
-    attached.push([line, end, line[end].position]);
-    line[end] = { position: line[end].position, ...to };
-  }
-  // a label on an element: where it points; on itself, or on what is not here (or no such vertex or
-  // edge): free, where it was
-  for (const { label, to } of anchored) {
-    const what = to.element === label.id ? 'itself' : !targetPosition(doc, to) && `${String(to.element).slice(0, 64)}, which is not here`;
-    if (what) { report.warnings.push(`label ${label.id}: it points at ${what}; free`); continue; }
-    label.anchor = { position: label.anchor.position, ...to };
+  // links, once every element is in: the link wins, its place goes where its target is (a line's
+  // place on another line's place where that one goes, in any order). One from a place that is not
+  // here, or to what is not (or to its own element), is dropped: the place stays free where the
+  // geometry says
+  const was = [];
+  for (const v of Array.isArray(app?.links) ? app.links : []) {
+    const f = isObj(v) && Array.isArray(v.from) ? v.from : [], to = refIn(unpack(v?.to)), x = typeof f[0] === 'string' && find(doc, f[0]);
+    const place = x && (x.kind === 'line' || x.kind === 'label') && Number.isInteger(f[1]) && placeAt(doc, f);
+    const what = !place ? `from ${String(f[0]).slice(0, 64)} ${String(f[1]).slice(0, 8)}, which is not a line's or a label's place here`
+      : !to ? 'to nothing it can point at' : to.element === f[0] ? 'to its own element' : linkFrom(doc, f[0], f[1]) ? 'from a place already linked'
+        : !targetPosition(doc, to) && `to ${String(to.element).slice(0, 64)}, which is not here (or has no such vertex or edge)`;
+    if (what) { report.warnings.push(`link ${what}: dropped`); continue; }
+    doc.links.push({ from: [f[0], f[1]], to });
+    was.push([f, [...place]]);
   }
   refreshAttached(doc);
-  const moved = attached.filter(([line, end, was]) => !samePosition(was, line[end].position)).length; // more than the file's rounding
-  if (moved) report.warnings.push(`${moved} line end${moved > 1 ? 's' : ''} moved to what ${moved > 1 ? 'they are' : 'it is'} attached to (the file was edited elsewhere)`);
+  const moved = was.filter(([f, p]) => !samePosition(p, placeAt(doc, f))).length; // more than the file's rounding
+  if (moved) report.warnings.push(`${moved} place${moved > 1 ? 's' : ''} moved to what ${moved > 1 ? 'they are' : 'it is'} linked to (the file was edited elsewhere)`);
 
   // rules: what Distribute along and Connect keep linked, checked loosely (a reference gone is dropped at
   // the next change)
@@ -229,15 +225,14 @@ function styleFrom(props, c, fill) {
 }
 const coord = (p, c, what) => position(Array.isArray(p) ? p.slice(0, 2) : p, c, what);
 
-// what a reference points at, as the file says it ({ element, part?, vertex | edge and at }; a bare ID: an
+// a link's target as the file says it ({ element, part?, vertex | edge and at }; a bare ID: an
 // element's centre), or null
 function refIn(v) {
   if (typeof v === 'string') return { element: v };
   if (!isObj(v) || typeof v.element !== 'string') return null;
   const n = (k) => (Number.isInteger(v[k]) && v[k] >= 0 ? v[k] : undefined);
-  const on = { element: v.element, ...(n('part') !== undefined ? { part: n('part') } : {}) };
-  return n('vertex') !== undefined ? { ...on, vertex: n('vertex') }
-    : n('edge') !== undefined ? { ...on, edge: n('edge'), at: fin(v.at) ? Math.min(1, Math.max(0, v.at)) : 0 } : { element: v.element };
+  return n('vertex') === undefined && n('edge') === undefined ? { element: v.element }
+    : targetOf({ element: v.element, part: n('part'), vertex: n('vertex'), edge: n('edge'), at: fin(v.at) ? Math.min(1, Math.max(0, v.at)) : 0 });
 }
 // each kind's reader: (coordinates, properties, the app's own, the element so far, ctx, state) → element
 const READ = {
@@ -248,24 +243,11 @@ const READ = {
     p.symbol = SYMBOLS.includes(mine.symbol) ? mine.symbol : (mine.symbol !== undefined && c.warn(`unknown symbol "${String(mine.symbol).slice(0, 20)}", default used`), dflt);
     return p;
   },
-  line(coords, props, mine, x, c, { ends }) {
+  line(coords, props, mine, x, c) {
     if (!Array.isArray(coords) || coords.length < 2) c.skip('a line needs two positions');
     if (coords.length > MAX_POSITIONS) c.skip(`more than ${MAX_POSITIONS} positions`);
-    const pts = coords.map((q, k) => coord(q, c, `position ${k + 1}`));
-    const meta = Array.isArray(mine.vertices) ? mine.vertices : [];
-    const s = { ...x, start: { position: pts[0], element: null }, end: { position: pts.at(-1), element: null },
-      smooth: flag(mine.smooth, c, 'smooth'),
-      vertices: pts.slice(1, -1).map((position, k) => {
-        const v = isObj(meta[k]) ? meta[k] : {};
-        return { position, name: text(v.name, c, `vertex ${k + 1} name`) };
-      }) };
-    // its ends attached: { element, vertex | edge and at } (attach.js)
-    for (const end of ['start', 'end']) {
-      const v = unpack(mine[end]), to = refIn(v);
-      if (to) ends.push({ line: s, end, to });
-      else if (v != null) c.warn(`${end}: not what a line's end is attached to; free`);
-    }
-    return s;
+    const points = coords.map((q, k) => coord(q, c, `position ${k + 1}`)), names = Array.isArray(mine.names) ? mine.names : [];
+    return { ...x, points, names: points.map((_, k) => text(names[k], c, `place ${k + 1} name`)), smooth: flag(mine.smooth, c, 'smooth') };
   },
   area(coords, props, mine, x, c) {
     if (!Array.isArray(coords) || !Array.isArray(coords[0])) c.skip('no ring');
@@ -277,16 +259,12 @@ const READ = {
     if (mine.reversed === true) pts.reverse();
     return { ...x, points: pts };
   },
-  label(coords, props, mine, x, c, { anchored }) {
-    const at = coord(coords, c, 'position');
+  label(coords, props, mine, x, c) {
     const o = mine.offset;
     const offset = Array.isArray(o) && o.length >= 2 && fin(o[0]) && fin(o[1]) ? [Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, o[0])), Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, o[1]))]
       : (o !== undefined && c.warn('offset: not [x, y] pixels, the default used'), [...LABEL_OFFSET]);
     const one = (v, list, d, what) => (v === undefined ? d : list.includes(v) ? v : (c.warn(`${what}: unknown "${String(v).slice(0, 20)}", ${d} used`), d));
-    const a = { ...x, text: text(mine.text, c, 'text'), anchor: { position: at, element: null }, offset, leader: one(mine.leader, LEADERS, 'arrow', 'leader') };
-    const to = refIn(unpack(mine.anchor));
-    if (to) anchored.push({ label: a, to });
-    return a;
+    return { ...x, text: text(mine.text, c, 'text'), position: coord(coords, c, 'position'), offset, leader: one(mine.leader, LEADERS, 'arrow', 'leader') };
   },
 };
 
@@ -308,7 +286,6 @@ function lean(o, d) {
 const partOut = (r) => lean({ kind: r.kind, radius: r.radius && r3(r.radius), aperture: r.aperture && r4(r.aperture), length: r.length && r3(r.length), width: r.width && r3(r.width),
   fill: r.fill, shown: r.shown, name: r.name },
 { radius: undefined, aperture: undefined, length: undefined, width: undefined, fill: true, shown: true, name: '' });
-const VERTEX_D = { name: '' };
 
 // the user's properties as GIS columns (features.js), their keys checked against the file's own
 const columns = (list) => columnsOf(list, FILE_PROPERTIES);
@@ -335,16 +312,9 @@ function styleNames(st) {
   if (st.fill?.opacity !== undefined) o['fill-opacity'] = r3(st.fill.opacity);
   return o;
 }
-// what a reference (a line's end, a label's anchor) points at, as the file says it: nothing (null), or
-// { element, vertex | edge and at } (its position is the geometry's)
-const endOut = (e) => {
-  if (!e.element) return null;
-  const on = { element: e.element, ...(e.part != null ? { part: e.part } : {}) };
-  return e.vertex != null ? { ...on, vertex: e.vertex } : e.edge != null ? { ...on, edge: e.edge, at: +e.at.toFixed(6) } : { element: e.element };
-};
 
 // one element as a Feature
-function feature(doc, kind, el) {
+function feature(kind, el) {
   const { out: cols, changed } = columns(el.properties);
   const props = Object.assign(Object.create(null), lean({ name: el.name }, { name: '' })); // no prototype: a column named __proto__ is set, not the prototype
   Object.assign(props, cols, kind === 'label' ? {} : styleNames(el.look));
@@ -356,21 +326,17 @@ function feature(doc, kind, el) {
     Object.assign(mine, lean({ symbol: el.symbol, bearing: r4(el.bearing) }, { symbol: 'none', bearing: 0 }));
     if (el.parts.length) mine.parts = el.parts.map(partOut);
   } else if (kind === 'line') {
-    geometry = { type: 'LineString', coordinates: positionsOf(el).map(pos) };
-    const vs = el.vertices.map((v) => lean({ name: v.name }, VERTEX_D));
-    Object.assign(mine, lean({ start: endOut(el.start), end: endOut(el.end), smooth: el.smooth },
-    { start: null, end: null, smooth: false }));
-    if (vs.some((v) => Object.keys(v).length)) mine.vertices = vs;
+    geometry = { type: 'LineString', coordinates: el.points.map(pos) };
+    Object.assign(mine, lean({ smooth: el.smooth }, { smooth: false }));
+    if (el.names.some(Boolean)) mine.names = [...el.names];
   } else if (kind === 'area') {
     // counter-clockwise, as RFC 7946 asks; a ring stored clockwise is written reversed, and says so
     const cw = signedArea2(el.points) < 0, pts = cw ? el.points.slice().reverse() : el.points;
     geometry = { type: 'Polygon', coordinates: [[...pts, pts[0]].map(pos)] };
     if (cw) mine.reversed = true;
   } else {
-    const at = resolve(doc, el.anchor);
-    geometry = { type: 'Point', coordinates: pos(at ? at.position : el.anchor.position ?? [0, 0]) };
-    Object.assign(mine, lean({ text: el.text, anchor: endOut(el.anchor),
-      offset: [r3(el.offset[0]), r3(el.offset[1])], leader: el.leader }, { text: '', anchor: null, offset: LABEL_OFFSET, leader: 'arrow' }));
+    geometry = { type: 'Point', coordinates: pos(el.position) };
+    Object.assign(mine, lean({ text: el.text, offset: [r3(el.offset[0]), r3(el.offset[1])], leader: el.leader }, { text: '', offset: LABEL_OFFSET, leader: 'arrow' }));
   }
   return { type: 'Feature', id: el.id, geometry, properties: { ...props, charts: mine } };
 }
@@ -393,8 +359,9 @@ export function toFile(doc, v = null) {
         copy: a.copy && lean({ symbol: a.copy.symbol, parts: a.copy.parts.map(partOut), look: lookOut(a.copy.look ?? {}) }, { look: {} }),
         points: a.points.map((f) => ({ pointId: f.pointId, t: +f.t.toFixed(9), ...(f.left ? { left: true } : {}), pos: pos(f.pos) })) }, DISTRIBUTE_D)
       : lean({ ...a, roots: a.roots.map((r) => (r.weight === 1 ? { id: r.id } : { id: r.id, weight: +r.weight.toPrecision(6) })), pointIds: [...a.pointIds], hubs: a.hubs.map((b) => ({ ...b, pointIds: [...b.pointIds], pos: pos(b.pos) })), created: [...a.created] }, CONNECT_D))),
-  }, { meta: {}, view: null, look: {}, groups: [], rules: [] });
-  return { type: 'FeatureCollection', charts: app, features: KINDS.filter((k) => k !== 'group').flatMap((k) => doc[KIND[k].list].map((el) => feature(doc, k, el))) };
+    links: doc.links.map((l) => ({ from: [...l.from], to: l.to.edge != null ? { ...l.to, at: +l.to.at.toFixed(6) } : { ...l.to } })),
+  }, { meta: {}, view: null, look: {}, groups: [], rules: [], links: [] });
+  return { type: 'FeatureCollection', charts: app, features: KINDS.filter((k) => k !== 'group').flatMap((k) => doc[KIND[k].list].map((el) => feature(k, el))) };
 }
 // The file's text: indented JSON, with each pair of numbers (a position) on one line. Only
 // the indentation's line breaks are matched: a string never holds one (JSON writes it \n).

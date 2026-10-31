@@ -17,7 +17,7 @@ test('fmtDist: metres, km, NM', () => {
 });
 
 test('a line: one degree of longitude on the equator is 111 319.49 m (WGS 84), heading east', () => {
-  const doc = emptyDoc(0), l = addLine(doc, [0, 0], [], [1, 0]);
+  const doc = emptyDoc(0), l = addLine(doc, [[0, 0], [1, 0]]);
   assert.ok(Math.abs(lineTrace(doc, l).length - 111319.491) < 0.01);
   assert.ok(Math.abs(inverse([0, 0], [1, 0]).azi - 90) < 1e-9);
 });
@@ -33,7 +33,7 @@ test('a measurement: a guide showing its values, out of the totals; its values e
   const doc = emptyDoc(0);
   const pts = [[9.5, 43.6], [9.8, 43.4], [10.1, 43.2]];
   const m = () => ({ guide: true, look: { text: { values: true } } });
-  const r = addLine(doc, pts[0], [pts[1]], pts[2], m()), a = addArea(doc, [[1, 1], [2, 1], [2, 2]], { ...m(), visible: false }), c = addPoint(doc, [10, 43.5], { ...m(), parts: [makePart('circle', { radius: 15000 })] });
+  const r = addLine(doc, pts, m()), a = addArea(doc, [[1, 1], [2, 1], [2, 2]], { ...m(), visible: false }), c = addPoint(doc, [10, 43.5], { ...m(), parts: [makePart('circle', { radius: 15000 })] });
   assert.ok([r, a, c].every((x) => isMeasurement(doc, x)));
   assert.deepEqual([totals(doc).all.lines, totals(doc).all.points, totals(doc).all.areas], [0, 0, 0]);
   const legs = [inverse(pts[0], pts[1]).s, inverse(pts[1], pts[2]).s];
@@ -42,7 +42,7 @@ test('a measurement: a guide showing its values, out of the totals; its values e
 
 test('values: bearings beside each straight leg once switched on; in the display units', () => {
   const doc = emptyDoc(0);
-  addLine(doc, [9.5, 43.6], [], [10.1, 43.2], { look: { text: { values: true } } });
+  addLine(doc, [[9.5, 43.6], [10.1, 43.2]], { look: { text: { values: true } } });
   addPoint(doc, [10, 43], { look: { text: { values: true } }, parts: [makePart('circle', { radius: 1852 })] });
   assert.ok(labels(doc).every((t) => !t.includes('°T')));
   assert.match(labels(doc, 'km', true)[0], /km · \d{3}\.\d°T$/);
