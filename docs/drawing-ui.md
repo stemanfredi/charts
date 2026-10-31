@@ -119,15 +119,16 @@ presets) opens its kinds.
 ### 2.2 Snapping and attaching
 
 Clicks and drags snap within **6 px**. The nearest target of the first kind found wins: a **vertex**
-(a point's centre, a corner of an outline or area, a line's vertex or free end), then a **crossing**
+(a point's centre, a corner of an outline or area, a line's place or free end), then a **crossing**
 of two edges or legs, then an **edge**. Hidden elements are not snapped to. The target is marked: a
 ring on a vertex, a cross on a crossing, a dot on an edge.
 
-A line's end (and a label's anchor) attaches to what it snaps to and follows it: a point's
-**centre** (never its round parts), a **vertex**, a place along an **edge** or a leg (turning and
-stretching with it, no vertex added), or another line's **free end** (a dot point is made there, both
-ends attached). A crossing gives a position only. An end whose target goes is free where it was; an
-edit of what it is on keeps it on the nearest vertex or edge.
+Any place of a line (its ends, and every place between: dragged or by **Attach to…**), and where a
+label points, attaches to what it snaps to and follows it: a point's **centre** (never its round
+parts), a **vertex**, a place along an **edge** or a leg (turning and stretching with it, no vertex
+added), or another line's **free end** (a dot point is made there, both ends attached). A crossing
+gives a position only. A place whose target goes is free where it was; an edit of what it is on
+keeps it on the nearest vertex or edge.
 
 ## 3. Measure
 
@@ -187,9 +188,10 @@ takes one unit by its largest value.
   **Elevation profile**, read when opened; **Totals**, open to start with.
 - **A line's points**, 1 (its start) to N (its end): Lat, Lon; the **leg** from the point before,
   its length and bearing (typed: that point alone moves, the legs either side of it change). The row
-  current says how far **along** the line its point is and holds a vertex's name. An end attached
-  shows what to, its leg as it is; its row's bar has **Attach to…** (pressed while the next click
-  chooses) and **Detach** (it stays where it is). An area's **corners** the same, 1 to n, corner 1's
+  current says how far **along** the line its point is and holds its name. A point attached shows
+  what to, its leg as it is. Every row's bar has **Attach to…** (pressed while the next click
+  chooses) and, attached, **Detach** (it stays where it is); **Insert after** (not the last),
+  **Delete** (two are kept) and **Split** (not an end). An area's **corners** the same, 1 to n, corner 1's
   edge from the last. The row current is ringed on the map; a point pressed on the map makes its row
   current, on its page.
 - **What several share** (two or more selected, or a group's members under **Each member**): every
@@ -279,8 +281,8 @@ Copies) opens its form (a click on the map picks a root):
 - **Dragging** a selected element moves it (several together); one undo step; Esc puts it back;
   positions snap (Alt: free; Shift: 15° steps). **Handles**: a round part's radius; a sector's two
   ends; the stalk (bearing); an outline's corners (resize, the opposite kept; Shift: proportions; Alt:
-  the centre) and sides; a line's vertices and ends (an end on a point's centre moves the point) and a
-  **+** halfway along a leg; an area's corners and a **+** on each edge; a label's text and, free or
+  the centre) and sides; a line's points (one attached to a point's centre moves the point; another,
+  dropped on something, attaches there) and a **+** halfway along a leg; an area's corners and a **+** on each edge; a label's text and, free or
   on a line, its point. Outlines drawn enlarged are only moved.
 - **Display only** (never in lengths or exports): **Offset**, a line drawn beside itself (−50 to 50
   px, as QGIS offsets a line symbol; ⇉ in the tree), and the enlarged small shapes. Names collide
@@ -308,7 +310,7 @@ Copies) opens its form (a click on the map picks a root):
 None act while typing in a field, except Esc and Enter. About lists them from `site/keys.js`.
 
 **Copy, paste, duplicate:** a copy keeps its group, look and properties, gets new numbered names and
-keeps the attachments between the elements copied together (an end on one left behind is free). Paste
+keeps the attachments between the elements copied together (a line's point on one left behind is free). Paste
 puts its middle at the pointer; Duplicate 20 px beside. One undo step; the copy selected. The clipboard
 lives in this page, so it pastes into another drawing opened in it.
 
@@ -323,7 +325,7 @@ live in this browser only; **Download** › **Presets (JSON)** and **Open a file
 
 ## 10. Deleting, and drawings in this browser
 
-- Delete goes at once (Undo brings it back). Lines attached to what goes stay, their ends free
+- Delete goes at once (Undo brings it back). Lines attached to what goes stay, their points free
   where they were; labels on it stay, free. A group with members asks first: the group only (what is
   in it goes to the group above), or everything in it.
 - Each drawing is saved as it changes, never sent anywhere; the open one comes back with the page.

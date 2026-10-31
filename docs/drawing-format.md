@@ -13,11 +13,12 @@ short example; §16 lists every default.
   `.json`). There is no other format of the app's own: any GIS reads the file as it is, and the app
   reads any GeoJSON (§11).
 - One drawing per file: its elements (measurements included: they are guides showing their values),
-  its groups, its rules (what Distribute along and Connect keep linked), and the view it was made in.
+  its groups, its rules (what Distribute along and Connect keep linked), its links (what ties a place
+  of one element to another, §7.4), and the view it was made in.
 - Each element is a Feature with its real geometry. Its name and its properties (a description, a
   category: properties like any other) are plain GeoJSON properties, its colours in the common style names where they exist.
   Everything else that is the app's is under one property, **`charts`**. The drawing's own (version,
-  times, title, view, look, groups, rules) is a foreign member `charts` of the collection.
+  times, title, view, look, groups, rules, links) is a foreign member `charts` of the collection.
 - The reader is forgiving: missing fields take their defaults, wrong values are repaired or skipped
   with a warning (§11, §12). The writer leaves out every value equal to its default (§9).
 
@@ -55,7 +56,8 @@ kinds the stacking is fixed (drawing-ui.md §7). The writer writes points, then 
     "view": { … },
     "look": { "text": { "name": true }, "offset": 3 },
     "groups": [],
-    "rules": []
+    "rules": [],
+    "links": []
   },
   "features": []
 }
@@ -71,6 +73,7 @@ kinds the stacking is fixed (drawing-ui.md §7). The writer writes points, then 
 | `charts.look` | the drawing's look (§6): `text.name`, `offset`, `minSize` only, what every element takes unless it says otherwise; any other field is ignored (warning) |
 | `charts.groups` | §7.1 |
 | `charts.rules` | §8 |
+| `charts.links` | §7.4 |
 
 Without a `charts` member the file is still read: it is plain GeoJSON (§11).
 
@@ -202,7 +205,7 @@ A point's parts (`charts.parts`), a list of entries, each drawn to scale about i
 | `shown` | `false`: kept but not drawn. Default `true`. |
 | `name` | free text |
 
-A part has no ID: it is named by its place in the list, from 1 ("part 2" in the report); references
+A part has no ID: it is named by its place in the list, from 1 ("part 2" in the report); links
 name it from 0 (§7.4). A point keeps at most 100 parts (warning). An entry of an unknown kind, or whose size is not a distance in range, is
 skipped (warning); the rest of the point loads. Only the sizes its kind needs are kept.
 
@@ -247,60 +250,74 @@ Circle by its round parts.
 
 ### 7.3 Line
 
-A `LineString` geometry: its start, its vertices in order, its end. A line has one **leg** between each
-two of these.
+A `LineString` geometry: its places in order, the first its start, the last its end. A line has one
+**leg** between each two places.
 
 ```json
 "charts": {
   "kind": "line",
-  "start": { "element": "a" },
-  "end": { "element": "s", "vertex": 2 },
   "smooth": true,
-  "vertices": [ { "name": "bend 1" } ]
+  "names": ["", "bend 1", ""]
 }
 ```
 
 | Field | Notes |
 |---|---|
-| `start`, `end` | what each end is attached to (§7.4); missing: a free end, where the geometry says |
-| `smooth` | `true`: a smooth curve through its vertices; missing or `false`: straight legs |
-| `vertices` | one entry per interior position of the geometry, in order: an optional `name`. Vertices have no ID. Written only when one of them has something; matched to the positions by order. |
+| `smooth` | `true`: a smooth curve through its places; missing or `false`: straight legs |
+| `names` | one entry per place of the geometry, in order: its name (text). Places have no ID. Written only when one of them is named; matched to the positions by order, a missing entry `""`. |
 
-**Legs.** A straight line's legs are the **geodesics** between its anchors (as the ruler draws
-them). A smooth line's (with at least one vertex) are cubic Béziers in the map's projection (Web
-Mercator) whose handles are worked out from the anchors (Catmull-Rom: at a vertex parallel to the
-chord between its neighbours, a third of each leg; `site/draw/lines.js`), so the curve follows its
-vertices. Lengths are always geodesic: a curve's is summed over close samples of it until the sum
+What a place is tied to is in the drawing's links (§7.4), not in the line.
+
+**Legs.** A straight line's legs are the **geodesics** between its places (as the ruler draws
+them). A smooth line's (with at least three places) are cubic Béziers in the map's projection (Web
+Mercator) whose handles are worked out from the places (Catmull-Rom: at an inner place parallel to
+the chord between its neighbours, a third of each leg; `site/draw/lines.js`), so the curve follows
+its places. Lengths are always geodesic: a curve's is summed over close samples of it until the sum
 settles. A curve is the line itself: its length, the values shown and the GIS export are the
 curve's. Lengths are never stored.
 
-The geometry holds the vertices only: other tools show a curved line straight through its vertices,
+The geometry holds the places only: other tools show a curved line straight through its places,
 and its legs straight in longitude and latitude (§13).
 
-### 7.4 References: line ends and label anchors
+### 7.4 Links
 
-A line's end and a label's anchor point at a place on an element, the same way, and follow it:
+A **link** ties a place of an element to a place on another, which it then follows. The drawing's
+links are one list, `charts.links` of the collection:
 
-| `start`, `end`, `anchor` | Points at |
+```json
+"links": [
+  { "from": ["l1", 0], "to": { "element": "a" } },
+  { "from": ["l1", 1], "to": { "element": "g1", "edge": 2, "at": 0.5 } },
+  { "from": ["t1", 0], "to": { "element": "l1", "edge": 0, "at": 0.5 } }
+]
+```
+
+`from` is `[ID, index]`: a line's place (0 its start, the last its end; any place can be linked), or
+a label's `0` (where it points). A place has one link at most. `to` is the target:
+
+| `to` | Points at |
 |---|---|
 | `{ "element": "a" }` | its centre: a point's position, an area's centroid, a line's middle |
-| `{ "element": "a", "vertex": 2 }` | vertex 2: a corner of an area or of a point's outline; a line's place (0 its start, then its vertices, the last its end) |
+| `{ "element": "a", "vertex": 2 }` | vertex 2: a corner of an area or of a point's outline; a line's place 2 |
 | `{ "element": "a", "edge": 1, "at": 0.25 }` | a place on edge 1 (from vertex 1 to the next; an area's and an outline's close, a line's are its legs, as drawn), a fraction `at` (0–1, 6 decimals) along it, so that it turns and stretches with it |
 
 A bare ID (`"a"`) is read as `{ "element": "a" }`. Indices count from 0. An area's corners are
 counted in its own order (§7.6: the geometry's ring reversed when `reversed` is set). An outline's
 corners are those of its silhouette in order (`site/draw/outlines.js`): a rectangle's front right,
 back right, back left, front left; a triangle's apex, back right, back left. An ellipse's are the
-samples of its curve: the app attaches to its edge. On a point with outlines, `"part"` says which
-(its place in the point's `parts`); missing: its largest outline.
+samples of its curve: the app links to its edge. On a point with outlines, `"part"` says which (its
+place in the point's `parts`); missing: its largest outline. A group or a label is never a target.
 
-The position is written in the geometry too, so other tools see the line or the label where it is.
-On reading, **the reference wins**: it goes where what it points at is (a line's end on another
-line's end where that one goes, in any order in the file), and the report counts the
-line ends moved more than 10⁻⁶° ("the file was edited elsewhere"). One pointing at what is not in the
-file, at a vertex or edge it does not have, or at itself (a line's end at its own line, a label at
-itself), is free where the geometry says (warning). When vertices are added to or taken from what a reference points at, it
-stays where it was: on the nearest vertex, or the nearest place on an edge.
+Every place keeps its position in the geometry, linked or not, so other tools see the line or the
+label where it is. On reading, **the link wins**: the place goes where its target is (a line's place
+on another line's place where that one goes, in any order in the file), and the report counts the
+places moved more than 10⁻⁶° ("the file was edited elsewhere"). A link from a place that is not
+there, to what is not in the file (or to a vertex or edge it does not have), to its own element, or
+from a place already linked is dropped, its place free where the geometry says (warning). When
+vertices are added to or taken from a target, a link to it stays where it was: on the nearest
+vertex, or the nearest place on an edge. When places are added to or taken from a line, its links
+are numbered again (one from a place taken away goes); a line split at a place carries the links of
+its second half to the new line, and both are linked to the point made there.
 
 ### 7.5 Outline
 
@@ -327,22 +344,21 @@ A `Point` geometry where the label points, with `"kind": "label"`:
 "charts": {
   "kind": "label",
   "text": "{name}\n{along}",
-  "anchor": { "element": "l1", "edge": 0, "at": 0.5 },
   "offset": [40, -40],
   "leader": "arrow",
   "look": { "text": { "size": "large", "background": "box" } }
 }
 ```
 
-- **`anchor`:** a reference (§7.4): a point, a vertex, a place on an edge or a line's leg, an
-  element's centre. Missing: a free label, at the geometry's position. A group or a label is not
-  pointed at: the label is free where the geometry is (warning).
+- **What it points at:** its link, if it has one (§7.4, `from` `[ID, 0]`): a point, a vertex, a
+  place on an edge or a line's leg, an element's centre. None: a free label, at the geometry's
+  position.
 - **`text`:** free text; `\n` breaks lines. Filled in as drawn, in the display units (one that does
   not apply is left empty): `{name}` (the element's name); `{length}` (its line's length, or the
   side it is on); `{along}` (the distance along its line); `{bearing}` (the side's or leg's);
   `{radius}` (a point's filled radius); `{area}`, `{perimeter}` (an area's, a shape's outline's).
-- **`offset`:** the text's centre, in screen pixels from the anchor (x right, y down; ±2000).
-- **`leader`:** `"arrow"` (a line from the text to the anchor, an arrow head there) or `"none"`.
+- **`offset`:** the text's centre, in screen pixels from where it points (x right, y down; ±2000).
+- **`leader`:** `"arrow"` (a line from the text to where it points, an arrow head there) or `"none"`.
 - **`look`:** its text's `size` (`"small"`, `"medium"` or `"large"`: 11, 13, 16 px), `color` (set
   nowhere: the default) and `background` (`"halo"` or `"box"`), as
   any look (§6).
@@ -411,7 +427,8 @@ or point (or its part) is gone, or all of whose copies are, is dropped.
 | `hubs` | each hub made: its point, its tree's points and root, where it was last put |
 | `created` | what it made: hubs and lines (not its points or roots). Connect again removes these and makes them anew. |
 
-Each line it makes is a plain line attached to the points it joins; what it is follows from its ends:
+Each line it makes is a plain line, its ends linked to the points it joins (§7.4); what it is follows
+from what its ends are linked to:
 in a tree, a trunk (root to hub) or a branch (hub to point); in a chain, a root link (from a root) or
 a link (point to point). The plan: the points, in order, are
 cut into groups of consecutive points, each joined to one root, the cut and the roots chosen together
@@ -459,7 +476,7 @@ The reader takes a FeatureCollection, a single Feature or a bare geometry.
   every other property becomes one of the user's, as text (numbers and booleans as written, objects as
   JSON).
 - **Text for nested values:** a GIS may write `charts` back as a JSON string. It is parsed again, the
-  collection's and each feature's, and so are `properties`, `start` and `end` within it.
+  collection's and each feature's, and so are `properties` within a feature's and each link's `to`.
 - **IDs:** a missing, malformed or repeated ID is replaced by a new one (warning when it had one).
 - **Repairs** with a warning: opacity clamped to 0–1, width to 0.5–20; angles normalised; an own
   colour that is not `#rrggbb`, or an unknown dash, dropped (the drawing's or the default applies); an
@@ -469,7 +486,7 @@ The reader takes a FeatureCollection, a single Feature or a bare geometry.
   view's zoom to 0–24.
 - **Unknown fields are ignored** and not kept: writing again drops them. Data to carry goes into the
   user's properties.
-- **Attached ends and anchored labels** follow what they are attached to (§7.4, §7.7).
+- **Linked places** follow their targets (§7.4).
 
 The import report lists what was refused, skipped and repaired, before the drawing is added.
 
@@ -496,15 +513,14 @@ A GIS opening the file sees:
 - the name and the properties as columns, and each element's own stroke
   and fill in the common style names (not a style it takes from its group or the defaults);
 - each feature's `charts` property, usually as text; it is the app's and can be left as it is. The
-  collection's `charts` (view, look, groups, rules) is ignored by most tools.
+  collection's `charts` (view, look, groups, rules, links) is ignored by most tools.
 
 It does not see radii, sectors, outlines, symbols or a label's text placement (GIS data, §14, has them
 drawn); legs as geodesics (a long east-west leg is drawn slightly apart: about 40 m at the middle of a
-50 km leg at 40°N); or curves (straight through their vertices).
+50 km leg at 40°N); or curves (straight through their places).
 
-A file edited elsewhere and read back: attached ends move to what they are attached to (counted in
-the report); vertex entries are matched to positions by order; a `charts` turned into text is read
-again.
+A file edited elsewhere and read back: linked places move to their targets (counted in the report);
+a line's names are matched to its positions by order; a `charts` turned into text is read again.
 
 ## 14. The GIS export
 
@@ -532,7 +548,7 @@ beside it `vector/drawings.geojson`: the drawing **as drawn**, for tools that kn
 ## 15. Example
 
 A point with a 5 km sector, a rectangle outline, a line from the first's centre to a corner of the
-second, an area, and a label along the line. Written by the app (`serialise`), then shortened only in
+second, an area, and a label along the line, tied by three links. Written by the app (`serialise`), then shortened only in
 layout.
 
 ```json
@@ -544,7 +560,12 @@ layout.
     "created": "2026-10-22T09:30:00Z",
     "modified": "2026-10-22T09:30:00Z",
     "meta": { "title": "Example" },
-    "view": { "center": [12.5, 41.9], "zoom": 9 }
+    "view": { "center": [12.5, 41.9], "zoom": 9 },
+    "links": [
+      { "from": ["l1", 0], "to": { "element": "a" } },
+      { "from": ["l1", 2], "to": { "element": "s", "vertex": 2 } },
+      { "from": ["t1", 0], "to": { "element": "l1", "edge": 0, "at": 0.5 } }
+    ]
   },
   "features": [
     { "type": "Feature", "id": "a",
@@ -559,7 +580,7 @@ layout.
     { "type": "Feature", "id": "l1",
       "geometry": { "type": "LineString", "coordinates": [[12.4, 41.9], [12.5, 41.88], [12.5980106, 41.9487782]] },
       "properties": { "name": "Line 1", "ref": "7",
-        "charts": { "kind": "line", "start": { "element": "a" }, "end": { "element": "s", "vertex": 2 } } } },
+        "charts": { "kind": "line" } } },
     { "type": "Feature", "id": "g1",
       "geometry": { "type": "Polygon", "coordinates": [[[12.5, 41.75], [12.55, 41.8], [12.45, 41.8], [12.5, 41.75]]] },
       "properties": { "name": "Area 1", "fill-opacity": 0.3,
@@ -567,15 +588,16 @@ layout.
     { "type": "Feature", "id": "t1",
       "geometry": { "type": "Point", "coordinates": [12.429105, 41.8941893] },
       "properties": { "name": "Label 1",
-        "charts": { "kind": "label", "text": "{name}", "anchor": { "element": "l1", "edge": 0, "at": 0.5 } } } }
+        "charts": { "kind": "label", "text": "{name}" } } }
   ]
 }
 ```
 
 The point `a` says its symbol, a diamond; the shape says none, so it has none (the default). Its
-part has no ID: it is part 1 of `a`. The line's end is on vertex 2 (the back left corner) of the rectangle; its coordinates are where
-that corner is. The area was drawn clockwise: its ring is written counter-clockwise and says so. The
-label's geometry is half way along the line's one leg.
+part has no ID: it is part 1 of `a`. The line's start is linked to `a`'s centre, its end (place 2) to
+vertex 2 (the back left corner) of the rectangle; its coordinates are where those are. The area was
+drawn clockwise: its ring is written counter-clockwise and says so. The label's geometry is half way
+along the line's first leg, where its link says.
 
 ## 16. Every default
 
@@ -589,7 +611,7 @@ What a value is when the file leaves it out. Writing it with this value means th
 | collection | `charts.meta` | `{ "title": "", "description": "", "author": "" }` |
 | collection | `charts.view` | none: the map stays as it is |
 | collection | `charts.look` | `{}`: the defaults |
-| collection | `charts.groups`, `rules` | `[]` |
+| collection | `charts.groups`, `rules`, `links` | `[]` |
 | view | `center`, `zoom`, `layers`, `data` | none: the map's |
 | view | `bearing`; `units`; `bearings` | `0`; `"km"`; `false` |
 | view layer | `variant`, `opacity`, `period` | the layer's own default |
@@ -614,14 +636,11 @@ What a value is when the file leaves it out. Writing it with this value means th
 | point | `bearing` | `0` |
 | point | `symbol` | `"none"`; `"diamond"` for a feature without `charts` |
 | point | `parts` | `[]` |
-| line | `start`, `end` | free |
-| line | `vertices` | each `{}` |
-| vertex | `name` | `""` |
+| line | `names` | each `""` |
 | line | `smooth` | `false` |
 | area | `reversed` | `false` |
 | label | `text` | `""` |
-| label | `anchor` | none: free, at the geometry |
-| reference | `at`; `part` | `0`; none: the point's largest outline |
+| link target | `at`; `part` | `0`; none: the point's largest outline |
 | label | `offset` | `[40, -40]` |
 | label | `leader` | `"arrow"` |
 | label | `look` | `{}`: as any element's |
