@@ -289,13 +289,15 @@ function viewOf() {
 // app's own checked reading of the address applies it (no second way of applying layers). A view
 // that differs from the page's in its camera alone (the same layers, time, depth and units: a
 // drawing opened where it was) moves the map instead. The drawing is saved first: it comes back
-// after the reload.
+// after the reload. One the browser would not keep (storage full) would not: the camera alone moves.
 function applyView(v) {
   const q = new URLSearchParams(location.hash.slice(1)), was = new URLSearchParams(q);
   viewToAddress(v, q);
   const butCamera = (p) => { const r = new URLSearchParams(p); r.delete('v'); return r.toString(); };
-  if (butCamera(q) === butCamera(was)) { map.jumpTo({ center: v.center || map.getCenter(), zoom: v.zoom ?? map.getZoom(), bearing: v.bearing ?? 0 }); writeHashNow(); return; } // the address says it at once
+  const move = () => { map.jumpTo({ center: v.center || map.getCenter(), zoom: v.zoom ?? map.getZoom(), bearing: v.bearing ?? 0 }); writeHashNow(); };
+  if (butCamera(q) === butCamera(was)) { move(); return; } // the address says it at once
   drawing.saving.now();
+  if (drawing.saving.failed) { move(); note('The drawing is not kept in this browser (storage full or turned off): its layers are not applied, as a reload would lose it'); return; }
   setHash(q);
   location.reload();
 }
