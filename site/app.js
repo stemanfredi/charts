@@ -1,6 +1,6 @@
 import * as maplibregl from './vendor/maplibre-gl.mjs';
 import mlcontour from './vendor/maplibre-contour.mjs';
-import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_ZMAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, isobathSteps, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
+import { GROUPS, ITEMS, GIBS, DEM_TILES, DEM_SEA_MAX, DEPTH_ZMAX, DEPTH_SOURCES, DEM_LAND_MAX, OMT_TILEJSON, ISOBATH_STEPS, DEPTH_SCHEMES, NO_DEPTH, DENSITY, ESRI_META, gibsTiles, gibsDomainUrl, domainEnd, densityTiles, CMEMS, CMEMS_DEPTHS, drawsOf, CLASS_LABELS, EMODNET_DEPTH_STOPS, SEAGRASS } from './catalog.js';
 import { buildStyle, depthRamp, OPACITY_PROP, SEA_PICTURES, LOCATION_LAYERS, INK, esriAttribution } from './style.js';
 import { cmemsTile, partTimes, partLevels, domainOf, cmemsLegend } from './cmems.js';
 import { workerClipper } from './clip.js';
@@ -159,7 +159,7 @@ const style = buildStyle({
   seaDemUrl: 'clip-sea://{z}/{x}/{y}',
   landDemUrl: 'clip-land://{z}/{x}/{y}',
   // zoom → [interval] in metres (isobaths: traced at the steps their depths need, catalog.js)
-  isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: isobathSteps() }),
+  isobathUrl: seaDem.contourProtocolUrl({ ...contourOpts, thresholds: ISOBATH_STEPS }),
   contourUrl: landDem.contourProtocolUrl({ ...contourOpts, thresholds: { 9: [100, 500], 11: [50, 250], 12: [20, 100] } }),
   date: gibsDay,
   density: Object.fromEntries(Object.keys(DENSITY).map((id) => [id, [state.variant[id], state.period[id]]])),
@@ -483,10 +483,8 @@ const KINDS = {
   // GEBCO's depths, drawn by the depth shading (clip.js); its values from its Zarr store
   gebco: {
     // the depth shading's legend: while the chart is under it, zoomed out (where the shading is)
-    legend: () => (state.on.has('chart') && map.getZoom() < DEPTH_ZMAX ? { key: state.variant.depth, paint: (el) => {
-      drawRamp(el, 'Depth shading', 'm · GEBCO 2026', depthStops(), { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' });
-      return `Depth shading legend: ${depthStops().map(([d]) => d).join(', ')} metres`;
-    } } : null),
+    legend: () => (state.on.has('chart') && map.getZoom() < DEPTH_ZMAX ? { key: state.variant.depth,
+      paint: (el) => drawRamp(el, 'Depth shading', 'm · GEBCO 2026', depthStops(), 'metres', { colour: NO_DEPTH, label: 'lakes: no depth · lagoons: shown as 0–5 m' }) } : null),
     values: (it, box) => gebcoValues(box),
   },
   // where GEBCO's depths come from (its type identifier grid, drawn by gebco.js): a classed layer,
@@ -498,7 +496,7 @@ const KINDS = {
   emodnet: {
     legend(id) {
       const v = state.variant[id], stops = EMODNET_DEPTH_STOPS[v];
-      return { key: v, paint: (el) => { drawRamp(el, byId[id].label, 'm · not linear', stops); return `${byId[id].label} legend: ${stops.map(([d]) => d).join(', ')} metres`; } };
+      return { key: v, paint: (el) => drawRamp(el, byId[id].label, 'm · not linear', stops, 'metres') };
     },
     values: (it, box) => emodnetValues(box),
   },
@@ -508,7 +506,7 @@ const KINDS = {
       // the URL of its service's legend, the URLs of several, or the classes themselves
       const src = byId[id].legend(state.variant[id]), urls = typeof src === 'string' ? [src] : typeof src[0] === 'string' ? src : null;
       return { key: urls ? urls.join(' ') : `${id}:${state.variant[id]}`, ready: urls ? classesOf(urls) : src,
-        paint: (el, cls) => { drawClasses(el, byId[id].label, [byId[id].variants?.[state.variant[id]], byId[id].legendSub].filter(Boolean).join(' · '), cls); return `${byId[id].label} legend: ${cls.map((c) => c.label).join(', ')}`; } };
+        paint: (el, cls) => drawClasses(el, byId[id].label, [byId[id].variants?.[state.variant[id]], byId[id].legendSub].filter(Boolean).join(' · '), cls) };
     },
   },
   // EMODnet and EMSA density: a period of its own (a year or a month), not the map's time
@@ -522,7 +520,7 @@ const KINDS = {
     render(it, el) { $('select.period', el).value = state.period[it.id]; },
     legend(id) {
       const d = DENSITY[id];
-      return { key: `${state.variant[id]}|${state.period[id]}`, paint: (el) => { drawRamp(el, d.title, `${d.unit} · ${d.types[state.variant[id]]} · ${d.periodLabel(state.period[id])}`, d.stops); return `${d.title} legend: ${d.stops.map(([v]) => v).join(', ')} ${d.unit}`; } };
+      return { key: `${state.variant[id]}|${state.period[id]}`, paint: (el) => drawRamp(el, d.title, `${d.unit} · ${d.types[state.variant[id]]} · ${d.periodLabel(state.period[id])}`, d.stops, d.unit) };
     },
   },
   // NASA daily: the day of the time shown (UTC). Drawn only once its newest day is known, and not
@@ -557,7 +555,7 @@ const KINDS = {
     legend(id) {
       const v = CMEMS[id][state.variant[id]];
       // '<' below the scale only where values go on below it (not under 0 m, 0 m/s)
-      return { key: state.variant[id], ready: cmemsLegend(id, state.variant[id]), paint: (el, cm) => { drawColormap(el, v.label, v.unit, cm, [v.log || v.range[0] + (v.offset || 0) < 0, true], v.log); return `${v.label} legend${v.unit ? `, ${v.unit}` : ''}`; } };
+      return { key: state.variant[id], ready: cmemsLegend(id, state.variant[id]), paint: (el, cm) => drawColormap(el, v.label, v.unit, cm, [v.log || v.range[0] + (v.offset || 0) < 0, true], v.log) };
     },
     values: (it, box) => cmemsValues(it.id, it.at, box), // from its datasets' Zarr stores
   },

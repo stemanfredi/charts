@@ -2,7 +2,7 @@
 
 import { h } from './dom.js';
 
-// A pop-up opened from a button (the bar's Open and Download, the time's box): Esc or a
+// A pop-up opened from a button (the bar's Open and Download, draw/files.js): Esc or a
 // pointer down elsewhere closes it (Esc gives the focus back to its button), and so does a menu item
 // chosen unless choose is false; ↑ ↓ move between its items (opened from the keyboard, the focus
 // starts on the first). place(button) puts it where it goes; closed() runs as it closes. The button

@@ -74,8 +74,10 @@ function ticks(g, marks) {
   g.strokeRect(BAR.x + 0.5, BAR.y + 0.5, BAR.w - 1, BAR.h);
 }
 
-// Continuous depth ramp; stops sit at equal widths (the depth axis is not linear).
-export function drawRamp(el, text, sub, stops, noData) {
+// Each draws a legend titled text on canvas el and returns its aria text, "<text> legend: …".
+
+// Continuous ramp; stops sit at equal widths (the axis is not linear); unit: the stops', in words
+export function drawRamp(el, text, sub, stops, unit, noData) {
   const g = head(el, text, sub, noData);
   const n = stops.length - 1, seg = BAR.w / n;
   for (let i = 0; i < n; i++) {
@@ -86,11 +88,12 @@ export function drawRamp(el, text, sub, stops, noData) {
     g.fillRect(BAR.x + i * seg, BAR.y, seg + 0.5, BAR.h);
   }
   ticks(g, stops.map(([d], i) => [BAR.x + i * seg, i === n ? `${d}+` : `${d}`, i === 0 ? 'left' : i === n ? 'right' : 'center']));
+  return `${text} legend: ${stops.map(([d]) => d).join(', ')} ${unit}`;
 }
 
-// open: whether values run on beyond the first and last colour ('<' and '≥' on the end labels);
-// log: entries are log10 of the values, ticked at whole decades (0.01, 0.1, 1, 10)
-export function drawColormap(el, text, sub, entries, open = [true, true], log = false) {
+// A colour map; sub: its unit. open: whether values run on beyond the first and last colour ('<' and
+// '≥' on the end labels); log: entries are log10 of the values, ticked at whole decades (0.01, 0.1, 1, 10)
+export function drawColormap(el, text, sub, entries, open, log) {
   const g = head(el, text, sub);
   const finite = entries.flatMap((e) => [e.lo, e.hi]).filter(Number.isFinite);
   const lo = Math.min(...finite), hi = Math.max(...finite);
@@ -111,6 +114,7 @@ export function drawColormap(el, text, sub, entries, open = [true, true], log = 
   if (marks.length && BAR.x + BAR.w - marks[marks.length - 1][0] < 26) marks.pop(); // room for the end label
   marks.push([BAR.x + BAR.w, `${open[1] ? '≥' : ''}${label(+hi.toFixed(2))}`, 'right']);
   ticks(g, marks);
+  return `${text} legend${sub ? `, ${sub}` : ''}`;
 }
 
 // Classes of a categorical layer ([{ label, colour, stroke, line, casing, dash, image }]): how each is
@@ -142,6 +146,7 @@ export function drawClasses(el, text, sub, classes) {
     g.fillStyle = INK;
     g.fillText(label, x + room(c), y + 8.5, (cols === 2 ? 108 : 220) - room(c));
   });
+  return `${text} legend: ${classes.map((c) => c.label).join(', ')}`;
 }
 
 // A WMS's legend as JSON (GeoServer's GetLegendGraphic, format=application/json) → classes for

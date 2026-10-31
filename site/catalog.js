@@ -206,7 +206,6 @@ export const CMEMS = {
 // what a variant can draw: ['colour'], ['arrows'] or both (its colours, its arrows coloured by speed)
 export const drawsOf = (v) => ({ solidAndVector: ['colour', 'arrows'], vector: ['arrows'] })[v.vector] || ['colour'];
 
-// an item's variants from its datasets: key → label (the menu's and the link's)
 // depths offered for the 3D variables, metres below the surface (0: the model's top level)
 export const CMEMS_DEPTHS = [0, 10, 20, 50, 100, 200, 500, 1000];
 // ---- menu -------------------------------------------------------------------
@@ -380,7 +379,7 @@ export const DEPTH_SCHEMES = {
 // 5000 m: they outline ridges, trenches and abyssal plains, and none of them hugs a coast. None at 75 or 150 m: no decision
 // changes there, and on wide gentle shelves, where those lines would fall, the coarse model cannot
 // place them (an error of 10 m in depth on a 0.1% slope moves a line 10 km).
-// From it: what each zoom traces (isobathSteps, maplibre-contour in app.js) and draws (style.js).
+// From it: what each zoom traces (ISOBATH_STEPS, maplibre-contour in app.js) and draws (style.js).
 // [depth m, from zoom]
 export const ISOBATHS = [
   [5, 10], [10, 8], [20, 6], [30, 8], [50, 6], [100, 6], [200, 4], [300, 8], [500, 6],
@@ -394,7 +393,7 @@ export const ISOBATH_ZOOMS = [...new Set(ISOBATHS.map(([, z]) => z))].sort((a, b
 // what maplibre-contour traces from each of those zooms: every `step` m, the largest step that holds
 // all the depths drawn (the style draws only those): { zoom: [step] }
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
-export const isobathSteps = () => Object.fromEntries(ISOBATH_ZOOMS.map(([z, ds]) => [z, [ds.reduce(gcd)]]));
+export const ISOBATH_STEPS = Object.fromEntries(ISOBATH_ZOOMS.map(([z, ds]) => [z, [ds.reduce(gcd)]]));
 // every depth an isobath is drawn at, at some zoom
 export const DEPTH_LEVELS = ISOBATHS.map(([d]) => d);
 
