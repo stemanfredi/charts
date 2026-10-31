@@ -312,22 +312,17 @@ export function drawView(root, ctx) {
       (v) => set(id, (x) => { const q = x.points[i]; x.points[i] = axis === 'lat' ? [q[0], v] : [v, q[1]]; }), `Corner ${i + 1} ${axis === 'lat' ? 'latitude' : 'longitude'}`, 6);
     const insertAt = (i) => drawing.change((doc) => { const x = find(doc, id).el, q = x.points[i], r = x.points[(i + 1) % x.points.length]; insertCorner(doc, x, i + 1, along(q, r, 0.5)); });
     const drop = (i) => { if (n > 3) drawing.change((doc) => removeCorner(doc, find(doc, id).el, i)); };
-    // its corners as rows, 1 to n, a page of them shown: Lat, Lon; the edge from the corner before
-    // (corner 1's from the last; typed: this corner moves)
-    const pg = paged(`${id}:corners`, n), abs = (r) => pg.rows[r];
-    const lu = unitOf(el.points.map((_, i) => legOf(el.points, i).s)), U = UNIT_TEXT[lu];
-    const table = listGrid({ name: pg.name,
-      columns: [...PLACE_COLUMNS, { head: `Edge ${U}`, width: 56, cls: 'n', title: 'From the corner before' },
-        { head: 'Brg °T', width: 52, cls: 'n', title: 'Its bearing' }],
-      rows: pg.rows.map((i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...legFields(id, (x) => x.points, i, setAreaEdge, 'Corner', lu)] })),
-      actions: (r, i = abs(r)) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAt(i)), act('Delete', `${MOD} Delete; three are kept`, () => drop(i), n <= 3)] }),
-      keys: { insert: (r) => insertAt(abs(r)), remove: (r) => drop(abs(r)) },
-      current: (r) => drawing.setPlace(r == null ? null : { id, index: abs(r) }) });
+    // its corners as rows, 1 to n: Lat, Lon; the edge from the corner before (corner 1's from the
+    // last; typed: this corner moves)
+    const lu = unitOf(el.points.map((_, i) => legOf(el.points, i).s));
     const cornerRows = () => { const ps = now(id).points; return [['#', 'Lat', 'Lon', 'Edge m', 'Brg °'], ps.map((q, i) => { const g = legOf(ps, i); return [i + 1, q[1], q[0], +g.s.toFixed(3), +g.azi.toFixed(1)]; })]; };
     return [...commonTop('area', id),
       row('Area', valued(fmtArea(areaOf(pathOf(el.points, true)), u))),
       row('Perimeter', distValue(perimeterOf(el.points))),
-      h('div', { class: 'fblock' }, h('h3', {}, `Corners (${n})`, copyBtn(cornerRows)), table, pg.pager),
+      placesTable(id, 'corners', n, { name: 'Corners', leg: ['Edge', 'From the corner before'], unit: lu, copy: cornerRows,
+        rowAt: (i) => ({ cells: [`${i + 1}`, corner(i, 'lat'), corner(i, 'lon'), ...legFields(id, (x) => x.points, i, setAreaEdge, 'Corner', lu)] }),
+        actions: (i) => ({ label: `Corner ${i + 1}`, buttons: [act('Insert after', 'A corner halfway to the next (Insert)', () => insertAt(i)), act('Delete', `${MOD} Delete; three are kept`, () => drop(i), n <= 3)] }),
+        insert: insertAt, remove: drop }),
       actionsRow(ruleActs(id)), lookBlock([item(id)]), ...commonBottom('area', id)];
   }
 
@@ -411,6 +406,17 @@ export function drawView(root, ctx) {
   // a table of places' first columns; with its leg and bearing 304 px, inside Properties' 320
   // with a scroll bar: degrees in 6 decimals, distances to the metre (up to 999 km), bearings to a tenth
   const PLACE_COLUMNS = [{ head: '#', width: 28, cls: 'num' }, { head: 'Lat', width: 80, cls: 'n' }, { head: 'Lon', width: 88, cls: 'n' }];
+  // A table of places, a page of them shown (list: 'points', a line's; 'corners', an area's): #, Lat,
+  // Lon, the leg (or edge) from the place before and its bearing, in unit; rowAt(k): place k's cells;
+  // actions(k), insert(k), remove(k); copy: every row (copyBtn). Its row current is ringed on the map.
+  function placesTable(id, list, total, { name, leg, unit, copy, rowAt, actions, insert, remove }) {
+    const pg = paged(`${id}:${list}`, total), abs = (r) => pg.rows[r];
+    const table = listGrid({ name: pg.name,
+      columns: [...PLACE_COLUMNS, { head: `${leg[0]} ${UNIT_TEXT[unit]}`, width: 56, cls: 'n', title: leg[1] }, { head: 'Brg °T', width: 52, cls: 'n', title: 'Its bearing' }],
+      rows: pg.rows.map(rowAt), actions: (r) => actions(abs(r)), keys: { insert: (r) => insert(abs(r)), remove: (r) => remove(abs(r)) },
+      current: (r) => drawing.setPlace(r == null ? null : { id, index: abs(r) }) });
+    return h('div', { class: 'fblock' }, h('h3', { title: 'A row clicked is ringed on the map' }, `${name} (${total})`, copyBtn(copy)), table, pg.pager);
+  }
   // a table's distances: one unit for the column (its head says it), by the rule a field's value
   // follows (format.js distText): metres while its largest is under 1 km, else km; NM in NM
   const unitOf = (ms) => (ctx.units() === 'nm' ? 'nm' : ms.every((m) => !(Number.isFinite(m) && m >= 1000)) ? 'm' : 'km'); // every: a long line's legs are more than Math.max(...) takes
@@ -559,25 +565,17 @@ export function drawView(root, ctx) {
         onclick: () => { if (waiting) drawing.cancelRepoint(); else drawing.startRepoint(id, key); renderInspector(); } }, 'Attach to…');
       return [attach, el[key].element ? act('Detach', 'Free, where it is', () => set(id, (x) => { x[key] = freeRef(x[key]); })) : null].filter(Boolean);
     };
-    const pg = paged(`${id}:points`, N), abs = (r) => pg.rows[r];
-    const U = UNIT_TEXT[lu];
-    const table = listGrid({ name: pg.name,
-      columns: [...PLACE_COLUMNS, { head: `Leg ${U}`, width: 56, cls: 'n', title: 'From the point before' },
-        { head: 'Brg °T', width: 52, cls: 'n', title: 'Its bearing' }],
-      rows: pg.rows.map(rowAt),
-      actions: (rr, k = abs(rr)) => (k === 0 ? { label: 'Point 1, its start', buttons: [act('Insert after', 'Insert', () => insertAfter(-1)), ...endActs('start')] }
-        : k === N - 1 ? { label: `Point ${N}, its end`, buttons: [along(k), ...endActs('end')] }
-          : { label: `Point ${k + 1}`, buttons: [along(k), name(k), act('Insert after', 'Insert', () => insertAfter(k - 1)),
-            act('Delete', `${MOD} Delete`, () => removeAt(k - 1)), act('Split', 'Two lines, attached here', () => splitAt(k - 1))] }),
-      keys: { insert: (rr) => { const k = abs(rr); if (k < N - 1) insertAfter(k - 1); }, remove: (rr) => { const k = abs(rr); if (k >= 1 && k <= n) removeAt(k - 1); } },
-      current: (rr) => drawing.setPlace(rr == null ? null : { id, index: abs(rr) }) });
     const pointRows = () => { const x = now(id), qs = positionsOf(x), t = lineTrace(drawing.doc, x).at;
       return [['#', 'Lat', 'Lon', 'Leg m', 'Brg °', 'Along m', 'Name'], qs.map((q, k) => { const g = k ? legOf(qs, k) : null; return [k + 1, q[1], q[0], g ? +g.s.toFixed(3) : '', g ? +g.azi.toFixed(1) : '', +(t[k] || 0).toFixed(3), x.vertices[k - 1]?.name ?? '']; })]; };
     return [...commonTop('line', id),
       row('Length', distValue(line.length)),
       row('Path', segOf('Path', [[false, 'Straight', 'Geodesics'], [true, 'Smooth', 'A curve through its bends']], !!el.smooth, (v) => set(id, (x) => { x.smooth = v; }))),
-      h('div', { class: 'fblock' }, h('h3', { title: 'A row clicked is ringed on the map' }, `Points (${N})`, copyBtn(pointRows)),
-      table, pg.pager),
+      placesTable(id, 'points', N, { name: 'Points', leg: ['Leg', 'From the point before'], unit: lu, copy: pointRows, rowAt,
+        actions: (k) => (k === 0 ? { label: 'Point 1, its start', buttons: [act('Insert after', 'Insert', () => insertAfter(-1)), ...endActs('start')] }
+          : k === N - 1 ? { label: `Point ${N}, its end`, buttons: [along(k), ...endActs('end')] }
+            : { label: `Point ${k + 1}`, buttons: [along(k), name(k), act('Insert after', 'Insert', () => insertAfter(k - 1)),
+              act('Delete', `${MOD} Delete`, () => removeAt(k - 1)), act('Split', 'Two lines, attached here', () => splitAt(k - 1))] }),
+        insert: (k) => { if (k < N - 1) insertAfter(k - 1); }, remove: (k) => { if (k >= 1 && k <= n) removeAt(k - 1); } }),
       profileBlock(id),
       actionsRow(ruleActs(id), h('button', { type: 'button', class: 'small', title: 'Copies along this line', onclick: () => openDistribution({ element: id, part: null }) }, 'Distribute along…')),
       lookBlock([item(id)]), ...commonBottom('line', id)];
