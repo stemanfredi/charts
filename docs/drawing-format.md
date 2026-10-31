@@ -295,10 +295,11 @@ samples of its curve: the app attaches to its edge. On a point with outlines, `"
 (its place in the point's `parts`); missing: its largest outline.
 
 The position is written in the geometry too, so other tools see the line or the label where it is.
-On reading, **the reference wins**: it goes where what it points at is, and the report counts the
+On reading, **the reference wins**: it goes where what it points at is (a line's end on another
+line's end where that one goes, in any order in the file), and the report counts the
 line ends moved more than 10⁻⁶° ("the file was edited elsewhere"). One pointing at what is not in the
-file, at a vertex or edge it does not have, or (a line's end) at its own line, is free where the
-geometry says (warning). When vertices are added to or taken from what a reference points at, it
+file, at a vertex or edge it does not have, or at itself (a line's end at its own line, a label at
+itself), is free where the geometry says (warning). When vertices are added to or taken from what a reference points at, it
 stays where it was: on the nearest vertex, or the nearest place on an edge.
 
 ### 7.5 Outline

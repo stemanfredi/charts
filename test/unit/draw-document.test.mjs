@@ -338,7 +338,21 @@ test('attached ends: one that disagrees with what it is on moves to it (counted)
   warned(report, /^3 line ends moved to what they are attached to/);
   warned(report, /line s4: its end is attached to ar, which is not here \(or has no such vertex or edge\); free/);
   warned(report, /line s3: its start is attached to gone/);
-  warned(report, /line s5: its start is attached to s5/);
+  warned(report, /line s5: its start is attached to its own line; free/);
+});
+
+test('attached ends in a chain, listed last to first: each end where the one it is on is, however long the chain', () => {
+  // s4's end on s3's last point, s3's on s2's, s2's on s1's: the file's ends all elsewhere
+  const on = (id) => ({ kind: 'line', end: { element: id, vertex: 1 } });
+  const { doc, report } = read(collection([
+    F('s4', 'LineString', [[4, 0], [9, 9]], on('s3')), F('s3', 'LineString', [[3, 0], [8, 8]], on('s2')),
+    F('s2', 'LineString', [[2, 0], [7, 7]], on('s1')), F('s1', 'LineString', [[1, 0], [1, 1]], { kind: 'line' }),
+    F('a', 'Point', [0, 5], { kind: 'label', anchor: { element: 'a' } }),
+  ]));
+  assert.deepEqual(doc.lines.map((s) => s.end.position), [[1, 1], [1, 1], [1, 1], [1, 1]]);
+  warned(report, /^3 line ends moved/);
+  warned(report, /label a: it points at itself; free/);
+  assert.deepEqual(doc.labels[0].anchor, { position: [0, 5], element: null });
 });
 
 test('labels: on an element, along a line, on a vertex, or free; checked; written back', () => {
@@ -368,7 +382,7 @@ test('labels: on an element, along a line, on a vertex, or free; checked; writte
   assert.deepEqual([l4.anchor, l5.anchor, l6.anchor], [{ position: [12, 42], element: null }, { position: [12, 40], element: 's', edge: 0, at: 0 }, { position: [12, 40], element: 'a' }]);
   assert.deepEqual([l8.anchor, l9.anchor, l10.anchor], [{ position: [12, 43], element: null }, { position: d.centroid(doc.areas[0].points), element: 'ar' }, { position: [13, 42], element: 'ar', vertex: 2 }]);
   assert.ok(!('name' in l1.look.text));
-  for (const re of [/leader: unknown "zigzag"/, /offset: not \[x, y\]/, /size "huge" unknown/, /label l4: what it points at \(gone\) is not here; free/, /label l8: what it points at \(a\) is not here; free/]) warned(report, re);
+  for (const re of [/leader: unknown "zigzag"/, /offset: not \[x, y\]/, /size "huge" unknown/, /label l4: it points at gone, which is not here; free/, /label l8: it points at a, which is not here; free/]) warned(report, re);
   assert.deepEqual(doc.points[0].look, { text: { name: true } });
   const f = toFile(doc), out = (id) => f.features.find((x) => x.id === id);
   assert.deepEqual(out('l2').properties.charts.anchor, { element: 's', edge: 0, at: 0.123457 });

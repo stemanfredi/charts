@@ -9,7 +9,7 @@
 import { FORMAT, VERSION, KINDS, KIND, SYMBOLS, LEADERS, LABEL_OFFSET, META_D,
   emptyDoc, newId, columnsOf } from './document.js';
 import { ID, isObj, fin, Skip, time, text, properties, flag, position, angle, ownStyle, look, pointSpec, parts, readView, VIEW_D, VIEW_DATA_D } from './check.js';
-import { resolve, targetPosition } from './attach.js';
+import { resolve, targetPosition, refreshAttached } from './attach.js';
 import { groupSizeOf, patternOf, DISTRIBUTE_D, CONNECT_D } from './generator.js';
 import { positionsOf } from './lines.js';
 import { norm180, samePosition, signedArea2 } from '../geo.js';
@@ -151,23 +151,26 @@ function read(raw, app, known, now, report) {
     });
   }); } catch (e) { if (!(e instanceof Refused)) throw e; report.refused = e.message; return { doc: null, view: null }; }
 
-  // a line's end attached: the attachment wins, the end goes where what it is attached to is
-  let moved = 0;
+  // a line's end attached: the attachment wins, the end goes where what it is attached to is (once
+  // every reference is in: a line's end on another line's end follows that one's, in any order)
   if (over) report.warnings.push(`${over} past the first ${MAX_FEATURES} elements: skipped`);
+  const attached = []; // [line, end, its position in the file]
   for (const { line, end, to } of ends) {
-    const p = to.element !== line.id && targetPosition(doc, to);
-    if (!p) { report.warnings.push(`line ${line.id}: its ${end} is attached to ${String(to.element).slice(0, 64)}, which is not here (or has no such vertex or edge); free`); continue; }
-    if (!samePosition(p, line[end].position)) moved++; // more than the file's rounding
-    line[end] = { position: [...p], ...to };
+    const what = to.element === line.id ? 'its own line' : !targetPosition(doc, to) && `${String(to.element).slice(0, 64)}, which is not here (or has no such vertex or edge)`;
+    if (what) { report.warnings.push(`line ${line.id}: its ${end} is attached to ${what}; free`); continue; }
+    attached.push([line, end, line[end].position]);
+    line[end] = { position: line[end].position, ...to };
   }
-  if (moved) report.warnings.push(`${moved} line end${moved > 1 ? 's' : ''} moved to what ${moved > 1 ? 'they are' : 'it is'} attached to (the file was edited elsewhere)`);
-  // a label on an element: where it points; on one that is not here (or no such vertex or edge): free,
-  // where it was
+  // a label on an element: where it points; on itself, or on what is not here (or no such vertex or
+  // edge): free, where it was
   for (const { label, to } of anchored) {
-    const p = targetPosition(doc, to);
-    if (!p) { report.warnings.push(`label ${label.id}: what it points at (${String(to.element).slice(0, 64)}) is not here; free`); continue; }
-    label.anchor = { position: [...p], ...to };
+    const what = to.element === label.id ? 'itself' : !targetPosition(doc, to) && `${String(to.element).slice(0, 64)}, which is not here`;
+    if (what) { report.warnings.push(`label ${label.id}: it points at ${what}; free`); continue; }
+    label.anchor = { position: label.anchor.position, ...to };
   }
+  refreshAttached(doc);
+  const moved = attached.filter(([line, end, was]) => !samePosition(was, line[end].position)).length; // more than the file's rounding
+  if (moved) report.warnings.push(`${moved} line end${moved > 1 ? 's' : ''} moved to what ${moved > 1 ? 'they are' : 'it is'} attached to (the file was edited elsewhere)`);
 
   // rules: what Distribute along and Connect keep linked, checked loosely (a reference gone is dropped at
   // the next change)

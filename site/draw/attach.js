@@ -63,15 +63,18 @@ export const freeRef = (ref) => ({ position: [...ref.position], element: null })
 const refsIn = (doc) => [...doc.lines.flatMap((s) => [[s, 'start'], [s, 'end']]), ...doc.labels.map((a) => [a, 'anchor'])];
 
 // Each reference where what it points at is now; one whose target is gone is free where it was.
-// Twice: a line's end on another line's vertex follows that line's own end.
+// Again until nothing moves: a line's end on another line's end follows that one's, however long the
+// chain and in whatever order (at most once per reference: a loop of them settles as well).
 export function refreshAttached(doc) {
-  for (let pass = 0; pass < 2; pass++) {
-    for (const [o, k] of refsIn(doc)) {
+  const refs = refsIn(doc);
+  for (let pass = 0, moved = true; moved && pass <= refs.length; pass++) {
+    moved = false;
+    for (const [o, k] of refs) {
       const r = o[k];
       if (!r.element) continue;
       const p = targetPosition(doc, r);
-      if (!p) { if (r.position) o[k] = freeRef(r); } // gone: free where it was
-      else if (!r.position || p[0] !== r.position[0] || p[1] !== r.position[1]) r.position = [...p];
+      if (!p) { if (r.position) { o[k] = freeRef(r); moved = true; } } // gone: free where it was
+      else if (!r.position || p[0] !== r.position[0] || p[1] !== r.position[1]) { r.position = [...p]; moved = true; }
     }
   }
 }
