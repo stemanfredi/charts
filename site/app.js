@@ -44,8 +44,6 @@ const hour = (t) => Math.floor(t / 36e5) * 36e5; // the hour a time falls in (ms
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10); // its day (UTC)
 
 // ---- state (mirrored in the URL hash) ---------------------------------------
-// the Layers groups open: kept in this browser, as the panel's tab (frame.js), not in the link
-const GROUPS_OPEN = 'charts.groups.open', groupsOpen = store.json(GROUPS_OPEN);
 // a layer as it starts: its first variant, its own opacity, a density dataset's default period
 const defaultsOf = (it) => ({ variant: variantsOf(it)?.[0], opacity: it.opacity ?? undefined, period: DENSITY[it.id]?.defaultPeriod });
 const state = {
@@ -56,7 +54,6 @@ const state = {
   depth: 0, // Copernicus layers with depth: metres below the surface (CMEMS_DEPTHS)
   period: Object.fromEntries(Object.keys(DENSITY).map((id) => [id, defaultsOf(byId[id]).period])), // density datasets
   colour: '', arrows: '', // Ocean data: the entry drawing colours, the one drawing arrows ('item:variant', '' for none)
-  open: new Set(Array.isArray(groupsOpen) ? groupsOpen.filter((g) => GROUPS.some((x) => x.id === g)) : ['base', 'sea']),
 };
 let view = { zoom: 4, center: [12, 41], bearing: 0 };
 // the display's units and each leg's bearing beside its length (the switch beside the scale, the
@@ -95,8 +92,8 @@ function writeHash() {
   if (ready) hashTimer = setTimeout(writeHashNow, 250);
 }
 // the address: the view as a drawing's file has it (viewOf, written by viewToAddress: one grammar), the
-// time and the depth only while a layer uses them; then the page's own, the groups open in Layers and
-// whether Layers is the left panel's tab
+// time and the depth only while a layer uses them; nothing of the page's own (the panels, the groups
+// open: kept in this browser)
 function writeHashNow() {
   clearTimeout(hashTimer);
   if (!ready) return;
@@ -750,7 +747,7 @@ const ICON = {
 for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...ICON[el.dataset.icon]));
 // the frame (frame.js): the bar, the left panel (Elements, Layers), the right one (Properties)
 let drawPanel = null; // the drawing's view (below): told when the frame changes
-const frame = createFrame({ left: $('#side'), right: $('#props'), icon, onChange: () => { writeHash(); drawPanel?.render('tool'); },
+const frame = createFrame({ left: $('#side'), right: $('#props'), icon, onChange: () => drawPanel?.render('tool'),
   tabs: [{ id: 'layers', label: 'Layers', paths: ['m12 3 9 5-9 5-9-5z', 'm3 13 9 5 9-5'], badge: h('span', { class: 'spin', 'aria-hidden': 'true' }), body: $('#menu') },
     { id: 'elements', label: 'Elements', paths: [['M4 5.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], 'M8 6h13', 'M4 8v2a2 2 0 0 0 2 2h2', 'M4 10v6a2 2 0 0 0 2 2h2', ['M10 11.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], ['M10 17.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], 'M14 12h7', 'M14 18h7'], body: $('#dview') }] });
 // ---- layers panel -----------------------------------------------------------
@@ -838,10 +835,13 @@ function dataBlock(items, sections) {
   return h('ul', {}, pick('colour', 'Colours'), pick('arrows', 'Arrows'),
     h('li', { class: 'item' }, h('div', { class: 'line' }, h('span', { class: 'name' }, 'Source and licence'), dataMore), ...Object.values(dataInfos)));
 }
+// the Layers groups open: kept in this browser, as the panel's tab (frame.js), not in the link
+const GROUPS_OPEN = 'charts.groups.open', keptOpen = store.json(GROUPS_OPEN);
+const groupsOpen = new Set(Array.isArray(keptOpen) ? keptOpen.filter((g) => GROUPS.some((x) => x.id === g)) : ['base', 'sea']);
 function groupBlock(g) {
   const items = ITEMS.filter((it) => it.group === g.id);
-  const det = h('details', { 'data-group': g.id, open: state.open.has(g.id),
-    ontoggle: (e) => { e.target.open ? state.open.add(g.id) : state.open.delete(g.id); store.set(GROUPS_OPEN, JSON.stringify([...state.open])); } },
+  const det = h('details', { 'data-group': g.id, open: groupsOpen.has(g.id),
+    ontoggle: (e) => { e.target.open ? groupsOpen.add(g.id) : groupsOpen.delete(g.id); store.set(GROUPS_OPEN, JSON.stringify([...groupsOpen])); } },
     h('summary', {}, h('span', { class: 'gname' }, g.label), h('span', { class: 'count', title: 'Layers on' })),
     g.sections ? dataBlock(items, g.sections) : g.exclusive ? baseBlock(items) : h('ul', {}, items.map(itemRow)));
   det._items = items;
