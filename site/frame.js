@@ -7,6 +7,7 @@
 // What the panels hold is their modules': this only places them.
 
 import { h, store, NARROW } from './dom.js';
+import { icon, UI_ICON } from './icons.js';
 import { note } from './menu.js';
 import { openKey } from './keys.js';
 
@@ -16,9 +17,9 @@ const MIN_MAP = 480; // px of map kept between the two panels
 const clamp = (v, r) => (Number.isFinite(v) ? Math.round(Math.max(r.min, Math.min(r.max, v))) : r.dflt); // what was saved, or the default
 
 // left, right: the panels (empty asides); tabs: [{ id, label, paths, badge, body }] for the left (its
-// button's icon, and what it shows besides, if anything); icon(...paths).
+// button's icon, and what it shows besides, if anything).
 // onChange(): after any change of what is shown.
-export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
+export function createFrame({ left, right, tabs, onChange = () => {} }) {
   const saved = store.json(KEY) ?? {};
   const st = {
     tab: NARROW.matches ? null : saved.tab === null || tabs.some((t) => t.id === saved.tab) ? saved.tab : 'layers', // the left's tab, or null: closed (at first: Layers)
@@ -35,7 +36,7 @@ export function createFrame({ left, right, tabs, icon, onChange = () => {} }) {
   const toggle = (cls, label, key, paths, onclick, badge = null) => h('button', { type: 'button', class: `ptoggle ${cls}`, 'aria-label': label, title: `${label} (${key})`, 'aria-pressed': 'false', onclick }, icon(...paths), badge);
   const tabBtns = tabs.map((t) => toggle('ptab', t.label, openKey(t.id), t.paths, () => toggleTab(t.id), t.badge));
   tabs.forEach((t, i) => { tabBtns[i].dataset.tab = t.id; });
-  const rightBtn = toggle('pright', 'Properties', openKey('props'), ['M4 5h16v14H4z', 'M15 5v14'], () => setProps(!st.props));
+  const rightBtn = toggle('pright', 'Properties', openKey('props'), UI_ICON.properties, () => setProps(!st.props));
   // a grip (the sheet's, on a phone) and an edge to drag (the panel's width)
   const grip = (panel) => h('div', { class: 'grip', 'aria-hidden': 'true', onpointerdown: (e) => drag(e, panel, 'sheet') });
   const edge = (panel, side) => h('div', { class: `edge ${side}`, 'aria-hidden': 'true', title: 'Drag to resize; double-click: the default width',

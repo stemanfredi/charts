@@ -10,13 +10,12 @@ import { OUTLINES } from './document.js';
 import { OUTLINE_NAME } from './outlines.js';
 import { savePresets, presetTool } from './presets.js';
 import { keyOf, MOD } from '../keys.js';
-import { KIND_ICON, POINT_ICON, SELECT_ICON, BOX_ICON } from './icons.js';
+import { icon, KIND_ICON, POINT_ICON, SELECT_ICON, BOX_ICON, UI_ICON } from '../icons.js';
 
-// drawing (drawing.js); ctx: { icon, units(), bar, frame, measureIcon }; del(ids): delete, asked
+// drawing (drawing.js); ctx: { units(), bar, frame }; del(ids): delete, asked
 // first (the touch row's); fileBtns: the bar's file group (files.js). Returns { press,
 // renderTools, renderTouch }.
 export function createTools(drawing, ctx, { del, fileBtns }) {
-  const { icon } = ctx;
   // the bar's hints: a name and its key, no more (drawing-ui.md says the rest)
   const TOOLS = { point: ['Point'], line: ['Line'], shape: ['Shape'], label: ['Label'], measure: ['Measure'] };
   // the kinds each tool makes, by name. Shape: round a centre, the outlines to scale, the vehicles, the
@@ -43,9 +42,9 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
   drawing.map.getCanvasContainer().addEventListener('pointerdown', () => { if (kindsOpen) { kindsOpen = false; renderKinds(); } }, true);
   // the bar's tools
   const toolBtns = Object.entries(TOOLS).map(([k, [text]]) => h('button', { type: 'button', 'data-tool': k, 'aria-pressed': 'false', 'aria-label': text, title: `${text} (${keyOf(k)})`,
-    onclick: () => press(k), oncontextmenu: (e) => { e.preventDefault(); openKinds(k); } }, icon(...(k === 'measure' ? ctx.measureIcon : KIND_ICON[k]))));
-  const undoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Undo', title: `Undo (${MOD} Z)`, onclick: () => drawing.undo() }, icon('M9 14 4 9l5-5', 'M4 9h10a6 6 0 0 1 0 12h-3'));
-  const redoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Redo', title: `Redo (${MOD} Shift Z)`, onclick: () => drawing.redo() }, icon('m15 14 5-5-5-5', 'M20 9H10a6 6 0 0 0 0 12h3'));
+    onclick: () => press(k), oncontextmenu: (e) => { e.preventDefault(); openKinds(k); } }, icon(...(k === 'measure' ? UI_ICON.ruler : KIND_ICON[k]))));
+  const undoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Undo', title: `Undo (${MOD} Z)`, onclick: () => drawing.undo() }, icon(...UI_ICON.undo));
+  const redoBtn = h('button', { type: 'button', class: 'urbtn', 'aria-label': 'Redo', title: `Redo (${MOD} Shift Z)`, onclick: () => drawing.redo() }, icon(...UI_ICON.redo));
   const sep = () => h('span', { class: 'tsep', 'aria-hidden': 'true' });
   const kindsRow = h('div', { class: 'kinds', role: 'group', hidden: true });
   // Select
@@ -141,7 +140,7 @@ export function createTools(drawing, ctx, { del, fileBtns }) {
       b.setAttribute('aria-pressed', String(on === b.dataset.tool));
       // a tool with kinds shows the one in use (a preset of the user's: the tool's own)
       const k = b.dataset.tool, v = variants(k).length > 1 ? current(k) : null;
-      const paths = (v && POINT_ICON[v]) || (k === 'measure' ? ctx.measureIcon : KIND_ICON[k]);
+      const paths = (v && POINT_ICON[v]) || (k === 'measure' ? UI_ICON.ruler : KIND_ICON[k]);
       if (b.dataset.shows !== String(v)) { b.dataset.shows = String(v); b.querySelector('svg')?.replaceWith(icon(...paths)); }
       b.classList.toggle('haskinds', hasKinds(k));
     }

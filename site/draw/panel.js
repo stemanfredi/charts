@@ -26,19 +26,18 @@ import { fmtArea, fmtDist, fmtElevation, rowsText, plural, distText, UNIT_TEXT, 
 import { fileGroup } from './files.js';
 import { createTools } from './tools.js';
 import { createTree, kindTitle, groupPath, eyeFor, shownName } from './tree.js';
-import { UI_ICON } from './icons.js';
+import { icon, UI_ICON, SYMBOL_ICON } from '../icons.js';
 
 // what Parts calls each kind of part
 const PART_NAME = { circle: 'Circle', sector: 'Sector', ...OUTLINE_NAME };
-const SYMBOL_ICON = { diamond: ['m12 4 8 8-8 8-8-8z'], square: ['M6 6h12v12H6z'], triangle: ['M12 4l9 15H3z'], dot: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'], none: [] };
 const SYMBOL_TITLE = { diamond: 'Diamond', square: 'Square', triangle: 'Triangle', dot: 'Dot', none: 'None' };
 const WIDTH_NAME = { 'aerial-vehicle': 'Span', 'surface-vehicle': 'Beam', 'underwater-vehicle': 'Diameter' }; // a shape's width, as said of each outline
 
-// root: the left panel's Elements tab. ctx: { drawing, map, icon, units() ('km' | 'nm'), known, bar
-// (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), outputs, offlineItem, copyLink(), about(), linkIcon (files.js),
+// root: the left panel's Elements tab. ctx: { drawing, map, units() ('km' | 'nm'), known, bar
+// (the bar, its tools here), props (the right panel: the inspector), frame (frame.js), outputs, offlineItem, copyLink(), about() (files.js),
 // onImport(doc, view) (an imported document, the view it was made in), openDrawing(id), openArea(file), download(text, name), profile(trace) }
 export function drawView(root, ctx) {
-  const { drawing, map, icon } = ctx;
+  const { drawing, map } = ctx;
   const F = fields({ note, units: ctx.units }), { field } = F; // fields.js: each applies on Enter or when left
   // a longitude past ±180° (clicked on a world copy) shown in range, as the file writes it: the field
   // would refuse it back
@@ -52,7 +51,7 @@ export function drawView(root, ctx) {
   const fx = () => facts || computeFacts();
 
   drawing.presets = loadPresets();
-  const files = fileGroup(drawing, ctx, () => icon(...UI_ICON.delete), () => renderTools());
+  const files = fileGroup(drawing, ctx, () => renderTools());
   const tools = createTools(drawing, ctx, { del, fileBtns: files.buttons });
   const { renderTools } = tools;
 
@@ -585,7 +584,7 @@ export function drawView(root, ctx) {
     const doc = drawing.doc;
     const direct = membersOf(doc, id);
     const below = membersOf(doc, id, true).filter((x) => x.kind !== 'group'); // everything in it, its subgroups' too
-    const shownEye = eyeFor(drawing, icon, () => [item(id)], 'members'); // the group's own flag, as its row's eye: one flag hides them all
+    const shownEye = eyeFor(drawing, () => [item(id)], 'members'); // the group's own flag, as its row's eye: one flag hides them all
     shownEye.render();
     // its members as the tree counts them (everything in it, its subgroups' too), and its subgroups
     const allSubs = membersOf(doc, id, true).length - below.length;

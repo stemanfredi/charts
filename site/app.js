@@ -15,7 +15,7 @@ import { profileOf } from './draw/profile.js';
 import { circle } from './geodesy.js';
 import { norm360, norm180, tileXY, TILE, D2R } from './geo.js';
 import { fetchOk, lru } from './net.js';
-import { $, h, svg, typing, NARROW, COMPACT, store, animate } from './dom.js';
+import { $, h, typing, NARROW, COMPACT, store, animate } from './dom.js';
 import { keyEntry, openKey, keyList } from './keys.js';
 import { note } from './menu.js';
 import { createFrame } from './frame.js';
@@ -26,7 +26,7 @@ import { chartCanvas, chartPng } from './png.js';
 import { cmemsValues, emodnetValues, gebcoValues } from './values.js';
 import { tidTile, tidAt } from './gebco.js';
 import { offlineDialog, KEPT_SOURCES, noConnection, onConnection } from './offline.js';
-import { UI_ICON } from './draw/icons.js';
+import { icon, UI_ICON } from './icons.js';
 
 const byId = Object.assign(Object.create(null), Object.fromEntries(ITEMS.map((it) => [it.id, it]))); // no inherited names: the link names items
 // Ocean data: the layers that change with time, chosen in two menus, colours and arrows. An entry
@@ -724,28 +724,13 @@ function itemStatus(id) {
 }
 
 // ---- small builders ---------------------------------------------------------
-// a 20 px line icon (the bar's size; style.css sizes it where it differs) from SVG path data; a path given as [d, colour] is filled in that colour
-const icon = (...paths) => svg('svg', { viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' },
-  paths.map((d) => (Array.isArray(d) ? svg('path', { d: d[0], fill: d[1], stroke: d[1] }) : svg('path', { d }))));
-const ICON = {
-  search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'],
-  plus: ['M12 5v14', 'M5 12h14'], minus: ['M5 12h14'],
-  link: ['M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1', 'M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1'],
-  png: ['M4 5h16v14H4z', 'm4 17 5-5 4 4 3-3 4 4', 'M17 9.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'], // a picture
-  zip: ['M4 4h16v4H4z', 'M5 8v12h14V8', 'M10 12h4'],
-  offline: ['M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20z', 'M12 9v6', 'm9.5 12.5 2.5 2.5 2.5-2.5'], // a map, an arrow into it
-  compass: [['m12 3 4 9h-8z', 'var(--err)'], 'm12 21-4-9h8z'],
-  locate: ['M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z', 'M12 2v3M12 19v3M2 12h3M19 12h3', ['M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'currentColor']], // a dot in sights
-  info: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 11v5', 'M12 8h.01'],
-  ruler: ['M3 17 17 3l4 4L7 21z', 'm7 13 2 2M10 10l2 2M13 7l2 2'],
-};
 // the page's own buttons name their icon: <i data-icon="…">
-for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...ICON[el.dataset.icon]));
+for (const el of document.querySelectorAll('[data-icon]')) el.replaceWith(icon(...UI_ICON[el.dataset.icon]));
 // the frame (frame.js): the bar, the left panel (Elements, Layers), the right one (Properties)
 let drawPanel = null; // the drawing's view (below): told when the frame changes
-const frame = createFrame({ left: $('#side'), right: $('#props'), icon, onChange: () => drawPanel?.render('tool'),
-  tabs: [{ id: 'layers', label: 'Layers', paths: ['m12 3 9 5-9 5-9-5z', 'm3 13 9 5 9-5'], badge: h('span', { class: 'spin', 'aria-hidden': 'true' }), body: $('#menu') },
-    { id: 'elements', label: 'Elements', paths: [['M4 5.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], 'M8 6h13', 'M4 8v2a2 2 0 0 0 2 2h2', 'M4 10v6a2 2 0 0 0 2 2h2', ['M10 11.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], ['M10 17.2a.8.8 0 1 0 0 1.6a.8.8 0 1 0 0-1.6z', 'currentColor'], 'M14 12h7', 'M14 18h7'], body: $('#dview') }] });
+const frame = createFrame({ left: $('#side'), right: $('#props'), onChange: () => drawPanel?.render('tool'),
+  tabs: [{ id: 'layers', label: 'Layers', paths: UI_ICON.layers, badge: h('span', { class: 'spin', 'aria-hidden': 'true' }), body: $('#menu') },
+    { id: 'elements', label: 'Elements', paths: UI_ICON.elements, body: $('#dview') }] });
 // ---- layers panel -----------------------------------------------------------
 const menu = $('#menu');
 const rows = {};
@@ -774,7 +759,7 @@ function infoBlock(it) {
     it.info.url ? h('p', {}, h('a', { href: it.info.url, target: '_blank', rel: 'noopener noreferrer' }, it.info.url.replace(/^https:\/\/(www\.)?/, '').replace(/\/.*$/, ''))) : null);
 }
 function moreButton(label, onclick) {
-  return h('button', { class: 'more', type: 'button', title: 'Source, licence, resolution, opacity', 'aria-label': `About ${label}`, 'aria-expanded': 'false', onclick }, icon(...ICON.info));
+  return h('button', { class: 'more', type: 'button', title: 'Source, licence, resolution, opacity', 'aria-label': `About ${label}`, 'aria-expanded': 'false', onclick }, icon(...UI_ICON.info));
 }
 // a ⓘ's click: its block shown or hidden
 const toggles = (info) => (e) => { info.hidden = !info.hidden; e.currentTarget.setAttribute('aria-expanded', String(!info.hidden)); };
@@ -958,20 +943,20 @@ function renderUnits() {
 
 // ---- the view's outputs, in the bar's Download menu: each says "Preparing…" on itself meanwhile, and
 // how it went in the note (onFrame)
-const output = (id, iconName, text, title, run, more = {}) => h('button', { type: 'button', role: 'menuitem', id, title, onclick: (e) => run(e.currentTarget), ...more }, icon(...ICON[iconName]), h('span', {}, text));
+const output = (id, iconName, text, title, run, more = {}) => h('button', { type: 'button', role: 'menuitem', id, title, onclick: (e) => run(e.currentTarget), ...more }, icon(...UI_ICON[iconName]), h('span', {}, text));
 const outputs = [output('png', 'png', 'Picture (PNG)', 'Download the view as a picture', (b) => exportPng(b)),
   output('zip', 'zip', 'GIS data (ZIP)', 'Download the view as GIS data: a georeferenced picture, GeoJSON, GeoTIFF', (b) => exportZip(b))];
 // last in Download, apart: not a file, the areas kept in this browser
 const offlineItem = output('offline', 'offline', 'Offline areas…', 'Save this view in this browser, to open it without a connection; the areas saved', () => offline.open(), { 'data-closes': '' }); // its dialog: the menu closed
 // Offline areas (offline.js): the dialog that saves the view and lists the areas saved
-const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), icon: (name) => icon(...UI_ICON[name]), download });
+const offline = offlineDialog({ map, fit: ([w, s, e, n]) => map.fitBounds([[w, s], [e, n]], { padding: free() }), download });
 
 // ---- the drawing (draw/panel.js): its tools in the bar, the tree, its properties -------------------
 drawPanel = drawView($('#dview'), {
-  drawing, display, setDisplay, map, icon, known: KNOWN, units: () => display.units,
-  measureIcon: ICON.ruler, free: () => free(), bar: $('#bar'), props: $('#props'), frame,
+  drawing, display, setDisplay, map, known: KNOWN, units: () => display.units,
+  free: () => free(), bar: $('#bar'), props: $('#props'), frame,
   // the bar's file group (draw/files.js): the view's outputs in Download, Copy link, About (a phone's ☰)
-  outputs, offlineItem, copyLink: () => copyLink(), about: () => openAbout(), linkIcon: ICON.link, aboutIcon: ICON.info,
+  outputs, offlineItem, copyLink: () => copyLink(), about: () => openAbout(),
   // a drawing imported, or one of the list, opened with its view: where it was, its layers, time,
   // depth and units
   onImport: (doc, view) => { drawing.saving.add(doc); if (view) applyView(view); },
@@ -1001,7 +986,7 @@ function free() {
 // controls, shown while it is used, gone when left
 const findBtn = $('#b-find'), searchBox = $('#search'); // the lens: first of the map's controls (index.html)
 const openAbout = () => { about.showModal(); showVersion(); };
-const aboutBtn = h('button', { type: 'button', class: 'aboutbtn', 'aria-label': 'About', title: 'About', onclick: openAbout }, icon(...ICON.info));
+const aboutBtn = h('button', { type: 'button', class: 'aboutbtn', 'aria-label': 'About', title: 'About', onclick: openAbout }, icon(...UI_ICON.info));
 frame.rightBtn.before(aboutBtn);
 const placeFind = () => (COMPACT.matches && !NARROW.matches ? document.body.insertBefore(searchBox, $('#bar')) : aboutBtn.before(searchBox));
 COMPACT.addEventListener?.('change', placeFind);
