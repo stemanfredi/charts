@@ -24,7 +24,12 @@ const BASE_BYTES = 50e6;
 export const TOP_MAX = 14; // the base map's tiles stop there; the map magnifies them above
 const CONTOUR_MAX = Math.min(ISOBATH_MAX, DEM_LAND_MAX); // the contours and isobaths stop there (style.js)
 const RANGES = [0, 256, 512, 768, 1024]; // the fonts' characters for Latin, Greek and Cyrillic
-const PACK = 'pack-', MANIFEST = () => new URL('pack.json', document.baseURI).href;
+// an area's cache and its manifest (sw.js names them too: the unit tests check they agree)
+export const PACK = 'pack-', MANIFEST_FILE = 'pack.json';
+const MANIFEST = () => new URL(MANIFEST_FILE, document.baseURI).href;
+const putManifest = (cache, m) => cache.put(MANIFEST(), new Response(JSON.stringify(m), { headers: { 'content-type': 'application/json' } }));
+// a new area's cache, named by the time it was begun (savedAreas: one never finished goes after an hour)
+const newPack = async () => { const id = `${PACK}${Date.now().toString(36)}`; return { id, cache: await caches.open(id) }; };
 const isBaseTile = (url) => url.startsWith(`${HOSTS.openfreemap}/planet/`); // not the fonts, not the description
 const MB = (n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${(n / 1e6).toFixed(n < 1e7 ? 1 : 0)} MB`);
 
@@ -44,10 +49,11 @@ export const baseTiles = (bounds, from, top) => Array.from({ length: Math.max(0,
 // the lowest zoom an area keeps: a few below the view's (lower, the area is a speck, and the
 // world's tiles are the largest)
 export const fromZoom = (viewZoom) => Math.max(0, Math.min(TOP_MAX, Math.floor(viewZoom)) - 3);
-// the map's view as an area: its bounds, cut to the map's world (a view across 180° is cut there)
+// the map's view as an area: its bounds, cut to the map's world (a view across 180° is cut there; a
+// view whose centre is beyond ±180°, a link's, moved by whole turns into the world first)
 export function areaOf(map) {
-  const b = map.getBounds();
-  const w = Math.max(-180, b.getWest()), e = Math.min(180, b.getEast());
+  const b = map.getBounds(), turn = 360 * Math.round((b.getWest() + b.getEast()) / 720);
+  const w = Math.max(-180, b.getWest() - turn), e = Math.min(180, b.getEast() - turn);
   return [w, Math.max(-MAX_LAT, b.getSouth()), e > w ? e : 180, Math.min(MAX_LAT, b.getNorth())];
 }
 
@@ -86,7 +92,7 @@ function freshClipper() {
 async function saveArea({ bounds, from, top, name, fresh = false, signal, progress = () => {} }) {
   if (!sw()) throw new Error('this browser keeps no files for this page');
   if (baseTiles(bounds, from, top) > BASE_TILES) throw new Error(`more than ${BASE_TILES.toLocaleString()} tiles of the base map`);
-  const id = `${PACK}${Date.now().toString(36)}`, cache = await caches.open(id);
+  const { id, cache } = await newPack();
   const get = (url) => fetchOk(url, { signal }).then((r) => r.arrayBuffer());
   let clip = null, timer = 0;
   const stop = () => { clearInterval(timer); clip?.stop(); clip = null; tell({ record: null }); }; // before the cache goes: nothing more put in it
@@ -144,7 +150,7 @@ async function saveArea({ bounds, from, top, name, fresh = false, signal, progre
     if (!tiles) throw new Error('nothing of the base map was kept'); // never an empty area listed (a service worker of an older version, a newer one waiting, keeps nothing)
     if (base > BASE_BYTES || tiles > BASE_TILES) throw new Error(`the base map is over its ${BASE_TILES.toLocaleString()} tiles or ${MB(BASE_BYTES)} here: choose less detail or a smaller view`);
     const manifest = { name, saved: new Date().toISOString(), bounds, from, top, bytes: size };
-    await cache.put(MANIFEST(), new Response(JSON.stringify(manifest), { headers: { 'content-type': 'application/json' } }));
+    await putManifest(cache, manifest);
     return { id, ...manifest };
   } catch (err) {
     stop();
@@ -172,7 +178,7 @@ async function savedAreas() {
 async function deleteArea(id) { await caches.delete(id); tell('packs'); }
 async function renameArea(id, name) {
   const cache = await caches.open(id), manifest = await (await cache.match(MANIFEST())).json();
-  await cache.put(MANIFEST(), new Response(JSON.stringify({ ...manifest, name }), { headers: { 'content-type': 'application/json' } }));
+  await putManifest(cache, { ...manifest, name });
 }
 
 // ---- an area as a file: the copy that outlives the browser's storage, and moves to another device ----
@@ -214,7 +220,7 @@ async function openAreaFile(file) {
   const files = await unzip(file), head = files.get('area.json');
   const area = head && (await head().then((b) => JSON.parse(new TextDecoder().decode(b))).catch(() => null));
   if (!isAreaHead(area)) throw new Error('not an offline area of this page');
-  const id = `${PACK}${Date.now().toString(36)}`, cache = await caches.open(id);
+  const { id, cache } = await newPack();
   try {
     let bytes = 0, tiles = 0;
     for (const f of area.files) {
@@ -228,7 +234,7 @@ async function openAreaFile(file) {
     if (!tiles) throw new Error('nothing of the base map in it');
     const { name, saved, bounds, from, top } = area, manifest = { name: String(name || 'Area'), saved, bounds, from, top, bytes };
     for (const a of await savedAreas()) if (a.saved === saved && String(a.bounds) === String(bounds)) await caches.delete(a.id);
-    await cache.put(MANIFEST(), new Response(JSON.stringify(manifest), { headers: { 'content-type': 'application/json' } }));
+    await putManifest(cache, manifest);
     tell('packs');
     return { id, ...manifest };
   } catch (err) {

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tilesIn, baseTiles, fromZoom, isAreaHead, BASE_TILES, TOP_MAX } from '../../site/offline.js';
+import { readFile } from 'node:fs/promises';
+import { tilesIn, baseTiles, fromZoom, areaOf, isAreaHead, BASE_TILES, TOP_MAX, PACK, MANIFEST_FILE } from '../../site/offline.js';
 
 test('tilesIn: the tiles an area covers at a zoom, a margin of tiles more, clamped to the world', () => {
   assert.deepEqual(tilesIn([-180, -85, 180, 85], 0), [[0, 0, 0]]);
@@ -33,4 +34,17 @@ test('isAreaHead: an area file opened only with its format, a date, an area of t
   assert.ok(isAreaHead(head));
   for (const bad of [{ saved: undefined }, { saved: 'soon' }, { bounds: [9, 44, 10] }, { bounds: [10, 44, 9, 45] }, { bounds: [9, 44, 10, '45'] },
     { from: undefined }, { top: 15 }, { from: 13 }, { files: {} }, { version: 2 }]) assert.ok(!isAreaHead({ ...head, ...bad }), JSON.stringify(bad));
+});
+
+test('areaOf: the view\'s bounds in the world, a centre beyond ±180° (a hand-edited link) moved by whole turns', () => {
+  const view = (w, s, e, n) => ({ getBounds: () => ({ getWest: () => w, getSouth: () => s, getEast: () => e, getNorth: () => n }) });
+  assert.deepEqual(areaOf(view(9, 44, 10, 45)), [9, 44, 10, 45]);
+  assert.deepEqual(areaOf(view(194, 44, 196, 45)), [-166, 44, -164, 45]);
+  assert.deepEqual(areaOf(view(-556, 44, -554, 45)), [164, 44, 166, 45]);
+  assert.deepEqual(areaOf(view(168, -89, 190, 89)), [168, -85.05112878, 180, 85.05112878]); // across 180°: cut there
+});
+
+test('the service worker names the saved areas\' caches and their manifest as the page does', async () => {
+  const sw = await readFile(new URL('../../site/sw.js', import.meta.url), 'utf8');
+  assert.ok(sw.includes(`PACK = '${PACK}'`) && sw.includes(`new URL('${MANIFEST_FILE}', self.registration.scope)`));
 });
