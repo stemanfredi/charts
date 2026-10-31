@@ -33,7 +33,7 @@ jobs:
       - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: npm run data-check      # newer density data shows as a notice
 
-  browser:                           # headless Chrome against the live tile providers
+  browser:                           # headless Chrome against the live tile providers (draw: without them)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -52,6 +52,7 @@ jobs:
       - run: npm run smoke || (echo "::warning title=Retry::smoke passed only on its retry"; sleep 60; npm run smoke)
         env:
           STRICT: ${{ github.event_name == 'schedule' && '1' || '' }} # a run by hand is a redeploy: a provider's outage must not block it
+      - run: npm run draw            # the drawing tools, every request but the site's own aborted: no retry
       - run: npm run ui || (echo "::warning title=Retry::ui passed only on its retry"; sleep 60; npm run ui) # no overlaps, 44 px targets, 390/820/1280 px
       - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: npm run tiles-check     # known trouble spots: seams, zooms, lakes (live data, weekly)

@@ -14,6 +14,7 @@ npm run serve       # http://127.0.0.1:8000, site/ only, caching off (--host 0.0
 npm test            # unit tests, offline (they also check site/vendor/ and the security policy)
 npm run lint        # ESLint's recommended rules
 npm run smoke       # end-to-end in headless Chrome, against the live providers
+npm run draw        # the drawing tools in headless Chrome, the network blocked
 npm run ui          # layout at phone, tablet and desktop widths
 npm run tiles-check # elevation tiles of known trouble spots: seams, zooms, lakes
 npm run perf        # how long the depth layers take to draw
@@ -40,7 +41,10 @@ rule in the code are in a comment next to it, not here.
   libraries and the security policy against `package.json` and `site/hosts.js`.
 - **Smoke** (`test/smoke.mjs`): the page in a browser, in sections that fail
   on their own: layers, time, search, exports compared with the map, the
-  drawing tools, a phone with a finger.
+  elevation profile, the service worker and offline areas.
+- **Drawing** (`test/draw.mjs`): the drawing tools, files and inspector, a
+  phone with a finger; every request but the site's own aborted, so a
+  provider's bad day cannot fail it.
 - **Layout** (`test/ui.mjs`): no overlaps and 44 px targets at three widths.
 - **Tiles** (`test/tiles-check.mjs`): the elevation tiles of places that once
   went wrong, weekly, against live data.
@@ -71,8 +75,8 @@ in its comments.
 
 ## Continuous integration and deploy
 
-`.github/workflows/ci.yml` runs the unit, lint, smoke and layout tests on
-pushes to `main` and on pull requests, and deploys `main` to GitHub Pages when
+`.github/workflows/ci.yml` runs the unit, lint, smoke, drawing and layout
+tests on pushes to `main` and on pull requests, and deploys `main` to GitHub Pages when
 they pass; only `site/` is published, with the commit written into the page
 as its version and into `site/sw.js`. A provider's outage shows as warnings on a push and does not
 hold up a deploy; the weekly run is strict, so an outage that lasts a week is
